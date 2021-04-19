@@ -250,7 +250,13 @@ public class EntityFieldMergers {
                                 + ".  New value to set was " + newValue
                                 + " Exception: " + e);
                     }
-                })).withMethod((fromField, ontoField) -> fromField == null ? ontoField : fromField);
+                })).withMethod((fromField, ontoField) -> {
+                    if (attribute.getIgnoreIfPresent()) {
+                        return ontoField == null ? fromField : ontoField;
+                    } else {
+                        return fromField == null ? ontoField : fromField;
+                    }
+                });
     }
 
     /**

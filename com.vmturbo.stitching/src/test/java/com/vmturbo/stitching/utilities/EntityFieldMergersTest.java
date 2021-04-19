@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.utilities;
 
 import static com.vmturbo.platform.common.builders.EntityBuilders.businessAccount;
+import static com.vmturbo.platform.common.builders.EntityBuilders.reservedInstance;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
@@ -21,9 +22,14 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.builders.ConsumerPolicyBuilder;
+import com.vmturbo.platform.common.builders.ReservedInstanceBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.InstanceTenancy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.OfferingClass;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.OfferingType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.Platform;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
@@ -146,6 +152,11 @@ public class EntityFieldMergersTest {
                         return ImmutableList.of("consumerPolicy");
                     }
 
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return false;
+                    }
+
                 });
 
         final EntityFieldMerger<Object> profileIdMerger = EntityFieldMergers.getAttributeFieldMerger(
@@ -160,6 +171,11 @@ public class EntityFieldMergersTest {
                     @Override
                     public List<String> getMessagePath() {
                         return new ArrayList<>();
+                    }
+
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return false;
                     }
 
                 });
@@ -202,6 +218,11 @@ public class EntityFieldMergersTest {
                     public List<String> getMessagePath() {
                         return Collections.emptyList();
                     }
+
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return false;
+                    }
                 });
 
         final EntityFieldMerger<Object> consistsOfMerger = EntityFieldMergers.getAttributeFieldMerger(
@@ -217,6 +238,11 @@ public class EntityFieldMergersTest {
                     public List<String> getMessagePath() {
                         return Collections.emptyList();
                     }
+
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return false;
+                    }
                 });
 
         // check that displayName of ba1 is not overwritten
@@ -228,6 +254,61 @@ public class EntityFieldMergersTest {
         assertEquals(0, ba1.getEntityBuilder().getConsistsOfCount());
         consistsOfMerger.merge(ba2, ba1);
         assertEquals(2, ba1.getEntityBuilder().getConsistsOfCount());
+    }
+
+    @Test
+    public void testMergeAWSReservedInstanceField() {
+        // RIs discovered from AWS billing probe
+        final String ri1PurchasingAccountId = "123";
+        EntityDTO.Builder ri1EntityDTO = createReservedInstanceBuilder("ri1")
+                .purchasingAccountId(ri1PurchasingAccountId)
+                .build().toBuilder();
+        final String ri2PurchasingAccountId = "456";
+        EntityDTO.Builder ri2EntityDTO = createReservedInstanceBuilder("ri2")
+                .purchasingAccountId(ri2PurchasingAccountId)
+                .build().toBuilder();
+        // RIs discovered from AWS probe
+        final String ri3PurchasingAccountId = "789";
+        EntityDTO.Builder ri3EntityDTO = createReservedInstanceBuilder("ri3")
+                .purchasingAccountId(ri3PurchasingAccountId)
+                .build().toBuilder();
+        EntityDTO.Builder ri4EntityDTO = createReservedInstanceBuilder("ri4")
+                .build().toBuilder();
+
+        StitchingEntity ri1 = new TestStitchingEntity(ri1EntityDTO);
+        StitchingEntity ri2 = new TestStitchingEntity(ri2EntityDTO);
+        StitchingEntity ri3 = new TestStitchingEntity(ri3EntityDTO);
+        StitchingEntity ri4 = new TestStitchingEntity(ri4EntityDTO);
+
+        final EntityFieldMerger<Object> purchasingAccountIdMerger = EntityFieldMergers.getAttributeFieldMerger(
+                new DTOFieldSpec() {
+                    @Nonnull
+                    @Override
+                    public String getFieldName() {
+                        return "purchasingAccountId";
+                    }
+
+                    @Nonnull
+                    @Override
+                    public List<String> getMessagePath() {
+                        return Collections.singletonList("reserved_instance_data");
+                    }
+
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return true;
+                    }
+                });
+
+        // When merging ri1 to ri3, since ri3 already has purchasingAccountId, field will not be overwritten.
+        assertEquals(ri3PurchasingAccountId, ri3.getEntityBuilder().getReservedInstanceData().getPurchasingAccountId());
+        purchasingAccountIdMerger.merge(ri1, ri3);
+        assertEquals(ri3PurchasingAccountId, ri3.getEntityBuilder().getReservedInstanceData().getPurchasingAccountId());
+
+        // When merging ri2 to ri4, since ri4 doesn't have purchasingAccountId, field will be overwritten.
+        assertFalse(ri4.getEntityBuilder().getReservedInstanceData().hasPurchasingAccountId());
+        purchasingAccountIdMerger.merge(ri2, ri4);
+        assertEquals(ri2PurchasingAccountId, ri4.getEntityBuilder().getReservedInstanceData().getPurchasingAccountId());
     }
 
     private EntityDTO.Builder createVirtualVolumeBuilder(String oid,
@@ -242,5 +323,13 @@ public class EntityFieldMergersTest {
                     .map(path -> VirtualVolumeFileDescriptor.newBuilder().setPath(path).build())
                     .collect(Collectors.toList()))
                 .build());
+    }
+
+    private ReservedInstanceBuilder createReservedInstanceBuilder(String riId) {
+        return reservedInstance(riId)
+                .startTime(1l).duration(1l).instanceTenancy(InstanceTenancy.DEFAULT)
+                .offeringClass(OfferingClass.STANDARD).offeringType(OfferingType.ALL_UPFRONT)
+                .platform(Platform.LINUX).numberOfCouponsUsed(0).fixedCost(1).usageCost(1)
+                .recurringCost(0).region("region").instanceCount(1).relatedProfileId("profile");
     }
 }
