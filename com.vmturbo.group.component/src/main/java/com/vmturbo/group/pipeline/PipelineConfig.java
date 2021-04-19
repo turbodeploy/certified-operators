@@ -1,5 +1,13 @@
 package com.vmturbo.group.pipeline;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,6 +44,12 @@ public class PipelineConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${groupSupplementaryInfoIngestionMaxThreadPoolSize:0}")
+    private int groupSupplementaryInfoIngestionMaxThreadPoolSize;
+
+    @Value("${groupSupplementaryInfoIngestionBatchSize:500}")
+    private int groupSupplementaryInfoIngestionBatchSize;
+
     /**
      * Factory for pipelines that update group information.
      *
@@ -47,7 +61,10 @@ public class PipelineConfig {
                 repositoryClientConfig.searchServiceClient(),
                 groupConfig.groupEnvironmentTypeResolver(),
                 groupConfig.groupStore(),
-                groupConfig.groupSeverityCalculator());
+                groupConfig.groupSeverityCalculator(),
+                rpcConfig.transactionProvider(),
+                groupSupplementaryInfoIngestionThreadPool(),
+                groupSupplementaryInfoIngestionBatchSize);
     }
 
     /**
@@ -65,6 +82,23 @@ public class PipelineConfig {
         aoClientConfig.entitySeverityClientCache()
                 .addEntitySeverityClientCacheUpdateListener(groupInfoUpdater);
         return groupInfoUpdater;
+    }
+
+    /**
+     * Thread pool for calculation and ingestion of group supplementary info.
+     *
+     * @return thread pool
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService groupSupplementaryInfoIngestionThreadPool() {
+        if (groupSupplementaryInfoIngestionMaxThreadPoolSize <= 0) {
+            this.groupSupplementaryInfoIngestionMaxThreadPoolSize =
+                    Runtime.getRuntime().availableProcessors();
+        }
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("group-supplementary-info-ingestion-%d").build();
+        return new ThreadPoolExecutor(0, groupSupplementaryInfoIngestionMaxThreadPoolSize, 10L,
+                TimeUnit.SECONDS, new LinkedBlockingQueue(), threadFactory);
     }
 
     /**

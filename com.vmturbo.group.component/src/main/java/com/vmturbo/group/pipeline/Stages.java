@@ -1,7 +1,6 @@
 package com.vmturbo.group.pipeline;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -9,10 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import io.grpc.StatusRuntimeException;
@@ -45,6 +48,7 @@ import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.service.CachingMemberCalculator;
 import com.vmturbo.group.service.CachingMemberCalculator.RegroupingResult;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.group.service.TransactionProvider;
 
 /**
  * A wrapper class for implementations of the various stages of a {@link GroupInfoUpdatePipeline}.
@@ -109,6 +113,12 @@ public class Stages {
 
         private final IGroupStore groupStore;
 
+        private final TransactionProvider transactionProvider;
+
+        private final int batchSize;
+
+        private final ExecutorService executorService;
+
         /**
          * Constructor for the stage.
          *
@@ -117,23 +127,34 @@ public class Stages {
          * @param groupEnvironmentTypeResolver utility class to get group environment.
          * @param severityCalculator calculates severity for groups.
          * @param groupStore used to store the updated info to the database.
+         * @param transactionProvider used to update group supplementary info in a transaction.
+         * @param executorService thread pool for calculations & ingestion.
+         * @param batchSize the maximum number of groups to be processed by each thread during group
+         *                  supplementary info ingestion.
          */
         public StoreSupplementaryGroupInfoStage(@Nonnull CachingMemberCalculator memberCache,
                 @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                 @Nonnull final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
                 @Nonnull final GroupSeverityCalculator severityCalculator,
-                @Nonnull final IGroupStore groupStore) {
+                @Nonnull final IGroupStore groupStore,
+                @Nonnull final TransactionProvider transactionProvider,
+                @Nonnull final ExecutorService executorService,
+                final int batchSize) {
             this.memberCache = memberCache;
             this.searchServiceRpc = searchServiceRpc;
             this.groupEnvironmentTypeResolver = groupEnvironmentTypeResolver;
             this.severityCalculator = severityCalculator;
             this.groupStore = groupStore;
+            this.transactionProvider = transactionProvider;
+            this.executorService = executorService;
+            this.batchSize = batchSize;
         }
 
         @Nonnull
         @Override
-        public Status passthrough(LongSet input) {
-            final StopWatch stopWatch = new StopWatch("storeSupplementaryGroupInfo");
+        public Status passthrough(LongSet input) throws InterruptedException {
+            final StopWatch stopWatch =
+                    new StopWatch("Calculate and store group supplementary info");
             // fetch entity info from repository
             Map<Long, EntityWithOnlyEnvironmentTypeAndTargets> entitiesWithEnvironmentMap =
                     fetchEntitiesWithEnvironment();
@@ -142,58 +163,118 @@ public class Stages {
                         + "be updated.");
             }
             Multimap<Long, Long> discoveredGroups = groupStore.getDiscoveredGroupsWithTargets();
-            Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType =
-                    new EnumMap<>(EnvironmentTypeEnum.EnvironmentType.class);
-            Map<CloudTypeEnum.CloudType, Long> groupCountsByCloudType =
-                    new EnumMap<>(CloudTypeEnum.CloudType.class);
-            Map<Severity, Long> groupCountsBySeverity = new EnumMap<>(Severity.class);
-            // iterate over all groups and calculate supplementary info
-            Collection<GroupSupplementaryInfo> groupsToInsert = new ArrayList<>();
-            stopWatch.start("calculateAndIngestDataToDatabase");
-            try {
-                for (long groupId : input) {
-                    // get group's members
-                    final Set<Long> groupEntities;
-                    try {
-                        groupEntities = memberCache.getGroupMembers(groupStore,
-                                Collections.singleton(groupId), true);
-                    } catch (RuntimeException | StoreOperationException e) {
-                        logger.error("Skipped supplementary info calculation for group with "
-                                + "uuid: " + groupId + " due to failure to retrieve its entities. "
-                                + "Error: ", e);
-                        continue;
+            stopWatch.start("Group Supplementary Info calculation & ingestion");
+            // split the groups into batches and assign each batch to a different thread.
+            int numberOfFailedIngestions = 0;
+            List<Long> inputList = new ArrayList<>(input);
+            List<List<Long>> workloads = Lists.partition(inputList, this.batchSize);
+            logger.trace("Splitting {} groups into {} batches.", input::size, workloads::size);
+            List<Future<SupplementaryInfoIngestionResult>> futures =
+                    new ArrayList<>(workloads.size());
+            for (List<Long> workload : workloads) {
+                futures.add(executorService.submit(() -> calculateAndIngestSupplementaryInfo(
+                        workload, entitiesWithEnvironmentMap, discoveredGroups)));
+            }
+            SupplementaryInfoIngestionResult totalResult = new SupplementaryInfoIngestionResult();
+            for (Future<SupplementaryInfoIngestionResult> future : futures) {
+                try {
+                    SupplementaryInfoIngestionResult result = future.get();
+                    if (result != null) {
+                        totalResult.mergeResult(result);
+                    } else {
+                        numberOfFailedIngestions++;
                     }
-                    // calculate environment type based on members' environment type
-                    GroupEnvironment groupEnvironment =
-                            groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
-                                    groupEntities.stream()
-                                            .map(entitiesWithEnvironmentMap::get)
-                                            .filter(Objects::nonNull)
-                                            .collect(Collectors.toSet()),
-                                    discoveredGroups);
-                    // calculate severity based on members' severity
-                    Severity groupSeverity = severityCalculator.calculateSeverity(groupEntities);
-                    // increment counts
-                    // try to insert 1. if a value is already there, add 1 to it
-                    groupCountsByEnvironmentType.merge(
-                            groupEnvironment.getEnvironmentType(), 1L, Long::sum);
-                    groupCountsByCloudType.merge(groupEnvironment.getCloudType(), 1L, Long::sum);
-                    groupCountsBySeverity.merge(groupSeverity, 1L, Long::sum);
-                    boolean isEmpty = groupEntities.size() == 0;
-                    groupsToInsert.add(new GroupSupplementaryInfo(groupId, isEmpty,
-                            groupEnvironment.getEnvironmentType().getNumber(),
-                            groupEnvironment.getCloudType().getNumber(),
-                            groupSeverity.getNumber()));
+                } catch (ExecutionException e) {
+                    logger.warn("Retrieving the group supplementary info ingestion results from"
+                            + " a worker thread failed. Error: " + e.getCause());
+                    numberOfFailedIngestions++;
                 }
-                // update database records in a batch
-                groupStore.updateBulkGroupSupplementaryInfo(groupsToInsert);
+            }
+            stopWatch.stop();
+            logger.info(stopWatch);
+            if (numberOfFailedIngestions == workloads.size()) {
+                return Status.failed("Group supplementary info ingestion failed.");
+            } else {
+                if (numberOfFailedIngestions > 0) {
+                    logger.warn("Group supplementary info ingestion succeeded only partially. {}"
+                            + " out of {} batches failed.", numberOfFailedIngestions,
+                            workloads.size());
+                }
+                return Status.success(totalResult.toString());
+            }
+        }
+
+        /**
+         * Method executed by worker threads. Calculates and ingests supplementary info for the
+         * given list of groups.
+         *
+         * @param groups the list of groups to calculate and ingest supplementary info for.
+         * @param entitiesWithEnvironmentMap a map containing information about the environment type
+         *                                   of all entities.
+         * @param discoveredGroups a map that contains discovered groups.
+         * @return a {@link SupplementaryInfoIngestionResult} object that contains the result of the
+         *         worker's execution.
+         * @throws InterruptedException if the thread gets interrupted
+         */
+        private SupplementaryInfoIngestionResult calculateAndIngestSupplementaryInfo(
+                final List<Long> groups,
+                final Map<Long, EntityWithOnlyEnvironmentTypeAndTargets> entitiesWithEnvironmentMap,
+                final Multimap<Long, Long> discoveredGroups) throws InterruptedException {
+            final SupplementaryInfoIngestionResult result = new SupplementaryInfoIngestionResult();
+            final Map<Long, GroupSupplementaryInfo> groupsToInsert = new HashMap<>();
+            final StopWatch stopWatch =
+                    new StopWatch("group supplementary info calculation & storage worker");
+            stopWatch.start("Batch's data calculation");
+            // iterate over all groups and calculate supplementary info
+            for (long groupId : groups) {
+                // get group's members
+                final Set<Long> groupEntities;
+                try {
+                    groupEntities = memberCache.getGroupMembers(groupStore,
+                            Collections.singleton(groupId), true);
+                } catch (RuntimeException | StoreOperationException e) {
+                    logger.error("Skipped supplementary info calculation for group with "
+                            + "uuid {} due to failure to retrieve its entities. "
+                            + "Error: ", groupId, e);
+                    continue;
+                }
+                // calculate environment type based on members' environment type
+                GroupEnvironment groupEnvironment =
+                        groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                                groupEntities.stream()
+                                        .map(entitiesWithEnvironmentMap::get)
+                                        .filter(Objects::nonNull)
+                                        .collect(Collectors.toSet()),
+                                discoveredGroups);
+                // calculate severity based on members' severity
+                Severity groupSeverity = severityCalculator.calculateSeverity(groupEntities);
+                // increment counts
+                result.addEnvironmentType(groupEnvironment.getEnvironmentType());
+                result.addCloudType(groupEnvironment.getCloudType());
+                result.addSeverity(groupSeverity);
+                boolean isEmpty = groupEntities.isEmpty();
+                groupsToInsert.put(groupId, new GroupSupplementaryInfo(groupId, isEmpty,
+                        groupEnvironment.getEnvironmentType().getNumber(),
+                        groupEnvironment.getCloudType().getNumber(),
+                        groupSeverity.getNumber()));
+            }
+            stopWatch.stop();
+            stopWatch.start("Batch's data ingestion");
+            // update database records in a batch
+            try {
+                transactionProvider.transaction(stores -> {
+                    stores.getGroupStore().updateBulkGroupSupplementaryInfo(groupsToInsert);
+                    return true;
+                });
+            } catch (StoreOperationException e) {
+                logger.error("Group supplementary info ingestion failed for a batch.", e);
+                logger.trace("List of groups in failed batch: {}", () -> groups);
+                return null;
             } finally {
                 stopWatch.stop();
-                logger.info("Group supplementary info update took "
-                        + stopWatch.getLastTaskTimeMillis() + " ms.");
             }
-            return Status.success(successSummary(groupCountsByEnvironmentType,
-                    groupCountsByCloudType, groupCountsBySeverity));
+            logger.trace(stopWatch::prettyPrint);
+            return result;
         }
 
         /**
@@ -234,33 +315,68 @@ public class Stages {
         }
 
         /**
-         * Creates a small summary of the stage, reporting group counts by environment & cloud type
-         * and severity.
-         *
-         * @param groupCountsByEnvironmentType group counts broken down by environment type.
-         * @param groupCountsByCloudType group counts broken down by cloud type.
-         * @param groupCountsBySeverity group counts broken down by severity.
-         * @return the constructed string message.
+         * Class that holds the results of the execution of a single worker thread that calculates
+         * and ingests supplementary info for a given list of groups.
+         * It contains group counts (broken down by environment type, cloud type and severity) and
+         * execution time for ingestion (in ms).
          */
-        private String successSummary(
-                Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType,
-                Map<CloudTypeEnum.CloudType, Long> groupCountsByCloudType,
-                Map<Severity, Long> groupCountsBySeverity) {
-            StringBuilder result = new StringBuilder();
-            result.append("Group counts by category:\n")
-                    .append("  Environment type:\n");
-            groupCountsByEnvironmentType.forEach((environmentType, count) -> {
-                result.append("    ").append(environmentType).append(" : ").append(count).append("\n");
-            });
-            result.append("  Cloud type:\n");
-            groupCountsByCloudType.forEach((cloudType, count) -> {
-                result.append("    ").append(cloudType).append(" : ").append(count).append("\n");
-            });
-            result.append("  Severity:\n");
-            groupCountsBySeverity.forEach((severity, count) -> {
-                result.append("    ").append(severity).append(" : ").append(count).append("\n");
-            });
-            return result.toString();
+        private static class SupplementaryInfoIngestionResult {
+            private final Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType;
+            private final Map<CloudTypeEnum.CloudType, Long> groupCountsByCloudType;
+            private final Map<Severity, Long> groupCountsBySeverity;
+
+            SupplementaryInfoIngestionResult() {
+                groupCountsByEnvironmentType =
+                        new EnumMap<>(EnvironmentTypeEnum.EnvironmentType.class);
+                groupCountsByCloudType =  new EnumMap<>(CloudTypeEnum.CloudType.class);
+                groupCountsBySeverity = new EnumMap<>(Severity.class);
+            }
+
+            void addEnvironmentType(EnvironmentTypeEnum.EnvironmentType environmentType) {
+                groupCountsByEnvironmentType.merge(environmentType, 1L, Long::sum);
+            }
+
+            void addCloudType(CloudTypeEnum.CloudType cloudType) {
+                groupCountsByCloudType.merge(cloudType, 1L, Long::sum);
+            }
+
+            void addSeverity(Severity severity) {
+                groupCountsBySeverity.merge(severity, 1L, Long::sum);
+            }
+
+            void mergeResult(SupplementaryInfoIngestionResult input) {
+                input.groupCountsByEnvironmentType.forEach((envType, count) ->
+                        this.groupCountsByEnvironmentType.merge(envType, count, Long::sum));
+                input.groupCountsByCloudType.forEach((cloudType, count) ->
+                        this.groupCountsByCloudType.merge(cloudType, count, Long::sum));
+                input.groupCountsBySeverity.forEach((severity, count) ->
+                        this.groupCountsBySeverity.merge(severity, count, Long::sum));
+            }
+
+            /**
+             * Creates a small summary of the stage, reporting group counts by environment & cloud
+             * type and severity.
+             *
+             * @return the constructed string message.
+             */
+            @Override
+            public String toString() {
+                StringBuilder result = new StringBuilder();
+                result.append("Group counts by category:").append(System.lineSeparator());
+                addInfo(groupCountsByEnvironmentType, "Environment Type", result);
+                addInfo(groupCountsByCloudType, "Cloud Type", result);
+                addInfo(groupCountsBySeverity, "Severity", result);
+                return result.toString();
+            }
+
+            private static <T> void addInfo(Map<T, Long> map, String title, StringBuilder sb) {
+                sb.append("  ");
+                sb.append(title);
+                sb.append(":");
+                sb.append(System.lineSeparator());
+                map.forEach((type, count) -> sb.append("    ").append(type).append(" : ")
+                        .append(count).append(System.lineSeparator()));
+            }
         }
     }
 }

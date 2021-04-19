@@ -108,8 +108,10 @@ public class MockGroupStore implements IGroupStore {
     }
 
     @Override
-    public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
-        groups.forEach(g -> groupSupplementaryInfoMap.put(g.getGroupId(), g));
+    public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
+        groups.forEach((groupId, supplementaryInfo) ->
+                groupSupplementaryInfoMap.computeIfPresent(
+                        groupId, (gid, val) -> val = supplementaryInfo));
     }
 
     @Override

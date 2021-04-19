@@ -255,22 +255,38 @@ public class GroupDAO implements IGroupStore {
                 .execute();
     }
 
-    /**
-     * Replaces current GroupSupplementaryInfo data with the ones provided.
-     *
-     * @param groups a collection with information for each group to be inserted.
-     */
-    public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
-        // create upsert statements
+    @Override
+    public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
+        // read records to ensure that they still exist in the database and place locks
+        Collection<Long> existingGroupIds = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                .where(GROUPING.ID.in(groups.keySet()))
+                .fetch()
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toList());
+        // filter out groups that might have been deleted between previous calculations and
+        // ingestion
+        if (existingGroupIds.size() < groups.size()) {
+            Set<Long> skippedGroups = new HashSet<>(groups.keySet());
+            skippedGroups.removeAll(existingGroupIds);
+            logger.info("Skipping {} groups during bulk supplementary info update since they "
+                    + "were not found in the database.", skippedGroups.size());
+            logger.debug("Uuids of the groups that were skipped: {}", () -> skippedGroups);
+        }
+        // create upsert statements only for the groups that exist in the database
         final Collection<Query> upserts = new ArrayList<>();
-        groups.forEach(group -> {
+        existingGroupIds.forEach(groupId -> {
+            GroupSupplementaryInfo gsi = groups.get(groupId);
             upserts.add(dslContext.insertInto(GROUP_SUPPLEMENTARY_INFO)
-                    .set(dslContext.newRecord(GROUP_SUPPLEMENTARY_INFO, group))
+                    .set(dslContext.newRecord(GROUP_SUPPLEMENTARY_INFO, gsi))
                     .onDuplicateKeyUpdate()
-                    .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, group.getEmpty())
-                    .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE, group.getEnvironmentType())
-                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, group.getCloudType())
-                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, group.getSeverity()));
+                    .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, gsi.getEmpty())
+                    .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE, gsi.getEnvironmentType())
+                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, gsi.getCloudType())
+                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, gsi.getSeverity()));
         });
         // update records
         dslContext.batch(upserts).execute();

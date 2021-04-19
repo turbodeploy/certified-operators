@@ -133,10 +133,11 @@ public interface IGroupStore {
 
     /**
      * Updates GroupSupplementaryInfo data in bulk.
+     * Any group whose uuid cannot be found in the database is skipped.
      *
-     * @param groups a collection with information for each group to be updated.
+     * @param groups a map with information for each group to be updated.
      */
-    void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups);
+    void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups);
 
     /**
      * Updates groups' severity data in bulk.
