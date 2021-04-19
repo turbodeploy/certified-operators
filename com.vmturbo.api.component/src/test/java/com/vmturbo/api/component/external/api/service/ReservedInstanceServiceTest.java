@@ -42,6 +42,9 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
@@ -53,7 +56,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesR
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -431,8 +433,8 @@ public class ReservedInstanceServiceTest {
 
         Mockito.when(reservedInstanceBoughtService.getReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest
                         .newBuilder().setAccountFilter(
-                                        Cost.AccountFilter.newBuilder().addAccountId(baOid).setAccountFilterType(
-                                                        Cost.AccountFilter.AccountFilterType.USED_AND_PURCHASED_BY).build()).build()))
+                                        AccountReferenceFilter.newBuilder().addAccountId(baOid).setAccountFilterType(
+                                                        AccountReferenceType.USED_AND_PURCHASED_BY).build()).build()))
                         .thenReturn(getReservedInstanceBoughtByFilterResponse);
 
         final ReservedInstanceSpec riSpec = createRISpec(regionOid, riSpecOid);
@@ -502,8 +504,8 @@ public class ReservedInstanceServiceTest {
 
         Mockito.when(reservedInstanceBoughtService.getReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest
                         .newBuilder().setAccountFilter(
-                                        Cost.AccountFilter.newBuilder().addAccountId(baOid).setAccountFilterType(
-                                                        Cost.AccountFilter.AccountFilterType.USED_AND_PURCHASED_BY).build()).build()))
+                                        AccountReferenceFilter.newBuilder().addAccountId(baOid).setAccountFilterType(
+                                                AccountReferenceType.USED_AND_PURCHASED_BY).build()).build()))
                         .thenReturn(getReservedInstanceBoughtByFilterResponse);
 
         final ReservedInstanceSpec riSpec = createRISpec(regionOid, riSpecOid);
@@ -695,9 +697,9 @@ public class ReservedInstanceServiceTest {
         final GetReservedInstanceBoughtByFilterRequest riBoughtByFilterGroupScopeRequest =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder().setRegionFilter(
                                         RegionFilter.newBuilder().addRegionId(regionOid).build())
-                                        .setAccountFilter(Cost.AccountFilter.newBuilder()
+                                        .setAccountFilter(AccountReferenceFilter.newBuilder()
                                                         .setAccountFilterType(
-                                                                        Cost.AccountFilter.AccountFilterType.USED_AND_PURCHASED_BY)
+                                                                AccountReferenceType.USED_AND_PURCHASED_BY)
                                                         .addAccountId(baOid).build()).build();
         Mockito.when(reservedInstanceBoughtService.getReservedInstanceBoughtByFilter(riBoughtByFilterGroupScopeRequest))
                         .thenReturn(getReservedInstanceBoughtByFilterResponse);
@@ -821,9 +823,9 @@ public class ReservedInstanceServiceTest {
         final GetReservedInstanceBoughtByFilterRequest riBoughtByFilterGroupScopeRequest =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder().setRegionFilter(
                                         RegionFilter.newBuilder().addRegionId(regionOid).build())
-                                        .setAccountFilter(Cost.AccountFilter.newBuilder()
+                                        .setAccountFilter(AccountReferenceFilter.newBuilder()
                                                         .setAccountFilterType(
-                                                                        Cost.AccountFilter.AccountFilterType.USED_AND_PURCHASED_BY)
+                                                                AccountReferenceType.USED_AND_PURCHASED_BY)
                                                         .addAccountId(baOid).build()).build();
         Mockito.when(reservedInstanceBoughtService.getReservedInstanceBoughtByFilter(riBoughtByFilterGroupScopeRequest))
                         .thenReturn(getReservedInstanceBoughtByFilterResponse);

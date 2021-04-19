@@ -24,7 +24,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;

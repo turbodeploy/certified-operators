@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.reserved.instance;
 import static com.vmturbo.cost.component.db.Tables.BUY_RESERVED_INSTANCE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -20,16 +19,15 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -39,7 +37,6 @@ import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
@@ -148,7 +145,7 @@ public class BuyReservedInstanceStoreTest {
     public void testGetBuyRIs_filterByAccount() {
         insertOldBuyRIRecords();
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
-                .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
+                .newBuilder().setAccountFilter(AccountReferenceFilter.newBuilder().addAccountId(456L).build()).build();
         final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
                         .setAccountFilter(request.getAccountFilter()).build();
         Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
@@ -163,7 +160,7 @@ public class BuyReservedInstanceStoreTest {
     public void testAggregatedAmortizedCosts_filterByAccount() {
         insertOldBuyRIRecords();
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
-                        .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
+                        .newBuilder().setAccountFilter(AccountReferenceFilter.newBuilder().addAccountId(456L).build()).build();
         final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
                         .setAccountFilter(request.getAccountFilter()).build();
         final Result<BuyReservedInstanceRecord> fetch =

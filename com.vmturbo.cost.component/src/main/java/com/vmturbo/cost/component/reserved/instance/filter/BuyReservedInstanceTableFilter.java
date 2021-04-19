@@ -10,8 +10,8 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.cost.component.db.Tables;
 
 /**
@@ -30,7 +30,7 @@ public abstract class BuyReservedInstanceTableFilter {
 
     private final RegionFilter regionFilter;
 
-    private final AccountFilter accountFilter;
+    private final AccountReferenceFilter accountFilter;
 
     //List of BuyRI IDs.
     private final List<Long> buyRIIdList;
@@ -43,13 +43,13 @@ public abstract class BuyReservedInstanceTableFilter {
      * @param topologyContextId long value indicating Topology Context ID.
      * @param regionFilter A {@link RegionFilter}, used to filter Buy RI instance by region OID, if
      *                     the filter list is set
-     * @param accountFilter A {@link AccountFilter}, used to filter Buy RI instances by account OID,
+     * @param accountFilter A {@link AccountReferenceFilter}, used to filter Buy RI instances by account OID,
      *                      if the filter list is set
      * @param buyRIIdList List of Buy RI IDs.
      */
     protected BuyReservedInstanceTableFilter(boolean hasTopologyContextId, long topologyContextId,
                                              @Nonnull RegionFilter regionFilter,
-                                             @Nonnull AccountFilter accountFilter,
+                                             @Nonnull AccountReferenceFilter accountFilter,
                                              @Nonnull List<Long> buyRIIdList) {
         this.hasTopologyContextId = hasTopologyContextId;
         this.topologyContextId = topologyContextId;
@@ -105,7 +105,7 @@ public abstract class BuyReservedInstanceTableFilter {
         protected boolean hasTopologyContextId = false;
         protected long topologyContextId = 0L;
         protected RegionFilter regionFilter = RegionFilter.getDefaultInstance();
-        protected AccountFilter accountFilter = AccountFilter.getDefaultInstance();
+        protected AccountReferenceFilter accountFilter = AccountReferenceFilter.getDefaultInstance();
         protected final List<Long> buyRIIdList = new ArrayList<>();
 
         AbstractBuilder() {}
@@ -146,9 +146,9 @@ public abstract class BuyReservedInstanceTableFilter {
          * @return Builder for this class.
          */
         @Nonnull
-        public U setAccountFilter(@Nullable AccountFilter accountFilter) {
+        public U setAccountFilter(@Nullable AccountReferenceFilter accountFilter) {
             this.accountFilter = Optional.ofNullable(accountFilter)
-                    .orElseGet(AccountFilter::getDefaultInstance);
+                    .orElseGet(AccountReferenceFilter::getDefaultInstance);
             return (U)this;
         }
 

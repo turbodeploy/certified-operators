@@ -14,11 +14,11 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.RiFilter;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
@@ -111,8 +111,8 @@ public class PlanReservedInstanceClient {
                                 // Filter for RIs purchased by the accounts in the same billing family (AWS)
                                 // or in the same Azure EA account.
                                 Set<Long> relatedAccounts = repositoryClient.getAllRelatedBusinessAccountOids(accountOid);
-                                requestBuilder.setAccountFilter(AccountFilter.newBuilder()
-                                        .setAccountFilterType(AccountFilterType.PURCHASED_BY)
+                                requestBuilder.setAccountFilter(AccountReferenceFilter.newBuilder()
+                                        .setAccountFilterType(AccountReferenceType.PURCHASED_BY)
                                         .addAllAccountId(relatedAccounts).build());
                                 logger.info("Plan {} will use RIs bought by the following accounts: {}",
                                         topologyContextId, relatedAccounts);

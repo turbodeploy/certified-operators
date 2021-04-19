@@ -32,6 +32,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -39,7 +40,6 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.Stat
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
