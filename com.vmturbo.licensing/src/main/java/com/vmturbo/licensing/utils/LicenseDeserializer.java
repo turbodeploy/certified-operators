@@ -64,7 +64,7 @@ public class LicenseDeserializer {
             "http://xml.org/sax/features/external-general-entities";
 
     /**
-     * Deserialize three flavors of licenses to LicenseApiDTO.
+     * Deserialize 4 flavors of licenses to LicenseDTO.
      * - turbo license xml v1
      * - turbo license xml v2
      * - CWOM license flexlm
@@ -128,6 +128,13 @@ public class LicenseDeserializer {
             TurboLicense.Builder bldr = TurboLicense.newBuilder().setLicenseOwner(
                     xmlDto.getFirstName() + " " + xmlDto.getLastName());
             setIfNotNull(xmlDto.getEmail(), bldr::setEmail);
+            // Using a default value instead of leaving the field unset here will allow us to
+            // distinguish between cases where a newly installed license doesn't have the customer
+            // ID vs cases where a previously saved DTO that didn't have the ID is migrated.
+            // This customer ID is only intended to be sent as-is with telemetry data.
+            bldr.setCustomerId(xmlDto.getCustomerId() == null
+                ? "missing from license file"
+                : xmlDto.getCustomerId());
             setIfNotNull(xmlDto.getExpirationDate(), bldr::setExpirationDate);
             setIfNotNull(xmlDto.getFeatures(), bldr::addAllFeatures);
             setIfNotNull(xmlDto.getCountedEntity(), e -> bldr.setCountedEntity(e.name()));
@@ -306,6 +313,13 @@ public class LicenseDeserializer {
         private String firstName;
         private String lastName;
         private String email;
+        /**
+         * The SalesForce ID uniquely identifying the customer.
+         *
+         * <p>It corresponds to the "id" entity in the XML license.</p>
+         */
+        private String customerId;
+
         private CountedEntity countedEntity;
         private int numSockets = 0;
         private int vmTotal = 0;
@@ -342,6 +356,16 @@ public class LicenseDeserializer {
 
         public LicenseXmlDTO setEmail(final String email) {
             this.email = email;
+            return this;
+        }
+
+        @JacksonXmlProperty(localName = "id")
+        public String getCustomerId() {
+            return customerId;
+        }
+
+        public LicenseXmlDTO setCustomerId(final String customerId) {
+            this.customerId = customerId;
             return this;
         }
 

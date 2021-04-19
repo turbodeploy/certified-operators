@@ -23,6 +23,10 @@ message LicenseDTO {
         optional string license_owner = 10;
         optional string email = 12;
 
+        // The SalesForce ID uniquely identifying the customer. It corresponds to the "id" entity in
+        // the XML license.
+        optional string customer_id = 13 [default = "missing from license DTO"];
+
         optional string edition = 15;
 
         optional string license_key = 20;
@@ -45,7 +49,7 @@ message LicenseDTO {
 
 
         // These two fields remain to allow interpreting the old LicenseDTO format as a
-        // TurboLicense.
+        // TurboLicense. That's to migrate old LicenseDTOs stored in consul.
         optional string __deprecated_uuid = 1 [deprecated = true];
         optional string __deprecated_filename = 16 [deprecated = true];
     }
