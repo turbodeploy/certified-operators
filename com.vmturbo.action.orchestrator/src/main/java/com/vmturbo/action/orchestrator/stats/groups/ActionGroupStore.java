@@ -273,8 +273,12 @@ public class ActionGroupStore {
                     Integer riskId = record.value6();
                     String riskDescription = record.value7();
                     riskIdsByActionGroupId.put(actionGroupId, riskId);
-                    risksByRiskId.computeIfAbsent(riskId, k -> new HashSet<>())
-                            .add(riskDescription);
+                    // Action groups recorded before the action_risk column was added will not
+                    // have a risk description.
+                    if (riskDescription != null) {
+                        risksByRiskId.computeIfAbsent(riskId, k -> new HashSet<>()).add(
+                                riskDescription);
+                    }
                     keyBuildersById.computeIfAbsent(actionGroupId, k -> getKeyBuilder(record));
                 });
 

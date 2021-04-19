@@ -5,6 +5,7 @@ import static com.vmturbo.action.orchestrator.db.Tables.RELATED_RISK_DESCRIPTION
 import static com.vmturbo.action.orchestrator.db.Tables.RELATED_RISK_FOR_ACTION;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,6 +33,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.db.Action;
+import com.vmturbo.action.orchestrator.db.Tables;
+import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -308,6 +311,28 @@ public class ActionGroupStoreTest {
             is(matchingActionGroup));
         assertThat(matchedActionGroups.specificActionGroupsById().get(otherMatchingActionGroup.id()),
             is(otherMatchingActionGroup));
+    }
+
+    /**
+     * Old records may not have the "risk" column set.
+     * Ensure that we handle those rows properly.
+     */
+    @Test
+    public void testRetrieveEmptyRisk() {
+        ActionGroupRecord actionGroupRecord = dsl.newRecord(ACTION_GROUP);
+        actionGroupRecord.setActionCategory((short)1);
+        actionGroupRecord.setActionMode((short)1);
+        actionGroupRecord.setActionState((short)1);
+        actionGroupRecord.setActionType((short)1);
+        // No risk id.
+        actionGroupRecord.store();
+
+        final MatchedActionGroups matchedGroups =
+                actionGroupStore.query(ActionGroupFilter.getDefaultInstance()).get();
+        ActionGroup actionGroup = matchedGroups.specificActionGroupsById().values().iterator().next();
+        Set<String> risks = actionGroup.key().getActionRelatedRisk();
+        assertThat(risks.size(), is(1));
+        assertThat(risks.iterator().next(), containsString("N/A for actions"));
     }
 
     /**
