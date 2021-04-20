@@ -154,6 +154,9 @@ message TypeSpecificInfo {
 
         // Flag to indicate RI support status.
         optional bool riSupported = 4;
+
+        // Account type: Standard, Government_US, etc.
+        optional common_dto.EntityDTO.BusinessAccountData.AccountType account_type = 6;
     }
 
     // Specific data for region

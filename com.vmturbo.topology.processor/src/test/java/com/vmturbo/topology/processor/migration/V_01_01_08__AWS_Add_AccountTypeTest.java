@@ -3,8 +3,8 @@ package com.vmturbo.topology.processor.migration;
 import static com.vmturbo.topology.processor.migration.V_01_00_05__Standalone_AWS_Billing.FIELD_ACCOUNT_DEFINITION;
 import static com.vmturbo.topology.processor.migration.V_01_00_05__Standalone_AWS_Billing.FIELD_TARGET_INFO;
 import static com.vmturbo.topology.processor.migration.V_01_01_08__AWS_Add_AccountType.ACCOUNT_TYPE;
-import static com.vmturbo.topology.processor.migration.V_01_01_08__AWS_Add_AccountType.ACCOUNT_VALUE_GOVCLOUD_US;
 import static com.vmturbo.topology.processor.migration.V_01_01_08__AWS_Add_AccountType.ACCOUNT_VALUE_STANDARD;
+import static com.vmturbo.topology.processor.migration.V_01_01_08__AWS_Add_AccountType.ACCOUNT_VALUE_US_GOVERNMENT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -168,7 +168,7 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
                 for (int j = 0; j < jsonArray.size(); j++) {
                     allowedAccountTypes.add(jsonArray.get(j).getAsString());
                 }
-                assertThat(allowedAccountTypes, containsInAnyOrder(ACCOUNT_VALUE_STANDARD, ACCOUNT_VALUE_GOVCLOUD_US));
+                assertThat(allowedAccountTypes, containsInAnyOrder(ACCOUNT_VALUE_STANDARD, ACCOUNT_VALUE_US_GOVERNMENT));
                 return true;
             }
         }
@@ -219,7 +219,7 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
     /**
      * Fake KeyValueStore used for testing AWS probes and targets migration.
      */
-    public class FakeKeyValueStore implements KeyValueStore {
+    public static class FakeKeyValueStore implements KeyValueStore {
         Map<String, String> map;
 
         FakeKeyValueStore(Map<String, String> map) {
