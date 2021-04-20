@@ -40,11 +40,21 @@ public class LicenseDeserializerTest {
 
     @Before
     public void setUp() throws Exception {
-        turboLicenseV1 = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_license_v1.xml"), "UTF-8");
-        turboLicenseV2 = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_license_v2.xml"), "UTF-8");
-        cwomLicense1 = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_cwom_premier_license_1.lic"), "UTF-8");
-        cwomLicense2 = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_cwom_premier_license_2.lic"), "UTF-8");
-        grafanaLicense = IOUtils.toString(getClass().getResourceAsStream("grafana.jwt"), "UTF-8");
+        turboLicenseV1 = IOUtils.toString(
+            getClass().getResourceAsStream("LicenseDeserializationTest_license_v1.xml"),
+            StandardCharsets.UTF_8);
+        turboLicenseV2 = IOUtils.toString(
+            getClass().getResourceAsStream("LicenseDeserializationTest_license_v2.xml"),
+            StandardCharsets.UTF_8);
+        cwomLicense1 = IOUtils.toString(
+            getClass().getResourceAsStream("LicenseDeserializationTest_cwom_premier_license_1.lic"),
+            StandardCharsets.UTF_8);
+        cwomLicense2 = IOUtils.toString(
+            getClass().getResourceAsStream("LicenseDeserializationTest_cwom_premier_license_2.lic"),
+            StandardCharsets.UTF_8);
+        grafanaLicense = IOUtils.toString(
+            getClass().getResourceAsStream("grafana.jwt"),
+            StandardCharsets.UTF_8);
     }
 
     /**
@@ -57,13 +67,14 @@ public class LicenseDeserializerTest {
 
         ExternalLicense externalLicense = license.getExternal();
         DecodedJWT decoded = JWT.decode(grafanaLicense);
-        assertThat(externalLicense.getExpirationDate(), is(DateTimeUtil.formatDate(decoded.getExpiresAt())));
+        assertThat(externalLicense.getExpirationDate(),
+                is(DateTimeUtil.formatDate(decoded.getExpiresAt())));
         assertThat(externalLicense.getPayload(), is(grafanaLicense));
         assertThat(license.getFilename(), is("grafana.jwt"));
     }
 
     @Test
-    public void deserialize_should_create_a_LicenseApiInputDTO_from_turbo_license_v1_XML() throws Exception {
+    public void deserialize_should_create_a_LicenseApiInputDTO_from_turbo_license_v1_XML() {
         // WHEN
         LicenseDTO license = LicenseDeserializer.deserialize(turboLicenseV1, "license.xml");
         assertThat(license.getTypeCase(), is(TypeCase.TURBO));
@@ -82,15 +93,20 @@ public class LicenseDeserializerTest {
         assertEquals("1944c723f8bcaf1ed6831a4f9d865794", turboLicense.getLicenseKey());
         assertEquals(25, turboLicense.getFeaturesList().size());
 
-        String features = turboLicense.getFeaturesList().stream().collect(Collectors.joining(","));
-        assertEquals("active_directory,aggregation,app_control,applications,automated_actions,cloud_cost,cloud_targets,cluster_flattening,container_control,custom_reports,customized_views,deploy,fabric,full_policy,group_editor,historical_data,loadbalancer,multiple_vc,network_control,optimizer,planner,public_cloud,scoped_user_view,storage,vmturbo_api", features);
+        String features = String.join(",", turboLicense.getFeaturesList());
+        assertEquals("active_directory,aggregation,app_control,applications,automated_actions,"
+                + "cloud_cost,cloud_targets,cluster_flattening,container_control,custom_reports,"
+                + "customized_views,deploy,fabric,full_policy,group_editor,historical_data,"
+                + "loadbalancer,multiple_vc,network_control,optimizer,planner,public_cloud,"
+                + "scoped_user_view,storage,vmturbo_api",
+            features);
 
         // this will fail on 2050-01-31
         assertEquals(0, LicenseUtil.validate(LicenseUtil.toModel(license).get()).size());
     }
 
     @Test
-    public void deserialize_should_create_a_LicenseApiInputDTO_from_turbo_license_v2_XML() throws Exception {
+    public void deserialize_should_create_a_LicenseApiInputDTO_from_turbo_license_v2_XML() {
         // WHEN
         LicenseDTO license = LicenseDeserializer.deserialize(turboLicenseV2, "license.xml");
         assertThat(license.getTypeCase(), is(TypeCase.TURBO));
@@ -109,15 +125,21 @@ public class LicenseDeserializerTest {
         assertEquals("92001124fe07e4f7d0f24cb27bf7c215", turboLicense.getLicenseKey());
         assertEquals(30, turboLicense.getFeaturesList().size());
 
-        String features = turboLicense.getFeaturesList().stream().collect(Collectors.joining(","));
-        assertEquals("API2,SLA,action_script,active_directory,aggregation,app_control,applications,automated_actions,cloud_targets,cluster_flattening,container_control,custom_policies,custom_reports,customized_views,deploy,fabric,full_policy,group_editor,historical_data,loadbalancer,multiple_vc,network_control,optimizer,planner,public_cloud,scaling,scoped_user_view,storage,vdi_control,vmturbo_api", features);
+        String features = String.join(",", turboLicense.getFeaturesList());
+        assertEquals("API2,SLA,action_script,active_directory,aggregation,app_control,"
+                + "applications,automated_actions,cloud_targets,cluster_flattening,"
+                + "container_control,custom_policies,custom_reports,customized_views,deploy,fabric,"
+                + "full_policy,group_editor,historical_data,loadbalancer,multiple_vc,"
+                + "network_control,optimizer,planner,public_cloud,scaling,scoped_user_view,storage,"
+                + "vdi_control,vmturbo_api",
+            features);
 
         // this will fail on 2022-08-18
         assertEquals(0, LicenseUtil.validate(LicenseUtil.toModel(license).get()).size());
     }
 
     @Test
-    public void deserialize_should_create_a_LicenseApiInputDTO_from_cwom_license() throws Exception {
+    public void deserialize_should_create_a_LicenseApiInputDTO_from_cwom_license() {
         // WHEN
         LicenseDTO license = LicenseDeserializer.deserialize(cwomLicense1, "license.lic");
         assertThat(license.getTypeCase(), is(TypeCase.TURBO));
@@ -133,12 +155,14 @@ public class LicenseDeserializerTest {
         assertEquals("2018-02-07", turboLicense.getExpirationDate());
         assertEquals("CWOM_PREMIER", turboLicense.getEdition());
         assertEquals("license.lic", license.getFilename());
-        assertEquals("1574 51BC 4532 582A C2EC 505B 4A2C 7920 8F1D 3BBD ADE8 34C3 1E90 5E52 C1EF 0778 F120 8312 D27B 7182 A54D 8756 5CCF 5FEF 9FA7 5891 5AA6 868A A61D 3B71", turboLicense.getExternalLicenseKey());
+        assertEquals("1574 51BC 4532 582A C2EC 505B 4A2C 7920 8F1D 3BBD ADE8 34C3 1E90 5E52 C1EF "
+                    + "0778 F120 8312 D27B 7182 A54D 8756 5CCF 5FEF 9FA7 5891 5AA6 868A A61D 3B71",
+            turboLicense.getExternalLicenseKey());
         assertEquals("0f3d667ce289b60e22f40d7835f8fe6b", turboLicense.getLicenseKey());
         assertEquals(31, turboLicense.getFeaturesList().size());
 
-        String features = turboLicense.getFeaturesList().stream().collect(Collectors.joining(","));
-        String expectedFeatures = CWOMLicenseEdition.CWOM_PREMIER.getFeatures().stream().collect(Collectors.joining(","));
+        String features = String.join(",", turboLicense.getFeaturesList());
+        String expectedFeatures = String.join(",", CWOMLicenseEdition.CWOM_PREMIER.getFeatures());
         assertEquals(expectedFeatures, features);
 
         ILicense model = LicenseUtil.toModel(license).get();
@@ -149,7 +173,8 @@ public class LicenseDeserializerTest {
     }
 
     @Test
-    public void deserialize_should_generate_different_turbo_license_keys_for_similar_cwom_licenses() throws Exception {
+    public void
+            deserialize_should_generate_different_turbo_license_keys_for_similar_cwom_licenses() {
         // GIVEN
         LicenseDTO license1 = LicenseDeserializer.deserialize(cwomLicense1, "license1.lic");
         LicenseDTO license2 = LicenseDeserializer.deserialize(cwomLicense2, "license2.lic");
@@ -163,28 +188,34 @@ public class LicenseDeserializerTest {
         // WHEN
         assertEquals(turboLicense1.getExpirationDate(), turboLicense2.getExpirationDate());
         assertEquals(turboLicense1.getEmail(), turboLicense2.getEmail());
-        assertEquals(turboLicense1.getNumLicensedEntities(), turboLicense2.getNumLicensedEntities());
+        assertEquals(turboLicense1.getNumLicensedEntities(),
+                    turboLicense2.getNumLicensedEntities());
         assertEquals(turboLicense1.getCountedEntity(), turboLicense2.getCountedEntity());
-        assertTrue(LicenseUtil.equalFeatures(turboLicense1.getFeaturesList(), turboLicense2.getFeaturesList()));
-        assertNotEquals(turboLicense1.getExternalLicenseKey(), turboLicense2.getExternalLicenseKey());
+        assertTrue(LicenseUtil.equalFeatures(turboLicense1.getFeaturesList(),
+                                            turboLicense2.getFeaturesList()));
+        assertNotEquals(turboLicense1.getExternalLicenseKey(),
+                        turboLicense2.getExternalLicenseKey());
 
         // THEN
         assertNotEquals(turboLicense1.getLicenseKey(), turboLicense2.getLicenseKey());
     }
 
     @Test
-    public void deserialize_should_return_a_license_with_inavlid_context_type_when_bogus_content() throws Exception {
+    public void deserialize_should_return_a_license_with_invalid_context_type_when_bogus_content() {
         LicenseDTO licenseApiDTO = LicenseDeserializer.deserialize("foo-bar", "license1.lic");
-        assertEquals(ErrorReason.INVALID_CONTENT_TYPE.name(), Iterables.get(licenseApiDTO.getTurbo().getErrorReasonList(), 0));
+        assertEquals(ErrorReason.INVALID_CONTENT_TYPE.name(),
+                    Iterables.get(licenseApiDTO.getTurbo().getErrorReasonList(), 0));
     }
 
     /**
      * Verify that the counted entity type is set to "VM" even if vm-total is set to zero.
-     * @throws IOException
+     * @throws IOException If the test input can't be loaded from disk.
      */
     @Test
     public void testDeserializeXmlLicenseWith0VM() throws IOException {
-        String licenseXMLWith0VMTotal = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_license_0vm.xml"), "UTF-8");
+        String licenseXMLWith0VMTotal = IOUtils.toString(
+            getClass().getResourceAsStream("LicenseDeserializationTest_license_0vm.xml"),
+            StandardCharsets.UTF_8);
         LicenseDTO license = LicenseDeserializer.deserialize(licenseXMLWith0VMTotal, "license.xml");
         assertTrue(license.hasTurbo());
         assertEquals(CountedEntity.VM.name(), license.getTurbo().getCountedEntity());
