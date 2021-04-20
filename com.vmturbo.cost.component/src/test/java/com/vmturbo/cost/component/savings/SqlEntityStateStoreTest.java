@@ -3,6 +3,8 @@ package com.vmturbo.cost.component.savings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.AdditionalMatchers.gt;
+import static org.mockito.AdditionalMatchers.leq;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,6 +40,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
@@ -104,7 +108,7 @@ public class SqlEntityStateStoreTest {
         List<EntityCloudScope> scopeEntries = cloudScopeStore.streamAll().collect(Collectors.toList());
         assertEquals(0, scopeEntries.size());
 
-        TopologyEntityCloudTopology cloudTopology = getCloudTopology();
+        TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
         store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
                 cloudTopology);
 
@@ -178,6 +182,35 @@ public class SqlEntityStateStoreTest {
     }
 
     /**
+     * Test the scenario where the entity is not in the topology (e.g. deleted) but it has a record
+     * in the scope table. In this case, verify the state of the deleted entity is still updated.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testGetScopeRecordsForDeletedEntities() throws Exception {
+        // Insert states into store. Start with 11 states - 1 to 10 and 5000.
+        Set<EntityState> stateSet = new HashSet<>();
+        for (long i = 1; i <= 10; i++) {
+            stateSet.add(createState(i));
+        }
+        stateSet.add(createState(5000L));
+
+        // The topology only contains entities with OID less than 1000.
+        TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
+
+        long entityOidInScopeTableButNotInTopology = 5000L;
+        EntityCloudScopeRecord r1 = createEntityCloudScopeRecord(entityOidInScopeTableButNotInTopology,
+                12345L, 12345L, 12345L, 12345L, 12345L);
+        dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r1).execute();
+        store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
+                cloudTopology);
+
+        List<EntityState> states = store.getAllEntityStates().collect(Collectors.toList());
+        assertEquals(11, states.size());
+    }
+
+    /**
      * Create an entity state that has missed savings having the same value as entity ID.
      *
      * @param entityId entity OID
@@ -189,7 +222,16 @@ public class SqlEntityStateStoreTest {
         return state;
     }
 
-    public static TopologyEntityCloudTopology getCloudTopology() {
+    /**
+     * Create a mock of a cloud topology. This mock will return the entity and related entities
+     * given an entity OID. If the entity OID is above the maxOidNumber specified in the parameter,
+     * it will return Optional.empty() to simulate the fact that the entity requested is not in the
+     * topology.
+     *
+     * @param maxOidNumber maximum entity OID in topology
+     * @return a mock object for the cloud topology
+     */
+    public static TopologyEntityCloudTopology getCloudTopology(long maxOidNumber) {
         final OS osInfo = OS.newBuilder().setGuestOsName("Linux").setGuestOsType(OSType.LINUX).build();
         final VirtualMachineInfo info = VirtualMachineInfo.newBuilder().setGuestOsInfo(osInfo)
                 .setTenancy(Tenancy.DEFAULT).setBillingType(VMBillingType.ONDEMAND).build();
@@ -208,7 +250,8 @@ public class SqlEntityStateStoreTest {
         // The same VM TopologyEntityDTO is returned for all VM OIDs because this call is to
         // get the entity type only.
         TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
-        when(cloudTopology.getEntity(anyLong())).thenReturn(Optional.of(vm1));
+        when(cloudTopology.getEntity(leq(maxOidNumber))).thenReturn(Optional.of(vm1));
+        when(cloudTopology.getEntity(gt(maxOidNumber))).thenReturn(Optional.empty());
 
         final TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.SERVICE_PROVIDER_VALUE).setOid(9999L).build();
@@ -240,5 +283,19 @@ public class SqlEntityStateStoreTest {
                 .build();
         when(cloudTopology.getResourceGroup(anyLong())).thenReturn(Optional.of(resourceGroup));
         return cloudTopology;
+    }
+
+    private EntityCloudScopeRecord createEntityCloudScopeRecord(Long entityOid, Long accountOid,
+            Long regionOid, Long availabilityZoneOid, Long serviceProviderOid, Long resourceGroupOid) {
+        EntityCloudScopeRecord record = new EntityCloudScopeRecord();
+        record.setAccountOid(accountOid);
+        record.setEntityOid(entityOid);
+        record.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+        record.setRegionOid(regionOid);
+        record.setAvailabilityZoneOid(availabilityZoneOid);
+        record.setServiceProviderOid(serviceProviderOid);
+        record.setResourceGroupOid(resourceGroupOid);
+        record.setCreationTime(LocalDateTime.now());
+        return record;
     }
 }
