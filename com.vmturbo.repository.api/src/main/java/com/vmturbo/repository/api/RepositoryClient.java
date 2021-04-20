@@ -547,10 +547,12 @@ public class RepositoryClient {
     /**
      * Get entities of the given entity types.
      *
+     * @param realtimeTopologyContextId realtime topology ID
      * @param entityTypes list of entity types
      * @return stream of entities
      */
-    public Stream<TopologyEntityDTO> getEntitiesByType(final List<EntityType> entityTypes) {
+    public Stream<TopologyEntityDTO> getEntitiesByType(final long realtimeTopologyContextId,
+                                                       final List<EntityType> entityTypes) {
         final List<Integer> entityTypeNumbers = entityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toList());

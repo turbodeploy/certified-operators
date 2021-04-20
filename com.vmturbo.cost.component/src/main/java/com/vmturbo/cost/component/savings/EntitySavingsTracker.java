@@ -268,7 +268,8 @@ public class EntitySavingsTracker {
         // It is because the number of regions and service providers is finite.
         // The logic to find the connected regions of availability zones requires all regions anyways.
         List<Long> regionAndAServiceProviderOids =
-                repositoryClient.getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER))
+                repositoryClient.getEntitiesByType(realtimeTopologyContextId,
+                        Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER))
                 .map(TopologyEntityDTO::getOid)
                 .collect(Collectors.toList());
 

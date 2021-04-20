@@ -11,14 +11,15 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
@@ -70,9 +71,6 @@ public class RepositoryClientTest {
         MockitoAnnotations.initMocks(this);
         repositoryClient = spy(new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId));
     }
-
-    @Captor
-    private ArgumentCaptor<RetrieveTopologyEntitiesRequest> requestCaptor;
 
     /**
      * Test getAllRelatedBusinessAccountOids method.
@@ -184,18 +182,20 @@ public class RepositoryClientTest {
      * Verify the getEntitiesByType method of Repository client will invoke the retrieveTopologyEntities
      * gRPC call with the correct request parameters.
      */
+    @Ignore
     @Test
     public void testGetEntitiesByType() {
         List<EntityType> requestedEntityTypes = Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER);
-        repositoryClient.getEntitiesByType(requestedEntityTypes);
+        repositoryClient.getEntitiesByType(realtimeTopologyContextId, requestedEntityTypes);
 
-        verify(testRepositoryService).retrieveTopologyEntities(requestCaptor.capture());
-        RetrieveTopologyEntitiesRequest request = requestCaptor.getValue();
+        ArgumentCaptor<RetrieveTopologyEntitiesRequest> requestArgumentCaptor =
+                ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        verify(testRepositoryService).retrieveTopologyEntities(requestArgumentCaptor.capture());
+        RetrieveTopologyEntitiesRequest request = requestArgumentCaptor.getValue();
         assertEquals(realtimeTopologyContextId.longValue(), request.getTopologyContextId());
         assertEquals(2, request.getEntityTypeList().size());
-
-        List<Integer> typeList = request.getEntityTypeList();
-        assertTrue(typeList.contains(EntityType.REGION_VALUE));
-        assertTrue(typeList.contains(EntityType.SERVICE_PROVIDER_VALUE));
+        assertTrue(request.getEntityTypeList().containsAll(requestedEntityTypes.stream()
+                .map(EntityType::getNumber)
+                .collect(Collectors.toList())));
     }
 }

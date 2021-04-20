@@ -11,15 +11,12 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -49,14 +46,10 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Unit tests for EntitySavingsSubQuery.
@@ -72,9 +65,6 @@ public class EntitySavingsSubQueryTest {
 
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
-    private RepositoryClient repositoryClient = mock(RepositoryClient.class);
-
-    private final long realtimeTopologyContextId = 777777L;
     private EntitySavingsSubQuery query;
 
     /**
@@ -84,7 +74,7 @@ public class EntitySavingsSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander, repositoryClient));
+        query = spy(new EntitySavingsSubQuery(costRpc, groupExpander));
     }
 
     /**
@@ -231,6 +221,7 @@ public class EntitySavingsSubQueryTest {
         assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
 
         assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().isEmpty());
+        assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().isEmpty());
         assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().isEmpty());
         assertEquals(1, requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().size());
         assertTrue(requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().contains(rgId));
@@ -283,6 +274,7 @@ public class EntitySavingsSubQueryTest {
         assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
 
         assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().isEmpty());
+        assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().isEmpty());
         assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().isEmpty());
         assertEquals(3, requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().size());
         assertTrue(requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().containsAll(rgIds));
@@ -314,7 +306,7 @@ public class EntitySavingsSubQueryTest {
         }
         when(context.getInputScope()).thenReturn(scope);
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
+        when(context.getInputScope().isRealtimeMarket()).thenReturn(true);
         when(context.getInputScope().uuid()).thenReturn("1");
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
@@ -332,7 +324,7 @@ public class EntitySavingsSubQueryTest {
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.getInputScope()).thenReturn(scope);
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
+        when(context.getInputScope().isRealtimeMarket()).thenReturn(true);
         when(context.getInputScope().uuid()).thenReturn("1");
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
@@ -425,67 +417,5 @@ public class EntitySavingsSubQueryTest {
         response = query.getAggregateStats(stats, context);
         verify(costServiceMole, never()).getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class));
         assertTrue(response.isEmpty());
-    }
-
-    /**
-     * Test calling aggregateState for resource groups.
-     *
-     * @throws Exception any exception
-     */
-    @Test
-    public void testGetAggregateStatsMarketScope() throws Exception {
-        long startTime = 1609527257000L;
-        long endTime = 1610996057000L;
-
-        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
-                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
-
-        final long serviceProviderOid = 8888L;
-        StatsQueryContext context = createMarketScopeStatsQueryContextMock(timeWindow, serviceProviderOid);
-
-        query.getAggregateStats(createStatApiInputDTOs(), context);
-
-        ArgumentCaptor<GetEntitySavingsStatsRequest> requestArgumentCaptor
-                = ArgumentCaptor.forClass(GetEntitySavingsStatsRequest.class);
-        verify(costServiceMole).getEntitySavingsStats(requestArgumentCaptor.capture());
-
-        // Verify the request for the cost protobuf api for getting entity savings stats.
-        assertEquals(startTime, requestArgumentCaptor.getValue().getStartDate());
-        assertEquals(endTime, requestArgumentCaptor.getValue().getEndDate());
-
-        assertEquals(2, requestArgumentCaptor.getValue().getStatsTypesCount());
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_SAVINGS));
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
-
-        assertEquals(1, requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().size());
-        assertTrue(requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().contains(serviceProviderOid));
-        assertEquals(1, requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().size());
-        assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().contains(EntityType.SERVICE_PROVIDER_VALUE));
-    }
-
-    private StatsQueryContext createMarketScopeStatsQueryContextMock(TimeWindow timeWindow, long serviceProviderOid) {
-        final StatsQueryContext context = mock(StatsQueryContext.class);
-        final ApiId scope = mock(ApiId.class);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(false);
-        when(scope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
-        when(scope.oid()).thenReturn(realtimeTopologyContextId);
-        when(scope.getScopeOids()).thenReturn(Collections.EMPTY_SET);
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
-        when(context.getInputScope()).thenReturn(scope);
-        when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getInputScope().isRealtimeMarket()).thenReturn(true);
-        when(context.getInputScope().uuid()).thenReturn("1");
-        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder()
-                .setOid(serviceProviderOid)
-                .setEntityType(EntityDTO.EntityType.SERVICE_PROVIDER_VALUE)
-                .build();
-        when(repositoryClient.getEntitiesByType(ImmutableList.of(EntityDTO.EntityType.SERVICE_PROVIDER)))
-                .thenReturn(Stream.of(serviceProvider));
-        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getScopeOids()).thenReturn(Collections.EMPTY_SET);
-        when(context.getQueryScope()).thenReturn(queryScope);
-        when(context.getPlanInstance()).thenReturn(Optional.empty());
-        return context;
     }
 }
