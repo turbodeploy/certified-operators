@@ -464,8 +464,8 @@ public class TopologyConverterToMarketTest {
     /**
      * We sort the shopping lists by provider entity type followed by provider id. This test verifies this.
      * We setup a VM with 3 commBoughtGroupings in this order - PM grouping (provider type 14),
-     * volume 2 grouping (volume id 10, provider type 2), volume 1 SL (volume id 9, , provider type 2)
-     * The trader should be created with shopping lists in the order - volume 1, volume 2, PM
+     * volume 2 grouping (volume id 10, provider type 2), volume 1 SL (volume id 9, provider type 2)
+     * The trader should be created with shopping lists in the order - PM, volume 1, volume 2
      * @throws IOException when the file is not found.
      */
     @Test
@@ -500,15 +500,15 @@ public class TopologyConverterToMarketTest {
         Map<Integer, TraderTO> traderByType = traders.stream().collect(
             Collectors.toMap(TraderTO::getType, Function.identity()));
         TraderTO vm = traderByType.get(EntityType.VIRTUAL_MACHINE_VALUE);
-        ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
+        ShoppingListInfo pmSlInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(0).getOid());
+        assertEquals(14, (int)pmSlInfo.getSellerEntityType().get());
+        ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
+            vm.getShoppingListsList().get(1).getOid());
         Assert.assertEquals(205L, volume1slInfo.getSellerId().longValue());
         ShoppingListInfo volume2slInfo = converter.getShoppingListOidToInfos().get(
-            vm.getShoppingListsList().get(1).getOid());
-        Assert.assertEquals(206L, volume2slInfo.getSellerId().longValue());
-        ShoppingListInfo pmSlInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(2).getOid());
-        assertEquals(14, (int)pmSlInfo.getSellerEntityType().get());
+        Assert.assertEquals(206L, volume2slInfo.getSellerId().longValue());
 
         TraderTO vsanDataStore = traderByType.get(EntityType.STORAGE_VALUE);
         Long[] slProviderOids = new Long[3];
