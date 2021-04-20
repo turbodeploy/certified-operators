@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_STATE;
 
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -142,6 +144,8 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
             throw new EntitySavingsException("Error occurred when writing to entity_cloud_scope table.", e);
         }
 
+        scopeRecords.addAll(getScopeRecordsForDeletedEntities(scopeRecords, entityStateMap));
+
         Set<Long> scopeRecordEntityIds = scopeRecords.stream()
                 .map(EntityCloudScopeRecord::getEntityOid)
                 .collect(Collectors.toSet());
@@ -176,6 +180,35 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         } catch (IOException e) {
             throw new EntitySavingsException("Error occurred when updating entity states.", e);
         }
+    }
+
+    /**
+     * If an entity is deleted, it won't be present in the cloud topology. The method
+     * createCloudScopeRecord will not return an EntityCloudScopeRecord object for that entity.
+     * This method will find entity OIDs that has a state but is not present in the scopeRecords
+     * list returned from createCloudScopeRecord. It then makes a query from the scope table for the
+     * scope record directly using the entity OIDs.
+     *
+     * @param scopeRecords list of scope records returned from createCloudScopeRecord
+     * @param entityStateMap entity state map
+     * @return list of EntityCloudScopeRecord for deleted entities
+     */
+    private List<EntityCloudScopeRecord> getScopeRecordsForDeletedEntities(
+            @Nonnull List<EntityCloudScopeRecord> scopeRecords,
+            @Nonnull final Map<Long, EntityState> entityStateMap) {
+        Set<Long> scopeRecordEntityIds = scopeRecords.stream()
+                .map(EntityCloudScopeRecord::getEntityOid)
+                .collect(Collectors.toSet());
+        // Find entity OIDs that have a state but is not in the scopeRecords list.
+        Set<Long> stateEntityOids = new HashSet<>(entityStateMap.keySet());
+        stateEntityOids.removeAll(scopeRecordEntityIds);
+
+        if (!stateEntityOids.isEmpty()) {
+            return dsl.selectFrom(ENTITY_CLOUD_SCOPE)
+                    .where(ENTITY_CLOUD_SCOPE.ENTITY_OID.in(stateEntityOids))
+                    .fetch();
+        }
+        return new ArrayList<>();
     }
 
     @Override

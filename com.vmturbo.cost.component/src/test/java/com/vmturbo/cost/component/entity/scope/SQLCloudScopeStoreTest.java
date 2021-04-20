@@ -191,7 +191,7 @@ public class SQLCloudScopeStoreTest {
         // The record that correspond to entityOid1 in the cloud scope table will be referenced by
         // two tables.
         Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1));
-        TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology();
+        TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology(1000L);
         entityStateStore.updateEntityStates(stateSet.stream().collect(
                 Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology);
 
