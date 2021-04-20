@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration strict="true">
+    <Appenders>
+        <Appender type="Console" name="stdout">
+            <Layout type="PatternLayout" pattern="%d %5p [%t] [%c]\t: %m%n%throwable"/>
+        </Appender>
+        <!-- Once we upgrade to log4j2 version 2.8.2 we can use the 'Null' appender type. -->
+        <Appender type="CountingNoOp" name="null" />
+    </Appenders>
+
+    <Loggers>
+        <Root level="info">
+            <AppenderRef ref="null"/> <!-- Change to stdout only temporarily to debug. -->
+        </Root>
+    </Loggers>
+</Configuration>
