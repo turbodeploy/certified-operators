@@ -85,7 +85,7 @@
     },
     "mandatory": true,
     "isTargetDisplayName": false,
-    "allowedValues": ["Standard", "GovCloud_US"]
+    "allowedValues": ["Standard", "Government_US"]
   }, {
     "customDefinition": {
       "name": "pricingIdentifier",

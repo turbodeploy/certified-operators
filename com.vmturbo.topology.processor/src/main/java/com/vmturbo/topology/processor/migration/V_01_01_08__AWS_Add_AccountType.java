@@ -19,6 +19,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.AccountType;
 
 /**
  * This class migrates AWS, AWS Cost and AWS Lambda probes and targets, and add accountType to
@@ -31,8 +32,8 @@ public class V_01_01_08__AWS_Add_AccountType extends AbstractProbeTargetMigratio
             = ImmutableSet.of(AWS.getProbeType(), AWS_COST.getProbeType(), AWS_LAMBDA.getProbeType());
     private static final String MIGRATION_PURPOSE = "Migration to add accountType for AWS non-billing probes and targets";
     protected static final String ACCOUNT_TYPE = "accountType";
-    protected static final String ACCOUNT_VALUE_STANDARD = "Standard";
-    protected static final String ACCOUNT_VALUE_GOVCLOUD_US = "GovCloud_US";
+    protected static final String ACCOUNT_VALUE_STANDARD = AccountType.Standard.name();
+    protected static final String ACCOUNT_VALUE_US_GOVERNMENT = AccountType.Government_US.name();
 
     // the new accountType field to be added to probe
     private final JsonObject probeAccountTypeField;
@@ -149,7 +150,7 @@ public class V_01_01_08__AWS_Add_AccountType extends AbstractProbeTargetMigratio
 
         final JsonArray allowedVals = new JsonArray();
         allowedVals.add(ACCOUNT_VALUE_STANDARD);
-        allowedVals.add(ACCOUNT_VALUE_GOVCLOUD_US);
+        allowedVals.add(ACCOUNT_VALUE_US_GOVERNMENT);
 
         final JsonObject probeField = new JsonObject();
         probeField.add("customDefinition", customDef);
