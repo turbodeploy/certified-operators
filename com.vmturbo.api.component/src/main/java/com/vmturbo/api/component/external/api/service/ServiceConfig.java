@@ -77,6 +77,7 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.search.SearchDBConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -241,6 +242,9 @@ public class ServiceConfig {
 
     @Autowired
     private SearchDBConfig searchDBConfig;
+
+    @Autowired
+    private RepositoryClient repositoryClient;
 
     @Bean
     public ActionsService actionsService() {
@@ -854,7 +858,7 @@ public class ServiceConfig {
     public EntitySavingsSubQuery entitySavingsSubQuery() {
         final EntitySavingsSubQuery entitySavingsSubQuery =
                 new EntitySavingsSubQuery(communicationConfig.costServiceBlockingStub(),
-                        communicationConfig.groupExpander());
+                        communicationConfig.groupExpander(), repositoryClient);
         if (enableEntitySavings) {
             statsQueryExecutor().addSubquery(entitySavingsSubQuery);
         }
