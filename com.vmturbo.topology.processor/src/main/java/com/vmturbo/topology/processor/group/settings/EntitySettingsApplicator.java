@@ -24,14 +24,19 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -44,10 +49,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStoreCommoditiesCreator;
@@ -81,6 +86,20 @@ public class EntitySettingsApplicator {
         CommodityType.VMEM_REQUEST_VALUE
     );
 
+    private static final Set<GlobalSettingSpecs> REQUIRED_GLOBAL_SETTINGS =
+                    ImmutableSet.of(GlobalSettingSpecs.OnPremVolumeAnalysis);
+
+    private final SettingServiceBlockingStub settingServiceClient;
+
+    /**
+     * Construct the settings applicator.
+     *
+     * @param settingServiceClient blocking stub to settings service
+     */
+    public EntitySettingsApplicator(SettingServiceBlockingStub settingServiceClient) {
+        this.settingServiceClient = settingServiceClient;
+    }
+
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
      * contained in it.
@@ -90,7 +109,8 @@ public class EntitySettingsApplicator {
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
-        final List<SettingApplicator> applicators = buildApplicators(topologyInfo, graphWithSettings);
+        final List<SettingApplicator> applicators = buildApplicators(topologyInfo, graphWithSettings, queryGlobalSettings());
+
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
@@ -122,17 +142,36 @@ public class EntitySettingsApplicator {
             });
     }
 
+    private Map<String, Setting> queryGlobalSettings() {
+        Map<String, Setting> globalSetting2value = new HashMap<String, Setting>();
+        Set<String> specNamesToLoad = REQUIRED_GLOBAL_SETTINGS.stream()
+                        .map(GlobalSettingSpecs::getSettingName).collect(Collectors.toSet());
+        try {
+            settingServiceClient
+                            .getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest.newBuilder()
+                                            .addAllSettingSpecName(specNamesToLoad).build())
+                            .forEachRemaining(setting -> globalSetting2value
+                                            .put(setting.getSettingSpecName(), setting));
+        } catch (StatusRuntimeException e) {
+            logger.warn("Failed to load global settings required for application, will assume defaults: "
+                            + specNamesToLoad, e);
+        }
+        return globalSetting2value;
+    }
+
     /**
      * Get the list of applicators for a particular {@link TopologyInfo}.
      *
      * @param topologyInfo The {@link TopologyInfo} of an in-progress topology broadcast.
      * @param graphWithSettings {@link GraphWithSettings} of the in-progress topology
+     * @param globalSettings2value global settings names that may be required for applying per-entity settings, to values 
      * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
-                                                            @Nonnull final GraphWithSettings graphWithSettings) {
+                                                            @Nonnull final GraphWithSettings graphWithSettings,
+                                                            @Nonnull Map<String, Setting> globalSettings2value) {
         return ImmutableList.of(new MoveApplicator(),
-                new VMShopTogetherApplicator(topologyInfo),
+                new VMShopTogetherApplicator(topologyInfo, globalSettings2value),
                 new ReconfigureApplicator(),
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
@@ -522,12 +561,12 @@ public class EntitySettingsApplicator {
      * to turn on bundled moves on compute and storage resources.
      */
     private static class VMShopTogetherApplicator extends BaseSettingApplicator {
+        private final TopologyInfo topologyInfo_;
+        private final Map<String, Setting> globalSettings2value;
 
-        TopologyInfo topologyInfo_;
-
-        private VMShopTogetherApplicator(TopologyInfo topologyInfo) {
-            super();
+        private VMShopTogetherApplicator(TopologyInfo topologyInfo, Map<String, Setting> globalSettings2value) {
             topologyInfo_ = topologyInfo;
+            this.globalSettings2value = globalSettings2value;
         }
 
         @Override
@@ -541,6 +580,12 @@ public class EntitySettingsApplicator {
                 final boolean isShopTogetherSettingEnabled = settings.get(EntitySettingSpecs.ShopTogether)
                         .getBooleanSettingValue().getValue();
                 final boolean isRealTime = !TopologyDTOUtil.isPlan(topologyInfo_);
+                // when this feature is turned on, shop together should be disabled for real-time market
+                // TODO this is temporary - remove when on-prem to on-prem moves are allowed
+                boolean onPremVvAnalysis = Optional.ofNullable(globalSettings2value
+                                .get(GlobalSettingSpecs.OnPremVolumeAnalysis.getSettingName()))
+                                .map(Setting::getBooleanSettingValue)
+                                .map(BooleanSettingValue::getValue).orElse(false);
 
                 // Note: if a VM does not support shop together execution, even when move and storage
                 // move sets to Manual or Automatic, dont enable shop together.
@@ -551,6 +596,7 @@ public class EntitySettingsApplicator {
                 // and topology is realtime. We don't want to do it for plans because other stages
                 // like "IgnoreConstraints" set shop together to 'true' and we don't want to override it here.
                 } else if ((!isShopTogetherSettingEnabled && isRealTime)
+                        || (onPremVvAnalysis && isRealTime && entity.getEnvironmentType() != EnvironmentType.CLOUD)
                         || (entity.getEnvironmentType() == EnvironmentType.CLOUD
                         && !TopologyDTOUtil.isCloudMigrationPlan(topologyInfo_))) {
                     // user has to change default VM action settings to explicitly indicate they
