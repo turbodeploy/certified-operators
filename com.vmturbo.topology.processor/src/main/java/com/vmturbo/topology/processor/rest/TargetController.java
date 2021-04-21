@@ -50,7 +50,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceB
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -494,9 +493,9 @@ public class TargetController {
                     produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
     @ApiOperation(value = "Get information about all targets health.")
     public ResponseEntity<AllTargetsHealthResponse> getAllTargetsHealth()   {
-        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream ()
-                        .map(this::targetToTargetHealthInfo)
-                        .collect(Collectors.toList());
+        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream()
+                .filter(t -> !t.getSpec().getIsHidden()).map(this::targetToTargetHealthInfo)
+                .collect(Collectors.toList());
         final AllTargetsHealthResponse response = new AllTargetsHealthResponse(allHealth);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
