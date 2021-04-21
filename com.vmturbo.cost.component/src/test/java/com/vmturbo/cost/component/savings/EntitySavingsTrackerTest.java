@@ -202,7 +202,7 @@ public class EntitySavingsTrackerTest {
                 return Stream.of(region1, region2, serviceProvider1, serviceProvider2);
             }
         };
-        when(repositoryClient.getEntitiesByType(realtimeTopologyContextId, Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER)))
+        when(repositoryClient.getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER)))
                 .thenAnswer(regionServiceProviderStream);
     }
 
@@ -252,8 +252,7 @@ public class EntitySavingsTrackerTest {
         verify(tracker).generateStats(startTimeMillis);
         List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
         verify(repositoryClient).getAllBusinessAccountOidsInScope(new HashSet<>(vmIds));
-        verify(repositoryClient).getEntitiesByType(realtimeTopologyContextId,
-                Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER));
+        verify(repositoryClient).getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER));
 
         verify(repositoryClient, times(2)).retrieveTopologyEntities(entityOidListCaptor.capture(), eq(realtimeTopologyContextId));
         List<List<Long>> capturedEntityLists = entityOidListCaptor.getAllValues();

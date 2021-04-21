@@ -1,29 +1,21 @@
 package com.vmturbo.repository.api;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -68,7 +60,6 @@ public class RepositoryClientTest {
      */
     @Before
     public void setup() {
-        MockitoAnnotations.initMocks(this);
         repositoryClient = spy(new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId));
     }
 
@@ -176,26 +167,5 @@ public class RepositoryClientTest {
                 .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setConnectedEntityId(entityId)
                 .build();
-    }
-
-    /**
-     * Verify the getEntitiesByType method of Repository client will invoke the retrieveTopologyEntities
-     * gRPC call with the correct request parameters.
-     */
-    @Ignore
-    @Test
-    public void testGetEntitiesByType() {
-        List<EntityType> requestedEntityTypes = Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER);
-        repositoryClient.getEntitiesByType(realtimeTopologyContextId, requestedEntityTypes);
-
-        ArgumentCaptor<RetrieveTopologyEntitiesRequest> requestArgumentCaptor =
-                ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
-        verify(testRepositoryService).retrieveTopologyEntities(requestArgumentCaptor.capture());
-        RetrieveTopologyEntitiesRequest request = requestArgumentCaptor.getValue();
-        assertEquals(realtimeTopologyContextId.longValue(), request.getTopologyContextId());
-        assertEquals(2, request.getEntityTypeList().size());
-        assertTrue(request.getEntityTypeList().containsAll(requestedEntityTypes.stream()
-                .map(EntityType::getNumber)
-                .collect(Collectors.toList())));
     }
 }
