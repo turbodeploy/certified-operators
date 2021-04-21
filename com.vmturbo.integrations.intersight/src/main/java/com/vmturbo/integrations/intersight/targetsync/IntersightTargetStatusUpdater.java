@@ -159,6 +159,11 @@ public class IntersightTargetStatusUpdater {
             final AssetTarget editableTarget = jsonMapper.readValue(editableJson.toString(),
                     AssetTarget.class);
             final AssetApi assetApi = new AssetApi(apiClient);
+            // AssetTarget ManagementLocation is a enum with a default value "Unknown".
+            // This value wont be used for updating AssetTarget. We need to make Target
+            // ManagementLocation to be null for the AssetTarget other properties to be updated.
+            editableTarget.setManagementLocation(null);
+
             try {
                 assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
             } catch (ApiException e) {
