@@ -5,6 +5,11 @@
 # The usage is identical to "pipenv".
 # The only caveat is that the working directory must be the one that has the Pipfile.
 
+# If DOCKER_HOST is set to a remote IP at the time of executing this script, the volume mount may fail as the
+# image will be running on the remote host. In order to shadow a set DOCKER_HOST, it is being set to the local
+# docker daemon.
+export DOCKER_HOST=unix:///var/run/docker.sock
+
 # Arguments to "docker run".
 # --rm to remove container after it finishes running.
 # --user to run the command as the current user, to avoid file permission issues.
