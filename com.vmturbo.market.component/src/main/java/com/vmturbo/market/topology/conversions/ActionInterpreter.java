@@ -474,7 +474,7 @@ public class ActionInterpreter {
                 final CostJournal<TopologyEntityDTO> origEntityCostJournal
                                                  = projectedCosts.get(provisionedEntityOid);
 
-                return calculateHorizontalScalingActionSavings(Optional.of(origEntityCostJournal),
+                return calculateHorizontalScalingActionSavings(Optional.ofNullable(origEntityCostJournal),
                         provisionedEntityTO, provisionedEntity, false);
             default:
                 return new NoSavings(trax(0, "No savings calculation for "
@@ -553,7 +553,9 @@ public class ActionInterpreter {
         // get cost for the compute tier only
         TraxNumber costs = suppliers.stream()
                 .map(cloudTc::getMarketTier)
-                .filter(marketTier -> TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType()))
+                .filter(Objects::nonNull)
+                .filter(marketTier -> marketTier.getTier() != null
+                        && TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType()))
                 .map(marketTier -> getOnDemandCostForMarketTier(cloudEntityHzScaling, marketTier, costJournal))
                 .collect(TraxCollectors.sum("horizontal-scale-vm-in-cloud"));
 
