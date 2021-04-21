@@ -44,6 +44,9 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicens
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 
+/**
+ * A class capable of deserializing various types of licenses to a common DTO format.
+ */
 public class LicenseDeserializer {
 
     private static final Logger logger = LogManager.getLogger(LicenseDeserializer.class);
@@ -54,6 +57,14 @@ public class LicenseDeserializer {
             "http://apache.org/xml/features/disallow-doctype-decl";
     private static final String EXTERNAL_GENERAL_ENTITIES =
             "http://xml.org/sax/features/external-general-entities";
+
+    /**
+     * A constructor declaration to suppress the generation of default, public constructor and
+     * prevent instantiations of this utility class as required by Checkstyle.
+     */
+    private LicenseDeserializer() {
+        // empty body
+    }
 
     /**
      * Deserialize 4 flavors of licenses to LicenseDTO.
@@ -108,7 +119,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Deserialize Turbo license XML to LicenseXmlDTO
+     * Deserialize Turbo license XML to LicenseXmlDTO.
      *
      * @param xml The XML license string.
      * @return The {@link TurboLicense}.
@@ -148,7 +159,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Deserialize CWOM license to a LicenseCertificate
+     * Deserialize CWOM license to a LicenseCertificate.
      *
      * @param licenseData The license string.
      * @return The {@link TurboLicense}.
@@ -157,7 +168,7 @@ public class LicenseDeserializer {
     private static TurboLicense deserializeCWOMLicenseToTurboLicense(String licenseData) {
         try {
             LicenseCertificate licenseCertificate = new LicenseCertificate(new StringReader(licenseData), null, new ciscoInfo());
-            FeatureLine featureLine = (FeatureLine) licenseCertificate.getFeatures().getFirst();
+            FeatureLine featureLine = (FeatureLine)licenseCertificate.getFeatures().getFirst();
 
             Optional<CWOMLicenseEdition> cwomLicenseEdition = CWOMLicenseEdition.valueOfFeatureName(featureLine.getName());
 
@@ -199,14 +210,17 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Validate CWOM license certificates
+     * Validate CWOM license certificates.
+     *
+     * @param licenseCertificate The license certificate to validate.
+     * @return The reason why the license failed validation.
      */
     @SuppressWarnings("unchecked")
     private static ErrorReason validateCWOMLicenseCertificate(LicenseCertificate licenseCertificate) {
         if (!licenseCertificate.getElementExceptions().isEmpty()) {
             licenseCertificate.getElementExceptions().stream()
                     .filter(elementException -> elementException instanceof FlexlmException)
-                    .map(e -> ((FlexlmException) e).getBasicMessage())
+                    .map(e -> ((FlexlmException)e).getBasicMessage())
                     .forEach(logger::warn);
             return ErrorReason.INVALID_CONTENT_TYPE;
         }
@@ -223,7 +237,10 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Determines if the License Data Provided by the user of a FlexLM License.
+     * Determines if the License Data Provided by the user is a FlexLM License.
+     *
+     * @param licenseData The license contents to check.
+     * @return {@code true} if the provided license is a FlexLM license.
      */
     static boolean isLicenseGeneratedByFlexlm(String licenseData) {
         String trimmedData = StringUtils.trimToEmpty(licenseData);
@@ -240,7 +257,10 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Determines if the text is well formed XML
+     * Determines if the text is well formed XML.
+     *
+     * @param text The string to check.
+     * @return {@code true} if the provided string is well-formed XML.
      */
     static boolean isWellFormedXML(String text) {
         try {
@@ -274,7 +294,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * SAX Error handler to capture xml deserialization errors
+     * SAX Error handler to capture xml deserialization errors.
      */
     private static class SimpleErrorHandler implements ErrorHandler {
         private boolean hasError;

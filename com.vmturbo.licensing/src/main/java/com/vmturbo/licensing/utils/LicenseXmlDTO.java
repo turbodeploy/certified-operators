@@ -13,8 +13,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 
 /**
- * DTO used by jackson-xml to deserialize turbo xml v1 and v2 licenses Must have public access to be
- * used by the XmlMapper
+ * DTO used by jackson-xml to deserialize turbo xml v1 and v2 licenses.
  */
 class LicenseXmlDTO {
 
@@ -161,11 +160,17 @@ class LicenseXmlDTO {
         return countedEntity;
     }
 
+    /**
+     * Represents a single {@code feature} element in an XML Turbonomic license.
+     *
+     * <p>It's used to describe how to parse the {@code feature} element to Jackson.</p>
+     */
     public static class FeatureNode {
         private final String featureName;
 
         @JsonCreator()
-        public FeatureNode(@JacksonXmlProperty(isAttribute = true, localName = "FeatureName") String featureName) {
+        FeatureNode(@JacksonXmlProperty(isAttribute = true, localName = "FeatureName")
+                                                                            String featureName) {
             this.featureName = featureName;
         }
 
