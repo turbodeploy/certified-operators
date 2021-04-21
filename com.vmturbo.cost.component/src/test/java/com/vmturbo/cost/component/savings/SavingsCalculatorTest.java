@@ -131,7 +131,7 @@ public class SavingsCalculatorTest {
         EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/action-aging-rolling.json", eventsJournal);
 
-        // Run the algorithm. Run for four one-hour periods
+        // Run the algorithm.
         SavingsCalculator savingsCalculator = new SavingsCalculator();
         Map<Long, EntityState> entityStates = new HashMap<>();
         long baseTime = 1617681600000L; // 4-6-2021 00:00:00
@@ -209,7 +209,7 @@ public class SavingsCalculatorTest {
         EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/delete-volume.json", eventsJournal);
 
-        // Run the algorithm. Run for four one-hour periods
+        // Run the algorithm.
         SavingsCalculator savingsCalculator = new SavingsCalculator();
         Map<Long, EntityState> entityStates = new HashMap<>();
         long baseTime = 1618545600000L; // 4-16-2021 00:00:00
@@ -240,6 +240,45 @@ public class SavingsCalculatorTest {
             }
             Assert.assertTrue("period " + period, entityStates.containsKey(2116L));
             EntityState entityState = entityStates.get(2116L);
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
+            Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
+            Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
+            Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
+        }
+    }
+
+    /**
+     * Ensure that Algorithm-2 is expiring actions in the correct order after the configured
+     * expiration duration is decreased.
+     *
+     *  @throws FileNotFoundException if the events file is missing.
+     */
+    @Test
+    public void testAlgorithm2ExpirationDurationChange() throws FileNotFoundException {
+        // Add events
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
+        addTestEvents("src/test/resources/savings/expire-out-of-order.json", eventsJournal);
+
+        // Run the algorithm.
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        Map<Long, EntityState> entityStates = new HashMap<>();
+        long baseTime = 1618819200000L;  // Mon Apr 19 04:00:00 2021
+
+        Result[] results = {
+                new Result(1, false, ImmutableList.of(-3d), 3d, null),
+                new Result(1, false, ImmutableList.of(-3d), 3d, null),
+                new Result(1, false, ImmutableList.of(-3d), 2.50d, 0.50d),
+                new Result(1, false, ImmutableList.of(-3d), 3d, 0d),
+                new Result(1, false, ImmutableList.of(-3d), 3d, 0d)
+        };
+        for (int period = 0; period < results.length; period++) {
+            long start = baseTime + period * 3600000L;
+            long end = start + 3600000L;
+            savingsCalculator.calculate(entityStates, entityStates.values(),
+                    eventsJournal.removeEventsBetween(start, end), start, end);
+            // Verify the results for this period
+            Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
+            EntityState entityState = entityStates.values().iterator().next();
             Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
             Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
             Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
