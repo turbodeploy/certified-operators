@@ -6,20 +6,18 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of algorithm-2.
  */
 public class Algorithm2 implements Algorithm {
-    /**
-     * Logger.
-     */
     private final Long entityOid;
     private long segmentStart;
     private long powerFactor;
     private EntityPriceChange currentRecommendation;
-
+    private long nextExpirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
+                    .toEpochMilli();
 
     // Internal state maintained by the algorithm
     private double savings;
@@ -27,8 +25,7 @@ public class Algorithm2 implements Algorithm {
     // Matching lists that hold the price change (delta) of a tracked action and that action's
     // expiration time.  These are queues so that we can easily pop the expired deltas/timestamps
     // off of the lists.
-    private final Queue<Double> actionList;
-    private final Queue<Long> expirationList;
+    private final List<Delta> actionList;
     private final SavingsInvestments periodicRealized;
     private final SavingsInvestments periodicMissed;
     private boolean deletePending;
@@ -45,7 +42,6 @@ public class Algorithm2 implements Algorithm {
         this.segmentStart = segmentStart;
         this.powerFactor = 1;
         this.actionList = new LinkedList<>();
-        this.expirationList = new LinkedList<>();
         this.savings = 0d;
         this.investment = 0d;
 
@@ -83,30 +79,38 @@ public class Algorithm2 implements Algorithm {
     /**
      * Add an action delta (price change) to the active action list.
      *
+     * @param action action to add
+     */
+    public void addAction(Delta action) {
+        actionList.add(action);
+        if (action.expiration < nextExpirationTime) {
+            // This action now expires the earliest, so update it.
+            nextExpirationTime = action.expiration;
+        }
+        applyDelta(action.delta);
+    }
+
+    /**
+     * Add an action delta (price change) to the active action list.
+     *
      * @param delta amount of the price change.
      * @param expirationTimestamp time when the action will expire.
      */
     public void addAction(double delta, long expirationTimestamp) {
-        actionList.add(delta);
-        expirationList.add(expirationTimestamp);
-        applyDelta(delta);
+        addAction(new Delta(delta, expirationTimestamp));
     }
 
     /**
-     * Remove an action delta (price change) from the active action list. This must be the first
-     * action in the action list.  If the timestamp does match, the removal will be ignored.
+     * Remove all actions on or before the indicated time from the active action list.
      *
      * @param expirationTimestamp time when the action will expire.
-     * @return true if the action was removed.
      */
-    public boolean removeAction(long expirationTimestamp) {
-        if (expirationList.peek() == expirationTimestamp) {
-            actionList.poll();
-            expirationList.poll();
-            recalculateSavings();
-            return true;
-        }
-        return false;
+    public void removeActionsOnOrBefore(long expirationTimestamp) {
+        List<Delta> oldActionList = new ArrayList<>(actionList);
+        clearActionList();
+        oldActionList.stream()
+                .filter(delta -> delta.expiration > expirationTimestamp)
+                .forEach(this::addAction);
     }
 
     /**
@@ -283,11 +287,6 @@ public class Algorithm2 implements Algorithm {
         // case, all existing entities will immediately expire.
         List<Long> currentExpirationList = entityState.getExpirationList();
         List<Double> currentActionList = entityState.getActionList();
-        if (currentExpirationList == null) {
-            // Old entity state.  Create a new expiration list that expires all existing actions.
-            currentExpirationList = new ArrayList<>();
-            currentActionList.clear();
-        }
         currentRecommendation = entityState.getCurrentRecommendation();
         powerFactor = entityState.getPowerFactor();
 
@@ -296,21 +295,8 @@ public class Algorithm2 implements Algorithm {
         Iterator<Long> expirations = currentExpirationList.iterator();
         Iterator<Double> deltas = currentActionList.iterator();
         while (expirations.hasNext() && deltas.hasNext()) {
-            actionList.offer(deltas.next());
-            expirationList.offer(expirations.next());
+            addAction(deltas.next(), expirations.next());
         }
-
-        // Recalculate savings based on the current action and expiration lists.
-        recalculateSavings();
-    }
-
-    /**
-     * Recalculate the current savings and investment based on the action list.
-     */
-    private void recalculateSavings() {
-        savings = 0d;
-        investment = 0d;
-        actionList.stream().forEach(this::applyDelta);
     }
 
     /**
@@ -319,7 +305,7 @@ public class Algorithm2 implements Algorithm {
      * @return the action list
      */
     public List<Double> getActionList() {
-        return new ArrayList<>(this.actionList);
+        return actionList.stream().map(delta -> delta.delta).collect(Collectors.toList());
     }
 
     /**
@@ -328,7 +314,7 @@ public class Algorithm2 implements Algorithm {
      * @return the expiration times list
      */
     public List<Long> getExpirationList() {
-        return new ArrayList<>(this.expirationList);
+        return actionList.stream().map(delta -> delta.expiration).collect(Collectors.toList());
     }
 
     /**
@@ -339,19 +325,17 @@ public class Algorithm2 implements Algorithm {
      *          be long enough to consider the action permanent.
      */
     public long getNextExpirationTime() {
-        // Since the events are sorted in chronological order and all actions have the same action
-        // duration, the timestamps in the expiration list are also sorted chronologically, and the
-        // first timestamp in the list is the next one to expire.
-        return expirationList.isEmpty()
-                ? LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC).toEpochMilli()
-                : expirationList.peek();
+        return nextExpirationTime;
     }
 
     /**
-     * Clear the action list and related expiration list.
+     * Clear the action list and related state.
      */
     public void clearActionList() {
         this.actionList.clear();
-        this.expirationList.clear();
+        this.savings = 0d;
+        this.investment = 0d;
+        nextExpirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
+                .toEpochMilli();
     }
 }

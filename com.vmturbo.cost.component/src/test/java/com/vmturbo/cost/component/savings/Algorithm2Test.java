@@ -40,7 +40,6 @@ public class Algorithm2Test {
         Algorithm alg = new Algorithm2(0L, 0L);
         alg.initState(periodEnd, entityState);
         Assert.assertTrue(alg.getActionList().isEmpty());
-        Assert.assertTrue(alg.getExpirationList().isEmpty());
         SavingsInvestments results = alg.getRealized();
         Assert.assertEquals(0.0, results.getSavings(), 0.0001);
         Assert.assertEquals(0.0, results.getInvestments(), 0.0001);
