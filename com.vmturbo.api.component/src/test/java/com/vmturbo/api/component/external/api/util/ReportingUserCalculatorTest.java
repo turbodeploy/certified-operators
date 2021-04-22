@@ -16,11 +16,13 @@ import org.junit.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
+import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.serviceinterfaces.IUsersService.LoggedInUserInfo;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 
@@ -90,13 +92,13 @@ public class ReportingUserCalculatorTest {
     public void testIncreaseReportEditorsOnBiggerLicenseSummary() {
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
         for (int i = 0; i < reportEditorCount; i++) {
-            assertThat(calculator.getMe(makeUser("user" + i, SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
+            assertThat(calculator.getMe(makeUser("user" + i, LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
                 is(editorUser + "-" + i));
         }
         publisher.next(LicenseSummary.newBuilder()
             .setMaxReportEditorsCount(reportEditorCount + 1)
             .build());
-        assertThat(calculator.getMe(makeUser("extraUser", SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
+        assertThat(calculator.getMe(makeUser("extraUser", LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
                 is(editorUser + "-" + reportEditorCount));
     }
 
@@ -107,25 +109,44 @@ public class ReportingUserCalculatorTest {
     public void testNamePoolUnavailableName() {
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
         for (int i = 0; i < reportEditorCount; i++) {
-            assertThat(calculator.getMe(makeUser("user" + i, SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
+            assertThat(calculator.getMe(makeUser("user" + i, LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR)).getReportingUserName().get(),
                     is(editorUser + "-" + i));
         }
-        assertThat(calculator.getMe(makeUser("extraUser", SecurityConstant.REPORT_EDITOR)).getReportingUserName(),
+        assertThat(calculator.getMe(makeUser("extraUser", LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR)).getReportingUserName(),
                 // Not "editorUser"
                 is(Optional.of("extraUser")));
     }
 
     /**
-     * Test that releasing a name is the name pool frees up a name.
+     * Test that delete user with a name is the name pool frees up a name.
+     */
+    @Test
+    public void testUserDeletedRelease() {
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
+        UserApiDTO firstUser = makeUser("firstUser", LoginProviderMapper.toApi(PROVIDER.LDAP).toLowerCase(), SecurityConstant.REPORT_EDITOR);
+        UserApiDTO secondUser = makeUser("secondUser", LoginProviderMapper.toApi(PROVIDER.LDAP), SecurityConstant.REPORT_EDITOR);
+        assertThat(calculator.getMe(firstUser).getReportingUserName().get(), is(
+                LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
+        calculator.onUserDeleted(firstUser);
+        // The "onUserDeleted" should have freed up the first "editorUser" name for use by the
+        // second user.
+        assertThat(calculator.getMe(secondUser).getReportingUserName().get(), is(
+                LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
+    }
+
+    /**
+     * Test that modifying user with a name is the name pool frees up a name.
      */
     @Test
     public void testUserChangedRelease() {
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
-        UserApiDTO firstUser = makeUser("firstUser", SecurityConstant.REPORT_EDITOR);
-        UserApiDTO secondUser = makeUser("secondUser", SecurityConstant.REPORT_EDITOR);
+        UserApiDTO firstUser = makeUser("firstUser", LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR);
+        UserApiDTO secondUser = makeUser("secondUser", LoginProviderMapper.toApi(PROVIDER.LOCAL), SecurityConstant.REPORT_EDITOR);
         assertThat(calculator.getMe(firstUser).getReportingUserName().get(), is(
                 LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
-        calculator.onUserDeleted(firstUser);
+        // simulate UI sending upper case provider
+        UserApiDTO firstUseUpdated = makeUser("firstUser", "LOCAL");
+        calculator.onUserModified(firstUseUpdated);
         // The "onUserChanged" should have freed up the first "editorUser" name for use by the
         // second user.
         assertThat(calculator.getMe(secondUser).getReportingUserName().get(), is(
@@ -133,8 +154,9 @@ public class ReportingUserCalculatorTest {
     }
 
 
-    private UserApiDTO makeUser(String name, String... roles) {
+    private UserApiDTO makeUser(String name, String provider, String... roles) {
         UserApiDTO user = new UserApiDTO();
+        user.setLoginProvider(provider);
         user.setUuid(name);
         user.setUsername(name);
         user.setRoles(Stream.of(roles)
