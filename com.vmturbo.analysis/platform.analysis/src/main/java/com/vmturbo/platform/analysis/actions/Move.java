@@ -606,7 +606,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             }
         }
         return initiateQuoteMinimizer(economy, sellers, shoppingList, null,
-                                        0 /* ignored because cache == null */);
+                                        0 /* ignored because cache == null */, Double.POSITIVE_INFINITY);
     }
 
     /**

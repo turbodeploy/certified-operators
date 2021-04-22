@@ -76,6 +76,7 @@ final class QuoteSummer {
     private int shoppingListIndex_ = 0;
     private int numOfSLs_ = 0;
     private boolean performOptimization_ = false;
+    private double bestTotalQuote_;
 
     // Constructors
 
@@ -86,13 +87,22 @@ final class QuoteSummer {
      * @param quality See {@link #getClique()}.
      * @param cache See {@link QuoteCache}
      * @param numOfSLs number of shopping lists for this trader
+     * @param performOptimization If true, simulation is skipped for the first and last shopping lists.
+     *                            This assumes knowledge of the fact that the first (PM) and
+     *                            last (storage) shopping list don't need simulation.
+     *                            If false, simulation is performed for all shopping lists.
+     * @param bestTotalQuote When the totalQuote for all the shopping lists calculated so far becomes
+     *                       greater than bestTotalQuote, then we skip calculating the quote for the
+     *                       rest of the shopping lists.
      */
-    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs, boolean performOptimization) {
+    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs,
+                boolean performOptimization, double bestTotalQuote) {
         economy_ = economy;
         clique_ = quality;
         cache_ = cache;
         numOfSLs_ = numOfSLs;
         performOptimization_ = performOptimization;
+        bestTotalQuote_ = bestTotalQuote;
     }
 
     // Getters
@@ -187,12 +197,15 @@ final class QuoteSummer {
      *              for this shopping list, will be added in the sum.
      */
     public void accept(@NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry) {
+        if (totalQuote_ >= bestTotalQuote_) {
+            return;
+        }
         // consider only active sellers while performing SNM
         @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
                 .filter(seller -> seller.getState().isActive()
                     && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
         QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers,
-                                                    entry.getKey(), cache_, shoppingListIndex_++);
+                                                    entry.getKey(), cache_, shoppingListIndex_, bestTotalQuote_);
         Optional<Context> context = minimizer.getBestQuote().getContext();
         if (context.isPresent()) {
             shoppingListContextMap.put(entry.getKey(), minimizer.getBestQuote().getContext());
@@ -210,13 +223,14 @@ final class QuoteSummer {
         }
         // We simulate the effect of placing the shopping list on the bestSeller, so that the
         // next shopping lists of this trader get quotes which reflect the fact that this SL was
-        // placed on bestSeller. But we don't need to do this for the last 2 shopping lists
-        // because for a VM, the last two shopping lists will correspond to the last storage shopping
-        // list and the PM shopping list, and there are no further PM/Storage shopping lists which
+        // placed on bestSeller. But we don't need to do this for the first and last shopping lists
+        // because for a VM, the first SL is the PM shopping list while the last SL is the
+        // last storage shopping list, and there are no further PM/Storage shopping lists which
         // will ask for quote.
-        if (!performOptimization_ || shoppingListIndex_ <= numOfSLs_ - 2) {
+        if (!performOptimization_ || (shoppingListIndex_ > 0 && shoppingListIndex_ < numOfSLs_ - 1)) {
             simulate(minimizer, entry, bestSeller);
         }
+        shoppingListIndex_++;
     }
 
     /**

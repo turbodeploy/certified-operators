@@ -16,6 +16,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.Quote;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
@@ -67,14 +68,19 @@ public final class QuoteMinimizer {
      * @param shoppingListIndex The index of <b>shoppingList</b> in the iteration order of the map
      *                          returned by {@link Economy#getMarketsAsBuyer(Trader)}. i.e. the
      *                          first key has index 0, the second index 1 and so on.
+     * @param bestQuote While calculating the quote for a seller, once the quote goes above the
+     *                  bestQuote, we stop quote calculation for the seller. Note: If all the sellers
+     *                  return a quote higher than the bestQuote, then bestQuote is returned as
+     *                  the cheapest quote, but the bestSellers will be null.
      */
     public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-                          @Nullable QuoteCache cache, final int shoppingListIndex) {
+                          @Nullable QuoteCache cache, final int shoppingListIndex, double bestQuote) {
         economy_ = economy;
         shoppingList_ = shoppingList;
         quoteTracker = new QuoteTracker(shoppingList);
         cache_ = cache;
         shoppingListIndex_ = shoppingListIndex;
+        bestQuote_ = new CommodityQuote(null, bestQuote, 0, 0, 0);
     }
 
     /**

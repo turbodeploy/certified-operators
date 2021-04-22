@@ -104,7 +104,7 @@ public class PlacementUnitTest {
         sl.setQuantity(0, 50);
         sl.move(pm2);
         pm2.getCommoditiesSold().get(0).setQuantity(50);
-        QuoteMinimizer q = Placement.initiateQuoteMinimizer(economy, Lists.newArrayList(pm1, pm2), sl, null, 0);
+        QuoteMinimizer q = Placement.initiateQuoteMinimizer(economy, Lists.newArrayList(pm1, pm2), sl, null, 0, Double.POSITIVE_INFINITY);
         assertEquals(sl.getSupplier(), q.getBestSeller());
     }
 

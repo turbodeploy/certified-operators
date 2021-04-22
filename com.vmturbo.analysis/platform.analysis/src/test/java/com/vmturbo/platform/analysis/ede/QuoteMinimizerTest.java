@@ -37,7 +37,7 @@ public class QuoteMinimizerTest {
     @Parameters
     @TestCaseName("Test #{index}: QuoteMinimizer({0},{1})")
     public final void testQuoteMinimizer_And_Getters(@NonNull Economy economy, @NonNull ShoppingList shoppingList) {
-        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList, null, 0);
+        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList, null, 0, Double.POSITIVE_INFINITY);
 
         assertSame(economy, minimizer.getEconomy());
         assertSame(shoppingList, minimizer.getShoppingList());
@@ -76,7 +76,7 @@ public class QuoteMinimizerTest {
         sl.move(provider);
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        QuoteMinimizer minimizer = new QuoteMinimizer(e, sl, null, 0);
+        QuoteMinimizer minimizer = new QuoteMinimizer(e, sl, null, 0, Double.POSITIVE_INFINITY);
         minimizer.accept(provider);
 
         assertNull(minimizer.getBestSeller());

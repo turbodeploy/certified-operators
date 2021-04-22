@@ -220,11 +220,12 @@ public class Placement {
      *                          returned by {@link Economy#getMarketsAsBuyer(Trader)}. i.e. the
      *                          first key has index 0, the second index 1 and so on. If <b>cache</b>
      *                          is {@code null}, the value of this argument is ignored.
+     * @param bestTotalQuote this is the quote to beat.
      * @return the QuoteMinimizer
      */
     public static QuoteMinimizer initiateQuoteMinimizer(@NonNull Economy economy,
                                 @NonNull List<@NonNull Trader> sellers, ShoppingList shoppingList,
-                                QuoteCache cache, final int shoppingListIndex) {
+                                QuoteCache cache, final int shoppingListIndex, double bestTotalQuote) {
         // If the shopping list's best provider is its current provider then obtain minimizer again
         // without consider the commodities in the unquoted commodities base type list.
         QuoteMinimizer minimizer;
@@ -232,7 +233,7 @@ public class Placement {
             minimizer = (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                             ? sellers.stream() : sellers.parallelStream())
                                 .collect(() -> new QuoteMinimizer(economy, shoppingList,
-                                                                    cache, shoppingListIndex),
+                                                                    cache, shoppingListIndex, bestTotalQuote),
                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
             if (sellers.size() > 1 && (minimizer.getBestSeller() == null
                             || minimizer.getBestSeller() == shoppingList.getSupplier())) {
@@ -294,7 +295,7 @@ public class Placement {
             }
 
             final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList,
-                                                        null, 0 /* ignored because cache == null */);
+                                                        null, 0 /* ignored because cache == null */, Double.POSITIVE_INFINITY);
 
             final double cheapestQuote = minimizer.getTotalBestQuote();
             final Trader cheapestSeller = minimizer.getBestSeller();
@@ -870,7 +871,7 @@ public class Placement {
                 // different buying context on same seller. 2. The number of cliques in cloud are a
                 // lot less than on prem because of the static infrastructure in AWS/Azure
                 CliqueMinimizer minimizer = commonCliques.stream()
-                    .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null, performOptimization),
+                    .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null, performOptimization, Double.POSITIVE_INFINITY),
                         CliqueMinimizer::accept, CliqueMinimizer::combine);
                 if (bestMinimizer == null || minimizer.getBestTotalQuote() < bestMinimizer.getBestTotalQuote()) {
                     bestMinimizer = minimizer;
@@ -895,11 +896,21 @@ public class Placement {
             }
             return bestMinimizer;
         } else {
+            ShoppingList firstSL = movableSlByMarket.get(0).getKey();
+            double currentProvidersQuote = computeCurrentQuote(economy, movableSlByMarket);
+            double quoteToBeat = currentProvidersQuote * trader.getSettings().getQuoteFactor() -
+                Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
+                    * trader.getSettings().getMoveCostFactor();
+
             final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM() && commonCliques.size() > 1
                     ? new QuoteCache(economy.getTraders().size(), economy.getMarketsAsBuyer(trader)
                             .values().stream().mapToInt(market -> market.getActiveSellers().size()).sum(),
                                     economy.getMarketsAsBuyer(trader).size()) : null;
-           return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket, cache, performOptimization),
+            if (quoteToBeat <= 0) {
+                // Cannot beat a zero or negative quote.
+                return new CliqueMinimizer(economy, movableSlByMarket, cache, performOptimization, quoteToBeat);
+            }
+           return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket, cache, performOptimization, quoteToBeat),
                     CliqueMinimizer::accept, CliqueMinimizer::combine);
         }
     }

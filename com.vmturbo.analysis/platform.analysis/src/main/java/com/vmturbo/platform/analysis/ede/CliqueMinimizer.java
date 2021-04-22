@@ -121,14 +121,24 @@ final class CliqueMinimizer {
      * @param entries See {@link #getEntries()}.
      * @param cache A cache where to store quotes to avoid recomputing them in case where the same
      *              sellers are members of multiple cliques.
+     * @param performOptimization If true, simulation is skipped for the first and last shopping lists.
+     *                            This assumes knowledge of the fact that the first (PM) and last
+     *                            (storage) shopping list don't need simulation.
+     *                            If false, simulation is performed for all shopping lists.
+     * @param bestTotalQuote When the totalQuote for a clique goes above bestTotalQuote, we stop
+     *                       calculations for the clique and move onto the next clique.
+     *                       If all the cliques give a quote above bestTotalQuote, then
+     *                       bestTotalQuote will be returned as the cheapest quote, but bestSellers
+     *                       will be null.
      */
     CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly
             Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries,
-            @Nullable QuoteCache cache, boolean performOptimization) {
+            @Nullable QuoteCache cache, boolean performOptimization, double bestTotalQuote) {
         economy_ = economy;
         entries_ = entries;
         cache_ = cache;
         performOptimization_ = performOptimization;
+        bestTotalQuote_ = bestTotalQuote;
     }
 
     // Getters
@@ -243,7 +253,8 @@ final class CliqueMinimizer {
      */
     public void accept(long clique) {
         final @NonNull QuoteSummer quoteSummer = entries_.stream()
-            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size(), performOptimization_),
+            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size(),
+                    performOptimization_, bestTotalQuote_),
                     QuoteSummer::accept,
                     QuoteSummer::combine);
 
