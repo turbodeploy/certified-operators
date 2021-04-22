@@ -211,10 +211,35 @@ public class LicenseDeserializerTest {
         // Creating anonymous subclass of HashMap because ImmutableMap.of can't accept null values
         // or more than 5 entries.
         return new Object[][]{
+            {"turbonomic-license-with-customer_id.xml", new ImmutableMap.Builder<>()
+                .put("getLicenseOwner", "mitchell Lau")
+                .put("getEmail", "mitchell.lau@turbonomic.com")
+                .put("getCustomerId", "0010b00002KwSWXAA3")
+                .put("getNumLicensedEntities", 10000)
+                .put("getEdition", "Trial")
+                .put("getExpirationDate", "2022-04-13")
+                .put("getLicenseKey", "a1af0dfd21acd5682b29a64ab349a1a8")
+                .put("getCountedEntity", CountedEntity.VM.name())
+                .put("getIsValid", false)
+                .put("getExternalLicenseKey", "")
+                .put("getFeaturesCount", 29)
+                .put("getErrorReasonCount", 0)
+                .put("getFeatures", new TreeSet<>(Sets.union(
+                    commonFeatures,
+                    new TreeSet<>(Arrays.asList(
+                        "vdi_control",
+                        "scaling",
+                        "custom_policies",
+                        "action_script",
+                        "SLA"
+                    )))))
+                .build()
+            },
             // Verify that the counted entity type is set to "VM" even if vm-total is set to zero.
             {"LicenseDeserializationTest_license_0vm.xml", new ImmutableMap.Builder<>()
                 .put("getLicenseOwner", "Samwell Rockwise")
                 .put("getEmail", "samwell.rockwise@turbonomic.com")
+                .put("getCustomerId", "missing from license file")
                 .put("getNumLicensedEntities", 0)
                 .put("getEdition", "")
                 .put("getExpirationDate", "2050-12-31")
@@ -230,6 +255,7 @@ public class LicenseDeserializerTest {
             {"LicenseDeserializationTest_license_v1.xml", new ImmutableMap.Builder<>()
                 .put("getLicenseOwner", "Saipriya Balasubramanian")
                 .put("getEmail", "saipriya.balasubramanian@turbonomic.com")
+                .put("getCustomerId", "missing from license file")
                 .put("getNumLicensedEntities", 200)
                 .put("getEdition", "")
                 .put("getExpirationDate", "2050-01-31")
@@ -247,6 +273,7 @@ public class LicenseDeserializerTest {
             {"LicenseDeserializationTest_license_v2.xml", new ImmutableMap.Builder<>()
                 .put("getLicenseOwner", "Giampiero De Ciantis")
                 .put("getEmail", "gp.deciantis@turbonomic.com")
+                .put("getCustomerId", "missing from license file")
                 .put("getNumLicensedEntities", 10000)
                 .put("getEdition", "Turbonomic Best")
                 .put("getExpirationDate", "2022-08-18")
@@ -272,6 +299,7 @@ public class LicenseDeserializerTest {
             {"LicenseDeserializationTest_cwom_premier_license_1.lic", new ImmutableMap.Builder<>()
                 .put("getLicenseOwner", "cisco")
                 .put("getEmail", "support@cisco.com")
+                .put("getCustomerId", "missing from license DTO")
                 .put("getNumLicensedEntities", 1000)
                 .put("getEdition", "CWOM_PREMIER")
                 .put("getExpirationDate", "2018-02-07")
@@ -310,6 +338,7 @@ public class LicenseDeserializerTest {
         "LicenseDeserializationTest_license_0vm.xml, true, false, false",
         "LicenseDeserializationTest_license_v1.xml, true, false, false",
         "LicenseDeserializationTest_license_v2.xml, true, false, false",
+        "turbonomic-license-with-customer_id.xml, true, false, false",
         "LicenseDeserializationTest_cwom_premier_license_1.lic, false, true, false",
         "LicenseDeserializationTest_cwom_premier_license_2.lic, false, true, false",
         "LicenseUtilTest_CWOMExpired.lic, false, true, false",
