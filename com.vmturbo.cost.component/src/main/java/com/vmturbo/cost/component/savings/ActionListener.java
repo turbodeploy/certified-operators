@@ -11,7 +11,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
@@ -29,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -145,6 +143,16 @@ public class ActionListener implements ActionsListener {
     private final CurrencyAmount zeroCosts = CurrencyAmount.newBuilder().setAmount(0d).build();
 
     /**
+     * Convenience to represent empty price change, to avoid recreating it each time.
+     */
+    private final EntityPriceChange emptyPriceChange = new EntityPriceChange.Builder()
+            .sourceOid(0L)
+            .sourceCost(0.0)
+            .destinationOid(0L)
+            .destinationCost(0.0)
+            .build();
+
+    /**
      * Action lifetimes.
      */
     private final Long actionLifetimeMs;
@@ -211,14 +219,16 @@ public class ActionListener implements ActionsListener {
                 if (pendingWorkloadTypes.contains(entity.getType())) {
                     final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
                     final Long entityId = entity.getId();
+                    Map<Long, EntityActionInfo> entityIdToActionInfoMap = new HashMap<>();
                     final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
+                    entityIdToActionInfoMap.put(entityId, entityActionInfo);
                     final Map<Long, EntityPriceChange> entityPriceChangeMap =
                             getEntityCosts(ImmutableMap.of(entityId, entityActionInfo));
                     final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
                     if (actionPriceChange != null) {
                         long expirationTime = completionTime
                                 + (ActionEventType.DELETE_EXECUTION_SUCCESS
-                                        .equals(entityActionInfo.getActionEventType())
+                                        .equals(entityActionInfo.getActionType())
                                                 ? deleteVolumeActionLifetimeMs
                                                 : actionLifetimeMs);
                         EntityPriceChange actionPriceChangeWithExpiration =
@@ -228,10 +238,9 @@ public class ActionListener implements ActionsListener {
                                         .build();
                         final SavingsEvent successEvent = createActionEvent(entity.getId(),
                                 completionTime,
-                                entityActionInfo.getActionEventType(),
+                                entityActionInfo.getActionType(),
                                 actionId,
-                                actionPriceChangeWithExpiration,
-                                entityActionInfo);
+                                actionPriceChangeWithExpiration);
                         entityEventsJournal.addEvent(successEvent);
                         entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
                         logger.debug("Added action {} for entity {}, completion time {}, recommendation"
@@ -367,8 +376,7 @@ public class ActionListener implements ActionsListener {
                                     newActionInfo.getRecommendationTime(),
                                     ActionEventType.RECOMMENDATION_ADDED,
                                     newActionId,
-                                    actionPriceChange,
-                                    newActionInfo);
+                                    actionPriceChange);
                     newPendingActionEvents.add(pendingActionEvent);
                     logger.debug("Added new pending event for action {}, entity {},"
                                     + " action state {}, source oid {}, destination oid {}, entity type {}",
@@ -411,8 +419,7 @@ public class ActionListener implements ActionsListener {
                                                                       currentTimeInMillis,
                                                       ActionEventType.RECOMMENDATION_REMOVED,
                                                       staleActionId,
-                                                      null,
-                                                            staleActionInfo);
+                                                      emptyPriceChange);
                     staleActionEvents.add(staleActionEvent);
                     logger.debug("Added stale event for action {}, entity {},"
                                  + "  source oid {}, destination oid {}, entity type {}",
@@ -468,27 +475,18 @@ public class ActionListener implements ActionsListener {
      * @param actionType The action type.
      * @param actionId the action ID.
      * @param priceChange the price change associated with the action.
-     * @param actionInfo Additional info about action.
      * @return The SavingsEvent.
      */
     private static SavingsEvent createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
-                              long actionId, @Nullable final EntityPriceChange priceChange,
-            final EntityActionInfo actionInfo) {
-        final SavingsEvent.Builder builder = new SavingsEvent.Builder()
+                              long actionId, @Nonnull final EntityPriceChange priceChange) {
+        return new SavingsEvent.Builder()
                         .actionEvent(new ActionEvent.Builder()
                                         .actionId(actionId)
-                                        .eventType(actionType)
-                                .description(actionInfo.getDescription())
-                                .entityType(actionInfo.entityType)
-                                .actionType(actionInfo.actionType.getNumber())
-                                .actionCategory(actionInfo.actionCategory.getNumber())
-                                .build())
+                                        .eventType(actionType).build())
                         .entityId(entityId)
-                        .timestamp(timestamp);
-        if (priceChange != null) {
-            builder.entityPriceChange(priceChange);
-        }
-        return builder.build();
+                        .timestamp(timestamp)
+                        .entityPriceChange(priceChange)
+                        .build();
     }
 
     /**
@@ -608,12 +606,12 @@ public class ActionListener implements ActionsListener {
          * <p>This field should not be used for comparison in the equals and
          * hashCode() methods as it can change.
          */
-        private final ActionState actionState;
+        private ActionState actionState;
 
         /**
          * RecommendationTime of the original action.
          */
-        private final long recommendationTime;
+        private long recommendationTime;
 
         /**
          * Stores before and after costs per category.
@@ -628,61 +626,8 @@ public class ActionListener implements ActionsListener {
         /**
          * The action type.
          */
-        private ActionEventType actionEventType;
+        private ActionEventType actionType;
 
-        /**
-         * Action description text.
-         */
-        private String description;
-
-        /**
-         * Optional additional info for some actions, e.g scale compliance.
-         */
-        @Nullable
-        private String explanation;
-
-        /**
-         * Type of action - SCALE or DELETE.
-         */
-        private ActionType actionType;
-
-        /**
-         * Performance or Efficiency category.
-         */
-        private ActionCategory actionCategory;
-
-        /**
-         * Saving/hr that is set in action. Only set (can be 0.0) if it is present, some action
-         * types like Reconfigure will not have this value set. Here mainly for logging/description.
-         */
-        @Nullable
-        private Double savingsPerHour;
-
-        /**
-         * For trimming redundant text from action description, what to replace.
-         */
-        private static final String[] descriptionToReplace = new String[] {
-                "Scale Virtual Machine ",
-                "Scale Database ",
-                "Scale Database Server ",
-                "Scale Volume ",
-                "Delete Unattached ",
-                "Scale ",
-                "Auto Scaling Groups: "
-        };
-
-        /**
-         * What to replace with.
-         */
-        private static final String[] descriptionReplaceWith = new String[] {
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY,
-                StringUtils.EMPTY
-        };
 
         /**
          * Constructor.
@@ -702,7 +647,7 @@ public class ActionListener implements ActionsListener {
             }
             ActionInfo actionInfo = action.getInfo();
             if (actionInfo.hasScale()) {
-                this.actionEventType = ActionEventType.SCALE_EXECUTION_SUCCESS;
+                this.actionType = ActionEventType.SCALE_EXECUTION_SUCCESS;
                 final Scale scale = actionInfo.getScale();
                 if (scale.getChangesCount() > 0) {
                     final ChangeProvider changeProvider = scale.getChanges(0);
@@ -718,7 +663,7 @@ public class ActionListener implements ActionsListener {
                     this.destinationOid = scale.getPrimaryProvider().getId();
                 }
             } else if (actionInfo.hasDelete()) {
-                this.actionEventType = ActionEventType.DELETE_EXECUTION_SUCCESS;
+                this.actionType = ActionEventType.DELETE_EXECUTION_SUCCESS;
                 final Delete delete = actionInfo.getDelete();
                 if (delete.hasSource()) {
                     // A delete is modeled as a resize to zero, so ensure that the destination
@@ -727,12 +672,6 @@ public class ActionListener implements ActionsListener {
                     this.destinationOid = 0L;
                 }
             }
-            this.description = actionSpec.getDescription();
-            this.actionCategory = actionSpec.getCategory();
-            if (action.hasSavingsPerHour() && action.getSavingsPerHour().hasAmount()) {
-                this.savingsPerHour = action.getSavingsPerHour().getAmount();
-            }
-            processActionType(actionSpec);
         }
 
         /**
@@ -815,8 +754,8 @@ public class ActionListener implements ActionsListener {
          *
          * @return the action type.
          */
-        protected ActionEventType getActionEventType() {
-            return actionEventType;
+        protected ActionEventType getActionType() {
+            return actionType;
         }
 
         /**
@@ -867,67 +806,6 @@ public class ActionListener implements ActionsListener {
                 return false;
             }
             return true;
-        }
-
-        /**
-         * Method to extract Action type from ActionSpec. Would have been nice if spec had a type field!
-         * For scale action type, also tries to set the provider oid details.
-         *
-         * @param actionSpec ActionSpec to check.
-         */
-        private void processActionType(@Nonnull final ActionSpec actionSpec) {
-            this.actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-
-            if (this.actionType == ActionType.SCALE
-                    && actionSpec.getRecommendation().getInfo().hasScale()) {
-                processProviderDetails(actionSpec.getRecommendation().getInfo().getScale());
-                if (actionSpec.hasExplanation()) {
-                    String exp = actionSpec.getExplanation();
-                    if (StringUtils.isNotBlank(exp)) {
-                        this.explanation = exp.replace("(^_^)~", "");
-                    }
-                }
-            }
-        }
-
-        /**
-         * For scale actions, sets the details of source and destination provider.
-         *
-         * @param scale Scale action info.
-         */
-        private void processProviderDetails(@Nonnull final Scale scale) {
-            if (scale.getChangesCount() > 0) {
-                final ChangeProvider changeProvider = scale.getChanges(0);
-                if (changeProvider.hasSource()) {
-                    this.sourceOid = changeProvider.getSource().getId();
-                }
-                if (changeProvider.hasDestination()) {
-                    this.destinationOid = changeProvider.getDestination().getId();
-                }
-            } else if (scale.hasPrimaryProvider()) {
-                // Scaling within same tier, like some UltraSSDs.
-                this.sourceOid = scale.getPrimaryProvider().getId();
-                this.destinationOid = scale.getPrimaryProvider().getId();
-            }
-        }
-
-        /**
-         * Gets the description to use in action event to be added to journal.
-         *
-         * @return Description, plus optionally savings/hr and/or explanation.
-         */
-        @Nonnull
-        String getDescription() {
-            final StringBuilder sb = new StringBuilder();
-            sb.append(description);
-            if (savingsPerHour != null) {
-                sb.append(", sph: ").append(savingsPerHour);
-            }
-            if (StringUtils.isNotBlank(explanation)) {
-                sb.append(", exp: ").append(explanation);
-            }
-            String title = sb.toString();
-            return StringUtils.replaceEach(title, descriptionToReplace, descriptionReplaceWith);
         }
     }
 

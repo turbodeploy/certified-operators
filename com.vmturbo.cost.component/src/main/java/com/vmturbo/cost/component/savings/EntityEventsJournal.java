@@ -9,18 +9,13 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
-import org.immutables.value.Value;
 import org.immutables.value.Value.Check;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
-import org.jooq.tools.StringUtils;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Keeps track of events that can affect savings calculations. Events (like power state change)
@@ -176,8 +171,7 @@ interface EntityEventsJournal {
         }
 
         /**
-         * Gets info about price change - before and after action prices. This is set for most
-         * ActionEvents, except for recommendation_removed event where it doesn't make sense.
+         * Gets info about price change - before and after action prices.
          *
          * @return If applicable for the event, contains price change info.
          */
@@ -255,51 +249,11 @@ interface EntityEventsJournal {
         long getActionId();
 
         /**
-         * Gets the type of action event.
+         * Returns info about cost changes related to this event.
          *
-         * @return Action event type.
+         * @return Price change info.
          */
         ActionEventType getEventType();
-
-        /**
-         * Action description.
-         *
-         * @return E.g "vol-0bff4fc40fa6b045e from GP2 to GP3".
-         */
-        @Value.Default
-        default String getDescription() {
-            return StringUtils.EMPTY;
-        }
-
-        /**
-         * Type of target entity for this action. E.g 60 for Volumes.
-         *
-         * @return Entity type.
-         */
-        @Value.Default
-        default int getEntityType() {
-            return EntityType.VIRTUAL_MACHINE_VALUE;
-        }
-
-        /**
-         * Type of action, e.g SCALE or DELETE.
-         *
-         * @return Action type code.
-         */
-        @Value.Default
-        default int getActionType() {
-            return ActionType.SCALE_VALUE;
-        }
-
-        /**
-         * Category for action, e.g Performance or Efficiency.
-         *
-         * @return ActionCategory from ActionSpec.
-         */
-        @Value.Default
-        default int getActionCategory() {
-            return ActionCategory.EFFICIENCY_IMPROVEMENT_VALUE;
-        }
 
         /**
          * Creates a new builder.

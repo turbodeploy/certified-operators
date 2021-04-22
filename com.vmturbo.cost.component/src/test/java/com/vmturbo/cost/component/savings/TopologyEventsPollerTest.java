@@ -67,7 +67,7 @@ public class TopologyEventsPollerTest {
      */
     @Before
     public void setup() throws IOException {
-        store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        store = new InMemoryEntityEventsJournal();
         tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store,
                 ACTION_EXPIRATION_TIME, 1L);
     }

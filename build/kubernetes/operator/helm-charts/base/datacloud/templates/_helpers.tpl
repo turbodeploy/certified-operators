@@ -1,30 +1,9 @@
 {{/*
-Return the proper image tag for the flat collector
-*/}}
-{{- define "datacloud.flatTag" -}}
-{{- $tag := .Values.flat.image.tag | default .Values.image.tag | toString -}}
-{{/*
-Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
-but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
-Also, we can't use a single if because lazy evaluation is not an option
-*/}}
-{{- if .Values.global -}}
-    {{- if and .Values.global.tag (eq $tag "latest") -}}
-        {{- .Values.global.tag -}}
-    {{- else -}}
-        {{- $tag -}}
-    {{- end -}}
-{{- else -}}
-    {{- $tag -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Return the proper image name for the flat collector
 */}}
 {{- define "datacloud.flatImage" -}}
 {{- $repository := .Values.flat.image.repository | default .Values.image.repository -}}
-{{- $tag := include "datacloud.flatTag" . -}}
+{{- $tag := .Values.flat.image.tag | default .Values.image.tag | toString -}}
 {{- $name := .Values.flat.image.name -}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
@@ -32,8 +11,8 @@ but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else l
 Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
-    {{- if and .Values.global.repository (eq $repository "turbonomic") -}}
-        {{- printf "%s/%s:%s" .Values.global.repository $name $tag -}}
+    {{- if and .Values.global.repository .Values.global.tag (eq $repository "turbonomic") (eq $tag "latest") }}
+        {{- printf "%s/%s:%s" .Values.global.repository $name .Values.global.tag -}}
     {{- else -}}
         {{- printf "%s/%s:%s" $repository $name $tag -}}
     {{- end -}}
@@ -43,32 +22,11 @@ Also, we can't use a single if because lazy evaluation is not an option
 {{- end -}}
 
 {{/*
-Return the proper image tag for the graph collector
-*/}}
-{{- define "datacloud.graphTag" -}}
-{{- $tag := .Values.graph.image.tag | default .Values.image.tag | toString -}}
-{{/*
-Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
-but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else logic.
-Also, we can't use a single if because lazy evaluation is not an option
-*/}}
-{{- if .Values.global -}}
-    {{- if and .Values.global.tag (eq $tag "latest") -}}
-        {{- .Values.global.tag -}}
-    {{- else -}}
-        {{- $tag -}}
-    {{- end -}}
-{{- else -}}
-    {{- $tag -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
 Return the proper image name for the graph collector
 */}}
 {{- define "datacloud.graphImage" -}}
 {{- $repository := .Values.graph.image.repository | default .Values.image.repository -}}
-{{- $tag := include "datacloud.graphTag" . -}}
+{{- $tag := .Values.graph.image.tag | default .Values.image.tag | toString -}}
 {{- $name := .Values.graph.image.name -}}
 {{/*
 Helm 2.11 supports the assignment of a value to a variable defined in a different scope,
@@ -76,8 +34,8 @@ but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else l
 Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
-    {{- if and .Values.global.repository (eq $repository "turbonomic") -}}
-        {{- printf "%s/%s:%s" .Values.global.repository $name $tag -}}
+    {{- if and .Values.global.repository .Values.global.tag (eq $repository "turbonomic") (eq $tag "latest") }}
+        {{- printf "%s/%s:%s" .Values.global.repository $name .Values.global.tag -}}
     {{- else -}}
         {{- printf "%s/%s:%s" $repository $name $tag -}}
     {{- end -}}

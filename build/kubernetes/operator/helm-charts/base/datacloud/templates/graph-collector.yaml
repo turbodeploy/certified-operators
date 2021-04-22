@@ -85,7 +85,6 @@ spec:
             name: graphstate
 {{- end }}
 {{- $image :=  include "datacloud.graphImage" . }}
-{{- $tag := include "datacloud.graphTag" . -}}
 {{- $pullPolicy := include "pullPolicy" . }}
 {{- range $k, $poller := .Values.graph.collectors }}
         - name: {{ $poller }}
@@ -105,8 +104,6 @@ spec:
             value: {{ include "datacloud.projectID" $ | quote }}
           - name: DATACLOUD_COLLECTOR_NAME
             value: {{ $.Values.graph.name | quote }}
-          - name: DATACLOUD_COLLECTOR_VERSION
-            value: {{ $tag | quote }}
           - name: DATACLOUD_SELFMON_PERIOD
             value: {{ $.Values.graph.selfmon_period | quote }}
           - name: KAFKA_HOSTS

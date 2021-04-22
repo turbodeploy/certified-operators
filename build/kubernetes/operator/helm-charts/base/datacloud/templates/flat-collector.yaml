@@ -76,8 +76,6 @@ spec:
           value: de-grpc
         - name: SEVONE_LOG_LEVEL
           value: {{ .Values.log_level | quote }}
-        - name: DATACLOUD_COLLECTOR_VERSION
-          value: {{ include "datacloud.flatTag" . | quote }}
         {{- range $name, $value := include "datacloud.env" . | fromYaml  }}
         - name: {{ $name | quote }}
           value: {{ $value | quote }}

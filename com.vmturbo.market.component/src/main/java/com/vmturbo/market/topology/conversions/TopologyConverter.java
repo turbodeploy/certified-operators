@@ -3180,7 +3180,7 @@ public class TopologyConverter {
         // 2. And lastly, by providerId. This was needed for VSAN DataStores, which have multiple PM SLs.
         //    To consistently order these, we sort by the providerId of the SL.
         List<CommoditiesBoughtFromProvider> sortedCommBoughtGrouping = topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
-                .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType).reversed()
+                .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType)
                                 .thenComparing(CommoditiesBoughtFromProvider::getProviderId))
                 .collect(Collectors.toList());
         // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
