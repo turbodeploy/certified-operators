@@ -1369,7 +1369,7 @@ public class TargetControllerTest {
         Assert.assertEquals(Long.valueOf(targetId), healthInfo.getTargetId());
         Assert.assertEquals(ITargetHealthInfo.TargetHealthSubcategory.VALIDATION,
                         healthInfo.getSubcategory());
-        Assert.assertEquals("No finished validation.", healthInfo.getErrorText());
+        Assert.assertEquals("Not finished validation.", healthInfo.getErrorText());
         Assert.assertNull(healthInfo.getTargetErrorType());
         Assert.assertNull(healthInfo.getTimeOfFirstFailure());
         Assert.assertEquals(0, healthInfo.getNumberOfConsecutiveFailures());
