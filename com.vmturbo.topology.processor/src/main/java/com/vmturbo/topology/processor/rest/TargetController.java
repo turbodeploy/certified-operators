@@ -493,9 +493,9 @@ public class TargetController {
                     produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
     @ApiOperation(value = "Get information about all targets health.")
     public ResponseEntity<AllTargetsHealthResponse> getAllTargetsHealth()   {
-        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream()
-                .filter(t -> !t.getSpec().getIsHidden()).map(this::targetToTargetHealthInfo)
-                .collect(Collectors.toList());
+        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream ()
+                        .map(this::targetToTargetHealthInfo)
+                        .collect(Collectors.toList());
         final AllTargetsHealthResponse response = new AllTargetsHealthResponse(allHealth);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
