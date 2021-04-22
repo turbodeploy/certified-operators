@@ -11,7 +11,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.TreeMultimap;
 
 /**
@@ -29,17 +28,9 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
     private final ReadWriteLock journalLock = new ReentrantReadWriteLock();
 
     /**
-     * For writing to audit log as soon as events are added to the journal, rather than waiting
-     * for next time (hour+15 min).
-     */
-    private final AuditLogWriter auditLogWriter;
-
-    /**
      * Creates a new instance. There should be just one instance of this in the system.
-     *
-     * @param auditLogWriter For writing audit entries to DB as soon as events are added.
      */
-    InMemoryEntityEventsJournal(@Nonnull final AuditLogWriter auditLogWriter) {
+    InMemoryEntityEventsJournal() {
         // Keys are sorted by timestamp. In the event that events have the same timestamp,
         // the values (SavingsEvents) are sorted according to a sorting priority. The sorting
         // priority is:
@@ -50,7 +41,6 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         //   - Any TopologyEvent
         //   - All other events, including ActionEvents not listed above.
         events = TreeMultimap.create(Long::compareTo, SavingsEvent::compare);
-        this.auditLogWriter = auditLogWriter;
     }
 
     @Override
@@ -61,7 +51,6 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         } finally {
             journalLock.writeLock().unlock();
         }
-        auditLogWriter.write(new ArrayList<>(newEvents));
     }
 
     @Override
@@ -72,7 +61,6 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         } finally {
             journalLock.writeLock().unlock();
         }
-        auditLogWriter.write(ImmutableList.of(newEvent));
     }
 
     @Override

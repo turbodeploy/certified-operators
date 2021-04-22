@@ -125,8 +125,8 @@ public class EntitySavingsTrackerTest {
 
         setupRepositoryClient();
         tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
-                entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
-                repositoryClient, realtimeTopologyContextId, 2));
+                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class),
+                mock(TopologyEntityCloudTopologyFactory.class), repositoryClient, realtimeTopologyContextId, 2));
 
         Set<EntityState> stateSet = ImmutableSet.of(
                 createEntityState(vm1Id, 2d, null, null, null),

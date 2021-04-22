@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import static org.mockito.Mockito.mock;
-
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.util.ArrayList;
@@ -44,7 +42,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testAlgorithm2() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
 
         // Run the algorithm. Run a single period of one hour
@@ -72,7 +70,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testAlgorithm2WithExpirations() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/action-aging-simple.json", eventsJournal);
 
         // Run the algorithm. Run for four one-hour periods
@@ -130,7 +128,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testAlgorithm2WithExpirationsMoreComplex() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/action-aging-rolling.json", eventsJournal);
 
         // Run the algorithm.
@@ -173,7 +171,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testUpdateFlag() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
 
         long entityUpdatedInLastPeriod = 5555555L;
@@ -208,7 +206,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testVolumeDelete() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/delete-volume.json", eventsJournal);
 
         // Run the algorithm.
@@ -258,8 +256,7 @@ public class SavingsCalculatorTest {
     @Test
     public void testAlgorithm2ExpirationDurationChange() throws FileNotFoundException {
         // Add events
-        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(
-                mock(AuditLogWriter.class));
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
         addTestEvents("src/test/resources/savings/expire-out-of-order.json", eventsJournal);
 
         // Run the algorithm.
