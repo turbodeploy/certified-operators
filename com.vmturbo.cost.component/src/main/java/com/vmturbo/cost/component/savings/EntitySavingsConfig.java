@@ -242,7 +242,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
         return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                getClock(), auditLogWriter(), cloudTopologyFactory(), repositoryClient,
+                getClock(), cloudTopologyFactory(), repositoryClient,
                 realtimeTopologyContextId, persistEntityCostChunkSize);
     }
 
@@ -323,7 +323,7 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntityEventsJournal entityEventsJournal() {
-        return new InMemoryEntityEventsJournal();
+        return new InMemoryEntityEventsJournal(auditLogWriter());
     }
 
     /**
