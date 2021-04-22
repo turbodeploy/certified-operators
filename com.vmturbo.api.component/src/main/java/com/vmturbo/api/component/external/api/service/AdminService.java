@@ -20,6 +20,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -43,6 +44,7 @@ import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification.ExportStat
 import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
+import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
 import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
@@ -53,6 +55,8 @@ import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.DeploymentMode;
+import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -618,5 +622,10 @@ public class AdminService implements IAdminService {
         return productVersion;
     }
 
-
+    @Override
+    @Nonnull
+    public List<HealthCategoryReponseDTO> getHealth(@Nullable HealthCheckCategory healthCheckCategory,
+                    @Nullable HealthState state) {
+        throw new UnsupportedOperationException("Not supported yet, tbd.");
+    }
 }
