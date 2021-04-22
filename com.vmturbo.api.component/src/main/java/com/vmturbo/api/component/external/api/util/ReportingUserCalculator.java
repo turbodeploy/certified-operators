@@ -133,7 +133,7 @@ public class ReportingUserCalculator {
     }
 
     private String getUserKey(@Nonnull final UserApiDTO userApiDTO) {
-        return FormattedString.format("{}:{}", userApiDTO.getLoginProvider(), userApiDTO.getUsername());
+        return FormattedString.format("{}:{}", userApiDTO.getLoginProvider(), userApiDTO.getUsername()).toUpperCase();
     }
 
     /**
