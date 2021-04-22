@@ -263,6 +263,7 @@ public class GroupDAO implements IGroupStore {
                 .leftJoin(GROUP_SUPPLEMENTARY_INFO)
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
                 .where(GROUPING.ID.in(groups.keySet()))
+                .forUpdate()
                 .fetch()
                 .stream()
                 .map(Record1::value1)
