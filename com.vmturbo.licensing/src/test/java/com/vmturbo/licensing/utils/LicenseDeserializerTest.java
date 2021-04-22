@@ -51,8 +51,13 @@ public class LicenseDeserializerTest {
     private String cwomLicense1;
     private String cwomLicense2;
 
+    /**
+     * Runs before each unit test to initialize fixtures.
+     *
+     * @throws IOException If the license fails to be read from disk or be parsed.
+     */
     @Before
-    public void setUp() throws Exception {
+    public void setUp() throws IOException {
         cwomLicense1 = IOUtils.toString(
             getClass().getResourceAsStream("LicenseDeserializationTest_cwom_premier_license_1.lic"),
             StandardCharsets.UTF_8);
@@ -64,6 +69,8 @@ public class LicenseDeserializerTest {
 
     /**
      * Test that a Grafana license gets deserialized into an {@link ExternalLicense} properly.
+     *
+     * @throws IOException If the license fails to be read from disk or be parsed.
      */
     @Test
     public void testGrafanaLicense() throws IOException {
@@ -81,8 +88,12 @@ public class LicenseDeserializerTest {
         assertThat(license.getFilename(), is("grafana.jwt"));
     }
 
+    /**
+     * Tests license key is extracted correctly from the license and that validation fails for
+     * expired licenses.
+     */
     @Test
-    public void deserialize_should_create_a_LicenseApiInputDTO_from_cwom_license() {
+    public void deserializeShouldCreateALicenseApiInputDTOFromCwomLicense() {
         LicenseDTO license = LicenseDeserializer.deserialize(cwomLicense1, "license.lic");
         assertThat(license.getTypeCase(), is(TypeCase.TURBO));
 
@@ -93,9 +104,11 @@ public class LicenseDeserializerTest {
         assertEquals(ErrorReason.EXPIRED, Iterables.get(LicenseUtil.validate(model), 0));
     }
 
+    /**
+     * Tests that similar but not identical CWOM licenses get different license keys.
+     */
     @Test
-    public void
-            deserialize_should_generate_different_turbo_license_keys_for_similar_cwom_licenses() {
+    public void deserializeShouldGenerateDifferentTurboLicenseKeysForSimilarCwomLicenses() {
         // GIVEN
         LicenseDTO license1 = LicenseDeserializer.deserialize(cwomLicense1, "license1.lic");
         LicenseDTO license2 = LicenseDeserializer.deserialize(cwomLicense2, "license2.lic");
@@ -120,8 +133,12 @@ public class LicenseDeserializerTest {
         assertNotEquals(turboLicense1.getLicenseKey(), turboLicense2.getLicenseKey());
     }
 
+    /**
+     * Tests that deserialization returns {@link ErrorReason#INVALID_CONTENT_TYPE} error for
+     * licenses with invalid content.
+     */
     @Test
-    public void deserialize_should_return_a_license_with_invalid_context_type_when_bogus_content() {
+    public void deserializeShouldReturnALicenseWithInvalidContextTypeWhenBogusContent() {
         LicenseDTO licenseApiDTO = LicenseDeserializer.deserialize("foo-bar", "license1.lic");
         assertEquals(ErrorReason.INVALID_CONTENT_TYPE.name(),
                     Iterables.get(licenseApiDTO.getTurbo().getErrorReasonList(), 0));
