@@ -13,10 +13,10 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.TableField;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
@@ -60,7 +60,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
         final List<Condition> allConditions = new ArrayList<>();
         allConditions.addAll(Arrays.asList(conditions));
         if (accountFilter.getAccountIdCount() > 0) {
-            AccountFilterType filterType = accountFilter.getAccountFilterType();
+            AccountReferenceType filterType = accountFilter.getAccountFilterType();
             switch (filterType) {
                 case USED_AND_PURCHASED_BY:
                     Condition purchasedByCondition = Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
@@ -171,7 +171,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
         @Nonnull
         public Builder cloudScopeTuples(@Nonnull Map<EntityType,
                                         Set<Long>> cloudScopesTuples,
-                                        AccountFilterType filterType) {
+                                        AccountReferenceType filterType) {
             cloudScopesTuples.forEach((entityType, entityOids) -> {
                 switch (entityType) {
                     case REGION:
@@ -180,7 +180,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
                                 .build());
                         break;
                     case BUSINESS_ACCOUNT:
-                        accountFilter(AccountFilter.newBuilder()
+                        accountFilter(AccountReferenceFilter.newBuilder()
                                 .addAllAccountId(entityOids)
                                 .setAccountFilterType(filterType)
                                 .build());
@@ -211,7 +211,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
          */
         @Nonnull
         public Builder cloudScopeTuples(@Nonnull Map<EntityType, Set<Long>> cloudScopesTuples) {
-            return cloudScopeTuples(cloudScopesTuples, AccountFilterType.PURCHASED_BY);
+            return cloudScopeTuples(cloudScopesTuples, AccountReferenceType.PURCHASED_BY);
         }
 
 

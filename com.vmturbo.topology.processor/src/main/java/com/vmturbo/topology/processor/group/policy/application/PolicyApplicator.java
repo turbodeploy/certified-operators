@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.mutable.MutableInt;
-
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -76,7 +74,6 @@ public class PolicyApplicator {
                     policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase()));
 
         final Results results = new Results();
-        final Map<CommodityDTO.CommodityType, MutableInt> totalAddedCommodities = new HashMap<>();
 
         APPLICATION_ORDER.forEach(policyClass -> {
             final List<PlacementPolicy> policiesOfClass =

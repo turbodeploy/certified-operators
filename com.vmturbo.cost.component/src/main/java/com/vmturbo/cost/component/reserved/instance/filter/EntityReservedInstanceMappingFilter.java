@@ -9,8 +9,8 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.cost.component.db.Tables;
 
 /**

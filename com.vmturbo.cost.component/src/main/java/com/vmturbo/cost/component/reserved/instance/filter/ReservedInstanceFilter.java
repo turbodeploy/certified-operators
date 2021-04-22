@@ -6,9 +6,9 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 
 /**
  * A abstract class represents the filter object which will be used to query tables related to
@@ -18,7 +18,7 @@ public abstract class ReservedInstanceFilter {
 
     protected final RegionFilter regionFilter;
 
-    protected final AccountFilter accountFilter;
+    protected final AccountReferenceFilter accountFilter;
 
     protected final AvailabilityZoneFilter availabilityZoneFilter;
 
@@ -45,7 +45,7 @@ public abstract class ReservedInstanceFilter {
     }
 
     @Nonnull
-    public AccountFilter getAccountFilter() {
+    public AccountReferenceFilter getAccountFilter() {
         return accountFilter;
     }
 
@@ -60,7 +60,7 @@ public abstract class ReservedInstanceFilter {
             FILTER_BUILDER_CLASS extends Builder> {
 
         protected RegionFilter regionFilter = RegionFilter.getDefaultInstance();
-        protected AccountFilter accountFilter = AccountFilter.getDefaultInstance();
+        protected AccountReferenceFilter accountFilter = AccountReferenceFilter.getDefaultInstance();
         protected AvailabilityZoneFilter availabilityZoneFilter =
                 AvailabilityZoneFilter.getDefaultInstance();
 
@@ -80,14 +80,14 @@ public abstract class ReservedInstanceFilter {
         }
 
         /**
-         * Add an {@link AccountFilter} to this filter.
+         * Add an {@link AccountReferenceFilter} to this filter.
          * @param accountFilter The account filter, or null if no filtering based on account is desired.
          * @return The instance of {@link Builder} for method chaining
          */
         @Nonnull
-        public FILTER_BUILDER_CLASS accountFilter(@Nullable AccountFilter accountFilter) {
+        public FILTER_BUILDER_CLASS accountFilter(@Nullable AccountReferenceFilter accountFilter) {
             this.accountFilter = Optional.ofNullable(accountFilter)
-                    .orElseGet(AccountFilter::getDefaultInstance);
+                    .orElseGet(AccountReferenceFilter::getDefaultInstance);
             return (FILTER_BUILDER_CLASS)this;
         }
 

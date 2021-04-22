@@ -59,7 +59,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.HealthState;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;

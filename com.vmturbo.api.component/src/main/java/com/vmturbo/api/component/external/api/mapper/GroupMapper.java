@@ -65,8 +65,8 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.cloud.CloudCommon;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
@@ -1526,7 +1526,7 @@ public class GroupMapper {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                         .setEntityFilter(
-                                Cost.EntityFilter.newBuilder().addAllEntityId(members).build())
+                                CloudCommon.EntityFilter.newBuilder().addAllEntityId(members).build())
                         .build())
                 .build();
         costServiceStub.getCloudCostStats(request, observer);

@@ -114,6 +114,7 @@ public class ComputeTierDemandStatsStore implements
                                         .set(stat));
                     }
                     localDslContext.batch(batchQueries).execute();
+                    batchQueries.clear();
                 } catch (DataAccessException ex) {
                     throw ex;
                 }

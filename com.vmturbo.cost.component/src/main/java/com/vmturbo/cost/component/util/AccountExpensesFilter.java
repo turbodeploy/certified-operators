@@ -130,6 +130,7 @@ public class AccountExpensesFilter extends CostFilter {
             case MONTH:
                 return Tables.ACCOUNT_EXPENSES_BY_MONTH;
             case LATEST:
+            case HOUR:
             case DAY:
                 return Tables.ACCOUNT_EXPENSES;
             default:

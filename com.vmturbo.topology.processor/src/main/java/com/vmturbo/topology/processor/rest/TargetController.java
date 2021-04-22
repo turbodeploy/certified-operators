@@ -50,7 +50,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceB
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -513,7 +512,7 @@ public class TargetController {
         if (!lastValidation.isPresent())    {
             if (!lastDiscovery.isPresent())  {
                 return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                                targetName, "No finished validation.");
+                                targetName, "Not finished validation.");
             } else {
                 return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }

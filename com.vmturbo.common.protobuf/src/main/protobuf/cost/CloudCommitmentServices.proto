@@ -4,7 +4,8 @@ package cloud_commitment;
 option java_package = "com.vmturbo.common.protobuf.cloud";
 option java_outer_classname = "CloudCommitmentServices";
 
-import "cost/Cost.proto";
+import "cloud/CloudCommitmentDTO.proto";
+import "cloud/CloudCommon.proto";
 import "CommonCost.proto";
 
 service CloudCommitmentUploadService {
@@ -74,10 +75,10 @@ message GetCommitmentStatRecordRequest {
     optional uint64 topology_context_id = 3;
 
     // filters become necessary when scopes other than global are supported
-    optional cost.RegionFilter region_filter = 4;
-    optional cost.AccountFilter account_filter = 5;
+    optional cloud_common.RegionFilter region_filter = 4;
+    optional cloud_common.AccountFilter account_filter = 5;
     // for utilization requests, entity filter is ignored
-    optional cost.EntityFilter entity_filter = 6;
+    optional cloud_common.EntityFilter entity_filter = 6;
 
     optional CommitmentStatType stat_type = 7;
 

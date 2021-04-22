@@ -12,9 +12,9 @@ import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 
 /**
  * An implementation of {@link CloudCommitmentFilter}, specific to accepting reserved instances. Any

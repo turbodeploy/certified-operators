@@ -52,9 +52,11 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -63,12 +65,10 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilte
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -841,7 +841,7 @@ public class CloudCostsStatsSubQueryTest {
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE).build())
                         .setEntityTypeFilter(EntityTypeFilter.newBuilder()
                                 .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
-                        .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(5L).build())
+                        .setRegionFilter(RegionFilter.newBuilder().addRegionId(5L).build())
                         .setRequestProjected(true)
                         .build()).build()
         ));

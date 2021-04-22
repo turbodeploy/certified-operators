@@ -1,0 +1,18 @@
+[
+    {
+        "timestamp": 1618819200000,
+        "expirationTimestamp": 1681891200000,
+        "uuid": 2116,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 9,
+        "destTier": 6
+    },
+    {
+        "timestamp": 1618826400000,
+        "expirationTimestamp": 1618828200000,
+        "uuid": 2116,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 6,
+        "destTier": 7
+    }
+]

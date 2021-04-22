@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,6 +22,7 @@ import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.AutomationLevel;
 import com.vmturbo.api.enums.DiskRoleType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -35,12 +38,18 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskGroupData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskRole;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Physical Machine aspect mapper.
  **/
 public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Map<EntityDTO.AutomationLevel, AutomationLevel> PLATFORM_TO_API_AUTOMATION_LEVEL =
+        ImmutableMap.of(EntityDTO.AutomationLevel.FULLY_AUTOMATED, AutomationLevel.FULLY_AUTOMATED,
+            EntityDTO.AutomationLevel.PARTIALLY_AUTOMATED, AutomationLevel.PARTIALLY_AUTOMATED,
+            EntityDTO.AutomationLevel.NOT_AUTOMATED, AutomationLevel.NOT_AUTOMATED);
 
     private final RepositoryApi repositoryApi;
 
@@ -67,7 +76,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
             aspect.setProcessorPools(processorPoolDisplayNames);
         }
 
-        TypeSpecificInfo typeInfo = entity.getTypeSpecificInfo();
+        final TypeSpecificInfo typeInfo = entity.getTypeSpecificInfo();
 
         // Convert disk groups for vSAN host
         try {
@@ -80,10 +89,27 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
                     + entity.getDisplayName() + "': " + typeInfo);
         }
 
-        if (typeInfo != null && typeInfo.hasPhysicalMachine()) {
-            PhysicalMachineInfo physicalMachineInfo = typeInfo.getPhysicalMachine();
+        if (typeInfo.hasPhysicalMachine()) {
+            final PhysicalMachineInfo physicalMachineInfo = typeInfo.getPhysicalMachine();
             if (physicalMachineInfo.hasCpuModel()) {
                 aspect.setCpuModel(physicalMachineInfo.getCpuModel());
+            }
+
+            // map automation and migration level
+            if (physicalMachineInfo.hasAutomationLevel()) {
+                final AutomationLevel automationLevel = PLATFORM_TO_API_AUTOMATION_LEVEL.get(
+                    physicalMachineInfo.getAutomationLevel());
+                if (automationLevel != null) {
+                    aspect.setAutomationLevel(automationLevel);
+                } else {
+                    logger.warn("Unexpected automation level {} for physical machine {}, oid: {}",
+                        () -> physicalMachineInfo.getAutomationLevel().name(), entity::getDisplayName,
+                        entity::getOid);
+                }
+            }
+
+            if (physicalMachineInfo.hasMigrationLevel()) {
+                aspect.setMigrationLevel(physicalMachineInfo.getMigrationLevel());
             }
         }
 
@@ -91,6 +117,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
 
         // map networks
         aspect.setConnectedNetworks(new ArrayList<>(getNetworks(entity)));
+        
         return aspect;
     }
 

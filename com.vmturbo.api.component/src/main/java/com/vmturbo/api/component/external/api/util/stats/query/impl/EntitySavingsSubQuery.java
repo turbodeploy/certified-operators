@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -28,7 +30,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
@@ -38,7 +40,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Sub-query for handling requests for entity savings/investments.
@@ -49,6 +53,8 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
 
     private final GroupExpander groupExpander;
 
+    private final RepositoryClient repositoryClient;
+
     private static final Set<String> SUPPORTED_STATS = Arrays.stream(EntitySavingsStatsType.values())
             .map(EntitySavingsStatsType::name)
             .collect(Collectors.toSet());
@@ -58,11 +64,14 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
      *
      * @param costServiceRpc cost RPC service
      * @param groupExpander group expander
+     * @param repositoryClient repository client
      */
     public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc,
-                                 @Nonnull final GroupExpander groupExpander) {
+                                 @Nonnull final GroupExpander groupExpander,
+                                 @Nonnull final RepositoryClient repositoryClient) {
         this.costServiceRpc = costServiceRpc;
         this.groupExpander = groupExpander;
+        this.repositoryClient = repositoryClient;
     }
 
     @Override
@@ -71,8 +80,9 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         // Hybrid groups are also applicable. Only the cloud entities in the group will have savings
         // stats. There is no need to process on-prem entities or groups since they don't have
         // savings data.
-        return !context.getInputScope().isPlan()
-                && (context.getInputScope().isCloud() || context.getInputScope().isHybridGroup());
+        ApiId inputScope = context.getInputScope();
+        return !inputScope.isPlan()
+                && (inputScope.isCloud() || inputScope.isHybridGroup() || inputScope.isRealtimeMarket());
     }
 
     @Override
@@ -131,6 +141,17 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
                 resourceGroupFilterBuilder.addResourceGroupOid(scopeOid);
             }
             request.setResourceGroupFilter(resourceGroupFilterBuilder);
+        } else if (context.getInputScope().isRealtimeMarket()) {
+            // If the scope is "Market", use all cloud service providers and use them as the scope.
+            // This way, savings for all cloud entities will be considered.
+            EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+            repositoryClient.getEntitiesByType(ImmutableList.of(EntityType.SERVICE_PROVIDER))
+                    .forEach(sp -> entityFilterBuilder.addEntityId(sp.getOid()));
+            request.setEntityFilter(entityFilterBuilder);
+            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.SERVICE_PROVIDER_VALUE)
+                    .build();
+            request.setEntityTypeFilter(entityTypeFilter);
         } else {
             // Set entity OIDs.
             EntityFilter entityFilter = EntityFilter.newBuilder()

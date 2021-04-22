@@ -18,7 +18,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Cost;

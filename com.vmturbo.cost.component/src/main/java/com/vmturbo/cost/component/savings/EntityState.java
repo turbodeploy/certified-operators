@@ -181,8 +181,16 @@ public class EntityState {
         this.updated = updated;
     }
 
-    @Nullable
+    /**
+     * Return the current expiration list.
+     *
+     * @return the expiration list
+     */
+    @Nonnull
     public List<Long> getExpirationList() {
+        if (expirationList == null) {
+            expirationList = new ArrayList<>();
+        }
         return expirationList;
     }
 

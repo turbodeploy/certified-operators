@@ -29,12 +29,12 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -237,7 +237,7 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                                 translateServiceProvidersToRegions(scopeOids)));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.BUSINESS_ACCOUNT)) {
                 reqBuilder.setAccountFilter(
-                        AccountFilter.newBuilder().addAllAccountId(scopeOids));
+                        AccountReferenceFilter.newBuilder().addAllAccountId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.REGION)) {
                 reqBuilder.setRegionFilter(
                         RegionFilter.newBuilder().addAllRegionId(scopeOids));
@@ -292,7 +292,7 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                                 translateServiceProvidersToRegions(scopeOids)));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.BUSINESS_ACCOUNT)) {
                 reqBuilder.setAccountFilter(
-                        AccountFilter.newBuilder().addAllAccountId(scopeOids));
+                        AccountReferenceFilter.newBuilder().addAllAccountId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.REGION)) {
                 reqBuilder.setRegionFilter(
                         RegionFilter.newBuilder().addAllRegionId(scopeOids));

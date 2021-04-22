@@ -434,6 +434,48 @@ public class ActionInterpreter {
                 } else {
                     return new NoSavings(trax(0, "no destination market tier for " + move.getDestination()));
                 }
+            case DEACTIVATE:
+                final DeactivateTO deactivateTO = actionTO.getDeactivate();
+                long deactivatedEntityOid = deactivateTO.getTraderToDeactivate();
+                TraderTO deactivatingEntityTO =  oidToProjectedTraderTOMap.get(deactivatedEntityOid);
+
+                // get the entity DTO from the original topology
+                TopologyEntityDTO deactivatingEntity =  originalTopology.get(deactivatedEntityOid);
+
+                if (deactivatingEntityTO == null || deactivatingEntity == null) {
+                    return new NoSavings(trax(0, "savings calculation for "
+                            + actionTO.getActionTypeCase().name()));
+                }
+
+                // get the cost journal of the entity from the source topology
+                // since the entity in the projected topology is in suspended state
+                // and does not have cost associated with it
+                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
+                        topologyCostCalculator.calculateCostForEntity(
+                                originalCloudTopology, deactivatingEntity);
+
+                return calculateHorizontalScalingActionSavings(sourceCostJournal,
+                        deactivatingEntityTO, deactivatingEntity, true);
+
+            case PROVISION_BY_SUPPLY:
+                final ProvisionBySupplyTO provisionBySupply = actionTO.getProvisionBySupply();
+                long provisionedEntityOid = provisionBySupply.getModelSeller();
+                TraderTO provisionedEntityTO =  oidToProjectedTraderTOMap.get(provisionedEntityOid);
+
+                // get the entity DTO from the original topology
+                TopologyEntityDTO provisionedEntity =  originalTopology.get(provisionedEntityOid);
+
+                if (provisionedEntityTO == null || provisionedEntity == null) {
+                    return new NoSavings(trax(0, "investment calculation for "
+                            + actionTO.getActionTypeCase().name()));
+                }
+                // get the cost journal of the model seller
+                // since the costs for the provisioned (cloned) entity is not computed
+                final CostJournal<TopologyEntityDTO> origEntityCostJournal
+                                                 = projectedCosts.get(provisionedEntityOid);
+
+                return calculateHorizontalScalingActionSavings(Optional.ofNullable(origEntityCostJournal),
+                        provisionedEntityTO, provisionedEntity, false);
             default:
                 return new NoSavings(trax(0, "No savings calculation for "
                     + actionTO.getActionTypeCase().name()));
@@ -489,6 +531,43 @@ public class ActionInterpreter {
         } else {
             return new NoSavings(trax(0, "no destination cost journal"));
         }
+    }
+
+    @Nonnull
+    private CalculatedSavings calculateHorizontalScalingActionSavings(
+                                    Optional<CostJournal<TopologyEntityDTO>> entityCostJournal,
+                                    TraderTO projectedEntityTO,
+                                    @Nonnull TopologyEntityDTO cloudEntityHzScaling,
+                                    boolean isSuspend) {
+        if (!entityCostJournal.isPresent()) {
+            return new NoSavings(trax(0, "no entity cost journal"));
+        }
+        CostJournal<TopologyEntityDTO> costJournal = entityCostJournal.get();
+
+        // need suppliers to get the market tier
+        List<Long> suppliers = projectedEntityTO.getShoppingListsList()
+                                            .stream()
+                                            .map(sl -> sl.getSupplier())
+                                            .collect(Collectors.toList());
+
+        // get cost for the compute tier only
+        TraxNumber costs = suppliers.stream()
+                .map(cloudTc::getMarketTier)
+                .filter(Objects::nonNull)
+                .filter(marketTier -> marketTier.getTier() != null
+                        && TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType()))
+                .map(marketTier -> getOnDemandCostForMarketTier(cloudEntityHzScaling, marketTier, costJournal))
+                .collect(TraxCollectors.sum("horizontal-scale-vm-in-cloud"));
+
+        final String savingsDescription = String.format("%s for %s \"%s\" (%d)",
+                    isSuspend ? "Savings" : "Investment",
+                    EntityType.forNumber(cloudEntityHzScaling.getEntityType()).name(),
+                    cloudEntityHzScaling.getDisplayName(),
+                    cloudEntityHzScaling.getOid());
+
+        // accumulated cost
+        final TraxNumber savings = costs.times(isSuspend?1.0:-1.0).compute(savingsDescription);
+        return new CalculatedSavings(savings);
     }
 
     @Nullable
@@ -560,6 +639,7 @@ public class ActionInterpreter {
     private ActionDTO.Deactivate interpretDeactivate(@Nonnull final DeactivateTO deactivateTO,
                          @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = deactivateTO.getTraderToDeactivate();
+
         final List<CommodityType> topologyCommodities =
                 deactivateTO.getTriggeringBasketList().stream()
                         .map(commodityConverter::marketToTopologyCommodity)
@@ -1927,6 +2007,7 @@ public class ActionInterpreter {
 
     ActionEntity createActionEntity(final long id,
                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+
         final TopologyEntityDTO projectedEntity = projectedTopology.get(id).getEntity();
         return ActionEntity.newBuilder()
                 .setId(id)
