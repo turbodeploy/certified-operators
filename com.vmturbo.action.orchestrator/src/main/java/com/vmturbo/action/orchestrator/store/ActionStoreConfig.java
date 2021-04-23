@@ -130,7 +130,7 @@ public class ActionStoreConfig {
     @Value("${actionExecution.concurrentAutomatedActions:1000}")
     private int concurrentAutomatedActions;
 
-    @Value("${actionExecution.isConditionalSubmitter:true}")
+    @Value("${actionExecution.isConditionalSubmitter:false}")
     private boolean isConditionalSubmitter;
 
     @Value("${minsActionAcceptanceTTL:1440}")
