@@ -24,6 +24,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -498,8 +500,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         @Nonnull
         @Override
         public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> load(
-                        @Nonnull Collection<EntityCommodityReference> commodities,
-                        @Nonnull TimeslotHistoricalEditorConfig config)
+            @Nonnull Collection<EntityCommodityReference> commodities,
+            @Nonnull TimeslotHistoricalEditorConfig config, final LongSet oidsToUse)
                         throws HistoryCalculationException {
             try {
                 if (!maintenaceData.isEmpty()) {
@@ -509,7 +511,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                     broadcastLatch.await();
                     return Collections.emptyMap();
                 }
-                return super.load(commodities, config);
+                return super.load(commodities, config, null);
             } catch (InterruptedException e) {
                 throw new HistoryCalculationException("Test has been interrupted", e);
             } finally {

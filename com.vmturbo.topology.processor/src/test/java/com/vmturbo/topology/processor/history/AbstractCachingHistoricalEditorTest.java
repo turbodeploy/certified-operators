@@ -25,6 +25,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -319,7 +321,7 @@ public class AbstractCachingHistoricalEditorTest {
 
         @Override
         public Map<EntityCommodityFieldReference, Float>
-               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config) {
+               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config, final LongSet oidsToUse) {
             seenCommRefs.addAll(commodities);
             return commodities.stream()
                             .map(comm -> new EntityCommodityFieldReference(comm,

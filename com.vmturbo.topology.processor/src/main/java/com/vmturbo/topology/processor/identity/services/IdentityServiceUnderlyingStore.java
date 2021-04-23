@@ -7,6 +7,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
@@ -100,6 +102,12 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      * @return true if the oid was found in the cache; false if not.
      */
     boolean shallowRemove(long oid);
+
+    /**
+     * Get all the oids that currently exist in the cache.
+     * @return {@link LongSet} containing the oids
+     */
+    LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
 
     /**
      * Performs the search using the set of properties.

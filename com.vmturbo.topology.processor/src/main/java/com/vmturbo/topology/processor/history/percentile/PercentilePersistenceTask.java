@@ -21,6 +21,9 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,6 +40,7 @@ import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.IHistoryLoadingTask;
 import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
@@ -59,19 +63,20 @@ public class PercentilePersistenceTask extends
     private final StatsHistoryServiceStub statsHistoryClient;
     private final long startTimestamp;
     private long lastCheckpointMs;
+    private boolean enableOidFiltering;
 
     /**
      * Construct the task to load percentile data for the 'full window' from the persistent store.
-     *
      * @param statsHistoryClient persistent store grpc interface
      * @param range range from start timestamp till end timestamp for which we need
-     *                 to request data from DB.
+     * @param enableExpiredOidFiltering feature flag to filter out expired oids
      */
     public PercentilePersistenceTask(@Nonnull StatsHistoryServiceStub statsHistoryClient,
-                    @Nonnull Pair<Long, Long> range) {
+                                     @Nonnull Pair<Long, Long> range, final boolean enableExpiredOidFiltering) {
         this.statsHistoryClient = statsHistoryClient;
         final Long startMs = range.getFirst();
         this.startTimestamp = startMs == null ? TOTAL_START_TIMESTAMP : startMs;
+        this.enableOidFiltering = enableExpiredOidFiltering;
     }
 
     /**
@@ -86,8 +91,8 @@ public class PercentilePersistenceTask extends
     /**
      * Getter for {@link PercentilePersistenceTask#lastCheckpointMs} field.
      *
-     * @return checkpoint timestamp of last {@link PercentilePersistenceTask#load(Collection, PercentileHistoricalEditorConfig)}
-     * or zero if {@link PercentilePersistenceTask#load(Collection, PercentileHistoricalEditorConfig)} wasn't called.
+     * @return checkpoint timestamp of last {@link IHistoryLoadingTask#load(Collection, Object, LongSet)}
+     * or zero if {@link IHistoryLoadingTask#load(Collection, Object, LongSet)} wasn't called.
      */
     public long getLastCheckpointMs() {
         return lastCheckpointMs;
@@ -96,7 +101,7 @@ public class PercentilePersistenceTask extends
     @Override
     public Map<EntityCommodityFieldReference, PercentileRecord>
            load(@Nonnull Collection<EntityCommodityReference> commodities,
-                @Nonnull PercentileHistoricalEditorConfig config)
+                @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse)
                            throws HistoryCalculationException, InterruptedException {
         ReaderObserver observer = new ReaderObserver(config.getGrpcStreamTimeoutSec());
         statsHistoryClient
@@ -108,7 +113,8 @@ public class PercentilePersistenceTask extends
         checkRemoteError(observer, "load", startTimestamp);
         try (ByteArrayInputStream source = new ByteArrayInputStream(baos.toByteArray())) {
             final Map<EntityCommodityFieldReference, PercentileRecord> result =
-                            parse(startTimestamp, source, PercentileCounts::parseFrom);
+                            parse(startTimestamp, source, PercentileCounts::parseFrom, oidsToUse,
+                                this.enableOidFiltering);
             logger.trace("Loaded {} percentile commodity entries for timestamp {}", result.size(),
                             startTimestamp);
             return result;
@@ -129,13 +135,16 @@ public class PercentilePersistenceTask extends
      * @param source data that have been loaded
      * @param parser method that need to be used to create {@link PercentileCounts}
      *                 instance from {@link InputStream}.
+     * @param oidsToUse non expired oids that should be used
+     * @param enableExpiredOidFiltering feature flag to filter out expired oids
      * @return mapping from field reference to appropriate percentile record instance.
      * @throws IOException in case of error while parsing percentile records.
      */
     @Nonnull
     protected static Map<EntityCommodityFieldReference, PercentileRecord> parse(long startTimestamp,
-                    @Nonnull InputStream source,
-                    @Nonnull ThrowingFunction<InputStream, PercentileCounts, IOException> parser)
+                                                                                @Nonnull InputStream source,
+                                                                                @Nonnull ThrowingFunction<InputStream, PercentileCounts, IOException> parser,
+                                                                                LongSet oidsToUse, boolean enableExpiredOidFiltering)
                     throws IOException {
         // parse the source
         final Map<EntityCommodityFieldReference, PercentileRecord> result = new HashMap<>();
@@ -144,18 +153,28 @@ public class PercentilePersistenceTask extends
             throw new InvalidProtocolBufferException(String.format("Cannot parse '%s' for '%s' timestamp",
                             PercentileCounts.class.getSimpleName(), startTimestamp));
         }
+        int filteredOidsCount = 0;
         for (PercentileRecord record : counts.getPercentileRecordsList()) {
+            //TODO: Remove enableExpiredOidFiltering flag once OM-69698 has been tested in staging
+            if (enableExpiredOidFiltering && oidsToUse != null && !oidsToUse.contains(record.getEntityOid())) {
+                filteredOidsCount += 1;
+                continue;
+            }
             final CommodityType.Builder commTypeBuilder =
-                            CommodityType.newBuilder().setType(record.getCommodityType());
+                CommodityType.newBuilder().setType(record.getCommodityType());
             if (record.hasKey()) {
                 commTypeBuilder.setKey(record.getKey());
             }
             final Long provider = record.hasProviderOid() ? record.getProviderOid() : null;
             final EntityCommodityFieldReference fieldRef =
-                            new EntityCommodityFieldReference(record.getEntityOid(),
-                                            commTypeBuilder.build(), provider, CommodityField.USED);
+                new EntityCommodityFieldReference(record.getEntityOid(),
+                    commTypeBuilder.build(), provider, CommodityField.USED);
             result.put(fieldRef, record);
+
         }
+        Level level = filteredOidsCount > 0 ? Level.INFO : Level.DEBUG;
+        logger.log(level, "{} expired oids were filtered out from blob with timestamp {}",
+            filteredOidsCount, startTimestamp);
         return result;
     }
 

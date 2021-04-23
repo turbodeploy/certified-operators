@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -17,6 +18,9 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -135,10 +139,12 @@ public class PercentilePersistenceTaskTest {
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
+        final LongSet oidsToUse = new LongOpenHashSet();
+        oidsToUse.addAll(Arrays.asList(oid1, oid2, oid3));
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, true);
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
-                        .load(Collections.emptyList(), config);
+                        .load(Collections.emptyList(), config, oidsToUse);
         Assert.assertNotNull(comms);
         final CommodityType commType1 = CommodityType.newBuilder().setType(ct1).build();
         final CommodityType commType2 = CommodityType.newBuilder().setType(ct2).build();
@@ -155,6 +161,65 @@ public class PercentilePersistenceTaskTest {
     }
 
     /**
+     * Test that only oids contained in the oidsToUse collection are being loaded.
+     *
+     * @throws HistoryCalculationException when loading fails
+     * @throws InterruptedException when interrupted
+     */
+    @Test
+    public void testFilterOids()
+        throws HistoryCalculationException, InterruptedException {
+        float cap = 89F;
+        String key = "qqq";
+        PercentileRecord rec1 = PercentileRecord.newBuilder().setEntityOid(oid1)
+            .setCommodityType(ct1).setCapacity(cap).setPeriod(30).build();
+        PercentileRecord rec2 = PercentileRecord.newBuilder().setEntityOid(oid2)
+            .setCommodityType(ct2).setCapacity(cap).setPeriod(30).build();
+        PercentileRecord rec3 = PercentileRecord.newBuilder().setEntityOid(oid3)
+            .setCommodityType(ct2).setCapacity(cap).setKey(key).setPeriod(30).build();
+        byte[] payload = PercentileCounts.newBuilder()
+            .addPercentileRecords(rec1).addPercentileRecords(rec2)
+            .addPercentileRecords(rec3)
+            .build().toByteArray();
+
+        Answer<Void> answerGetCounts = invocation -> {
+            GetPercentileCountsRequest request = invocation
+                .getArgumentAt(0, GetPercentileCountsRequest.class);
+            Assert.assertNotNull(request);
+            Assert.assertEquals(chunkSizeKb * Units.KBYTE, request.getChunkSize());
+            @SuppressWarnings("unchecked")
+            StreamObserver<PercentileChunk> observer = invocation.getArgumentAt(1, StreamObserver.class);
+            observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(PercentilePersistenceTask.TOTAL_TIMESTAMP)
+                .setContent(ByteString.copyFrom(payload, 0, payload.length))
+                .build());
+            observer.onCompleted();
+            return null;
+        };
+        Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
+            Mockito.any());
+
+        final LongSet oidsToUse = new LongOpenHashSet();
+        oidsToUse.addAll(Arrays.asList(oid1, oid2));
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+            StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, true);
+        Map<EntityCommodityFieldReference, PercentileRecord> comms = task
+            .load(Collections.emptyList(), config, oidsToUse);
+        Assert.assertNotNull(comms);
+        final CommodityType commType1 = CommodityType.newBuilder().setType(ct1).build();
+        final CommodityType commType2 = CommodityType.newBuilder().setType(ct2).build();
+        final CommodityType commType3 = CommodityType.newBuilder().setType(ct2).setKey(key).build();
+        Assert.assertTrue(comms
+            .containsKey(new EntityCommodityFieldReference(oid1, commType1,
+                CommodityField.USED)));
+        Assert.assertTrue(comms
+            .containsKey(new EntityCommodityFieldReference(oid2, commType2,
+                CommodityField.USED)));
+        Assert.assertFalse(comms
+            .containsKey(new EntityCommodityFieldReference(oid3, commType3,
+                CommodityField.USED)));
+    }
+
+    /**
      * Test that reading IO failure is rethrown.
      *
      * @throws HistoryCalculationException expected
@@ -168,10 +233,10 @@ public class PercentilePersistenceTaskTest {
                 .getPercentileCounts(Mockito.any(), Mockito.any());
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to load");
-        task.load(Collections.emptyList(), config);
+        task.load(Collections.emptyList(), config, null);
     }
 
     /**
@@ -201,10 +266,10 @@ public class PercentilePersistenceTaskTest {
                                                                             Mockito.any());
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to deserialize");
-        task.load(Collections.emptyList(), config);
+        task.load(Collections.emptyList(), config, null);
     }
 
     /**
@@ -231,7 +296,7 @@ public class PercentilePersistenceTaskTest {
                 .setPercentileCounts(Mockito.any(StreamObserver.class));
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         task.save(counts, periodMs, config);
         Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
     }
@@ -267,7 +332,7 @@ public class PercentilePersistenceTaskTest {
         }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                        StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                        StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         final PercentileCounts counts = PercentileCounts.newBuilder().build();
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to persist percentile data for");
@@ -303,7 +368,7 @@ public class PercentilePersistenceTaskTest {
         }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
         PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         final PercentileCounts counts = PercentileCounts.newBuilder().build();
         task.save(counts, 0, config);
 
@@ -320,7 +385,7 @@ public class PercentilePersistenceTaskTest {
     @Test
     public void testDefaultConstructor() {
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
         Assert.assertEquals(PercentilePersistenceTask.TOTAL_TIMESTAMP, task.getStartTimestamp());
     }
 
