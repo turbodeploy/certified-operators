@@ -429,7 +429,6 @@ public class TopologyTestUtil {
                 .setGuestOsInfo(OS.newBuilder()
                         .setGuestOsName("Ubuntu")
                         .setGuestOsType(OSType.LINUX)
-                        .setGuestOsName("walrus")
                         .build())
                 .addIpAddresses(IpAddress.newBuilder()
                         .setIpAddress("10.10.10.1")

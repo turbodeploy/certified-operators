@@ -67,6 +67,7 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNEC
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CPU_MODEL;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENVIRONMENT_TYPE;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_GUEST_OS_NAME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_ENCRYPTED_VOLUME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_EPHEMERAL_VOLUME;
@@ -205,6 +206,7 @@ public enum SearchEntityMetadata {
             // type specific fields
             .put(primitive("connectedNetworks"), PRIMITIVE_CONNECTED_NETWORKS)
             .put(primitive("guestOsType"), PRIMITIVE_GUEST_OS_TYPE)
+            .put(primitive("guestOsName"), PRIMITIVE_GUEST_OS_NAME)
             .put(primitive("numCpus"), PRIMITIVE_VM_NUM_CPUS)
             .put(primitive("isEphemeralVolume"), PRIMITIVE_IS_EPHEMERAL_VOLUME)
             .put(primitive("isEncryptedVolume"), PRIMITIVE_IS_ENCRYPTED_VOLUME)
