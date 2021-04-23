@@ -366,7 +366,7 @@ public class TargetMapper {
         if (errorText.isEmpty()) {
             result.setHealthState(HealthState.NORMAL);
         } else if (targetErrorType == null) {
-            result.setHealthState(HealthState.MODERATE);
+            result.setHealthState(HealthState.MINOR);
             result.setErrorText(errorText);
         } else {
             result.setHealthState(HealthState.CRITICAL);

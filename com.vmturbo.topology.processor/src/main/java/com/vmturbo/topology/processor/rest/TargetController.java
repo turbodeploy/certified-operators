@@ -512,7 +512,7 @@ public class TargetController {
         if (!lastValidation.isPresent())    {
             if (!lastDiscovery.isPresent())  {
                 return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                                targetName, "Not finished validation.");
+                                targetName, "Validation pending.");
             } else {
                 return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }
