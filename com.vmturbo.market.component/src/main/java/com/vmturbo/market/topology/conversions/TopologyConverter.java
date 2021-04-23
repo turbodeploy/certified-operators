@@ -3182,9 +3182,10 @@ public class TopologyConverter {
         Long computeTierProviderId = null;
         // Sort the commBoughtGroupings based on provider type and oid so
         // that the input into analysis is consistent every cycle
-        // 1. First based on provider type. So this way, for VMs, the storage SLs appear
-        //    followed by the PM SL. And we can use this fact in SNM for a performance gain. We can
-        //    ignore the simulation of the last 2 SLs (the last storage SL and the PM SL).
+        // 1. First based on provider type (largest provider type first). So this way, for VMs,
+        //    the PM SL appears first followed by the Storage SLs. And we can use this fact in SNM
+        //    for a performance gain. We can ignore the simulation of the first and last SLs
+        //    (the PM SL and the last storage SL).
         // 2. And lastly, by providerId. This was needed for VSAN DataStores, which have multiple PM SLs.
         //    To consistently order these, we sort by the providerId of the SL.
         List<CommoditiesBoughtFromProvider> sortedCommBoughtGrouping = topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
