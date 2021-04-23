@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -96,7 +97,7 @@ public class ActionListenerTest {
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
-        store = new InMemoryEntityEventsJournal();
+        store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         // Test gRPC server to mock out actions service gRPC dependencies.
         GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
