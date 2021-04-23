@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -114,6 +116,15 @@ class EntitiesWithNewStateCache {
                 if (hostsInMaintenanceIds.contains(changeProvider.getDestination().getId())) {
                     return true;
                 }
+                // For hosts that went into maintenance we want to remove all the move actions that
+                // have that host as the source if automation level of remote control system is FULLY_AUTOMATED.
+                final long sourceId = changeProvider.getSource().getId();
+                if (hostsInMaintenanceIds.contains(sourceId)) {
+                    final HostWithUpdatedState hostWithUpdatedState = hostsWithNewState.get(sourceId);
+                    return hostWithUpdatedState != null
+                        && hostWithUpdatedState.getAutomationLevel()
+                            .filter(al -> al == AutomationLevel.FULLY_AUTOMATED).isPresent();
+                }
                 // For hosts that went into powered_on state we want to remove all the move actions
                 // that have that host as the source
                 if (activeHostIds.contains(changeProvider.getSource().getId())) {
@@ -136,7 +147,10 @@ class EntitiesWithNewStateCache {
     private List<HostWithUpdatedState> getHostsWithUpdatedState(List<TopologyEntityDTO> entityDtos, long stateChangeId ) {
         return entityDtos.stream()
             .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-            .map(entity -> new HostWithUpdatedState(entity.getOid(), entity.getEntityState(), stateChangeId))
+            .map(entity -> new HostWithUpdatedState(entity.getOid(), entity.getEntityState(), stateChangeId,
+                (entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasPhysicalMachine()
+                    && entity.getTypeSpecificInfo().getPhysicalMachine().hasAutomationLevel())
+                    ? Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getAutomationLevel()) : Optional.empty()))
             .collect(Collectors.toList());
     }
 
@@ -146,6 +160,7 @@ class EntitiesWithNewStateCache {
     public static class HostWithUpdatedState {
         private final long id;
         private final EntityState state;
+        private final Optional<AutomationLevel> automationLevel;
 
         long getStateChangeId() {
             return stateChangeId;
@@ -158,13 +173,17 @@ class EntitiesWithNewStateCache {
          * @param id the id of the host
          * @param state the new state of the host
          * @param stateChangeId the id corresponding to the change of state. This id is used to
+         *                      compare against topology ids, to see when a change was detected
+         *                      with respect to a topology
+         * @param automationLevel automation level of the host
          * compare against topology ids, to see when a change was detected
          * with respect to a topology
          */
-        HostWithUpdatedState(long id, EntityState state, long stateChangeId) {
+        HostWithUpdatedState(long id, EntityState state, long stateChangeId, Optional<AutomationLevel> automationLevel) {
             this.id = id;
             this.state = state;
             this.stateChangeId = stateChangeId;
+            this.automationLevel = automationLevel;
         }
 
         public long getId() {
@@ -173,6 +192,15 @@ class EntitiesWithNewStateCache {
 
         public EntityState getState() {
             return state;
+        }
+
+        /**
+         * Return automation level of the host.
+         *
+         * @return automation level of the host.
+         */
+        public Optional<AutomationLevel> getAutomationLevel() {
+            return automationLevel;
         }
     }
 }

@@ -53,13 +53,17 @@ import org.jetbrains.annotations.NotNull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PhysicalMachineData;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -140,6 +144,8 @@ public class EntityStore {
      */
     private boolean entityDetailsEnabled = false;
 
+    private final boolean accountForVendorAutomation;
+
     /**
      * All the probe types which support converting layered over and consists of to connected to relationship.
      */
@@ -211,13 +217,15 @@ public class EntityStore {
                        @Nonnull final TopologyProcessorNotificationSender sender,
                        final float duplicateTargetOverlapRatio,
                        final boolean mergeKubernetesTypesForDuplicateDetection,
-                       @Nonnull final Clock clock) {
+                       @Nonnull final Clock clock,
+                       final boolean accountForVendorAutomation) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.sender = Objects.requireNonNull(sender);
         this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
                 duplicateTargetOverlapRatio, mergeKubernetesTypesForDuplicateDetection);
         this.clock = Objects.requireNonNull(clock);
+        this.accountForVendorAutomation = accountForVendorAutomation;
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
@@ -802,11 +810,24 @@ public class EntityStore {
         for (Long entityOid: entitiesById.keySet()) {
             EntityDTO entityDTO = entitiesById.get(entityOid);
             if (entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE) {
-                entitiesWithNewStateBuilder.addTopologyEntity(TopologyEntityDTO.newBuilder()
+                TopologyEntityDTO.Builder topologyEntityDTO = TopologyEntityDTO.newBuilder()
                     .setOid(entityOid)
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setEntityState(entityState(entityDTO))
-                    .build());
+                    .setEntityState(entityState(entityDTO));
+
+                if (accountForVendorAutomation) {
+                    // Send automation level
+                    getEntity(entityOid).ifPresent(entity -> entity
+                        .allTargetInfo().stream()
+                        .map(PerTargetInfo::getEntityInfo)
+                        .filter(EntityDTO::hasPhysicalMachineData).map(EntityDTO::getPhysicalMachineData)
+                        .filter(PhysicalMachineData::hasAutomationLevel).map(PhysicalMachineData::getAutomationLevel)
+                        .findFirst().ifPresent(automationLevel ->
+                            topologyEntityDTO.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                                PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel)))));
+                }
+
+                entitiesWithNewStateBuilder.addTopologyEntity(topologyEntityDTO);
             }
         }
         if (entitiesWithNewStateBuilder.getTopologyEntityCount() > 0) {

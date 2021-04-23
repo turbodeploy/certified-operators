@@ -284,7 +284,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public EntityStore entityRepository() {
         return new EntityStore(targetStore(), identityProvider(),
-            topologyProcessorNotificationSender(), 0.3F, true, Clock.systemUTC());
+            topologyProcessorNotificationSender(), 0.3F, true, Clock.systemUTC(), false);
     }
 
     @Bean

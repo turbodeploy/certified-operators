@@ -1,10 +1,13 @@
 package com.vmturbo.topology.processor.controllable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -14,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -31,10 +35,14 @@ public class ControllableManager {
 
     private final EntityActionDao entityActionDao;
 
+    private final boolean accountForVendorAutomation;
+
     private static final Logger logger = LogManager.getLogger();
 
-    public ControllableManager(@Nonnull final EntityActionDao entityActionDao) {
+    public ControllableManager(@Nonnull final EntityActionDao entityActionDao,
+                               final boolean accountForVendorAutomation) {
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
+        this.accountForVendorAutomation = accountForVendorAutomation;
     }
 
     /**
@@ -45,10 +53,13 @@ public class ControllableManager {
      * @return Number of modified entities.
      */
     public int applyControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
-        int numModified = 0;
-        numModified += applyControllableEntityAction(topology);
-        numModified += markVMsOnFailoverHostAsNotControllable(topology);
-        return numModified;
+        final Set<Long> oidModified = new HashSet<>();
+        oidModified.addAll(applyControllableEntityAction(topology));
+        oidModified.addAll(markVMsOnFailoverHostAsNotControllable(topology));
+        if (accountForVendorAutomation) {
+            oidModified.addAll(applyControllableAutomationLevel(topology));
+        }
+        return oidModified.size();
     }
 
     /**
@@ -56,10 +67,10 @@ public class ControllableManager {
      * flag to false.
      *
      * @param topology a topology graph.
-     * @return Number of modified entities.
+     * @return a set of modified entity oids.
      */
-    private int applyControllableEntityAction(@Nonnull final TopologyGraph<TopologyEntity> topology) {
-        int numModified = 0;
+    private Set<Long> applyControllableEntityAction(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        final Set<Long> oidModified = new HashSet<>();
         List<Long> oidsToRemoveFromDB = new ArrayList<>();
 
         for (long entityOid : entityActionDao.getNonControllableEntityIds()) {
@@ -85,18 +96,15 @@ public class ControllableManager {
                     continue;
                 }
 
-                if (entityBuilder.getAnalysisSettingsBuilder().getControllable()) {
-                    // It's currently controllable, and about to be marked non-controllable.
-                    ++numModified;
-                } // end if
                 entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
+                oidModified.add(entityOid);
                 logger.trace("Applying controllable false for entity {}.",
                     entityBuilder.getDisplayName());
             } // end if
         } // end foreach
 
         entityActionDao.deleteMoveActions(oidsToRemoveFromDB);
-        return numModified;
+        return oidModified;
     }
 
     /**
@@ -104,18 +112,40 @@ public class ControllableManager {
      * We don't need to mark failover hosts non-controllable. We skip failover hosts in market analysis.
      *
      * @param topology a topology graph.
-     * @return Number of modified entities.
+     * @return a set of modified entity oids.
      */
-    private int markVMsOnFailoverHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+    private Set<Long> markVMsOnFailoverHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
             .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.FAILOVER)
             .flatMap(entity -> entity.getConsumers().stream())
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-            .mapToInt(entity -> {
+            .map(entity -> {
                 entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
-                return 1;
+                logger.trace("Mark VM {}({}) as not controllable", entity.getDisplayName(), entity.getOid());
+                return entity.getOid();
             })
-            .sum();
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Set controllable to false for hosts in maintenance mode if automation level is FULLY_AUTOMATED.
+     *
+     * @param topology a topology graph.
+     * @return a set of modified entity oids.
+     */
+    private Set<Long> applyControllableAutomationLevel(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .filter(entity -> entity.getEntityState() == EntityState.MAINTENANCE)
+            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().hasPhysicalMachine())
+            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().hasAutomationLevel())
+            .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
+            .map(entity -> {
+                entity.getAnalysisSettingsBuilder().setControllable(false);
+                logger.trace("Set controllable to false for host {}({})", entity.getDisplayName(), entity.getOid());
+                return entity.getOid();
+            })
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -182,10 +212,10 @@ public class ControllableManager {
      * @return Number of modified entities.
      */
     public int applyResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
-        int numModified = 0;
-        numModified += applyResizeDownEligibility(topology);
-        numModified += markVMsOnMaintenanceHostAsNotResizable(topology);
-        return numModified;
+        final Set<Long> oidModified = new HashSet<>();
+        oidModified.addAll(applyResizeDownEligibility(topology));
+        oidModified.addAll(markVMsOnMaintenanceHostAsNotResizable(topology));
+        return oidModified.size();
     }
 
     /**
@@ -193,46 +223,41 @@ public class ControllableManager {
      * has been resized. It should not be to resize down in analysis.
      *
      * @param topology a topology graph.
-     * @return Number of modified entities.
+     * @return a set of modified entity oids.
      */
-    private int applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
-        final AtomicInteger numModified = new AtomicInteger(0);
-        entityActionDao.ineligibleForResizeDownEntityIds().stream()
+    private Set<Long> applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return entityActionDao.ineligibleForResizeDownEntityIds().stream()
                 .map(topology::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 // Set flag only for VMs
                 .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
-                .forEach(entityBuilder -> {
-                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForResizeDown()) {
-                        // It's currently eligible for resize down, and about to be marked
-                        // ineligible.
-                        numModified.incrementAndGet();
-                    }
+                .map(entityBuilder -> {
                     entityBuilder.getAnalysisSettingsBuilder().setIsEligibleForResizeDown(false);
                     logger.trace("Applying IsEligibleForResizeDown false for entity {}.",
                             entityBuilder.getDisplayName());
-                });
-        return numModified.get();
+                    return entityBuilder.getOid();
+                }).collect(Collectors.toSet());
     }
 
     /**
      * Mark VMs on a maintenance host as not resizable.
      *
      * @param topology a topology graph.
-     * @return Number of modified entities.
+     * @return a set of modified entity oids.
      */
-    private int markVMsOnMaintenanceHostAsNotResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+    private Set<Long> markVMsOnMaintenanceHostAsNotResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
             .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.MAINTENANCE)
             .flatMap(entity -> entity.getConsumers().stream())
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-            .mapToInt(entity -> {
+            .map(entity -> {
                 entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                     .forEach(commSold -> commSold.setIsResizeable(false));
-                return 1;
+                logger.trace("Mark VM {}({}) as not resizable", entity.getDisplayName(), entity.getOid());
+                return entity.getOid();
             })
-            .sum();
+            .collect(Collectors.toSet());
     }
 }

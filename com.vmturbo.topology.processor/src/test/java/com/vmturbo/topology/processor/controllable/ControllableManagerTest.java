@@ -19,6 +19,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
@@ -146,13 +149,38 @@ public class ControllableManagerTest {
             TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
 
+    private final static TopologyEntityDTO.Builder pmInMaintenance2 = TopologyEntityDTO.newBuilder()
+        .setOid(100)
+        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true))
+        .setEntityState(EntityState.MAINTENANCE)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED)));
+    private final static TopologyEntityDTO.Builder pmInMaintenance3 = TopologyEntityDTO.newBuilder()
+        .setOid(101)
+        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true))
+        .setEntityState(EntityState.MAINTENANCE)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.PARTIALLY_AUTOMATED)));
+    private final static TopologyEntityDTO.Builder pmInMaintenance4 = TopologyEntityDTO.newBuilder()
+        .setOid(102)
+        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true))
+        .setEntityState(EntityState.MAINTENANCE)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+            PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.NOT_AUTOMATED)));
+
     private final Map<Long, Builder> topology = new HashMap<>();
 
     private TopologyGraph<TopologyEntity> topologyGraph;
 
     @Before
     public void setup() {
-        controllableManager = new ControllableManager(entityActionDao);
+        controllableManager = new ControllableManager(entityActionDao, true);
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
@@ -181,6 +209,10 @@ public class ControllableManagerTest {
             .addConsumer(topology.get(vm1.getOid()))
             .addConsumer(topology.get(vm2.getOid()))
             .addConsumer(topology.get(VDC.getOid())));
+
+        topology.put(pmInMaintenance2.getOid(), TopologyEntity.newBuilder(pmInMaintenance2));
+        topology.put(pmInMaintenance3.getOid(), TopologyEntity.newBuilder(pmInMaintenance3));
+        topology.put(pmInMaintenance4.getOid(), TopologyEntity.newBuilder(pmInMaintenance4));
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
     }
@@ -213,7 +245,7 @@ public class ControllableManagerTest {
         Mockito.when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
         int numModified = controllableManager.applyControllable(topologyGraph);
-        assertEquals(2, numModified);
+        assertEquals(3, numModified);
         assertTrue(container1.getAnalysisSettings().getControllable());
         assertTrue(pod1.getAnalysisSettings().getControllable());
         assertTrue(pod2.getAnalysisSettings().getControllable());
@@ -221,6 +253,33 @@ public class ControllableManagerTest {
         assertFalse(vm2.getAnalysisSettings().getControllable());
         assertTrue(VDC.getAnalysisSettings().getControllable());
         assertTrue(pmFailover.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+    }
+
+    /**
+     * Make sure all hosts in Maintenance mode and with automation level equal to FULLY_AUTOMATED are set to non-controllable.
+     */
+    @Test
+    public void testApplyControllableAutomationLevel() {
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(3, numModified);
+        assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
+        assertTrue(pmInMaintenance1.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+        assertTrue(pmInMaintenance3.getAnalysisSettings().getControllable());
+        assertTrue(pmInMaintenance4.getAnalysisSettings().getControllable());
+        assertTrue(pmFailover.getAnalysisSettings().getControllable());
+    }
+
+    /**
+     * When maintenance mode feature is disabled, controllable flag doesn't change.
+     */
+    @Test
+    public void testApplyControllableAutomationLevelFeatureDisabled() {
+        controllableManager = new ControllableManager(entityActionDao, false);
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(2, numModified);
+        assertTrue(pmInMaintenance2.getAnalysisSettings().getControllable());
     }
 
     /**
