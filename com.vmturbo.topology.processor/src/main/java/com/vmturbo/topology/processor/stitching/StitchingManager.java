@@ -47,6 +47,7 @@ import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
 import com.vmturbo.stitching.journal.JournalableOperation;
+import com.vmturbo.stitching.utilities.MissingFieldSummarizer;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -414,7 +415,9 @@ public class StitchingManager {
                                          @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
                                          final long targetId, final long probeId) {
+        MissingFieldSummarizer summarizer = MissingFieldSummarizer.getInstance();
         try {
+            summarizer.setTarget(targetId);
             Optional<EntityType> externalType = operation.getExternalEntityType();
             stitchingJournal.recordOperationBeginning(operation, operationDetailsForTarget(probeId, targetId));
             final TopologicalChangelog<StitchingEntity> results = externalType.map(extType ->
@@ -428,6 +431,8 @@ public class StitchingManager {
                 operation.getClass().getSimpleName() + " due to exception: ", e);
         } finally {
             stitchingJournal.recordOperationEnding();
+            summarizer.dump();
+            summarizer.clear();
         }
     }
 
