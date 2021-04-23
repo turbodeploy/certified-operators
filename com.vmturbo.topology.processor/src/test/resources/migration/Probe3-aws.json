@@ -1,0 +1,627 @@
+{
+  "probeType": "AWS",
+  "probeCategory": "Cloud Management",
+  "supplyChainDefinitionSet": [{
+    "templateClass": "DATABASE_SERVER_TIER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "VCPU",
+      "optional": false
+    }, {
+      "commodityType": "VMEM",
+      "optional": false
+    }, {
+      "commodityType": "VSTORAGE",
+      "optional": false
+    }, {
+      "commodityType": "IO_THROUGHPUT",
+      "optional": false
+    }, {
+      "commodityType": "LICENSE_ACCESS",
+      "key": "Foo",
+      "optional": false
+    }]
+  }, {
+    "templateClass": "BUSINESS_ACCOUNT",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }]
+      },
+      "patchedFields": [{
+        "fieldName": "displayName"
+      }, {
+        "fieldName": "consistsOf"
+      }, {
+        "messagePath": ["business_account_data"],
+        "fieldName": "dataDiscovered"
+      }]
+    }
+  }, {
+    "templateClass": "COMPUTE_TIER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "CPU",
+      "optional": false
+    }, {
+      "commodityType": "CPU_PROVISIONED",
+      "optional": false
+    }, {
+      "commodityType": "MEM",
+      "optional": false
+    }, {
+      "commodityType": "MEM_PROVISIONED",
+      "optional": false
+    }, {
+      "commodityType": "IO_THROUGHPUT",
+      "optional": false
+    }, {
+      "commodityType": "NET_THROUGHPUT",
+      "optional": false
+    }, {
+      "commodityType": "NUM_DISK",
+      "optional": false
+    }, {
+      "commodityType": "NETWORK_INTERFACE_COUNT",
+      "optional": false
+    }, {
+      "commodityType": "LICENSE_ACCESS",
+      "key": "Foo",
+      "optional": false
+    }, {
+      "commodityType": "TENANCY_ACCESS",
+      "key": "Foo",
+      "optional": false
+    }]
+  }, {
+    "templateClass": "SERVICE",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "APPLICATION",
+      "key": "Foo",
+      "optional": false
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "APPLICATION_COMPONENT",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 0
+      },
+      "value": [{
+        "commodityType": "APPLICATION",
+        "key": "Foo",
+        "optional": false
+      }],
+      "isOptional": true
+    }]
+  }, {
+    "templateClass": "CLOUD_COMMITMENT",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "mergedEntityMetaData": {
+      "keepStandalone": true,
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }]
+      }
+    }
+  }, {
+    "templateClass": "REGION",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "DATACENTER",
+      "key": "Foo",
+      "optional": false
+    }]
+  }, {
+    "templateClass": "SERVICE_PROVIDER",
+    "templateType": "BASE",
+    "templatePriority": 0
+  }, {
+    "templateClass": "AVAILABILITY_ZONE",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "ZONE",
+      "key": "Foo",
+      "optional": false
+    }]
+  }, {
+    "templateClass": "CLOUD_SERVICE",
+    "templateType": "BASE",
+    "templatePriority": 0
+  }, {
+    "templateClass": "VIRTUAL_MACHINE",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "VCPU",
+      "optional": false
+    }, {
+      "commodityType": "VMEM",
+      "optional": false
+    }, {
+      "commodityType": "APPLICATION",
+      "key": "Foo",
+      "optional": false
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "COMPUTE_TIER",
+        "providerType": "HOSTING",
+        "cardinalityMax": 1,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "CPU",
+        "optional": false
+      }, {
+        "commodityType": "CPU_PROVISIONED",
+        "optional": false
+      }, {
+        "commodityType": "MEM",
+        "optional": false
+      }, {
+        "commodityType": "MEM_PROVISIONED",
+        "optional": false
+      }, {
+        "commodityType": "IO_THROUGHPUT",
+        "optional": false
+      }, {
+        "commodityType": "NET_THROUGHPUT",
+        "optional": false
+      }, {
+        "commodityType": "NETWORK_INTERFACE_COUNT",
+        "optional": false
+      }, {
+        "commodityType": "LICENSE_ACCESS",
+        "key": "Foo",
+        "optional": false
+      }, {
+        "commodityType": "TENANCY_ACCESS",
+        "key": "Foo",
+        "optional": false
+      }]
+    }, {
+      "key": {
+        "templateClass": "VIRTUAL_VOLUME",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 0
+      },
+      "value": [{
+        "commodityType": "STORAGE_AMOUNT",
+        "optional": false
+      }],
+      "isOptional": true
+    }]
+  }, {
+    "templateClass": "DATABASE_SERVER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "VMEM",
+      "optional": false
+    }, {
+      "commodityType": "VSTORAGE",
+      "optional": false
+    }, {
+      "commodityType": "IO_THROUGHPUT",
+      "optional": false
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "DATABASE_SERVER_TIER",
+        "providerType": "HOSTING",
+        "cardinalityMax": 1,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "VCPU",
+        "optional": false
+      }, {
+        "commodityType": "VMEM",
+        "optional": false
+      }, {
+        "commodityType": "VSTORAGE",
+        "optional": false
+      }, {
+        "commodityType": "IO_THROUGHPUT",
+        "optional": false
+      }, {
+        "commodityType": "LICENSE_ACCESS",
+        "key": "Foo",
+        "optional": false
+      }]
+    }]
+  }, {
+    "templateClass": "APPLICATION_COMPONENT",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "APPLICATION",
+      "key": "Foo",
+      "optional": false
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "VIRTUAL_MACHINE",
+        "providerType": "HOSTING",
+        "cardinalityMax": 1,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "VCPU",
+        "optional": false
+      }, {
+        "commodityType": "VMEM",
+        "optional": false
+      }, {
+        "commodityType": "APPLICATION",
+        "key": "Foo",
+        "optional": false
+      }]
+    }]
+  }, {
+    "templateClass": "STORAGE_TIER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "STORAGE_ACCESS",
+      "optional": false
+    }, {
+      "commodityType": "STORAGE_AMOUNT",
+      "optional": false
+    }, {
+      "commodityType": "STORAGE_LATENCY",
+      "optional": false
+    }, {
+      "commodityType": "STORAGE_PROVISIONED",
+      "optional": false
+    }, {
+      "commodityType": "IO_THROUGHPUT",
+      "optional": false
+    }, {
+      "commodityType": "STORAGE_CLUSTER",
+      "key": "Foo",
+      "optional": false
+    }]
+  }, {
+    "templateClass": "VIRTUAL_VOLUME",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "commoditySold": [{
+      "commodityType": "STORAGE_AMOUNT",
+      "optional": false
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "STORAGE_TIER",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "STORAGE_AMOUNT",
+        "optional": false
+      }]
+    }]
+  }],
+  "accountDefinition": [{
+    "customDefinition": {
+      "name": "address",
+      "displayName": "Custom Target Name",
+      "description": "Enter a unique target name.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "iamRole",
+      "displayName": "IAM Role",
+      "description": "Authenticate using either IAM Role ARN or Access Key and Secret Access Key.",
+      "verificationRegex": "(true|false)",
+      "isSecret": false,
+      "primitiveValue": "BOOLEAN",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "username",
+      "displayName": "Access Key",
+      "description": "Enter AWS account Access Key ID.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "false"
+  }, {
+    "customDefinition": {
+      "name": "password",
+      "displayName": "Secret Access Key",
+      "description": "Enter AWS account Secret Access Key ID.",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "false"
+  }, {
+    "customDefinition": {
+      "name": "iamRoleArn",
+      "displayName": "IAM Role ARN",
+      "description": "Enter ARN for IAM Role.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "true"
+  }, {
+    "customDefinition": {
+      "name": "proxyHost",
+      "displayName": "Proxy Host",
+      "description": "Proxy host name or IP address (optional)",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPort",
+      "displayName": "Proxy Port",
+      "description": "Proxy host port (optional)",
+      "verificationRegex": "^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$)",
+      "isSecret": false,
+      "primitiveValue": "NUMERIC",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "8080",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyUsername",
+      "displayName": "Proxy Username",
+      "description": "User name to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPassword",
+      "displayName": "Proxy Password",
+      "description": "Password to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "secureProxy",
+      "displayName": "Secure Proxy Connection",
+      "description": "Use SSL to connect to the proxy host",
+      "verificationRegex": "(true|false)",
+      "isSecret": false,
+      "primitiveValue": "BOOLEAN",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "false",
+    "isTargetDisplayName": false
+  }],
+  "targetIdentifierField": ["address"],
+  "fullRediscoveryIntervalSeconds": 600,
+  "entityMetadata": [{
+    "entityType": "VIRTUAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "RESERVED_INSTANCE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATABASE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATABASE_SERVER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATACENTER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "PHYSICAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DISK_ARRAY",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "STORAGE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "BUSINESS_ACCOUNT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "SERVICE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "APPLICATION_COMPONENT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "NETWORK",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "COMPUTE_TIER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "STORAGE_TIER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "DATABASE_SERVER_TIER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "REGION",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "AVAILABILITY_ZONE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "CLOUD_SERVICE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "VIRTUAL_VOLUME",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "SERVICE_PROVIDER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "CLOUD_COMMITMENT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }],
+  "actionPolicy": [{
+    "entityType": "VIRTUAL_MACHINE",
+    "policyElement": [{
+      "actionType": "SCALE",
+      "actionCapability": "SUPPORTED"
+    }, {
+      "actionType": "START",
+      "actionCapability": "SUPPORTED"
+    }, {
+      "actionType": "SUSPEND",
+      "actionCapability": "SUPPORTED"
+    }, {
+      "actionType": "CHANGE",
+      "actionCapability": "SUPPORTED"
+    }, {
+      "actionType": "MOVE",
+      "actionCapability": "SUPPORTED"
+    }, {
+      "actionType": "CROSS_TARGET_MOVE",
+      "actionCapability": "NOT_EXECUTABLE"
+    }]
+  }, {
+    "entityType": "VIRTUAL_VOLUME",
+    "policyElement": [{
+      "actionType": "SCALE",
+      "actionCapability": "SUPPORTED",
+      "providerScope": {
+        "providerType": "STORAGE_TIER"
+      },
+      "disruptive": false,
+      "reversible": true
+    }, {
+      "actionType": "SCALE",
+      "actionCapability": "SUPPORTED",
+      "commodityScope": {
+        "commodityType": "STORAGE_AMOUNT"
+      },
+      "disruptive": false,
+      "reversible": false
+    }, {
+      "actionType": "SCALE",
+      "actionCapability": "SUPPORTED",
+      "commodityScope": {
+        "commodityType": "STORAGE_ACCESS"
+      },
+      "disruptive": false,
+      "reversible": true
+    }, {
+      "actionType": "DELETE",
+      "actionCapability": "SUPPORTED"
+    }]
+  }],
+  "discoversSupplyChain": true,
+  "creationMode": "STAND_ALONE",
+  "uiProbeCategory": "Public Cloud",
+  "license": "public_cloud",
+  "supportsV2ActionTypes": false
+}

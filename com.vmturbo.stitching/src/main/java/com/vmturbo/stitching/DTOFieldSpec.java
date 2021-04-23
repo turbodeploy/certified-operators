@@ -28,4 +28,14 @@ public interface DTOFieldSpec {
      */
     @Nonnull
     List<String> getMessagePath();
+
+    /**
+     * If the field in internal entity should be ignored if field is
+     * already present in the external entity during stitching.
+     *
+     * @return true if the field should be ignored in internal entity
+     *         when external entity already has it.
+     */
+    @Nonnull
+    boolean getIgnoreIfPresent();
 }
