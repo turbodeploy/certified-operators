@@ -425,3 +425,7 @@ dependencies:
     repository: file://../probes/mediation-xtremio
     version: 0.1.0
     condition: xtremio.enabled
+  - name: mediation-xen
+    repository: file://../probes/mediation-xen
+    version: 0.1.0
+    condition: xen.enabled
