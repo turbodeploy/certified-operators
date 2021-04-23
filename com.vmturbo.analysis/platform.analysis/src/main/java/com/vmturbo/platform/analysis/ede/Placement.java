@@ -896,12 +896,16 @@ public class Placement {
             }
             return bestMinimizer;
         } else {
-            ShoppingList firstSL = movableSlByMarket.get(0).getKey();
-            double currentProvidersQuote = computeCurrentQuote(economy, movableSlByMarket);
-            double quoteToBeat = currentProvidersQuote * trader.getSettings().getQuoteFactor() -
-                Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
-                    * trader.getSettings().getMoveCostFactor();
-
+            double quoteToBeat;
+            if (economy.getSettings().isBranchAndBoundEnabled()) {
+                ShoppingList firstSL = movableSlByMarket.get(0).getKey();
+                double currentProvidersQuote = computeCurrentQuote(economy, movableSlByMarket);
+                quoteToBeat = currentProvidersQuote * trader.getSettings().getQuoteFactor() -
+                    Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
+                        * trader.getSettings().getMoveCostFactor();
+            } else {
+                quoteToBeat = Double.POSITIVE_INFINITY;
+            }
             final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM() && commonCliques.size() > 1
                     ? new QuoteCache(economy.getTraders().size(), economy.getMarketsAsBuyer(trader)
                             .values().stream().mapToInt(market -> market.getActiveSellers().size()).sum(),

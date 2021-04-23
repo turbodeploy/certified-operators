@@ -62,6 +62,8 @@ public final class EconomySettings implements Serializable {
     private boolean fullPriceForQuote_ = false;
     private Set<Integer> reconfigureableCommodities_ = new HashSet<>();
     private int licensePriceWeightScale_ = 3;
+    private boolean fastProvisionEnabled = true;
+    private boolean branchAndBoundEnabled = true;
 
     // Constructors
     /**
@@ -295,6 +297,22 @@ public final class EconomySettings implements Serializable {
         checkArgument(discountedComputeCostFactor >= 0,
             "discountedComputeCostFactor = %s", discountedComputeCostFactor);
         this.discountedComputeCostFactor = discountedComputeCostFactor;
+    }
+
+    public boolean isFastProvisionEnabled() {
+        return fastProvisionEnabled;
+    }
+
+    public void setFastProvisionEnabled(final boolean fastProvisionEnabled) {
+        this.fastProvisionEnabled = fastProvisionEnabled;
+    }
+
+    public boolean isBranchAndBoundEnabled() {
+        return branchAndBoundEnabled;
+    }
+
+    public void setBranchAndBoundEnabled(final boolean branchAndBoundEnabled) {
+        this.branchAndBoundEnabled = branchAndBoundEnabled;
     }
 
     public boolean hasDiscountedComputeCostFactor() {

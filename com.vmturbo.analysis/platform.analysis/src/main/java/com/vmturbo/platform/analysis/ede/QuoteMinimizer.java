@@ -80,7 +80,8 @@ public final class QuoteMinimizer {
         quoteTracker = new QuoteTracker(shoppingList);
         cache_ = cache;
         shoppingListIndex_ = shoppingListIndex;
-        bestQuote_ = new CommodityQuote(null, bestQuote, 0, 0, 0);
+        bestQuote_ = economy.getSettings().isBranchAndBoundEnabled() ?
+            new CommodityQuote(null, bestQuote, 0, 0, 0) : new InitialInfiniteQuote();
     }
 
     /**

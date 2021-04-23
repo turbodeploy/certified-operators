@@ -102,7 +102,7 @@ final class QuoteSummer {
         cache_ = cache;
         numOfSLs_ = numOfSLs;
         performOptimization_ = performOptimization;
-        bestTotalQuote_ = bestTotalQuote;
+        bestTotalQuote_ = economy.getSettings().isBranchAndBoundEnabled() ? bestTotalQuote : Double.POSITIVE_INFINITY;
     }
 
     // Getters
@@ -197,7 +197,7 @@ final class QuoteSummer {
      *              for this shopping list, will be added in the sum.
      */
     public void accept(@NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry) {
-        if (totalQuote_ >= bestTotalQuote_) {
+        if (economy_.getSettings().isBranchAndBoundEnabled() && totalQuote_ >= bestTotalQuote_) {
             return;
         }
         // consider only active sellers while performing SNM
