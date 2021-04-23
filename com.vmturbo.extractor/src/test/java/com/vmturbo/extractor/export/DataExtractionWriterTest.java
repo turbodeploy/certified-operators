@@ -252,9 +252,10 @@ public class DataExtractionWriterTest {
 
         // verify type specific info
         Map<String, Object> vmAttrs = vmEntity.getAttrs();
-        assertThat(vmAttrs.size(), is(4));
+        assertThat(vmAttrs.size(), is(5));
         assertThat(vmAttrs.get("num_cpus"), is(12));
         assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
+        assertThat(vmAttrs.get("guest_os_name"), is("Ubuntu"));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
         assertThat((Set<String>)vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME),
                 containsInAnyOrder("foo=a", "bar=b", "bar=c", "baz"));
