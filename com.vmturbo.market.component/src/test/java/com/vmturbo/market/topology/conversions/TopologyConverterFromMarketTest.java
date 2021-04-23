@@ -3074,4 +3074,59 @@ public class TopologyConverterFromMarketTest {
         assertEquals(1, commSold3.size());
         assertEquals(OLD_TIER_CAPACITY, commSold3.get(0).getCapacity(), DELTA);
     }
+
+    /**
+     * Test updating providerID to commoditiesBoughtFromProviders of provisioned VM.
+     */
+    @Test
+    public void testProviderIDUpdateForProvisionedVM() {
+        final TopologyDTO.CommoditySoldDTO commSoldDTO = TopologyDTO.CommoditySoldDTO
+            .newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(1.0)
+            .build();
+        Mockito.doReturn(Optional.of(commSoldDTO.getCommodityType()))
+            .when(mockCommodityConverter)
+            .marketToTopologyCommodity(any());
+        final TopologyDTO.TopologyEntityDTO vmEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySoldList(commSoldDTO)
+            .build();
+
+        // Mock commodityIndex.
+        final CommodityIndex commodityIndex = CommodityIndex.newFactory().newIndex();
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        when(indexFactory.newIndex()).thenReturn(commodityIndex);
+        commodityIndex.addEntity(vmEntityDTO);
+
+        final EconomyDTOs.TraderTO vmTraderTO = TraderTO.newBuilder()
+            .setOid(VM_OID)
+            .addShoppingLists(ShoppingListTO.newBuilder()
+                .setOid(VM_OID + 1)
+                .setSupplier(CLOUD_COMPUTE_TIER_OID))
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+        // No supplier ID in the shoppingList of clone VM traderTO.
+        final EconomyDTOs.TraderTO vmTraderTOClone = TraderTO.newBuilder()
+            .setOid(CLONE_VM_OID)
+            .setCloneOf(VM_OID)
+            .addShoppingLists(ShoppingListTO.newBuilder()
+                .setOid(CLONE_VM_OID + 1)
+                .setSupplier(0))
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedEntities =
+            converter.convertFromMarket(Lists.newArrayList(vmTraderTO, vmTraderTOClone),
+            ImmutableMap.of(vmEntityDTO.getOid(), vmEntityDTO),
+            PriceIndexMessage.getDefaultInstance(), reservedCapacityResults, setUpWastedFileAnalysis());
+        assertEquals(2, projectedEntities.size());
+        assertEquals(1, projectedEntities.get(CLONE_VM_OID).getEntity().getCommoditiesBoughtFromProvidersList().size());
+        // ProviderId is updated to cloned VM.
+        assertEquals(CLOUD_COMPUTE_TIER_OID, projectedEntities.get(CLONE_VM_OID).getEntity().getCommoditiesBoughtFromProviders(0).getProviderId());
+    }
 }

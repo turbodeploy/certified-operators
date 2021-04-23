@@ -1336,7 +1336,15 @@ public class TopologyConverter {
             final Map<CommoditiesBoughtFromProvider, Map<ShoppingListTO, ShoppingListInfo>> commBought2shoppingListWithResources =
                             new HashMap<>();
 
-            for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
+            // If traderTO is a cloned VM, use the shoppingLists from it's original VM to create
+            // CommoditiesBoughtFromProvider. Provisioned VMs do not have providerIDs populated in
+            // corresponding shoppingLists, so this is to make sure provisioned VMs won't be incorrectly
+            // recognized as unplaced.
+            List<ShoppingListTO> shoppingLists = traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && projTraders.get(traderTO.getCloneOf()) != null
+                ? projTraders.get(traderTO.getCloneOf()).getShoppingListsList()
+                : traderTO.getShoppingListsList();
+            for (EconomyDTOs.ShoppingListTO sl : shoppingLists) {
                 List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
 
                 // Map to keep timeslot commodities from the generated timeslot families
