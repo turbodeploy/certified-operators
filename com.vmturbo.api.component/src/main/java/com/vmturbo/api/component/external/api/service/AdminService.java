@@ -42,6 +42,7 @@ import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportStatusNotification.ExportStatus;
 import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
+import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
@@ -176,6 +177,8 @@ public class AdminService implements IAdminService {
 
     private final SettingsService settingsService;
 
+    private final HealthDataAggregator healthAggregator;
+
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
@@ -185,7 +188,8 @@ public class AdminService implements IAdminService {
                  @Nonnull final DeploymentMode deploymentMode,
                  @Nonnull final boolean enableReporting,
                  @Nonnull final SettingsService settingsService,
-                 @Nonnull final boolean enableSearchApi) {
+                 @Nonnull final boolean enableSearchApi,
+                 @Nonnull final HealthDataAggregator healthAggregator) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
@@ -196,6 +200,7 @@ public class AdminService implements IAdminService {
         this.enableReporting = enableReporting;
         this.settingsService = settingsService;
         this.enableSearchApi = enableSearchApi;
+        this.healthAggregator = healthAggregator;
     }
 
     @Override
@@ -626,6 +631,7 @@ public class AdminService implements IAdminService {
     @Nonnull
     public List<HealthCategoryReponseDTO> getHealth(@Nullable HealthCheckCategory healthCheckCategory,
                     @Nullable HealthState state) {
-        throw new UnsupportedOperationException("Not supported yet, tbd.");
+        //HealthState is not used for now, tbd.
+        return healthAggregator.getAggregatedHealth(healthCheckCategory);
     }
 }
