@@ -166,12 +166,6 @@ spec:
                   description: Enable nginx ingress
                   type: boolean
               type: object
-            ui:
-              properties:
-                enabled:
-                  description: Enable UI Component
-                  type: boolean
-              type: object
             openshiftingress:
               properties:
                 enabled:

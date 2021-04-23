@@ -30,12 +30,14 @@ spec:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
               of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              internal value, and may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              submits requests to. Cannot be updated. In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -87,6 +89,12 @@ spec:
                     type: string
                   externalDbIP:
                     description: IP address for external mysql compliant database server
+                    type: string
+                  externalTimescaleName:
+                    description: DNS name for external postgresql/timescaledb database server
+                    type: string
+                  externalTimescaleIP:
+                    description: IP address for external postgresql/timescaledb compliant database server
                     type: string
                   externalInfluxDBName:
                     description: DNS name for external influx database server
@@ -392,6 +400,27 @@ spec:
                   annotations:
                     description: component specific pod annotations list
                     type: object
+                  enabled:
+                    description: Enable extractor
+                    type: boolean
+                  logstash:
+                    properties:
+                      enabled:
+                        description: Enable logstash sending data to elastic search
+                        type: boolean
+                    type: object
+                  snowflake:
+                    properties:
+                      enabled:
+                        description: Enable snowflake-kafka-connect sending data to snowflake
+                        type: boolean
+                    type: object
+                  splunk:
+                    properties:
+                      enabled:
+                        description: Enable splunk-kafka-connect sending data to splunk
+                        type: boolean
+                    type: object
                   image:
                     description: component specific image options
                     properties:
@@ -473,6 +502,36 @@ spec:
                         description: kafka persistent volume size
                         type: string
                     type: object
+                type: object
+              nginx:
+                properties:
+                  annotations:
+                    description: component specific pod annotations list
+                    type: object
+                  image:
+                    description: component specific image options
+                    properties:
+                      repository:
+                        description: component container registry and repository name
+                        type: string
+                      tag:
+                        description: component container tag
+                        type: string
+                      serviceAccountName:
+                        description: component serviceAccountName
+                        type: string
+                      pullPolicy:
+                        description: component image pull policy
+                        type: string
+                    type: object
+                  env:
+                    description: optional environment variables for syslog
+                    items:
+                      type: object
+                    type: array
+                  externalTrafficPolicy:
+                    description: define the external traffic policy for the nginx service, the default is Local
+                    type: string
                 type: object
               rsyslog:
                 properties:

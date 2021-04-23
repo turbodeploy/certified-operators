@@ -51,12 +51,13 @@ kafka:
   env:
     - name: LOG_DIR
       value: /tmp/logs
-#  - name: KAFKA_OPTS
-#    value: "-Dhttp.useProxy=true -Dhttps.useProxy=true
+#    - name: KAFKA_OPTS
+#      value: >-
+#            -Dhttp.useProxy=true -Dhttps.useProxy=true
 #            -Dhttp.proxyHost=<proxyHost> -Dhttp.proxyPort=<proxyPort>
 #            -Dhttps.proxyHost=<proxyHostHTTPS> -Dhttps.proxyPort=<proxyPortHTTPS>
 #            -Dhttp.proxyUser=<ProxyUser> -Dhttp.proxyPassword=<ProxyPassword>
-#            -Dhttps.proxyUser=<ProxyUserHTTPS> -Dhttps.proxyPassword=<ProxyPasswordHTTPS>"
+#            -Dhttps.proxyUser=<ProxyUserHTTPS> -Dhttps.proxyPassword=<ProxyPasswordHTTPS>
 
 logstash:
   enabled: false
