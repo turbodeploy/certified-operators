@@ -136,6 +136,10 @@ public interface AnalysisFactory {
 
         private final boolean shouldPopulateByProducts;
 
+        private boolean fastProvisionEnabled;
+
+        private boolean branchAndBoundEnabled;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -159,7 +163,9 @@ public interface AnalysisFactory {
                                       @Nonnull final CommodityIdUpdater commodityIdUpdater,
                                       final int licensePriceWeightScale,
                                       final boolean enableOP,
-                                      final boolean shouldPopulateByProducts) {
+                                      final boolean shouldPopulateByProducts,
+                                      final boolean fastProvisionEnabled,
+                                      final boolean branchAndBoundEnabled) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -190,6 +196,8 @@ public interface AnalysisFactory {
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
             this.shouldPopulateByProducts = shouldPopulateByProducts;
+            this.fastProvisionEnabled = fastProvisionEnabled;
+            this.branchAndBoundEnabled = branchAndBoundEnabled;
         }
 
         /**
@@ -206,7 +214,7 @@ public interface AnalysisFactory {
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
-                licensePriceWeightScale, enableOP, shouldPopulateByProducts);
+                licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -359,6 +367,17 @@ public interface AnalysisFactory {
         private final boolean shouldPopulateByProducts;
 
         /**
+         * If enabled, provision algorithm will finish quicker. But the disadvantage is that we
+         * will provision slightly more entities than usual.
+         */
+        private boolean fastProvisionEnabled;
+
+        /**
+         * If enabled, Branch and Bound algorithm will be used for SNM. This makes SNM faster.
+         */
+        private boolean branchAndBoundEnabled;
+
+        /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
@@ -394,7 +413,9 @@ public interface AnalysisFactory {
                               final boolean fullPriceForQuote,
                               final int licensePriceWeightScale,
                               final boolean enableOP,
-                              final boolean shouldPopulateByProducts) {
+                              final boolean shouldPopulateByProducts,
+                              final boolean fastProvisionEnabled,
+                              final boolean branchAndBoundEnabled) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -411,6 +432,8 @@ public interface AnalysisFactory {
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
             this.shouldPopulateByProducts = shouldPopulateByProducts;
+            this.fastProvisionEnabled = fastProvisionEnabled;
+            this.branchAndBoundEnabled = branchAndBoundEnabled;
         }
 
         public float getQuoteFactor() {
@@ -559,7 +582,7 @@ public interface AnalysisFactory {
                  final int licensePriceWeightScale, final boolean enableOP, final boolean shouldPopulateByProducts) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                enableOP, shouldPopulateByProducts);
+                enableOP, shouldPopulateByProducts, true, true);
         }
 
         /**
@@ -587,10 +610,20 @@ public interface AnalysisFactory {
                                                 final boolean fullPriceForQuote,
                                                 final int licensePriceWeightScale,
                                                 final boolean enableOP,
-                                                final boolean shouldPopulateByProducts) {
+                                                final boolean shouldPopulateByProducts,
+                                                final boolean fastProvisionEnabled,
+                                                final boolean branchAndBoundEnabled) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                    enableOP, shouldPopulateByProducts);
+                    enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled);
+        }
+
+        public boolean isFastProvisionEnabled() {
+            return fastProvisionEnabled;
+        }
+
+        public boolean isBranchAndBoundEnabled() {
+            return branchAndBoundEnabled;
         }
 
         public static class Builder {
@@ -626,6 +659,11 @@ public interface AnalysisFactory {
 
             private final boolean shouldPopulateByProducts;
 
+            private final boolean fastProvisionEnabled;
+
+            private final boolean branchAndBoundEnabled;
+
+
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
@@ -634,7 +672,9 @@ public interface AnalysisFactory {
                             final boolean fullPriceForQuote,
                             final int licensePriceWeightScale,
                             final boolean enableOP,
-                            final boolean shouldPopulateByProducts) {
+                            final boolean shouldPopulateByProducts,
+                            final boolean fastProvisionEnabled,
+                            final boolean branchAndBoundEnabled) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -644,6 +684,8 @@ public interface AnalysisFactory {
                 this.licensePriceWeightScale = licensePriceWeightScale;
                 this.enableOP = enableOP;
                 this.shouldPopulateByProducts = shouldPopulateByProducts;
+                this.fastProvisionEnabled = fastProvisionEnabled;
+                this.branchAndBoundEnabled = branchAndBoundEnabled;
             }
 
             /**
@@ -754,7 +796,8 @@ public interface AnalysisFactory {
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
-                    licensePriceWeightScale, enableOP, shouldPopulateByProducts);
+                    licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled,
+                    branchAndBoundEnabled);
             }
         }
     }
