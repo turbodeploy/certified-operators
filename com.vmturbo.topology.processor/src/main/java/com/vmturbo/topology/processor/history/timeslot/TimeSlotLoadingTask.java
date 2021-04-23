@@ -13,6 +13,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -57,8 +59,8 @@ public class TimeSlotLoadingTask extends
     @Override
     @Nonnull
     public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> load(
-                    @Nonnull Collection<EntityCommodityReference> commodities,
-                    @Nonnull TimeslotHistoricalEditorConfig config)
+        @Nonnull Collection<EntityCommodityReference> commodities,
+        @Nonnull TimeslotHistoricalEditorConfig config, LongSet oidsToUse)
                     throws HistoryCalculationException {
         Stopwatch sw = Stopwatch.createStarted();
 

@@ -21,6 +21,8 @@ import com.google.gson.JsonSerializer;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
@@ -135,6 +137,12 @@ public class IdentityCaches {
          * intended for debugging only.
          */
         void report();
+
+        /**
+         * Get all the oids that are currently present in the cache.
+         * @return a {@link LongSet} with the oids
+         */
+        LongSet getOids();
     }
 
     /**
@@ -168,9 +176,6 @@ public class IdentityCaches {
             this.oidToIdentity = Collections.synchronizedMap(new Long2ObjectOpenHashMap<>());
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor addIdentityRecord(IdentityRecord identityRecord) {
             IdentityRecord existingRecord =
@@ -184,17 +189,11 @@ public class IdentityCaches {
             return existingRecord != null ? existingRecord.getDescriptor() : null;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public  boolean containsKey(long oid) {
             return oidToIdentity.containsKey(oid);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor remove(Long oid) {
             IdentityRecord existingRecord = oidToIdentity.remove(oid);
@@ -214,18 +213,12 @@ public class IdentityCaches {
             return null;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor get(Long oid) {
             IdentityRecord existingRecord = oidToIdentity.get(oid);
             return existingRecord != null ? existingRecord.getDescriptor() : null;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void toJson(@Nonnull final Writer writer) {
             final EntityInMemoryProxyDescriptorConverter converter =
@@ -236,17 +229,11 @@ public class IdentityCaches {
             builder.create().toJson(oidToIdentity.values(), writer);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public int size() {
             return oidToIdentity.keySet().size();
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void clear() {
             oidToIdentity.clear();
@@ -254,27 +241,18 @@ public class IdentityCaches {
             nonVolatilePropertiesToOid.clear();
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor addDescriptor(EntityInMemoryProxyDescriptor descriptor) {
             logger.error("This method is not supported for this type of cache");
             return null;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public long getOidByIdentifyingProperties(@Nonnull List<PropertyDescriptor> properties) {
             return identifyingPropertiesToOid.getOrDefault(composeKeyFromProperties(properties),
                 IdentityService.INVALID_OID);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public List<EntityInMemoryProxyDescriptor> getDtosByNonVolatileProperties(
             @Nonnull final List<PropertyDescriptor> properties) {
@@ -293,9 +271,6 @@ public class IdentityCaches {
             return matchingDtos;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void report() {
             MemoryMeasurement oidToIdentityMeasure = MemoryMeasurer.measure(oidToIdentity);
@@ -306,6 +281,13 @@ public class IdentityCaches {
             logger.debug(String.format("Identity cache size report:\n oidToIdentity size: {} \n "
                     + "identifyingPropertiesToOid size: {} \n nonVolatileProperties cache size: {} \n"),
                 oidToIdentityMeasure.toString(), identifyintToOidMeasure.toString(), nonVolatilePropsMeasure.toString());
+        }
+
+        @Override
+        public LongSet getOids() {
+            LongSet oids = new LongOpenHashSet();
+            oids.addAll(oidToIdentity.keySet());
+            return oids;
         }
 
         private List<PropertyDescriptor> extractNonVolatileProperties(IdentityRecord identityRecord) {
@@ -369,17 +351,11 @@ public class IdentityCaches {
                     identityRecord.getDescriptor());
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public  boolean containsKey(long oid) {
             return oidToDescriptor.containsKey(oid);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor remove(Long oid) {
             EntityInMemoryProxyDescriptor existingDescriptor = oidToDescriptor.remove(oid);
@@ -390,17 +366,18 @@ public class IdentityCaches {
             return null;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor get(Long oid) {
             return oidToDescriptor.get(oid);
         }
 
-        /**
-         * {@inheritDoc}
-         */
+        @Override
+        public LongSet getOids() {
+            LongSet oids = new LongOpenHashSet();
+            oids.addAll(oidToDescriptor.keySet());
+            return oids;
+        }
+
         @Override
         public void toJson(@Nonnull final Writer writer) {
             final EntityInMemoryProxyDescriptorConverter converter =
@@ -413,43 +390,29 @@ public class IdentityCaches {
             builder.create().toJson(oidToDescriptor.values(), writer);
         }
 
-        /**
-         * {@inheritDoc}
-         */
+
         @Override
         public int size() {
             return oidToDescriptor.keySet().size();
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void clear() {
             oidToDescriptor.clear();
             identifyingPropertiesToOid.clear();
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public EntityInMemoryProxyDescriptor addDescriptor(EntityInMemoryProxyDescriptor descriptor) {
             return oidToDescriptor.put(descriptor.getOID(), descriptor);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public long getOidByIdentifyingProperties(@Nonnull final List<PropertyDescriptor> properties) {
             return identifyingPropertiesToOid.getOrDefault(composeKeyFromProperties(properties),
                 IdentityService.INVALID_OID);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public List<EntityInMemoryProxyDescriptor> getDtosByNonVolatileProperties(@Nonnull final List<PropertyDescriptor> properties) {
             List<EntityInMemoryProxyDescriptor> array = new ArrayList<>();
@@ -462,9 +425,6 @@ public class IdentityCaches {
             return array;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void report() {
             MemoryMeasurement oidToIdentityMeasure = MemoryMeasurer.measure(oidToDescriptor);

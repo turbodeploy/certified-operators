@@ -26,6 +26,8 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hamcrest.Matchers;
@@ -59,6 +61,7 @@ import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -139,7 +142,8 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                         (service, range) -> new PercentileTaskStub(service, range, persistenceTable,
                                         (checkpoint) -> {
                                             checkpointTime = checkpoint;
-                                        }), Mockito.mock(SystemNotificationProducer.class));
+                                        }), Mockito.mock(SystemNotificationProducer.class),
+            Mockito.mock(IdentityProvider.class));
 
         commodityReferences = VM_OID_TO_MAP.keySet().stream()
             .map(oid -> new EntityCommodityReference(oid,
@@ -421,7 +425,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                            @Nonnull Pair<Long, Long> range,
                            @Nonnull Map<Long, PercentileCounts> persistenceTable,
                            @Nonnull Consumer<Long> checkpointSetter) {
-            super(statsHistoryClient, range);
+            super(statsHistoryClient, range, false);
             this.persistenceTable = persistenceTable;
             this.checkpointSetter = checkpointSetter;
         }
@@ -429,7 +433,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         @Override
         public Map<EntityCommodityFieldReference, PercentileCounts.PercentileRecord> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull PercentileHistoricalEditorConfig config)  {
+            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse)  {
             return loadFromCounts(persistenceTable.get(getStartTimestamp()));
         }
 

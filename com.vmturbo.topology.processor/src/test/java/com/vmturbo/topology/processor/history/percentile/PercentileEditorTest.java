@@ -39,6 +39,9 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -81,6 +84,8 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -148,6 +153,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
     private PercentileEditorCacheAccess percentileEditor;
     private List<PercentilePersistenceTask> percentilePersistenceTasks;
     private TopologyInfo topologyInfo;
+    private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
     /**
      * Set up the test.
@@ -155,7 +161,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
      * @throws IOException when failed
      */
     @Before
-    public void setUp() throws IOException {
+    public void setUp() throws IOException, IdentityUninitializedException {
         setUpTopology();
         percentilePersistenceTasks = new ArrayList<>();
         percentileEditor =
@@ -166,8 +172,9 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                             Mockito.spy(new PercentileTaskStub(service, range));
                             percentilePersistenceTasks.add(result);
                             return result;
-                        });
+                        }, identityProvider);
         topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
+        Mockito.when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(LongSets.EMPTY_SET);
     }
 
     /**
@@ -615,7 +622,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
             }
             percentilePersistenceTasks.add(result);
             return result;
-        });
+        }, identityProvider);
         final HistoryAggregationContext firstContext = new HistoryAggregationContext(topologyInfo,
                 graphWithSettings, false);
         Mockito.when(clock.millis()).thenReturn(firstCheckpoint);
@@ -675,7 +682,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                         < percentilePersistenceTasks.size()
                         - 3; i++) {
             Mockito.verify(percentilePersistenceTasks.get(i), Mockito.times(1))
-                            .load(Mockito.any(), Mockito.any());
+                            .load(Mockito.any(), Mockito.any(), Mockito.any());
         }
         // full and cleared latest saved
         for (int i = percentilePersistenceTasks.size() - 2; i
@@ -994,7 +1001,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
         // Maintenance shouldn't load any data.
         Mockito.verify(percentilePersistenceTasks.get(0), Mockito.never())
-                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG), Mockito.any());
     }
 
     /**
@@ -1037,9 +1044,10 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
         // We load exactly two times in maintenance because we have two different periods in graph.
         Mockito.verify(percentilePersistenceTasks.get(1), Mockito.times(1))
-                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG),
+                            Mockito.any());
         Mockito.verify(percentilePersistenceTasks.get(2), Mockito.times(1))
-                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG), Mockito.any());
     }
 
     /**
@@ -1074,7 +1082,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         for (int invocation = 1; invocation < 5; invocation++) {
             Mockito.verify(percentilePersistenceTasks.get(invocation), Mockito.times(1))
                             .load(Mockito.any(),
-                                            Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+                                            Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG), Mockito.any());
         }
     }
 
@@ -1293,8 +1301,9 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 StatsHistoryServiceStub statsHistoryClient,
                 StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
                 Clock clock,
-                BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> taskCreator) {
-            super(config, statsHistoryClient, statsHistoryBlockingClient, clock, taskCreator, systemNotificationProducer);
+                BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> taskCreator, IdentityProvider identityProvider) {
+            super(config, statsHistoryClient, statsHistoryBlockingClient, clock, taskCreator,
+                systemNotificationProducer, identityProvider);
         }
 
         PercentileCommodityData getCacheEntry(EntityCommodityFieldReference field) {
@@ -1359,7 +1368,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         }
 
         PercentileTaskStub(StatsHistoryServiceStub unused, Pair<Long, Long> range) {
-            super(unused, range);
+            super(unused, range, false);
             currentUtilization = new HashMap<>(DEFAULT_UTILISATION);
             PercentileRecord virtualMachinePercentileRecord = PercentileRecord.newBuilder()
                             .setEntityOid(VIRTUAL_MACHINE_OID)
@@ -1394,8 +1403,8 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
         @Override
         public Map<EntityCommodityFieldReference, PercentileRecord> load(
-                        @Nonnull Collection<EntityCommodityReference> commodities,
-                        @Nonnull PercentileHistoricalEditorConfig config) {
+            @Nonnull Collection<EntityCommodityReference> commodities,
+            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse) {
             // Current implementation doesn't use this parameter.
             // If this assertion fails then most likely the implementation changed and
             // you should add more unit tests for that.

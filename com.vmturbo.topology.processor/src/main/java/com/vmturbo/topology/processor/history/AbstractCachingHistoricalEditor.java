@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.stub.AbstractStub;
+import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -350,7 +351,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
 
         @Override
         public List<EntityCommodityFieldReference> call() throws Exception {
-            Map<EntityCommodityFieldReference, DbValue> dbValues = task.load(commodities, getConfig());
+            Map<EntityCommodityFieldReference, DbValue> dbValues = task.load(commodities,
+                getConfig(), null);
             // update the cache with loaded db values
             dbValues.forEach((fieldRef, dbValue) -> cache.compute(fieldRef, (key, cacheValue) -> {
                 if (logger.isTraceEnabled()) {

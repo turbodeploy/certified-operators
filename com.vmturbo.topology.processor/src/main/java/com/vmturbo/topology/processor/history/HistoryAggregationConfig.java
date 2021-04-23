@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTa
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotEditor;
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotLoadingTask;
 import com.vmturbo.topology.processor.history.timeslot.TimeslotHistoricalEditorConfig;
+import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 
@@ -43,7 +44,8 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
  * Configuration for historical values aggregation sub-package.
  */
 @Configuration
-@Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class, TopologyProcessorApiConfig.class})
+@Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class,
+    TopologyProcessorApiConfig.class, IdentityProviderConfig.class})
 public class HistoryAggregationConfig {
     @Value("${historyAggregationMaxPoolSize:8}")
     private int historyAggregationMaxPoolSize = Runtime.getRuntime().availableProcessors();
@@ -92,8 +94,14 @@ public class HistoryAggregationConfig {
     @Value("${realtimeTopologyContextId:7777777}")
     private long realtimeTopologyContextId;
 
+    @Value("${enableExpiredOidFiltering:false}")
+    private boolean enableExpiredOidFiltering;
+
     @Autowired
     private HistoryClientConfig historyClientConfig;
+
+    @Autowired
+    private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
     private ClockConfig clockConfig;
@@ -189,7 +197,8 @@ public class HistoryAggregationConfig {
         @SuppressWarnings("unchecked")
         final E result = (E)new PercentileEditor(percentileEditorConfig(),
                         nonBlockingHistoryClient(), historyClient(), clockConfig.clock(),
-                        PercentilePersistenceTask::new, systemNotificationProducer);
+            (statsHistoryClient, range) -> new PercentilePersistenceTask(statsHistoryClient, range, enableExpiredOidFiltering), systemNotificationProducer,
+            identityProviderConfig.identityProvider());
         return result;
     }
 
