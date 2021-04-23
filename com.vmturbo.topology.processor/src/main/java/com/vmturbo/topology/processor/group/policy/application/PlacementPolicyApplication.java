@@ -8,8 +8,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -354,6 +356,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             final TopologyEntity entity = optionalConsumer.get();
 
             final TopologyEntityDTO.Builder consumer;
+            final Optional<Long> onPremStorageId;
             if (isOnPremVolume(entity)) {
                 // if it's volume, the real consumer should be the VM which uses this volume
                 Optional<TopologyEntity> optVM = entity
@@ -378,23 +381,29 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 }
                 // consumer should be the VM which is connected to this volume
                 consumer = optVM.get().getTopologyEntityDtoBuilder();
+                //The volume is either connects to a storage or provided by a storage.
+                onPremStorageId = Stream.concat(entity.getOutboundAssociatedEntities().stream(),
+                        entity.getProviders().stream()).
+                        filter(e -> e.getEntityType() == EntityType.STORAGE_VALUE).
+                        map(TopologyEntity::getOid).findAny();
             } else {
                 // We come here if either entity is not a volume (e.g is a VM) or if it is a
                 // cloud volume, in which case we create policy on that volume, instead of the VM,
                 // so consumer in this case should be the cloud volume.
                 consumer = entity.getTopologyEntityDtoBuilder();
+                onPremStorageId = Optional.empty();
             }
-
             // Separate commoditiesBoughtFromProvider into two category:
             // Key is True: list of commodityBought group, whose provider entity type matches
             // with given providerType
             // Key is False: list of commodityBought group, whose provider entity type doesn't
             // match with given providerType
+
             final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
                 consumer.getCommoditiesBoughtFromProvidersList().stream()
                     .collect(Collectors.partitioningBy(commodityBoughtGroup ->
-                        shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
-                            providerType)));
+                            shouldAddSegmentToCommodityBought(commodityBoughtGroup,
+                                    topologyGraph, providerType, onPremStorageId)));
 
             // All Commodity Bought list which should be added segmentation commodity
             final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
@@ -427,11 +436,23 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @param topologyGraph The graph containing the topology.
      * @param providerType The type of provider that will be providing the segment commodity
      *                     these consumers must be buying.
+     * @param filterProviderId provider id used to filter out commodities.
      * @return boolean type represents if provider entity type matches.
      */
     private boolean shouldAddSegmentToCommodityBought(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
                                                       @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
-                                                      final int providerType) {
+                                                      final int providerType,
+                                                      @Nonnull final Optional<Long> filterProviderId) {
+
+        //Filter using specific provider id.
+        //Eg, if a VM has multiple volumes and the policy applies to only one of them, we need to find
+        //the Storage of the volume and check if this commodityBoughtGrouping is the for the same storage.
+        //Or the segment will be applied to other storages.
+        if (filterProviderId.isPresent() &&
+                commodityBoughtGrouping.hasProviderId() &&
+                commodityBoughtGrouping.getProviderId() != filterProviderId.get()) {
+            return false;
+        }
         // TODO: After we guarantee that commodity type always have provider entity type, we will not
         // need to check topology graph to get provider entity type.
         if (commodityBoughtGrouping.hasProviderEntityType()) {
