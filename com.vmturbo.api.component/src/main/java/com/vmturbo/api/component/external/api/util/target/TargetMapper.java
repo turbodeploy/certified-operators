@@ -1,10 +1,11 @@
-package com.vmturbo.api.component.external.api.mapper;
+package com.vmturbo.api.component.external.api.util.target;
 
 import static com.vmturbo.common.protobuf.topology.UIMapping.getUserFacingCategoryString;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,16 +24,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.service.TargetsService;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.enums.healthCheck.HealthState;
+import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
+import com.vmturbo.api.enums.healthCheck.TargetErrorType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ITargetHealthInfo;
+import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 
@@ -317,5 +326,55 @@ public class TargetMapper {
             default:
                 throw new RuntimeException("Unrecognized account field value type: " + type);
         }
+    }
+
+    private static final Map<ErrorType, TargetErrorType> ERROR_TYPE_CONVERTER = initializeErrorTypeConverter();
+
+    private static Map<ErrorType, TargetErrorType> initializeErrorTypeConverter() {
+        final Map<ErrorType, TargetErrorType> result = new EnumMap<>(ErrorType.class);
+        result.put(ErrorType.CONNECTION_TIMEOUT, TargetErrorType.CONNECTIVITY_ERROR);
+        result.put(ErrorType.UNAUTHENTICATED, TargetErrorType.UNAUTHENTICATED);
+        result.put(ErrorType.UNAUTHORIZED, TargetErrorType.UNAUTHENTICATED);
+        result.put(ErrorType.TOKEN_UNAVAILABLE, TargetErrorType.TOKEN_UNAVAILABLE);
+        result.put(ErrorType.TOKEN_EXPIRED, TargetErrorType.TOKEN_UNAVAILABLE);
+        result.put(ErrorType.VERSION_NOT_SUPPORTED, TargetErrorType.VERSION_NOT_SUPPORTED);
+        result.put(ErrorType.DATA_IS_MISSING, TargetErrorType.DATA_ACCESS_ERROR);
+        result.put(ErrorType.PROBE_PARSING_ERROR, TargetErrorType.DATA_ACCESS_ERROR);
+        result.put(ErrorType.OTHER, TargetErrorType.INTERNAL_PROBE_ERROR);
+        result.put(ErrorType.INTERNAL_PROBE_ERROR, TargetErrorType.INTERNAL_PROBE_ERROR);
+        return result;
+    }
+
+    /**
+     * Convert target health report from inner representation to external API DTO.
+     * @param healthInfo a container to transmit info internally between the components.
+     * @return target health API DTO
+     */
+    public TargetHealthApiDTO mapTargetHealthInfoToDTO(ITargetHealthInfo healthInfo)    {
+        TargetHealthApiDTO result = new TargetHealthApiDTO();
+        result.setUuid(healthInfo.getTargetId().toString());
+        result.setTargetName(healthInfo.getDisplayName());
+        TargetHealthSubcategory healthCheckSubcategory = healthInfo.getSubcategory();
+        if (TargetHealthSubcategory.DISCOVERY.equals(healthCheckSubcategory))   {
+            result.setCheckSubcategory(TargetCheckSubcategory.DISCOVERY);
+        } else if (TargetHealthSubcategory.VALIDATION.equals(healthCheckSubcategory))   {
+            result.setCheckSubcategory(TargetCheckSubcategory.VALIDATION);
+        }
+
+        String errorText = healthInfo.getErrorText();
+        ErrorType targetErrorType = healthInfo.getTargetErrorType();
+        if (errorText.isEmpty()) {
+            result.setHealthState(HealthState.NORMAL);
+        } else if (targetErrorType == null) {
+            result.setHealthState(HealthState.MINOR);
+            result.setErrorText(errorText);
+        } else {
+            result.setHealthState(HealthState.CRITICAL);
+            result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getTargetErrorType()));
+            result.setErrorText(errorText);
+            result.setTimeOfFirstFailure(ApiUtils.convertToMilliseconds(healthInfo.getTimeOfFirstFailure()));
+            result.setNumberOfConsecutiveFailures(healthInfo.getNumberOfConsecutiveFailures());
+        }
+        return result;
     }
 }

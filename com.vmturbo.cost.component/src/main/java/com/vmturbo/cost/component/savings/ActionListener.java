@@ -52,23 +52,16 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CostSource;
-import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.util.EntityCostFilter;
-import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.sql.utils.DbException;
 
 /**
  * Listens for events from the action orchestrator and inserts events into the internal
@@ -133,47 +126,17 @@ public class ActionListener implements ActionsListener {
     private final Set<Integer> pendingWorkloadTypes;
 
     /**
-     * The current entity costs store.
-     */
-    private final EntityCostStore currentEntityCostStore;
-
-    /**
-     * The projected entity costs store.
-     */
-    private final ProjectedEntityCostStore projectedEntityCostStore;
-
-    /**
      * Map of entity type to a set of cost categories for which costs need to be queried for.
-     * The current entity costs store.
      */
     private static final Map<Integer, Set<CostCategory>> costCategoriesByEntityType = new HashMap<>();
 
-    /**
-     * Set of Cost Sources for which costs are queried.
-     */
-    private static final ImmutableSet<Integer> costSources = ImmutableSet
-                    .of(CostSource.ON_DEMAND_RATE.getNumber(),
-                        CostSource.RI_INVENTORY_DISCOUNT.getNumber());
-
-    /**
-     * String to describe before action costs for an entity.
-     */
-    private final String beforeCosts = "Before Costs";
-    /**
-     * String to describe after action costs for an entity.
-     */
-    private final String afterCosts = "After Costs";
-
     static {
         costCategoriesByEntityType.put(EntityType.VIRTUAL_MACHINE_VALUE,
-                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
-                                                       CostCategory.ON_DEMAND_LICENSE,
-                                                       CostCategory.RESERVED_LICENSE));
+                ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.ON_DEMAND_LICENSE));
         costCategoriesByEntityType.put(EntityType.VIRTUAL_VOLUME_VALUE,
-                                       ImmutableSet.of(CostCategory.STORAGE));
+                ImmutableSet.of(CostCategory.STORAGE));
         costCategoriesByEntityType.put(EntityType.DATABASE_VALUE,
-                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
-                                                       CostCategory.STORAGE));
+                ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.STORAGE));
     }
 
     /**
@@ -193,8 +156,6 @@ public class ActionListener implements ActionsListener {
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
      * @param actionsServiceBlockingStub Stub for Grpc calls to actions service.
      * @param costServiceBlockingStub Stub for Grpc calls to cost service.
-     * @param costStoreHouse Entity cost store
-     * @param projectedEntityCostStore Projected entity cost store
      * @param realTimeContextId The real-time topology context id.
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
@@ -204,23 +165,19 @@ public class ActionListener implements ActionsListener {
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                     @Nonnull CostServiceBlockingStub costServiceBlockingStub,
-                    @Nonnull final EntityCostStore costStoreHouse,
-                    @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
                     @Nonnull final Long actionLifetimeMs,
                     @Nonnull final Long deleteVolumeActionLifetimeMs) {
-        this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
-        this.costService = Objects.requireNonNull(costServiceBlockingStub);
-        this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
-        this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
-        this.realTimeTopologyContextId = realTimeContextId;
-        this.pendingWorkloadTypes = supportedEntityTypes.stream()
+        entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
+        actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
+        costService = Objects.requireNonNull(costServiceBlockingStub);
+        realTimeTopologyContextId = realTimeContextId;
+        pendingWorkloadTypes = supportedEntityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
-        this.pendingActionTypes = supportedActionTypes;
+        pendingActionTypes = supportedActionTypes;
         this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
         this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
     }
@@ -564,117 +521,65 @@ public class ActionListener implements ActionsListener {
     private Map<Long, EntityPriceChange> getEntityCosts(
             @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
         Map<Long, EntityPriceChange> actionIdToEntityPriceChange = new HashMap<>();
+        // Get subset of entity ids by cost category, we can only make 1 request for each category.
+        Map<CostCategory, Set<Long>> categoryToEntities = new HashMap<>();
+        entityIdToActionInfoMap.forEach((entityId, entityActionInfo) -> {
+            Set<CostCategory> cat = costCategoriesByEntityType.get(entityActionInfo.entityType);
+            if (CollectionUtils.isNotEmpty(cat)) {
+                cat.forEach(eachCategory -> {
+                    categoryToEntities.computeIfAbsent(eachCategory, k -> new HashSet<>()).add(entityId);
+                });
+            }
+        });
 
-        //Get before and after costs for the defined costSources.
-        queryEntityCosts(entityIdToActionInfoMap);
+        // Make the Grpc call to get before and after costs for those categories.
+        queryEntityCosts(categoryToEntities, entityIdToActionInfoMap);
 
         // Update total costs in return map.
         entityIdToActionInfoMap.forEach((entityId, entityActionInfo) -> {
-            final EntityActionCosts entityActionCosts = entityActionInfo.getEntityActionCosts();
+            final EntityActionCosts totalCosts = entityActionInfo.getTotalCosts();
             final EntityPriceChange actionPriceChange = new EntityPriceChange.Builder()
                     .sourceOid(entityActionInfo.sourceOid)
-                    .sourceCost(entityActionCosts.beforeCosts)
+                    .sourceCost(totalCosts.beforeCosts)
                     .destinationOid(entityActionInfo.destinationOid)
-                    .destinationCost(entityActionCosts.afterCosts)
+                    .destinationCost(totalCosts.afterCosts)
                     .build();
-            logger.debug("Adding a price change for action {} --> Before Costs {}, After Cost {}",
-                         entityActionInfo.getActionId(),
-                         entityActionCosts.beforeCosts, entityActionCosts.afterCosts);
             actionIdToEntityPriceChange.put(entityActionInfo.getActionId(), actionPriceChange);
         });
         return actionIdToEntityPriceChange;
     }
 
     /**
-     * Fetches from entityCostStore the before and after costs for the given set of entities,
-     * for the CostSources ON_DEMAND_RATE and RI_INVENTORY_DISCOUNT.
+     * Makes the CostRpc calls to get the before and after costs for the given set of entities,
+     * for the categories specified.
      *
+     * @param categoryToEntities Map of CostCategory to a list of entities for which those costs
+     *      need to be fetched. An api call is made per category.
      * @param entityIdToActionInfoMap Input map that is updated with fetched costs.
      */
     @VisibleForTesting
-    void queryEntityCosts(@Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
-        try {
-            final Set<CostCategory> costCategories = costCategoriesByEntityType.values()
-                                                            .stream()
-                                                            .flatMap(x -> x.stream())
-                                                            .collect(Collectors.toSet());
-            final EntityCostFilter filterBuilder = EntityCostFilterBuilder
-                            .newBuilder(TimeFrame.LATEST,
-                                        realTimeTopologyContextId)
-                            .entityIds(entityIdToActionInfoMap.keySet())
-                            .costCategoryFilter(CostCategoryFilter.newBuilder()
-                                            .setExclusionFilter(false)
-                                            .addAllCostCategory(costCategories)
-                                            .build())
-                            .latestTimestampRequested(true)
-                            .costSources(false, costSources)
-                            .build();
+    void queryEntityCosts(@Nonnull final Map<CostCategory, Set<Long>> categoryToEntities,
+            @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
+        categoryToEntities.forEach((category, entities) -> {
+            final GetTierPriceForEntitiesRequest.Builder request = GetTierPriceForEntitiesRequest
+                    .newBuilder()
+                    .addAllOids(entities)
+                    .setCostCategory(category);
+            request.setTopologyContextId(realTimeTopologyContextId);
 
-            Map<Long, Map<Long, EntityCost>> queryResult =
-                                                         currentEntityCostStore
-                                                         .getEntityCosts(filterBuilder);
-            Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
-            queryResult.values().forEach(beforeEntityCostbyOid::putAll);
+            final GetTierPriceForEntitiesResponse response = costService.getTierPriceForEntities(
+                    request.build());
+            final Map<Long, CurrencyAmount> beforeCosts = response.getBeforeTierPriceByEntityOidMap();
+            final Map<Long, CurrencyAmount> afterCosts = response.getAfterTierPriceByEntityOidMap();
 
-            final Map<Long, EntityCost> afterEntityCostByOid = projectedEntityCostStore.getProjectedEntityCosts(filterBuilder);
-
-            // Populate before costs for entity.
-            populateCostsForEntity(beforeEntityCostbyOid, entityIdToActionInfoMap, true);
-            // Populate after costs for entity.
-            populateCostsForEntity(afterEntityCostByOid, entityIdToActionInfoMap, false);
-        } catch (DbException e) {
-            logger.warn("ActionListener Error retrieving entity costs", e);
-        }
-    }
-
-    /**
-     * Populate before or after costs for an entity.
-     *
-     * @param costsMap The entity's cost map.
-     * @param entityIdToActionInfoMap  Entity Id to EntityActionInfo {@link EntityActionInfo} map
-     * @param isBeforeCosts specifies whether it's the before costs or after posts that need to be populated.
-     */
-    private void populateCostsForEntity(@Nonnull Map<Long, EntityCost> costsMap,
-                                        @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap,
-                                       final boolean isBeforeCosts) {
-        int noOfEntitieswithError = 0;
-        final String costDescription = isBeforeCosts ? beforeCosts : afterCosts;
-        for (Map.Entry<Long, EntityCost> entry : costsMap.entrySet()) {
-            final Long entityId = entry.getKey();
-            final EntityCost cost = entry.getValue();
-            final EntityActionInfo entityActionInfo = entityIdToActionInfoMap.get(entityId);
-            if (CollectionUtils.isNotEmpty(cost.getComponentCostList())) {
-                AtomicReference<Double> atomicSum = new AtomicReference<>(0.0);
-                cost.getComponentCostList().forEach(componentCost -> {
-                    // Consider only the Cost Categories relevant for an Entity Type.
-                    if (costCategoriesByEntityType.get(entityIdToActionInfoMap
-                                    .get(entityId).getEntityType())
-                                    .contains(componentCost.getCategory())
-                        && componentCost.hasAmount()) {
-                        logger.debug("Entity {} {} --> CostSource {} : {} : {}",
-                                     entityId, costDescription,
-                                     componentCost.getCostSource(),
-                                     componentCost.getCategory(),
-                                     componentCost.getAmount().getAmount());
-                        atomicSum.accumulateAndGet(componentCost.getAmount()
-                                        .getAmount(), (x, y) -> x + y);
-                    }
-                });
-                final double totalCosts = atomicSum.get();
-                if (isBeforeCosts) {
-                    logger.debug("Total before costs for entity {} : {}", entityId, totalCosts);
-                    entityActionInfo.getEntityActionCosts().setBeforeCosts(totalCosts);
-                } else {
-                    logger.debug("Total after costs for entity {} : {}", entityId, totalCosts);
-                    entityActionInfo.getEntityActionCosts().setAfterCosts(totalCosts);
-                }
-            } else {
-                noOfEntitieswithError++;
-                logger.warn("No costs could be retrieved from database for entity having oid {}",
-                             entityId);
-            }
-        }
-        logger.warn("ActionListener total number of entities with cost retrieval issues {}.", noOfEntitieswithError);
+            entities.forEach(entityId -> {
+                final EntityActionInfo entityActionInfo = entityIdToActionInfoMap.get(entityId);
+                double beforeAmount = beforeCosts.getOrDefault(entityId, zeroCosts).getAmount();
+                double afterAmount = afterCosts.getOrDefault(entityId, zeroCosts).getAmount();
+                entityActionInfo.costsByCategory.put(category, new EntityActionCosts(beforeAmount,
+                        afterAmount));
+            });
+        });
     }
 
     /**
@@ -711,10 +616,9 @@ public class ActionListener implements ActionsListener {
         private final long recommendationTime;
 
         /**
-         * The before and after costs associated with the action.
+         * Stores before and after costs per category.
          */
-        @Nonnull
-        private final EntityActionCosts entityActionCosts;
+        private final Map<CostCategory, EntityActionCosts> costsByCategory;
 
         /**
          * Id of action.
@@ -792,7 +696,7 @@ public class ActionListener implements ActionsListener {
             this.recommendationTime = actionSpec.getRecommendationTime();
             this.entityType = entity.getType();
             this.actionState = actionSpec.getActionState();
-            this.entityActionCosts = new EntityActionCosts(0, 0);
+            this.costsByCategory = new HashMap<>();
             if (!action.hasInfo()) {
                 return;
             }
@@ -832,6 +736,18 @@ public class ActionListener implements ActionsListener {
         }
 
         /**
+         * Gets summed up costs, across all applicable categories, for this entity.
+         *
+         * @return Total costs, containing pre and post action costs.
+         */
+        @Nonnull
+        EntityActionCosts getTotalCosts() {
+            final EntityActionCosts totalCosts = new EntityActionCosts();
+            costsByCategory.values().forEach(totalCosts::add);
+            return totalCosts;
+        }
+
+        /**
          * Getter for entityType.
          *
          * @return entityType.
@@ -856,6 +772,15 @@ public class ActionListener implements ActionsListener {
          */
         protected long getDestinationOid() {
             return destinationOid;
+        }
+
+        /**
+         * Getter for costsByCategory.
+         *
+         * @return costsByCategory.
+         */
+        protected Map<CostCategory, EntityActionCosts> getCostsByCategory() {
+            return costsByCategory;
         }
 
         /**
@@ -892,16 +817,6 @@ public class ActionListener implements ActionsListener {
          */
         protected ActionEventType getActionEventType() {
             return actionEventType;
-        }
-
-        /**
-         *  Getter for EntityActionCosts.
-         *
-         * @return EntityActionCosts.
-         */
-        @Nonnull
-        protected EntityActionCosts getEntityActionCosts() {
-            return entityActionCosts;
         }
 
         /**
@@ -1050,39 +965,14 @@ public class ActionListener implements ActionsListener {
         }
 
         /**
-         * Getter for beforeCosts.
+         * Adds input costs to the costs of this instance. Used to make up total costs from all
+         * the individual category costs.
          *
-         * @return beforeCosts.
+         * @param other Category costs to add to this instance.
          */
-        protected double getBeforeCosts() {
-            return beforeCosts;
-        }
-
-        /**
-         * Setter for beforeCosts.
-         *
-         * @param beforeCosts The before costs.
-         */
-        protected void setBeforeCosts(double beforeCosts) {
-            this.beforeCosts = beforeCosts;
-        }
-
-        /**
-         * Getter for afterCosts.
-         *
-         * @return afterCosts.
-         */
-        protected double getAfterCosts() {
-            return afterCosts;
-        }
-
-        /**
-         * Setter for afterCosts.
-         *
-         * @param afterCosts The after costs.
-         */
-        protected void setAfterCosts(double afterCosts) {
-            this.afterCosts = afterCosts;
+        void add(@Nonnull final EntityActionCosts other) {
+            beforeCosts += other.beforeCosts;
+            afterCosts += other.afterCosts;
         }
     }
 }

@@ -104,7 +104,6 @@ public class EntityCostFilter extends CostFilter {
      *
      * @return a list of {@link Condition}.
      */
-    @Override
     public List<Condition> generateConditions() {
         final List<Condition> conditions = new ArrayList<>();
         final Table<?> table = getTable();
@@ -134,14 +133,10 @@ public class EntityCostFilter extends CostFilter {
                     .map(CostCategory::getNumber)
                     .collect(ImmutableSet.toImmutableSet());
 
-            if (!costCategoryValues.isEmpty()) {
-                if (costCategoryFilter.getExclusionFilter()) {
-                    conditions.add(table.field(ENTITY_COST.COST_TYPE.getName())
-                                    .notIn(costCategoryValues));
-                } else {
-                    conditions.add(table.field(ENTITY_COST.COST_TYPE.getName())
-                                    .in(costCategoryValues));
-                }
+            if (costCategoryFilter.getExclusionFilter()) {
+                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).notIn(costCategoryValues));
+            } else {
+                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).in(costCategoryValues));
             }
         }
 
@@ -451,7 +446,6 @@ public class EntityCostFilter extends CostFilter {
      * GroupBy for {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord}.
      * @return null if there was no groupBy property in request.
      */
-    @Override
     @Nullable
     public CostGroupBy getCostGroupBy() {
         return costGroupBy;

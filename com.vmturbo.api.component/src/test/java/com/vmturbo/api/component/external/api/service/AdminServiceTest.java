@@ -45,7 +45,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
-import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
@@ -184,8 +183,7 @@ public class AdminServiceTest {
                 DeploymentMode.SAAS,
                 false,
                 Mockito.mock(SettingsService.class),
-                false,
-                Mockito.mock(HealthDataAggregator.class));
+                false);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -211,8 +209,7 @@ public class AdminServiceTest {
                 DeploymentMode.SAAS,
                 true,
                 Mockito.mock(SettingsService.class),
-                false,
-                Mockito.mock(HealthDataAggregator.class));
+                false);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -507,17 +504,10 @@ public class AdminServiceTest {
          */
         @Bean
         public AdminService adminService() {
-            return new AdminService(clusterService,
-                            keyValueStore(),
-                            clusterMgrClient(),
-                            restTemplate,
-                            apiWebsocketHandler(),
-                            buildProperties(),
-                            DeploymentMode.SERVER,
-                            false,
-                            settingsService,
-                            false,
-                            Mockito.mock(HealthDataAggregator.class));
+            return new AdminService(clusterService, keyValueStore(),
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(),
+                buildProperties(), DeploymentMode.SERVER, false, settingsService,
+                    false);
         }
 
         /**

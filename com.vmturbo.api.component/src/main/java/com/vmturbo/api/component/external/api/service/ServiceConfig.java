@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
@@ -21,8 +23,7 @@ import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
-import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
-import com.vmturbo.api.component.external.api.service.util.SearchServiceFilterResolver;
+import com.vmturbo.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -53,7 +54,6 @@ import com.vmturbo.api.component.security.OpenIdAuthenticationCondition;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.serviceinterfaces.IClassicMigrationService;
-import com.vmturbo.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -82,8 +82,6 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.search.SearchDBConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Spring Configuration that initializes all the services.
@@ -265,17 +263,10 @@ public class ServiceConfig {
 
     @Bean
     public AdminService adminService() {
-        return new AdminService(clusterService(),
-                        keyValueStoreConfig.keyValueStore(),
-                        communicationConfig.clusterMgr(),
-                        communicationConfig.serviceRestTemplate(),
-                        websocketConfig.websocketHandler(),
-                        BuildProperties.get(),
-                        deploymentMode,
-                        enableReporting,
-                        settingsService(),
-                        enableSearchApi,
-                        healthDataAggregator());
+        return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
+            communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
+            websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode,
+                this.enableReporting, this.settingsService(), this.enableSearchApi);
     }
 
     @Bean
@@ -1067,13 +1058,4 @@ public class ServiceConfig {
                 securityConfig.verifier(), targetStore());
     }
 
-    /**
-     * Provides {@link HealthDataAggregator} bean
-     *
-     * @return HealthDataAggregator bean
-     */
-    @Bean
-    public HealthDataAggregator healthDataAggregator() {
-        return new HealthDataAggregator(communicationConfig.topologyProcessor());
-    }
 }
