@@ -478,6 +478,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../com.vmturbo.mediation.xen.component</module>
             </modules>
         </profile>
 
@@ -987,6 +988,13 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>mediation-xen</id>
+            <modules>
+                <module>../com.vmturbo.mediation.xen.component</module>
+            </modules>
+        </profile>
+
         <!-- Development profile. Intended for use during the development of a change.
              Don't include slow modules here (unless it's ABSOLUTELY necessary)! -->
         <profile>
@@ -1061,7 +1069,6 @@
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
@@ -1353,6 +1360,7 @@
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
+                <module>../com.vmturbo.mediation.xen.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>

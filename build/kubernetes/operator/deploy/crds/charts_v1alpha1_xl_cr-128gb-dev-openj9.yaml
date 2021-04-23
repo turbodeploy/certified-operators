@@ -119,6 +119,8 @@ spec:
     enabled: false
   weblogic:
     enabled: false
+  xen:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -390,6 +392,10 @@ spec:
       limits:
         memory: 32Gi
   mediation-weblogic:
+    resources:
+      limits:
+        memory: 32Gi
+  mediation-xen:
     resources:
       limits:
         memory: 32Gi

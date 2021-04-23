@@ -254,6 +254,14 @@
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.xtremio.sdk-${vmturbo.mt.branch.version}</outputDirectory>
                                 </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.xen.sdk</artifactId>
+                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.xen.sdk-${vmturbo.mt.branch.version}</outputDirectory>
+                                </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>

@@ -117,3 +117,5 @@ spec:
     enabled: false
   weblogic:
     enabled: false
+  xen:
+    enabled: false

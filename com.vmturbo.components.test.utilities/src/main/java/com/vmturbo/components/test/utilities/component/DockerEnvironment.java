@@ -352,6 +352,8 @@ public class DockerEnvironment {
             .put("MEDIATION_HORIZON_MEM_LIMIT_MB", "512")
             .put("MEDIATION_KAFKA_XMX_MB", "384")
             .put("MEDIATION_KAFKA_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_XEN_DEBUG_PORT", "8000")
+            .put("MEDIATION_XEN_PORT", "8080")
                 // KAFKA PROPERTIES
             .put("KAFKA_LOG_RETENTION_HRS", "24")
             .put("KAFKA_MAX_MESSAGE_BYTES", "67108864")
@@ -433,6 +435,7 @@ public class DockerEnvironment {
             .put("MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_HORIZON_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_ACTIONSTREAM_KAFKA_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_XEN_SYSTEM_PROPERTIES", "")
             .build();
 
     /**
