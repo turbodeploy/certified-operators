@@ -26,6 +26,9 @@ public class ControllableConfig {
     @Value("${resizeSucceedRecordExpiredSeconds:14400}")
     private int resizeSucceedRecordExpiredSeconds;
 
+    @Value("${accountForVendorAutomation:false}")
+    private boolean accountForVendorAutomation;
+
     @Autowired
     private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
@@ -38,6 +41,6 @@ public class ControllableConfig {
 
     @Bean
     public ControllableManager controllableManager() {
-        return new ControllableManager(entityActionDaoImp());
+        return new ControllableManager(entityActionDaoImp(), accountForVendorAutomation);
     }
 }

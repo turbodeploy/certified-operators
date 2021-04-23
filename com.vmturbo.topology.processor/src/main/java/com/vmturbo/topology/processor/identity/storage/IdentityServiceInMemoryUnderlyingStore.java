@@ -29,6 +29,8 @@ import com.google.gson.reflect.TypeToken;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
@@ -437,6 +439,16 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
     @Override
     public boolean shallowRemove(long oid) {
         return identityCache.remove(oid) != null;
+    }
+
+    @Override
+    public LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException {
+        synchronized (initializationLock) {
+            if (!initialized) {
+                throw new IdentityUninitializedException();
+            }
+        }
+        return identityCache.getOids();
     }
 
     /**

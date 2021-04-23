@@ -13,7 +13,9 @@ import com.google.protobuf.MessageOrBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
+import com.vmturbo.stitching.utilities.MissingFieldSummarizer;
 
 /**
  * A {@link MatchingField} represents a field of the EntityDTO that can be used for entity matching.
@@ -84,7 +86,8 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
         Object result = source;
         for (String nextFieldName : messagePath) {
             if (!(result instanceof MessageOrBuilder)) {
-                logger.error(FIELD_MISSING_SKIPPING_ENTRY, nextFieldName, result);
+                MissingFieldSummarizer.getInstance().append(((Builder)source).getEntityType(),
+                        nextFieldName, ((Builder)source).getId());
                 return null;
             }
             try {

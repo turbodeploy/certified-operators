@@ -277,3 +277,5 @@ wmi:
   enabled: false
 xtremio:
   enabled: false
+xen:
+  enabled: false

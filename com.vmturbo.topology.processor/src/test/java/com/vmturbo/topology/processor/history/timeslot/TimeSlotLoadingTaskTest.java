@@ -108,7 +108,7 @@ public class TimeSlotLoadingTaskTest {
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 Pair.create(null, null));
         Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> comms = task
-                        .load(ImmutableList.of(ref1, ref2), CONFIG);
+                        .load(ImmutableList.of(ref1, ref2), CONFIG, null);
 
         Assert.assertNotNull(comms);
         Assert.assertEquals(2, comms.size());

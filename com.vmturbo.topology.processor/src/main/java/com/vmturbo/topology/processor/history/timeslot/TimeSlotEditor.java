@@ -272,7 +272,7 @@ public class TimeSlotEditor extends
             for (final List<EntityCommodityReference> partitionedOutdatedRefs : partitions) {
                 final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
                     createLoadingTask(Pair.create(startMs, endMs))
-                        .load(partitionedOutdatedRefs, getConfig());
+                        .load(partitionedOutdatedRefs, getConfig(), null);
                 for (Entry<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> refToData : outdatedRecords
                     .entrySet()) {
                     final EntityCommodityFieldReference reference = refToData.getKey();

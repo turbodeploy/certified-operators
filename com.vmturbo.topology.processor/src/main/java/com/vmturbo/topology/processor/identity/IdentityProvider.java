@@ -9,6 +9,8 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
@@ -112,6 +114,13 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * or while the current thread was waiting for a notification.
      */
      void waitForInitializedStore() throws InterruptedException;
+
+    /**
+     * Get all the oids that currently exist in the cache.
+     * @return {@link LongSet} containing the oids
+     * @throws IdentityUninitializedException If the identity service initialization is incomplete.
+     */
+    LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException;
 
     /**
      * Returns the underlying store of the service.
