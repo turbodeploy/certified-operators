@@ -13,7 +13,7 @@ LABEL name="zookeeper" \
 COPY licenses /licenses
 
 # This is the release of Zookeeper to pull in.
-ENV ZOOKEEPER_VERSION=3.5.8
+ENV ZOOKEEPER_VERSION=3.5.9
 
 # Create a zookeeper user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
