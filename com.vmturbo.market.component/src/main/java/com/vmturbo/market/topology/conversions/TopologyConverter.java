@@ -4,7 +4,6 @@ import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CL
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -321,7 +320,6 @@ public class TopologyConverter {
 
     /**
      * Entities that are providers of containers.
-     * Populated only for plans. For realtime market, this set will be empty.
      */
     private final Set<Long> providersOfContainers = Sets.newHashSet();
 
@@ -1463,7 +1461,7 @@ public class TopologyConverter {
                         .setOid(traderTO.getOid())
                         .setEntityState(entityState)
                         .setDisplayName(displayName)
-                        .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
+                        .addAllCommoditySoldList(retrieveCommSoldList(traderTO, traderOidToEntityDTO))
                         .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
                         .addAllConnectedEntityList(getConnectedEntities(traderTO))
                         .setAnalysisSettings(analysisSetting);
@@ -2248,10 +2246,12 @@ public class TopologyConverter {
      * Convert commodities sold by a trader to a list of {@link TopologyDTO.CommoditySoldDTO}.
      *
      * @param traderTO {@link TraderTO} whose commoditiesSold are to be converted into DTOs
+     * @param traderOidToEntityDTO Map from traderTO OID to original TopologyEntityDTO.
      * @return list of {@link TopologyDTO.CommoditySoldDTO}s
      */
     private Set<TopologyDTO.CommoditySoldDTO> retrieveCommSoldList(
-            @Nonnull final TraderTO traderTO) {
+            @Nonnull final TraderTO traderTO,
+            @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
 
         // First we merge all timeslot commdities
         final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
@@ -2269,7 +2269,7 @@ public class TopologyConverter {
                 .stream().map(CommoditySoldTO.Builder::build).collect(Collectors.toList());
         return mergedCommodities.stream()
                     .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO, commoditySoldTO,
-                        timeSlotsByCommType))
+                        timeSlotsByCommType, traderOidToEntityDTO))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toSet());
@@ -4117,13 +4117,15 @@ public class TopologyConverter {
      * @param traderTO The TraderTO of the trader selling the commodity.
      * @param commSoldTO the market CommdditySoldTO to convert
      * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
+     * @param traderOidToEntityDTO Map from traderTO OID to original TopologyEntityDTO.
      * @return a {@link CommoditySoldDTO} equivalent to the original.
      */
     @Nonnull
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
             final TraderTO traderTO,
             @Nonnull final CommoditySoldTO commSoldTO,
-            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
+            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType,
+            @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
 
         final long traderOid = traderTO.getOid();
         float peak = commSoldTO.getPeakQuantity();
@@ -4172,8 +4174,16 @@ public class TopologyConverter {
             }
         }
 
-        double capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier,
-            reverseScaleCapacity, commSoldTO.getSpecification().getBaseType(), scalingFactor);
+        double capacity;
+        // Keep original commodity capacity when given trader is not allowed to resize/scale to avoid
+        // inconsistent current and projected capacity values.
+        if (shouldKeepOrigCapacity(traderTO, traderOidToEntityDTO)) {
+            capacity = reverseScaleCapacity;
+        } else {
+            capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier,
+                reverseScaleCapacity, commSoldTO.getSpecification().getBaseType(),
+                scalingFactor);
+        }
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(capacity)
             .setUsed(reverseScaleQuantity)
@@ -4223,6 +4233,26 @@ public class TopologyConverter {
         }
 
         return Optional.of(commoditySoldBuilder.build());
+    }
+
+    /**
+     * Check if commodity of given traderTO should keep original capacity without being needed to
+     * update. For example, keep original commodity capacity when original TopologyEntityDTO of a given
+     * traderTO is the provider of containers or container pods because such entities are not allowed
+     * to resize/scale.
+     *
+     * @param traderTO   Given {@link TraderTO}.
+     * @param traderOidToEntityDTO Map from traderTO OID to original TopologyEntityDTO.
+     * @return True if original commodity capacity should be kept for the given traderTO.
+     */
+    private boolean shouldKeepOrigCapacity(@Nonnull final TraderTO traderTO,
+                                           @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
+        TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
+        if (originalEntity == null) {
+            // Get original entity from original traderTO if this is a cloned trader.
+            originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
+        }
+        return originalEntity != null && providersOfContainers.contains(originalEntity.getOid());
     }
 
     /**
