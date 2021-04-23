@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.external.api.service;
+package com.vmturbo.api.component.external.api.service.util;
 
 import java.util.Collection;
 import java.util.List;
