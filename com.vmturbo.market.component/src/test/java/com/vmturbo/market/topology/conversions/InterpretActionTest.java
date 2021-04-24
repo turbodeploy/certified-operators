@@ -1051,17 +1051,17 @@ public class InterpretActionTest {
         Action action = actions.get(0);
         // Savings = 19 - 17 = 2
         assertEquals(2, action.getSavingsPerHour().getAmount(), 0.0001);
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getId(), is(m1Large.getOid()));
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getId(), is(m1Large.getOid()));
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
 
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getId(), is(m1Medium.getOid()));
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getType(), is(m1Medium.getEntityType()));
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getEnvironmentType(), is(m1Medium.getEnvironmentType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getId(), is(m1Medium.getOid()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getType(), is(m1Medium.getEntityType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getEnvironmentType(), is(m1Medium.getEnvironmentType()));
 
-        assertThat(action.getInfo().getMove().getTarget().getId(), is(vm.getOid()));
-        assertThat(action.getInfo().getMove().getTarget().getType(), is(vm.getEntityType()));
-        assertThat(action.getInfo().getMove().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
+        assertThat(action.getInfo().getScale().getTarget().getId(), is(vm.getOid()));
+        assertThat(action.getInfo().getScale().getTarget().getType(), is(vm.getEntityType()));
+        assertThat(action.getInfo().getScale().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
         verify(sourceCostJournal, never()).getHourlyCostFilterEntries(eq(CostCategory.STORAGE), any());
     }
 
