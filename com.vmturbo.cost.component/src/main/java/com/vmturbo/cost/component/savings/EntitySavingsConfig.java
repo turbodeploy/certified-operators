@@ -35,6 +35,7 @@ import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -53,7 +54,8 @@ import com.vmturbo.topology.event.library.TopologyEventProvider;
         TopologyProcessorListenerConfig.class,
         RepositoryClientConfig.class,
         GroupClientConfig.class,
-        CloudCommitmentAnalysisStoreConfig.class})
+        CloudCommitmentAnalysisStoreConfig.class,
+        EntityCostConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -78,6 +80,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
 
     /**
      * Chunk size configuration.
@@ -209,7 +214,8 @@ public class EntitySavingsConfig {
     @Bean
     public ActionListener actionListener() {
         ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
-                costService(), realtimeTopologyContextId,
+                costService(), entityCostConfig.entityCostStore(),
+                entityCostConfig.projectedEntityCostStore(), realtimeTopologyContextId,
                 supportedEntityTypes, supportedActionTypes,
                 getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
         if (isEnabled()) {

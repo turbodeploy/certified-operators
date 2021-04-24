@@ -1,25 +1,26 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -49,6 +50,9 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
@@ -56,13 +60,16 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.savings.ActionListener.EntityActionCosts;
+import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * Tests for the action listener.
@@ -81,8 +88,39 @@ public class ActionListenerTest {
                                                  Mockito.spy(new CostServiceMole());
     private ActionsServiceBlockingStub actionsService;
     private CostServiceBlockingStub costService;
+    private EntityCostStore entityCostStore = mock(EntityCostStore.class);
+    private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
     private static final double EPSILON_PRECISION = 0.0000001d;
 
+    private static final long ASSOCIATED_SERVICE_ID = 4L;
+    private static final int ASSOCIATED_ENTITY_TYPE = 10;
+
+    private final CurrencyAmount currencyAmount = buildCurrencyAmount(1.111, 1);
+    private final CurrencyAmount currencyAmount1 = buildCurrencyAmount(1.21, 1);
+    private final CurrencyAmount currencyAmount2 = buildCurrencyAmount(1.51, 1);
+
+    private final ComponentCost componentCost = buildComponentCost(currencyAmount.getAmount(),
+                                                                   CostCategory.ON_DEMAND_COMPUTE,
+                                                                   CostSource.ON_DEMAND_RATE);
+    private final ComponentCost componentCost1 = buildComponentCost(currencyAmount1.getAmount(),
+                                                                   CostCategory.STORAGE,
+                                                                   CostSource.ON_DEMAND_RATE);
+    private final ComponentCost componentCost2 = buildComponentCost(currencyAmount2.getAmount(),
+                                                                    CostCategory.ON_DEMAND_COMPUTE,
+                                                                    CostSource.ON_DEMAND_RATE);
+
+    private final EntityCost entityCost = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                          ImmutableSet.of(componentCost),
+                                                          ASSOCIATED_ENTITY_TYPE);
+    private final EntityCost entityCost1 = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                           ImmutableSet.of(componentCost, componentCost1),
+                                                           ASSOCIATED_ENTITY_TYPE);
+    private final EntityCost entityCost2 = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                           ImmutableSet.of(componentCost1),
+                                                           ASSOCIATED_ENTITY_TYPE);
+    private final EntityCost entityCost3 = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                           ImmutableSet.of(componentCost2),
+                                                           ASSOCIATED_ENTITY_TYPE);
     /**
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
@@ -105,6 +143,7 @@ public class ActionListenerTest {
         costService = CostServiceGrpc.newBlockingStub(costGrpcServer.getChannel());
         // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService, costService,
+                                            entityCostStore, projectedEntityCostStore,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
                 EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L);
@@ -326,13 +365,15 @@ public class ActionListenerTest {
 
     /**
      * Verify cost rpc query results are being collected correctly.
+     *
+     * @throws DbException DBException if one of the queries to the DB were to fail.
      */
     @Test
-    public void queryEntityCosts() {
-        long vmId1 = 101;
-        long vmId2 = 102;
-        long dbId1 = 201;
-        long volumeId1 = 301;
+    public void testQueryEntityCosts() throws DbException {
+        final long vmId1 = 101;
+        final long vmId2 = 102;
+        final long dbId1 = 201;
+        final long volumeId1 = 301;
 
         final ActionEntity actionEntityVm1 = ActionDTO.ActionEntity.newBuilder()
                         .setId(101L)
@@ -415,16 +456,6 @@ public class ActionListenerTest {
                         .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
                         .build();
 
-        // Setup cost category -> entities mapping.
-        final Map<CostCategory, Set<Long>> categoryToEntities = new HashMap<>();
-        // TreeSet needed because of argument match ordering.
-        categoryToEntities.put(CostCategory.ON_DEMAND_COMPUTE, new TreeSet<>(ImmutableSet.of(vmId1,
-                vmId2, dbId1)));
-        categoryToEntities.put(CostCategory.ON_DEMAND_LICENSE, new TreeSet<>(ImmutableSet.of(vmId1,
-                vmId2)));
-        categoryToEntities.put(CostCategory.STORAGE, new TreeSet<>(ImmutableSet.of(dbId1,
-                volumeId1)));
-
         final Map<Long, EntityActionInfo> entityIdToActionInfoMap = ImmutableMap.of(
                 vmId1, new EntityActionInfo(actionSpecVm1, actionEntityVm1),
                 vmId2, new EntityActionInfo(actionSpecVm2, actionEntityVm2),
@@ -432,50 +463,29 @@ public class ActionListenerTest {
                 volumeId1, new EntityActionInfo(actionSpecVv1, actionEntityVv1)
         );
 
-        // Setup fake costs.
-        final Map<Pair<Long, CostCategory>, EntityActionCosts> entityCosts = new HashMap<>();
-        final Map<Long, EntityActionCosts> totalCosts = new HashMap<>();
-        entityCosts.put(ImmutablePair.of(vmId1, CostCategory.ON_DEMAND_COMPUTE),
-                new EntityActionCosts(100.0, 50.0));
-        entityCosts.put(ImmutablePair.of(vmId1, CostCategory.ON_DEMAND_LICENSE),
-                new EntityActionCosts(10.0, 5.0));
-        totalCosts.put(vmId1, new EntityActionCosts(110.0, 55.0));
-
-        entityCosts.put(ImmutablePair.of(vmId2, CostCategory.ON_DEMAND_COMPUTE),
-                new EntityActionCosts(200.0, 400.0));
-        entityCosts.put(ImmutablePair.of(vmId2, CostCategory.ON_DEMAND_LICENSE),
-                new EntityActionCosts(20.0, 40.0));
-        totalCosts.put(vmId2, new EntityActionCosts(220.0, 440.0));
-
-        entityCosts.put(ImmutablePair.of(dbId1, CostCategory.ON_DEMAND_COMPUTE),
-                new EntityActionCosts(300.0, 150.0));
-        entityCosts.put(ImmutablePair.of(dbId1, CostCategory.STORAGE),
-                new EntityActionCosts(50.0, 25.0));
-        totalCosts.put(dbId1, new EntityActionCosts(350.0, 175.0));
-
-        entityCosts.put(ImmutablePair.of(volumeId1, CostCategory.STORAGE),
-                new EntityActionCosts(30.0, 15.0));
-        totalCosts.put(volumeId1, new EntityActionCosts(30.0, 15.0));
-
         // Make up fake responses.
-        makeCostResponse(CostCategory.ON_DEMAND_COMPUTE, entityCosts);
-        makeCostResponse(CostCategory.ON_DEMAND_LICENSE, entityCosts);
-        makeCostResponse(CostCategory.STORAGE, entityCosts);
+        makeCostResponse();
 
         // Call query to fill in entity action info map.
-        actionListener.queryEntityCosts(categoryToEntities, entityIdToActionInfoMap);
+        actionListener.queryEntityCosts(entityIdToActionInfoMap);
 
         // Verify returned map to confirm costs are setup correctly.
         assertNotNull(entityIdToActionInfoMap);
 
-        totalCosts.forEach((entityId, expectedTotalCosts) -> {
-            EntityActionInfo entityActionInfo = entityIdToActionInfoMap.get(entityId);
-            assertNotNull(entityActionInfo);
-            EntityActionCosts actualTotals = entityActionInfo.getTotalCosts();
-            EntityActionCosts expectedTotals = totalCosts.get(entityId);
-            assertEquals(expectedTotals.beforeCosts, actualTotals.beforeCosts, EPSILON_PRECISION);
-            assertEquals(expectedTotals.afterCosts, actualTotals.afterCosts, EPSILON_PRECISION);
-        });
+        final EntityActionInfo eai1 = entityIdToActionInfoMap.get(vmId1);
+        final EntityActionInfo eai2 = entityIdToActionInfoMap.get(vmId2);
+
+        // vmId1 entityCost1 --> entityCost2; vmId2 entityCost3 --> entityCost1
+        // Storage costs won't be included for VMs.
+        assertNotEquals("vmId1 before cost test", entityCost1.getTotalAmount().getAmount(), eai1.getEntityActionCosts().getBeforeCosts(), EPSILON_PRECISION);
+        // since entityCost2 involve the category IP, which is not one of the categories we query for, the after cost ends up
+        // being 0 here instead of entityCost2.getTotalAmount().getAmount().
+        assertEquals("vmId1 after cost test", 0, eai1.getEntityActionCosts().getAfterCosts(),  EPSILON_PRECISION);
+
+
+        assertEquals("vmId2 before cost test", entityCost3.getTotalAmount().getAmount(), eai2.getEntityActionCosts().getBeforeCosts(), EPSILON_PRECISION);
+        // Storage costs won't be included for VMs.
+        assertNotEquals("vmId2 after cost test", entityCost1.getTotalAmount().getAmount(), eai2.getEntityActionCosts().getAfterCosts(),  EPSILON_PRECISION);
     }
 
     /**
@@ -483,9 +493,10 @@ public class ActionListenerTest {
      */
     @Test
     public void getEntityActionInfo() {
-        int entityType = EntityType.VIRTUAL_VOLUME_VALUE;
-        long sourceTierId = 73705874639937L;
-        long destinationTierId = 73741897536608L;
+        final int entityType = EntityType.VIRTUAL_VOLUME_VALUE;
+        final long sourceTierId = 73705874639937L;
+        final long destinationTierId = 73741897536608L;
+        final long actionId = 101L;
         ActionEntity actionEntity = ActionEntity.newBuilder()
                 .setId(10001L)
                 .setType(entityType)
@@ -494,7 +505,7 @@ public class ActionListenerTest {
 
         ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setRecommendationId(1001)
-                .setRecommendation(Action.newBuilder().setId(101L)
+                .setRecommendation(Action.newBuilder().setId(actionId)
                         .setExplanation(Explanation.getDefaultInstance())
                         .setDeprecatedImportance(1.0)
                         .setInfo(ActionInfo.newBuilder()
@@ -519,7 +530,6 @@ public class ActionListenerTest {
                 .setActionState(ActionState.READY)
                 .build();
 
-        long actionId = 101L;
         final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, actionEntity);
         assertNotNull(entityActionInfo);
         assertEquals(actionId, entityActionInfo.getActionId());
@@ -531,51 +541,74 @@ public class ActionListenerTest {
     /**
      * Makes up fake cost responses based on inputs.
      *
-     * @param category Cost category to get responses for.
-     * @param entityCosts Map of costs to use by category type.
+     * @throws DbException DBException if one of the queries to the DB were to fail.
      */
-    private void makeCostResponse(CostCategory category,
-            final Map<Pair<Long, CostCategory>, EntityActionCosts> entityCosts) {
-        Set<Long> entities = entityCosts.keySet().stream()
-                .filter(pair -> pair.getValue() == category)
-                .map(Pair::getKey)
-                .collect(Collectors.toCollection(TreeSet::new));
+    private void makeCostResponse() throws DbException {
+        final long vmId1 = 101;
+        final long vmId2 = 102;
 
-        final GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder()
-                .addAllOids(entities)
-                .setCostCategory(category)
-                .setTopologyContextId(realTimeTopologyContextId)
-                .build();
+        Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
+        beforeEntityCostbyOid.put(vmId1, entityCost1);
+        beforeEntityCostbyOid.put(vmId2, entityCost3);
 
-        final GetTierPriceForEntitiesResponse response = GetTierPriceForEntitiesResponse.newBuilder()
-                .putAllBeforeTierPriceByEntityOid(getCostCategoryMap(category, entityCosts, true))
-                .putAllAfterTierPriceByEntityOid(getCostCategoryMap(category, entityCosts, false))
-                .build();
+        Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
+        afterEntityCostbyOid.put(vmId1, entityCost2);
+        afterEntityCostbyOid.put(vmId2, entityCost1);
 
-        doReturn(response)
-                .when(costServiceRpc).getTierPriceForEntities(request);
-
-        assertNotNull(response);
+        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+                beforeEntityCostbyOid));
     }
 
     /**
-     * Gets a currency map with either before or after action costs, keyed off of entity id.
+     * Build ComponentCost protobuf for testing.
      *
-     * @param category Costs category.
-     * @param entityCosts Costs to use.
-     * @param isBefore If true, before costs are set, else after action costs.
-     * @return Currency map.
+     * @param amount  The currency amount.
+     * @param costCategory The Cost Category.
+     * @param costSource The Cost Source.
+     * @return ComponentCost.
      */
-    private Map<Long, CurrencyAmount> getCostCategoryMap(CostCategory category,
-            Map<Pair<Long, CostCategory>, EntityActionCosts> entityCosts, boolean isBefore) {
-        final Map<Long, CurrencyAmount> currencyMap = new HashMap<>();
-        entityCosts.forEach((pair, actionCosts) -> {
-            if (pair.getValue() == category) {
-                final double cost = isBefore ? actionCosts.beforeCosts : actionCosts.afterCosts;
-                final CurrencyAmount amt = CurrencyAmount.newBuilder().setAmount(cost).build();
-                currencyMap.put(pair.getKey(), amt);
-            }
-        });
-        return currencyMap;
+    private ComponentCost buildComponentCost(final double amount, @Nonnull final CostCategory costCategory,
+                                @Nonnull final CostSource costSource) {
+      final ComponentCost componentCost = ComponentCost.newBuilder()
+                .setAmount(buildCurrencyAmount(amount, 1))
+                .setCategory(costCategory)
+                .setCostSource(costSource)
+                .build();
+       return componentCost;
+    }
+
+    /**
+     * Build EntityCost protobuf for testing.
+     *
+     * @param serviceId The Associated Service Id.
+     * @param componentCosts The Components Costs.
+     * @param entityType The entity type.
+     * @return EntityCost.
+     */
+    private EntityCost buildEntityCost(final long serviceId,
+                                       @Nonnull final Set<ComponentCost> componentCosts,
+                                       final int entityType) {
+        final EntityCost entityCost = EntityCost.newBuilder()
+                        .setAssociatedEntityId(serviceId)
+                        .addAllComponentCost(componentCosts)
+                        .setTotalAmount(buildCurrencyAmount(componentCosts.stream()
+                                        .map(cc -> cc.getAmount().getAmount())
+                                        .reduce(0d, Double::sum), 1))
+                        .setAssociatedEntityType(entityType)
+                        .build();
+        return entityCost;
+    }
+
+    /**
+     * Build CurrencyAmount protobuf for testing.
+     *
+     * @param amount The amount.
+     * @param currency The Currency.
+     * @return CurrencyAmount.
+     */
+    private CurrencyAmount buildCurrencyAmount(final double amount, final int currency) {
+        final CurrencyAmount currencyAmount = CurrencyAmount.newBuilder().setAmount(amount).setCurrency(currency).build();
+        return currencyAmount;
     }
 }
