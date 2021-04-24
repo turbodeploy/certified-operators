@@ -211,8 +211,8 @@ public class InterpretCloudExplanationTest {
 
         List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        verify(ai, times(1))
-            .interpretMoveAction(move.getMove(), projectedTopology, originalCloudTopology);
+        verify(ai, times(0))
+            .interpretMoveAction(any(), any(), any());
         assertTrue(actions.isEmpty());
 
         // Test case 2: originalRICoverage = 0.01, projectedRICoverage = 0.02
@@ -229,11 +229,10 @@ public class InterpretCloudExplanationTest {
         actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
         assertEquals(1, actions.size());
-        assertEquals(1, actions.get(0).getInfo().getMove().getChangesList().size());
-        assertEquals(ChangeProvider.newBuilder()
-            .setSource(ai.createActionEntity(tier.getOid(), projectedTopology))
-            .setDestination(ai.createActionEntity(tier.getOid(), projectedTopology)).build(),
-            actions.get(0).getInfo().getMove().getChangesList().get(0));
+        assertTrue(actions.get(0).getInfo().hasAllocate());
+        assertEquals(ai.createActionEntity(marketTier.getTier().getOid(),
+                projectedTopology),
+            actions.get(0).getInfo().getAllocate().getWorkloadTier());
     }
 
     /**
