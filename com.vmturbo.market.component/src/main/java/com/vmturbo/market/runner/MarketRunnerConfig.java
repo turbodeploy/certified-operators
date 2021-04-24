@@ -106,6 +106,12 @@ public class MarketRunnerConfig {
     @Value("${suspensionThrottlingPerCluster:true}")
     private boolean suspensionThrottlingPerCluster;
 
+    @Value("${fastProvisionEnabled:true}")
+    private boolean fastProvisionEnabled;
+
+    @Value("${branchAndBoundEnabled:true}")
+    private boolean branchAndBoundEnabled;
+
     // The plan market and cloud entity move cost factor is currently always 0
     @Value("${liveMarketMoveCostFactor:0.05}")
     private float liveMarketMoveCostFactor;
@@ -211,7 +217,9 @@ public class MarketRunnerConfig {
                 commodityIdUpdater(),
                 licensePriceWeightScale,
                 enableOP,
-                shouldPopulateByProducts);
+                shouldPopulateByProducts,
+                fastProvisionEnabled,
+                branchAndBoundEnabled);
     }
 
     /**
