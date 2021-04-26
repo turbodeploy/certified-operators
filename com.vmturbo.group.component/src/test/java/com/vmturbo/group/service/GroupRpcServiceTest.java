@@ -134,7 +134,6 @@ import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TemporaryGroupCache;
-import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
@@ -1714,6 +1713,9 @@ public class GroupRpcServiceTest {
                                         .newBuilder()
                                         .setEntity(2))
                         .setSupportsMemberReverseLookup(true)
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .setCloudType(CloudType.UNKNOWN_CLOUD)
+                        .setSeverity(Severity.MINOR)
                         .build())
                 .build());
         verify(mockObserver).onCompleted();
@@ -1832,9 +1834,12 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
+                        .setEnvironmentType(EnvironmentType.HYBRID)
+                        .setCloudType(CloudType.AZURE)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
+        when(temporaryGroupCache.create(eq(group), eq(origin), eq(expectedTypes), any()))
                                 .thenReturn(grouping);
 
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
@@ -1848,7 +1853,7 @@ public class GroupRpcServiceTest {
 
         groupRpcService.createGroup(groupRequest, mockObserver);
 
-        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(temporaryGroupCache).create(eq(group), eq(origin), eq(expectedTypes), any());
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(grouping)
                 .build());
@@ -1984,9 +1989,12 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .setCloudType(CloudType.AZURE)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
+        when(temporaryGroupCache.create(eq(group), eq(origin), eq(expectedTypes), any()))
                                 .thenReturn(grouping);
 
         final StreamObserver<CreateGroupResponse> mockObserver =
@@ -1997,7 +2005,7 @@ public class GroupRpcServiceTest {
                 .setOrigin(origin)
                 .build(), mockObserver);
 
-        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(temporaryGroupCache).create(eq(group), eq(origin), eq(expectedTypes), any());
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(grouping)
                 .build());
@@ -2030,49 +2038,6 @@ public class GroupRpcServiceTest {
                 .setGroupDefinition(group)
                 .setOrigin(origin)
                 .build(), mockObserver);
-    }
-
-    /**
-     * Tests the case a scoped user group tries to create a group which has invalid definition.
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testCreateInvalidTempGroup() throws Exception {
-        GroupDefinition group = GroupDefinition
-                        .newBuilder(testGrouping)
-                        .setIsTemporary(true)
-                        .build();
-
-        final Set<MemberType> expectedTypes =  new HashSet<>();
-
-        expectedTypes.add(MemberType
-                        .newBuilder()
-                        .setEntity(2)
-                        .build());
-
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
-                                .thenThrow(new InvalidTempGroupException(Collections
-                                                .singletonList("ERR1")));
-
-        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        CreateGroupRequest groupRequest = CreateGroupRequest
-                        .newBuilder()
-                        .setGroupDefinition(group)
-                        .setOrigin(origin)
-                        .build();
-
-        groupRpcService.createGroup(groupRequest, mockObserver);
-
-        //Verify we send the error response
-        final ArgumentCaptor<StatusException> exceptionCaptor =
-                        ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
-
-        final StatusException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ABORTED)
-                .descriptionContains("ERR1"));
     }
 
     /**
@@ -2133,6 +2098,9 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(true)
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .setCloudType(CloudType.UNKNOWN_CLOUD)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
         UpdateGroupRequest groupRequest = UpdateGroupRequest

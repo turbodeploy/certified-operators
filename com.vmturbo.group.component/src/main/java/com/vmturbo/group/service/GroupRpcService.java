@@ -41,6 +41,8 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -87,6 +89,7 @@ import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlock
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.group.common.Truncator;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
@@ -94,7 +97,6 @@ import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
-import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.TransactionProvider.Stores;
@@ -793,20 +795,13 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<MemberType> expectedTypes = findGroupExpectedTypes(groupStore, groupDef);
 
         if (groupDef.getIsTemporary()) {
+            Set<Long> groupEntities = memberCalculator.getGroupMembers(groupStore, groupDef, true);
             if (groupDef.hasOptimizationMetadata()
                             && !groupDef.getOptimizationMetadata().getIsGlobalScope()) {
-                UserScopeUtils.checkAccess(userSessionContext,
-                        memberCalculator.getGroupMembers(groupStore, groupDef, true));
+                UserScopeUtils.checkAccess(userSessionContext, groupEntities);
             }
-
-            try {
-                createdGroup = tempGroupCache.create(groupDef, request.getOrigin(), expectedTypes);
-            } catch (InvalidTempGroupException e) {
-                final String errorMsg = String.format("Failed to create group: %s as it is invalid. exception: %s.",
-                                groupDef, e.getLocalizedMessage());
-                logger.error(errorMsg, e);
-                throw new StoreOperationException(Status.ABORTED, errorMsg, e);
-            }
+            createdGroup = tempGroupCache.create(groupDef, request.getOrigin(), expectedTypes,
+                        fetchEntitiesWithEnvironment(groupEntities));
         } else {
             final boolean supportsMemberReverseLookup =
                             determineMemberReverseLookupSupported(groupDef);
@@ -824,14 +819,21 @@ public class GroupRpcService extends GroupServiceImplBase {
             // cache.
             // Supplementary info derive from group members, so we create them after the cache has
             // been updated.
-            storeSingleGroupSupplementaryInfo(groupStore, groupOid);
-            createdGroup = Grouping.newBuilder()
+            GroupSupplementaryInfo supplementaryInfo =
+                    storeSingleGroupSupplementaryInfo(groupStore, groupOid);
+            Grouping.Builder builder = Grouping.newBuilder()
                 .setId(groupOid)
                 .setDefinition(groupDef)
                 .addAllExpectedTypes(expectedTypes)
-                .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
-                .build();
-                postValidateNewGroup(groupStore, createdGroup);
+                .setSupportsMemberReverseLookup(supportsMemberReverseLookup);
+            if (supplementaryInfo != null) {
+                builder.setEnvironmentType(
+                        EnvironmentType.forNumber(supplementaryInfo.getEnvironmentType()));
+                builder.setCloudType(CloudType.forNumber(supplementaryInfo.getCloudType()));
+                builder.setSeverity(Severity.forNumber(supplementaryInfo.getSeverity()));
+            }
+            createdGroup = builder.build();
+            postValidateNewGroup(groupStore, createdGroup);
         }
 
         return CreateGroupResponse.newBuilder()
@@ -845,9 +847,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
+     * @return the calculated supplementary info for the group
      * @throws StoreOperationException on db error
      */
-    private void storeSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+    private GroupSupplementaryInfo storeSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
             final long groupId) throws StoreOperationException {
         Set<Long> groupEntities = memberCalculator.getGroupMembers(groupStore,
                 Collections.singleton(groupId), true);
@@ -855,7 +858,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
         if (entitiesWithEnvironment == null) {
-            return;
+            return null;
         }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
@@ -870,6 +873,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         Severity groupSeverity = groupSeverityCalculator.calculateSeverity(groupEntities);
         // add group info to the database
         groupStore.createGroupSupplementaryInfo(groupId, isEmpty, groupEnvironment, groupSeverity);
+        return new GroupSupplementaryInfo(groupId, isEmpty,
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber(), groupSeverity.getNumber());
     }
 
     private void validateCreateGroupRequest(@Nonnull final IGroupStore groupStore,
@@ -948,11 +954,20 @@ public class GroupRpcService extends GroupServiceImplBase {
         // from the group membership cache.
         // Supplementary info derive from group members, so we update them after the cache has been
         // updated (during the previous call).
-        updateSingleGroupSupplementaryInfo(groupStore, newGroup.getId());
-        postValidateNewGroup(groupStore, newGroup);
+        GroupSupplementaryInfo supplementaryInfo =
+                updateSingleGroupSupplementaryInfo(groupStore, newGroup.getId());
+        Grouping.Builder groupingBuilder = Grouping.newBuilder(newGroup);
+        if (supplementaryInfo != null) {
+            groupingBuilder.setEnvironmentType(
+                    EnvironmentType.forNumber(supplementaryInfo.getEnvironmentType()));
+            groupingBuilder.setCloudType(CloudType.forNumber(supplementaryInfo.getCloudType()));
+            groupingBuilder.setSeverity(Severity.forNumber(supplementaryInfo.getSeverity()));
+        }
+        final Grouping fullyUpdatedGroup = groupingBuilder.build();
+        postValidateNewGroup(groupStore, fullyUpdatedGroup);
 
         final UpdateGroupResponse res =
-                UpdateGroupResponse.newBuilder().setUpdatedGroup(newGroup).build();
+                UpdateGroupResponse.newBuilder().setUpdatedGroup(fullyUpdatedGroup).build();
         responseObserver.onNext(res);
         responseObserver.onCompleted();
     }
@@ -963,16 +978,17 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
+     * @return the calculated supplementary info for the group
      * @throws StoreOperationException on db error
      */
-    private void updateSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+    private GroupSupplementaryInfo updateSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
             final long groupId) throws StoreOperationException {
         Set<Long> groupEntities =
             memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true);
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
         if (entitiesWithEnvironment == null) {
-            return;
+            return null;
         }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
@@ -988,6 +1004,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         // add record to the database
         groupStore.updateSingleGroupSupplementaryInfo(groupId, groupEntities.isEmpty(),
                 groupEnvironment, groupSeverity);
+        return new GroupSupplementaryInfo(groupId, groupEntities.isEmpty(),
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber(), groupSeverity.getNumber());
     }
 
     /**
@@ -997,7 +1016,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param entities the entities to query for
      * @return A list of {@link PartialEntity} containing
      *         {@link PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets} for the entities
-     *         provided.
+     *         provided, or null if there was an error communicating with the repository.
      */
     private List<PartialEntity> fetchEntitiesWithEnvironment(Set<Long> entities) {
         List<PartialEntity> entitiesWithEnvironment = new ArrayList<>();

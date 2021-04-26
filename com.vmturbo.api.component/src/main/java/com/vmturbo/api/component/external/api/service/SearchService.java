@@ -496,7 +496,7 @@ public class SearchService implements ISearchService {
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, new HashSet(groupTypes), environmentType, scopes, true, groupOrigin);
+                paginationRequest, null, new HashSet(groupTypes), environmentType, null, scopes, true, groupOrigin);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
@@ -505,16 +505,16 @@ public class SearchService implements ISearchService {
                 // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                    paginationRequest, null, environmentType, scopes, true, groupOrigin);
+                    paginationRequest, null, null, environmentType, null, scopes, true, groupOrigin);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
                     if (types.contains(entry.getKey())) {
                         String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
-                        return paginationRequest.allResultsResponse(Collections.unmodifiableList(
-                                groupsService.getGroupsByType(entry.getValue(), scopes,
-                                        addNameMatcher(query, Collections.emptyList(), filter, queryType),
-                                        environmentType)));
+                        return groupsService.getPaginatedGroupApiDTOs(
+                                addNameMatcher(query, Collections.emptyList(), filter, queryType),
+                                paginationRequest, entry.getValue(), null,
+                                environmentType, null, scopes, false, groupOrigin);
                     }
                 }
                 throw new IllegalStateException("This can never happen because intersect(types, groupTypes) > 0 if and only if there is at least one groupType in types.");
@@ -778,19 +778,16 @@ public class SearchService implements ISearchService {
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
         final String className = StringUtils.defaultIfEmpty(inputDTO.getClassName(), "");
-        if (GROUP.equals(className)) {
-            final Set<String> groupTypes = inputDTO.getGroupType() == null ? null : Collections.singleton(inputDTO.getGroupType());
-            return groupsService.getPaginatedGroupApiDTOs(
-                addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, groupTypes, inputDTO.getEnvironmentType(),
-                inputDTO.getScope(), false, inputDTO.getGroupOrigin());
-        } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
+        final Set<String> groupTypes = inputDTO.getGroupType() == null
+                ? null : Collections.singleton(inputDTO.getGroupType());
+        if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
-            return paginationRequest.allResultsResponse(Collections.unmodifiableList(
-                    groupsService.getGroupsByType(groupType, inputDTO.getScope(),
-                            addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter, queryType),
-                            inputDTO.getEnvironmentType())));
+            return groupsService.getPaginatedGroupApiDTOs(
+                    addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter,
+                            queryType), paginationRequest, groupType, groupTypes,
+                    inputDTO.getEnvironmentType(), null, inputDTO.getScope(), false,
+                    inputDTO.getGroupOrigin());
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
                     businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),

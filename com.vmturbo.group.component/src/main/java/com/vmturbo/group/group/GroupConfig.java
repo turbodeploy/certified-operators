@@ -62,6 +62,8 @@ public class GroupConfig {
     @Bean
     public TemporaryGroupCache temporaryGroupCache() {
         return new TemporaryGroupCache(identityProviderConfig.identityProvider(),
+                groupEnvironmentTypeResolver(),
+                groupSeverityCalculator(),
                 tempGroupExpirationTimeMins,
                 TimeUnit.MINUTES);
     }

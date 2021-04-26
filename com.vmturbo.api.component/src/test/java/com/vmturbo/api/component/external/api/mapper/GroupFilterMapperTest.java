@@ -41,7 +41,10 @@ public class GroupFilterMapperTest {
         tagsFilter.setExpVal("key=value1|key=value2");
 
         GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(
-                        GroupType.COMPUTE_HOST_CLUSTER, LogicalOperator.OR, ImmutableList.of(nameFilter, tagsFilter));
+                GroupType.COMPUTE_HOST_CLUSTER,
+                LogicalOperator.OR,
+                ImmutableList.of(nameFilter, tagsFilter))
+                .build();
         final PropertyFilter namePropertyFilter = groupFilter.getPropertyFiltersList().get(0);
         final PropertyFilter tagsPropertyFilter = groupFilter.getPropertyFiltersList().get(1);
 

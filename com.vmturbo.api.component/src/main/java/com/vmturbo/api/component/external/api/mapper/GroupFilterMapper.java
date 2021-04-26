@@ -157,7 +157,7 @@ public class GroupFilterMapper {
      * @throws OperationFailedException If the input filters cannot be converted.
      */
     @Nonnull
-    public GroupFilter apiFilterToGroupFilter(@Nonnull GroupType groupType,
+    public GroupFilter.Builder apiFilterToGroupFilter(@Nonnull GroupType groupType,
                                               @Nonnull final LogicalOperator logicalOperator,
                                               @Nonnull final List<FilterApiDTO> criteriaList)
                                     throws OperationFailedException {
@@ -194,7 +194,7 @@ public class GroupFilterMapper {
             }
         }
 
-        return groupFilter.build();
+        return groupFilter;
     }
 
     /**

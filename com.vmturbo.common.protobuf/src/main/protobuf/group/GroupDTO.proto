@@ -35,6 +35,13 @@ message Grouping {
     // This type encapsulates the group definition.  This is supplied by the client to create
     // or update the group
     optional GroupDefinition definition = 4;
+
+    // the environment type of the group
+    optional .common.EnvironmentType environment_type = 6;
+
+    optional .common.CloudType cloud_type = 7;
+
+    optional .action.Severity severity = 8;
 }
 
 // The group definition
@@ -212,9 +219,7 @@ message GroupFilter {
     // Return only groups with the specific origin.
     optional OriginFilter origin_filter = 9;
 
-    // If true, return only static groups.
-    // If false, return only dynamic groups.
-    // If not set, return both.
+    // Return groups that are static, or dynamic, or both
     optional StaticOrDynamicFilter static_or_dynamic = 11 [default = BOTH];
 
     // If true, return only non-empty groups.
