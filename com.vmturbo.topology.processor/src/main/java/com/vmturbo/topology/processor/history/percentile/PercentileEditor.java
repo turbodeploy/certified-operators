@@ -38,6 +38,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -51,7 +52,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
-import com.vmturbo.common.protobuf.topology.Identity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -150,6 +150,7 @@ public class PercentileEditor extends
     private final StatsHistoryServiceBlockingStub statsHistoryBlockingClient;
     private final SystemNotificationProducer systemNotificationProducer;
     private final IdentityProvider identityProvider;
+    private final boolean enableExpiredOidFiltering;
 
     private boolean historyInitialized;
     // moment of most recent checkpoint i.e. save of full window in the persistent store
@@ -184,6 +185,7 @@ public class PercentileEditor extends
      * @param historyLoadingTaskCreator creator of task to load or save data
      * @param systemNotificationProducer system notification producer
      * @param identityProvider The identity provider used to get existing oids
+     * @param enableExpiredOidFiltering whether to apply filtering to expired oids or not
      */
     public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
                             @Nonnull StatsHistoryServiceStub statsHistoryClient,
@@ -191,12 +193,13 @@ public class PercentileEditor extends
                             @Nonnull Clock clock,
                             @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator,
                             @Nonnull SystemNotificationProducer systemNotificationProducer,
-                            @Nonnull IdentityProvider identityProvider) {
+                            @Nonnull IdentityProvider identityProvider, boolean enableExpiredOidFiltering) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
         this.statsHistoryBlockingClient = statsHistoryBlockingClient;
         this.systemNotificationProducer = systemNotificationProducer;
         this.identityProvider = identityProvider;
+        this.enableExpiredOidFiltering = enableExpiredOidFiltering;
     }
 
     @Override
@@ -324,6 +327,7 @@ public class PercentileEditor extends
                 "identity cache", e);
         }
     }
+
     private void initializeCacheValues(@Nonnull HistoryAggregationContext context,
                     @Nonnull Collection<? extends EntityCommodityReference> commodityRefs) {
         // percentile data will be loaded in a single-threaded way into blobs (not chunked)
@@ -410,6 +414,9 @@ public class PercentileEditor extends
                     boolean reassembleRequired, boolean updateReassemblyCheckpoint)
                     throws InterruptedException {
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+            if (enableExpiredOidFiltering) {
+                expireStaleOidsFromCache(identityProvider);
+            }
             final PercentileCounts.Builder full =
                             createFullForPersistence(potentialNewCheckpoint, reassembleRequired,
                                             maintenanceRequired);
@@ -471,6 +478,21 @@ public class PercentileEditor extends
             return createBlob(store -> store.checkpoint(Collections.emptyList(), true));
         }
         return null;
+    }
+
+    /**
+     * Remove all the oids in the cache that are not contained in the identity cache.
+     * @param identityProvider that has access to the identity cache
+     * @throws HistoryCalculationException is oids can't be read from the identity cache
+     */
+    private void expireStaleOidsFromCache(final IdentityProvider identityProvider) throws HistoryCalculationException {
+        LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache(identityProvider);
+        int originalCacheSize = getCache().keySet().size();
+        getCache().keySet().removeIf(entityRef -> !currentOidsInIdentityCache.contains(entityRef.getEntityOid()));
+        int sizeAfterExpiration = originalCacheSize - getCache().keySet().size();
+        Level level = sizeAfterExpiration > 0 ? Level.INFO : Level.DEBUG;
+        logger.log(level, "{} expired oids were filtered out during maintenance",
+            sizeAfterExpiration);
     }
 
     private boolean shouldReassemble(long now) {
