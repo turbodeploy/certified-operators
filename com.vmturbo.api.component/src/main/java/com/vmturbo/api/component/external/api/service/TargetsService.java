@@ -40,11 +40,12 @@ import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchOrderByMapper;
+import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -59,8 +60,8 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -1151,7 +1152,8 @@ public class TargetsService implements ITargetsService {
     public List<TargetHealthApiDTO> getTargetsHealth(@Nullable HealthState state) {
         try {
             Set<ITargetHealthInfo> healthOfTargets = topologyProcessor.getAllTargetsHealth();
-            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream().map(targetMapper::mapTargetHealthInfoToDTO)
+            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream()
+                .map(HealthDataMapper::mapTargetHealthInfoToDTO)
                 .filter(healthDTO -> healthStateFilter(healthDTO, state))
                 .collect(Collectors.toList());
             healthDTOs.sort(new HealthResponseComparator(state == null));
@@ -1167,7 +1169,7 @@ public class TargetsService implements ITargetsService {
         long targetId = Long.parseLong(uuid);
         try {
             ITargetHealthInfo healthInfo = topologyProcessor.getTargetHealth(targetId);
-            return targetMapper.mapTargetHealthInfoToDTO(healthInfo);
+            return HealthDataMapper.mapTargetHealthInfoToDTO(healthInfo);
         } catch (CommunicationException | TopologyProcessorException e) {
             throw new RuntimeException("Error getting target health info", e);
         }
