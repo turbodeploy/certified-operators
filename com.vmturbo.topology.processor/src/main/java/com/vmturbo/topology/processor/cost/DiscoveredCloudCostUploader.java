@@ -73,6 +73,8 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
 
     private final RICostDataUploader riCostDataUploader;
 
+    private final CloudCommitmentCostUploader cloudCommitmentCostUploader;
+
     private final AccountExpensesUploader accountExpensesUploader;
 
     private final PriceTableUploader priceTableUploader;
@@ -93,11 +95,13 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
     private final Map<Long, SDKProbeType> probeTypesForTargetId = new HashMap<>();
 
     public DiscoveredCloudCostUploader(@Nonnull RICostDataUploader riCostDataUploader,
+                                       @Nonnull CloudCommitmentCostUploader cloudCommitmentCostUploader,
                                        @Nonnull AccountExpensesUploader accountExpensesUploader,
                                        @Nonnull PriceTableUploader priceTableUploader,
                                        @Nonnull final BusinessAccountPriceTableKeyUploader
                                                businessAccountPriceTableKeyUploader) {
         this.riCostDataUploader = riCostDataUploader;
+        this.cloudCommitmentCostUploader = cloudCommitmentCostUploader;
         this.accountExpensesUploader = accountExpensesUploader;
         this.priceTableUploader = priceTableUploader;
         this.businessAccountPriceTableKeyUploader = businessAccountPriceTableKeyUploader;
@@ -183,6 +187,9 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
         costData.cloudServiceEntities = nonMarketEntityDTOS.stream()
                 .filter(nme -> NonMarketEntityType.CLOUD_SERVICE == nme.getEntityType())
                 .collect(Collectors.toList());
+        costData.cloudCommitmentData = nonMarketEntityDTOS.stream()
+                .filter(nme -> NonMarketEntityType.CLOUD_COMMITMENT == nme.getEntityType())
+                .collect(Collectors.toList());
         costData.costDataDTOS = costDataDTOS;
         cacheCostData(costData);
 
@@ -253,6 +260,12 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
                     stitchingContext, cloudEntitiesMap);
             } catch (RuntimeException e) {
                 logger.error("Failed to upload RI data.", e);
+            }
+
+            try {
+                cloudCommitmentCostUploader.uploadCloudCommitmentData(topologyInfo, cloudEntitiesMap, costDataByTargetIdSnapshot);
+            } catch (RuntimeException e) {
+                logger.error("Failed to upload Cloud Commitment data", e);
             }
 
             try {
@@ -338,6 +351,8 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
         public Discovery discovery;
 
         public List<NonMarketEntityDTO> cloudServiceEntities;
+
+        public List<NonMarketEntityDTO> cloudCommitmentData;
 
         public List<CostDataDTO> costDataDTOS;
     }
