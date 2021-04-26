@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -18,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
+import com.vmturbo.topology.graph.util.BaseGraphEntity.DiscoveredTargetId;
 
 /**
  * {@link SupplyChainEntity} for use in the extractor. The intention is to make it as small as
@@ -42,6 +44,7 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     private final List<SupplyChainEntity> controlledEntities = new ArrayList<>(0);
     private final List<SupplyChainEntity> providers = new ArrayList<>(0);
     private final List<SupplyChainEntity> consumers = new ArrayList<>(0);
+    private final List<DiscoveredTargetId> discoveredTargetIds;
 
     /**
      * Representation of an entity in the supply chain.
@@ -52,6 +55,11 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         this.oid = src.getOid();
         this.displayName = src.getDisplayName();
         this.type = src.getEntityType();
+        this.discoveredTargetIds = src.getOrigin().getDiscoveryOrigin()
+                .getDiscoveredTargetDataMap().entrySet().stream()
+                .map(entry -> new DiscoveredTargetId(entry.getKey(),
+                        entry.getValue().hasVendorId() ? entry.getValue().getVendorId() : null))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -215,18 +223,25 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
     @Nonnull
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
-        return Stream.empty();
+        return discoveredTargetIds.stream()
+                .map(DiscoveredTargetId::getTargetId);
     }
 
     @Override
     public String getVendorId(long targetId) {
-        return "";
+        return getAllVendorIds().findFirst().orElse(null);
+    }
+
+    public List<DiscoveredTargetId> getDiscoveredTargetIds() {
+        return discoveredTargetIds;
     }
 
     @Nonnull
     @Override
     public Stream<String> getAllVendorIds() {
-        return Stream.empty();
+        return discoveredTargetIds.stream()
+                .map(DiscoveredTargetId::getVendorId)
+                .filter(Objects::nonNull);
     }
 
     @Override

@@ -54,6 +54,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for integration with the Topology Processor.
@@ -200,7 +201,9 @@ public class TopologyListenerConfig {
     public TopologyProcessor topologyProcessor() {
         // Only listen to REALTIME SOURCE topologies.
         // TODO: Also listen for live topology summaries
-        return tpConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
+        return tpConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
+                TopologyProcessorSubscription.forTopic(Topic.Notifications));
     }
 
     /**
@@ -238,11 +241,12 @@ public class TopologyListenerConfig {
         }
         if (featureFlags.isReportingEnabled()) {
             retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
-                    scopeManager(), oidPack(), pool()));
+                    scopeManager(), oidPack(), pool(), dataExtractionFactory()));
             retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
-            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
+            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(),
+                    dataExtractionFactory()));
         }
 
         if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
@@ -360,7 +364,17 @@ public class TopologyListenerConfig {
      */
     @Bean
     public DataExtractionFactory dataExtractionFactory() {
-        return new DataExtractionFactory();
+        return new DataExtractionFactory(dataProvider(), targetCache());
+    }
+
+    /**
+     * Thin target cache.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public ThinTargetCache targetCache() {
+        return new ThinTargetCache(topologyProcessor());
     }
 }
 

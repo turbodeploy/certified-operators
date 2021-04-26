@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.patchers;
 
 import static com.vmturbo.extractor.export.ExportUtils.TAGS_JSON_KEY_NAME;
+import static com.vmturbo.extractor.export.ExportUtils.TARGETS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.util.Arrays;
@@ -24,10 +25,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.json.export.Target;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
@@ -85,30 +88,25 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
                     .filter(m -> m.getTopoFieldFunction() != null)
                     .collect(Collectors.toList());
 
-    private final boolean patchCommonFieldsIfNoMetadata;
-    private final boolean includeTags;
-    private final boolean concatTagKeyValue;
+    private final PatchCase patchCase;
+    private final TargetsExtractor targetsExtractor;
 
     /**
      * Create a new patcher.
-     *  @param patchCommonFieldsIfNoMetadata if true, patch common fields even for entity types wholly
-     *                                      lacking metadata
-     * @param includeTags whether or not to patch tags
-     * @param concatTagKeyValue whether or not to combine tag key and value using = as separator
-     *                          and put all combinations into a list like: ["owner=alex","owner=bob"]
+     *
+     * @param patchCase the use case for this patcher
+     * @param targetsExtractor for extracting targets info
      */
-    public PrimitiveFieldsOnTEDPatcher(boolean patchCommonFieldsIfNoMetadata, boolean includeTags,
-            boolean concatTagKeyValue) {
-        this.patchCommonFieldsIfNoMetadata = patchCommonFieldsIfNoMetadata;
-        this.includeTags = includeTags;
-        this.concatTagKeyValue = concatTagKeyValue;
+    public PrimitiveFieldsOnTEDPatcher(@Nonnull PatchCase patchCase, @Nullable TargetsExtractor targetsExtractor) {
+        this.patchCase = patchCase;
+        this.targetsExtractor = targetsExtractor;
     }
 
     @Override
     public void patch(PartialRecordInfo recordInfo, TopologyEntityDTO entity) {
         List<SearchMetadataMapping> normalColumnMetadataList =
                 NORMAL_COLUMN_METADATA_BY_ENTITY_TYPE.get(entity.getEntityType());
-        if (normalColumnMetadataList == null && patchCommonFieldsIfNoMetadata) {
+        if (normalColumnMetadataList == null && patchCase == PatchCase.REPORTING) {
             normalColumnMetadataList = COMMON_PRIMITIVE_ON_TED_METADATA;
         }
 
@@ -162,19 +160,49 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
     @Nullable
     public Map<String, Object> extractAttrs(@Nonnull TopologyEntityDTO e) {
         final Map<String, Object> attrs = new HashMap<>();
-        if (includeTags && e.hasTags()) {
-            if (concatTagKeyValue) {
+        // tags
+        if (e.hasTags()) {
+            if (patchCase == PatchCase.EXPORTER) {
                 attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToKeyValueConcatSet(e.getTags()));
-            } else {
+            } else if (patchCase == PatchCase.REPORTING) {
                 attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(e.getTags()));
             }
         }
 
+        // type specific info
         final List<SearchMetadataMapping> attrsMetadata =
                 JSONB_COLUMN_METADATA_BY_ENTITY_TYPE.get(e.getEntityType());
         ListUtils.emptyIfNull(attrsMetadata).forEach(metadata ->
                 metadata.getTopoFieldFunction().apply(e).ifPresent(value ->
                         attrs.put(metadata.getJsonKeyName(), value)));
+
+        // targets info
+        if (targetsExtractor != null
+                && (patchCase == PatchCase.REPORTING || patchCase == PatchCase.EXPORTER)) {
+            List<Target> targets = targetsExtractor.extractTargets(e);
+            if (targets != null) {
+                attrs.put(TARGETS_JSON_KEY_NAME, targets);
+            }
+        }
+
         return attrs.isEmpty() ? null : attrs;
+    }
+
+    /**
+     * Enum for different use cases of patchers.
+     */
+    public enum PatchCase {
+        /**
+         * Embedded Reporting.
+         */
+        REPORTING,
+        /**
+         * Data Extraction.
+         */
+        EXPORTER,
+        /**
+         * New Search.
+         */
+        SEARCH
     }
 }

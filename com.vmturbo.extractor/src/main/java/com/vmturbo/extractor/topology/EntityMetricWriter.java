@@ -65,6 +65,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
@@ -75,6 +77,7 @@ import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
@@ -125,29 +128,31 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * List of wasted files records by storage oid.
      */
     private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
-    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true, true, false);
-    private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
-            new GroupPrimitiveFieldsOnGroupingPatcher(true, false);
+    private final PrimitiveFieldsOnTEDPatcher tedPatcher;
+    private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher;
     private final DataPack<Long> oidPack;
     private final ScopeManager scopeManager;
     private DSLContext dsl;
 
     /**
      * Create a new writer instance.
-     *
-     * @param dbEndpoint        db endpoint for persisting data
+     *  @param dbEndpoint        db endpoint for persisting data
      * @param entityHashManager to track entity hash evolution across topology broadcasts
      * @param scopeManager      scope manager
      * @param oidPack           entity id manager
      * @param pool              thread pool
+     * @param dataExtractionFactory the factory for providing extractors
      */
     public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
             final ScopeManager scopeManager, final DataPack<Long> oidPack,
-            final ExecutorService pool) {
+            final ExecutorService pool, final DataExtractionFactory dataExtractionFactory) {
         super(dbEndpoint, pool);
         this.entityHashManager = entityHashManager;
         this.scopeManager = scopeManager;
         this.oidPack = oidPack;
+        TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
+        this.tedPatcher = new PrimitiveFieldsOnTEDPatcher(PatchCase.REPORTING, targetsExtractor);
+        this.groupPatcher = new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.REPORTING, targetsExtractor);
     }
 
     @Override

@@ -4,16 +4,32 @@ import java.util.Optional;
 
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory.TopDownCostData;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Factory for creating different extractors used in data extraction.
  */
 public class DataExtractionFactory {
+
+    private final DataProvider dataProvider;
+    private final ThinTargetCache targetCache;
+
+    /**
+     * Constructor for {@link DataExtractionFactory}.
+     *
+     * @param dataProvider a provider of topology-wide data
+     * @param targetCache cache for all targets in the system
+     */
+    public DataExtractionFactory(DataProvider dataProvider, ThinTargetCache targetCache) {
+        this.dataProvider = dataProvider;
+        this.targetCache = targetCache;
+    }
 
     /**
      * Create an instance of {@link PrimitiveFieldsOnTEDPatcher} which is capable of extracting
@@ -22,7 +38,7 @@ public class DataExtractionFactory {
      * @return an instance of {@link PrimitiveFieldsOnTEDPatcher}
      */
     public PrimitiveFieldsOnTEDPatcher newAttrsExtractor() {
-        return new PrimitiveFieldsOnTEDPatcher(true, true, true);
+        return new PrimitiveFieldsOnTEDPatcher(PatchCase.EXPORTER, newTargetsExtractor());
     }
 
     /**
@@ -36,10 +52,9 @@ public class DataExtractionFactory {
     /**
      * Create a new instance of {@link RelatedEntitiesExtractor}.
      *
-     * @param dataProvider providing topology, supply chain, group and more
      * @return optional of {@link RelatedEntitiesExtractor}
      */
-    public Optional<RelatedEntitiesExtractor> newRelatedEntitiesExtractor(DataProvider dataProvider) {
+    public Optional<RelatedEntitiesExtractor> newRelatedEntitiesExtractor() {
         TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
         SupplyChain supplyChain = dataProvider.getSupplyChain();
         if (topologyGraph == null || supplyChain == null) {
@@ -52,11 +67,10 @@ public class DataExtractionFactory {
     /**
      * Create a new instance of {@link TopDownCostExtractor}.
      *
-     * @param dataProvider providing topology and top-down cost data.
      * @return The {@link TopDownCostExtractor} if the data provider contains sufficient data
      *         to extract top-down costs, or an empty optional.
      */
-    public Optional<TopDownCostExtractor> newTopDownCostExtractor(DataProvider dataProvider) {
+    public Optional<TopDownCostExtractor> newTopDownCostExtractor() {
         TopDownCostData topDownCostData = dataProvider.getTopDownCostData();
         TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
         if (topDownCostData != null && topologyGraph != null) {
@@ -73,6 +87,16 @@ public class DataExtractionFactory {
      * @return an instance of {@link GroupPrimitiveFieldsOnGroupingPatcher}
      */
     public GroupPrimitiveFieldsOnGroupingPatcher newGroupAttrsExtractor() {
-        return new GroupPrimitiveFieldsOnGroupingPatcher(true, true);
+        return new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.EXPORTER, newTargetsExtractor());
+    }
+
+    /**
+     * Create an instance of {@link TargetsExtractor} which is capable of extracting targets info
+     * for an entity.
+     *
+     * @return an instance of {@link TargetsExtractor}
+     */
+    public TargetsExtractor newTargetsExtractor() {
+        return new TargetsExtractor(targetCache, dataProvider.getTopologyGraph());
     }
 }

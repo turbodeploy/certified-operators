@@ -41,6 +41,7 @@ import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.GroupRelatedEntitiesPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsNotOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.patchers.RelatedEntitiesPatcher;
 import com.vmturbo.extractor.patchers.RelatedGroupsPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
@@ -71,7 +72,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<TopologyEntityDTO>> ENTITY_PATCHERS_FOR_FIELDS_ON_TED =
             ImmutableList.of(
-                    new PrimitiveFieldsOnTEDPatcher(false, false, false),
+                    new PrimitiveFieldsOnTEDPatcher(PatchCase.SEARCH, null),
                     new CommoditiesPatcher()
             );
 
@@ -93,7 +94,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<Grouping>> GROUP_PATCHERS_FOR_FIELDS_ON_GROUPING =
             ImmutableList.of(
-                    new GroupPrimitiveFieldsOnGroupingPatcher(false, false)
+                    new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.SEARCH, null)
             );
 
     /**

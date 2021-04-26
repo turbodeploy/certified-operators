@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.patchers;
 
 import static com.vmturbo.extractor.export.ExportUtils.TAGS_JSON_KEY_NAME;
+import static com.vmturbo.extractor.export.ExportUtils.TARGETS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.util.Arrays;
@@ -21,8 +22,11 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.json.export.Target;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
@@ -68,19 +72,19 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
             }).filter(pair -> !pair.second.isEmpty())
             .collect(Collectors.toMap(p -> p.first, p -> p.second));
 
-    private final boolean includeTags;
-    private final boolean concatTagKeyValue;
+    private final PatchCase patchCase;
+    private final TargetsExtractor targetsExtractor;
 
     /**
      * Constructor.
      *
-     * @param includeTags whether or not to patch tags
-     * @param concatTagKeyValue whether or not to combine tag key and value using = as separator
-     *                          and put all combinations into a list like: ["owner=alex","owner=bob"]
+     * @param patchCase the use case for this patcher
+     * @param targetsExtractor for extracting targets info
      */
-    public GroupPrimitiveFieldsOnGroupingPatcher(boolean includeTags, boolean concatTagKeyValue) {
-        this.includeTags = includeTags;
-        this.concatTagKeyValue = concatTagKeyValue;
+    public GroupPrimitiveFieldsOnGroupingPatcher(@Nonnull PatchCase patchCase,
+            @Nullable TargetsExtractor targetsExtractor) {
+        this.patchCase = patchCase;
+        this.targetsExtractor = targetsExtractor;
     }
 
     @Override
@@ -126,10 +130,10 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
     @Nullable
     public Map<String, Object> extractAttrs(@Nonnull Grouping group) {
         final Map<String, Object> attrs = new HashMap<>();
-        if (includeTags && group.getDefinition().hasTags()) {
-            if (concatTagKeyValue) {
+        if (group.getDefinition().hasTags()) {
+            if (patchCase == PatchCase.EXPORTER) {
                 attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToKeyValueConcatSet(group.getDefinition().getTags()));
-            } else {
+            } else if (patchCase == PatchCase.REPORTING) {
                 attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(group.getDefinition().getTags()));
             }
         }
@@ -137,6 +141,16 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
         ListUtils.emptyIfNull(JSONB_COLUMN_METADATA_BY_GROUP_TYPE.get(group.getDefinition().getType()))
                 .forEach(metadata -> metadata.getGroupFieldFunction().apply(group).ifPresent(value ->
                         attrs.put(metadata.getJsonKeyName(), value)));
+
+        // targets info
+        if (targetsExtractor != null
+                && (patchCase == PatchCase.REPORTING || patchCase == PatchCase.EXPORTER)) {
+            List<Target> targets = targetsExtractor.extractTargets(group);
+            if (targets != null) {
+                attrs.put(TARGETS_JSON_KEY_NAME, targets);
+            }
+        }
+
         return attrs.isEmpty() ? null : attrs;
     }
 }

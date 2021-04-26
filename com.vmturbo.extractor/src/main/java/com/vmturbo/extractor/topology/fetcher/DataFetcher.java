@@ -47,7 +47,7 @@ public abstract class DataFetcher<R> {
      * @return name of the fetcher
      */
     protected String getName() {
-        return getClass().getName();
+        return getClass().getSimpleName();
     }
 
     /**
