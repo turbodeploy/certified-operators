@@ -36,7 +36,9 @@ public class DiscoveredCloudCostUploaderTest {
 
     private StitchingContext stitchingContext;
 
-    private RICostDataUploader riCostDataUploader =  mock(RICostDataUploader.class);
+    private RICostDataUploader riCostDataUploader = mock(RICostDataUploader.class);
+    private CloudCommitmentCostUploader cloudCommitmentCostUploader =
+        mock(CloudCommitmentCostUploader.class);
     private AccountExpensesUploader accountExpensesUploader = mock(AccountExpensesUploader.class);
     private PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
     private BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader =
@@ -53,8 +55,8 @@ public class DiscoveredCloudCostUploaderTest {
         TopologyProcessorCostTestUtils utils = new TopologyProcessorCostTestUtils();
         stitchingContext = utils.setupStitchingContext();
         cloudCostUploader = new DiscoveredCloudCostUploader(riCostDataUploader,
-                accountExpensesUploader, priceTableUploader,
-                businessAccountPriceTableKeyUploader );
+            cloudCommitmentCostUploader, accountExpensesUploader, priceTableUploader,
+            businessAccountPriceTableKeyUploader);
     }
 
     @Test
@@ -108,8 +110,8 @@ public class DiscoveredCloudCostUploaderTest {
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diagsCaptor.capture());
 
         final DiscoveredCloudCostUploader newUploader =
-            new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader,
-                    businessAccountPriceTableKeyUploader);
+            new DiscoveredCloudCostUploader(riCostDataUploader, cloudCommitmentCostUploader,
+                accountExpensesUploader, priceTableUploader, businessAccountPriceTableKeyUploader);
 
         newUploader.restoreDiags(diagsCaptor.getAllValues(), null);
 

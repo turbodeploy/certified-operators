@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
@@ -69,6 +71,11 @@ public class CloudCostConfig {
     }
 
     @Bean
+    public CloudCommitmentCostUploader cloudCommitmentCostUploader() {
+        return new CloudCommitmentCostUploader(CloudCommitmentUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+    }
+
+    @Bean
     public AccountExpensesUploader accountExpensesUploader() {
         return new AccountExpensesUploader(costServiceClient(), minimumAccountExpensesUploadIntervalMins,
                 clockConfig.clock());
@@ -76,9 +83,8 @@ public class CloudCostConfig {
 
     @Bean
     public DiscoveredCloudCostUploader discoveredCloudCostUploader() {
-        return new DiscoveredCloudCostUploader(riDataUploader(), accountExpensesUploader(), priceTableUploader(),
-                businessAccountPriceTableKeyUploader()
-        );
+        return new DiscoveredCloudCostUploader(riDataUploader(),  cloudCommitmentCostUploader(),
+            accountExpensesUploader(), priceTableUploader(), businessAccountPriceTableKeyUploader());
     }
 
     @Bean
