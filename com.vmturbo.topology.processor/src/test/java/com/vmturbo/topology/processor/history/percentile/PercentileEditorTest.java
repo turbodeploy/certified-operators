@@ -39,8 +39,8 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import it.unimi.dsi.fastutil.longs.LongSets;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
@@ -163,6 +163,10 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Before
     public void setUp() throws IOException, IdentityUninitializedException {
         setUpTopology();
+        LongSet oidsInIdentityCache = new LongOpenHashSet();
+        oidsInIdentityCache.addAll(Arrays.asList(VIRTUAL_MACHINE_OID, VIRTUAL_MACHINE_OID_2,
+            BUSINESS_USER_OID, BUSINESS_USER_OID_2,
+            DATABASE_SERVER_OID, CONTAINER_OID, CONTAINER_POD_OID, DESKTOP_POOL_PROVIDER_OID));
         percentilePersistenceTasks = new ArrayList<>();
         percentileEditor =
                         new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG, null,
@@ -174,7 +178,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                             return result;
                         }, identityProvider);
         topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
-        Mockito.when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(LongSets.EMPTY_SET);
+        Mockito.when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(oidsInIdentityCache);
     }
 
     /**
@@ -805,6 +809,50 @@ public class PercentileEditorTest extends PercentileBaseTest {
     }
 
     /**
+     * Tests the case were the capacity for percentile data changes and we the lookback period
+     * changes. We need to ensure that we used new capacity rather than outdated capacity in DB.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testExpiredOidsDuringCheckPoint()
+        throws InterruptedException, HistoryCalculationException, IdentityUninitializedException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
+        final HistoryAggregationContext firstContext =
+            new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
+        // First initializing history from db.
+        percentileEditor.initContext(firstContext, Collections.emptyList());
+        // Necessary to set last checkpoint timestamp.
+        percentileEditor.completeBroadcast(firstContext);
+
+        // Change the capacity
+        PercentileCommodityData vcpuPercentileBeforeExpiration =
+            percentileEditor.getCache().get(VCPU_COMMODITY_REFERENCE);
+        PercentileCommodityData imageCpuBeforeExpiration =
+            percentileEditor.getCache().get(IMAGE_CPU_COMMODITY_REFERENCE);
+
+        Assert.assertNotNull(vcpuPercentileBeforeExpiration);
+        Assert.assertNotNull(imageCpuBeforeExpiration);
+
+        LongSet oidsInIdentityCache = new LongOpenHashSet();
+
+        // Simulate the expiration of all the oids besides IMAGE_CPU_COMMODITY_REFERENCE
+        oidsInIdentityCache.addAll(Collections.singletonList(IMAGE_CPU_COMMODITY_REFERENCE.getEntityOid()));
+
+        Mockito.when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(oidsInIdentityCache);
+
+        percentileEditor.completeBroadcast(firstContext);
+
+        PercentileCommodityData vcpuPercentileBAfterExpiratipn =
+            percentileEditor.getCache().get(VCPU_COMMODITY_REFERENCE);
+        PercentileCommodityData imageCpuAfterExpiration =
+            percentileEditor.getCache().get(IMAGE_CPU_COMMODITY_REFERENCE);
+        Assert.assertNull(vcpuPercentileBAfterExpiratipn);
+        Assert.assertNotNull(imageCpuAfterExpiration);
+    }
+
+    /**
      * Tests that the method {@link UtilizationCountStore#addPoints(java.util.List, double, long)},
      * since the timestamp has not changed, even if the latest was cleared.
      */
@@ -1303,7 +1351,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 Clock clock,
                 BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> taskCreator, IdentityProvider identityProvider) {
             super(config, statsHistoryClient, statsHistoryBlockingClient, clock, taskCreator,
-                systemNotificationProducer, identityProvider);
+                systemNotificationProducer, identityProvider, true);
         }
 
         PercentileCommodityData getCacheEntry(EntityCommodityFieldReference field) {

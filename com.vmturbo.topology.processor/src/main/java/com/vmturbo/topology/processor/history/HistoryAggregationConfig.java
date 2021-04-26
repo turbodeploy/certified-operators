@@ -198,7 +198,7 @@ public class HistoryAggregationConfig {
         final E result = (E)new PercentileEditor(percentileEditorConfig(),
                         nonBlockingHistoryClient(), historyClient(), clockConfig.clock(),
             (statsHistoryClient, range) -> new PercentilePersistenceTask(statsHistoryClient, range, enableExpiredOidFiltering), systemNotificationProducer,
-            identityProviderConfig.identityProvider());
+            identityProviderConfig.identityProvider(), enableExpiredOidFiltering);
         return result;
     }
 
