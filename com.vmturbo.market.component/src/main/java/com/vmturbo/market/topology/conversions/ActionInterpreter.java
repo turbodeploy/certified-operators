@@ -133,7 +133,6 @@ public class ActionInterpreter {
             ImmutableSet.of(EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
-    private boolean enableContainerClusterScalingCost;
     /**
      * Whether compliance action explanation needs to be overridden with perf/efficiency, needed
      * in certain cases like cloud migration.
@@ -177,10 +176,6 @@ public class ActionInterpreter {
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
         this.complianceExplanationOverride = explanationFunction;
-    }
-
-    void  enableContainerClusterScalingCost(boolean enable) {
-        this.enableContainerClusterScalingCost = enable;
     }
 
     /**
@@ -452,10 +447,6 @@ public class ActionInterpreter {
                     return new NoSavings(trax(0, "no destination market tier for " + move.getDestination()));
                 }
             case DEACTIVATE:
-                if (!enableContainerClusterScalingCost) {
-                    return new NoSavings(trax(0, "savings calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
                 final DeactivateTO deactivateTO = actionTO.getDeactivate();
                 long deactivatedEntityOid = deactivateTO.getTraderToDeactivate();
                 TraderTO deactivatingEntityTO =  oidToProjectedTraderTOMap.get(deactivatedEntityOid);
@@ -479,10 +470,6 @@ public class ActionInterpreter {
                         deactivatingEntityTO, deactivatingEntity, true);
 
             case PROVISION_BY_SUPPLY:
-                if (!enableContainerClusterScalingCost) {
-                    return new NoSavings(trax(0, "savings calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
                 final ProvisionBySupplyTO provisionBySupply = actionTO.getProvisionBySupply();
                 long provisionedEntityOid = provisionBySupply.getModelSeller();
                 TraderTO provisionedEntityTO =  oidToProjectedTraderTOMap.get(provisionedEntityOid);

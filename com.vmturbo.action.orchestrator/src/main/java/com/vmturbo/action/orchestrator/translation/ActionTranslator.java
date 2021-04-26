@@ -35,6 +35,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.SkipBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.VCpuResizeBatchTranslator;
@@ -390,6 +391,7 @@ public class ActionTranslator {
             // to the end of the list.
             batchTranslatorList = ImmutableList.of(
                 new SkipBatchTranslator(),
+                new CloudMoveBatchTranslator(),
                 new VCpuResizeBatchTranslator(Objects.requireNonNull(repoService), actionTopologyStore),
                 new PassThroughBatchTranslator());
         }

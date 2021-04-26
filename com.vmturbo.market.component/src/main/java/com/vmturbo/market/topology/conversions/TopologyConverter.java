@@ -598,7 +598,6 @@ public class TopologyConverter {
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
                 analysisConfig.isEnableOP());
-        this.actionInterpreter.get().enableContainerClusterScalingCost(analysisConfig.enableContainerClusterScalingCost());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
