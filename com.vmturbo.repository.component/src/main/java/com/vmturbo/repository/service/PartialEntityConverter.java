@@ -164,8 +164,7 @@ public class PartialEntityConverter {
                         List<Integer> providerEntityTypes = repoGraphEntity.getProviders().stream().map(
                                 RepoGraphEntity::getEntityType).collect(Collectors.toList());
                         Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
-                                repoGraphEntity.getEntityType(), repoGraphEntity.getOid(),
-                                providerEntityTypes);
+                                repoGraphEntity.getEntityType(), providerEntityTypes);
                         primaryProviderIndex.ifPresent(index -> {
                             long providerId = repoGraphEntity.getProviders().get(index).getOid();
                             actionEntityBldr.setPrimaryProviderId(providerId);
@@ -278,7 +277,7 @@ public class PartialEntityConverter {
                     .map(CommoditiesBoughtFromProvider::getProviderEntityType)
                     .collect(Collectors.toList());
                 Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
-                    topoEntity.getEntityType(), topoEntity.getOid(), providerEntityTypes);
+                    topoEntity.getEntityType(), providerEntityTypes);
                 primaryProviderIndex.ifPresent(index -> {
                     long primaryProviderId = topoEntity.getCommoditiesBoughtFromProvidersList().get(index).getProviderId();
                     actionEntityBldr.setPrimaryProviderId(primaryProviderId);

@@ -398,15 +398,15 @@ public final class TopologyDTOUtil {
      * If there is only one provider, then that is the primary provider.
      * If there are multiple providers,
      * 1. For a VirtualMachine, we find the PM/Compute Tier provider.
-     * 2. For other entity types, we return 0 as the index of the primary provider. This might
+     * 2. For a ContainerPod, we find the VM provider.
+     * 3. For other entity types, we return 0 as the index of the primary provider. This might
      * need changes in the future.
      *
      * @param targetEntityType the entity type of the target entity
-     * @param targetOid the target entity's oid
      * @param providerTypes the provider entity types
-     * @return
+     * @return Optional of primary provider index.
      */
-    public static Optional<Integer> getPrimaryProviderIndex(int targetEntityType, long targetOid,
+    public static Optional<Integer> getPrimaryProviderIndex(int targetEntityType,
                                                             @Nonnull List<Integer> providerTypes) {
         if (providerTypes.isEmpty()) {
             return Optional.empty();
@@ -419,6 +419,11 @@ public final class TopologyDTOUtil {
                 return IntStream.range(0, providerTypes.size())
                     .filter(i -> providerTypes.get(i) == EntityType.PHYSICAL_MACHINE_VALUE
                         || providerTypes.get(i) == EntityType.COMPUTE_TIER_VALUE)
+                    .boxed()
+                    .findFirst();
+            case EntityType.CONTAINER_POD_VALUE:
+                return IntStream.range(0, providerTypes.size())
+                    .filter(i -> providerTypes.get(i) == EntityType.VIRTUAL_MACHINE_VALUE)
                     .boxed()
                     .findFirst();
             default:
