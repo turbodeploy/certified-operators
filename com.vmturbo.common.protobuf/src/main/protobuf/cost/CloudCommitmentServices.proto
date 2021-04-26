@@ -6,101 +6,124 @@ option java_outer_classname = "CloudCommitmentServices";
 
 import "cloud/CloudCommitmentDTO.proto";
 import "cloud/CloudCommon.proto";
-import "CommonCost.proto";
 
-service CloudCommitmentUploadService {
-    rpc UploadCloudCommitmentData(UploadCloudCommitmentRequest) returns (UploadCloudCommitmentResponse);
-}
+message CloudCommitmentData {
+    repeated CloudCommitmentDataBucket utilization_data = 1;
+    repeated CloudCommitmentDataBucket coverage_data = 2;
 
-message UploadCloudCommitmentRequest {
-    optional int64 created_time = 1;
-    optional int64 topology_context_id = 2;
-    optional CloudCommitmentData cloud_commitment_billing_data = 3;
+    // container for coverage ***OR*** utilization data points from a particular time
+    message CloudCommitmentDataBucket {
+        // The timestamp is expected to conform to the granularity and will be truncated to match.
+        // For example, with daily granularity, any time passed 00:00:00 will truncated.
+        optional int64 timestamp_millis = 1;
+        repeated CloudCommitmentDataPoint sample = 2;
+        optional cloud_common.CloudStatGranularity granularity = 6;
 
-    // container for info related to cloud commitments.
-    message CloudCommitmentData {
-        repeated CloudCommitmentDataBucket utilization_data = 1;
-        repeated CloudCommitmentDataBucket coverage_data = 2;
+        // one sample of cloud commitment coverage ***OR*** utilization data
+        message CloudCommitmentDataPoint {
+            optional int64 commitment_id = 1;
+            // entity to which the commitment applies
+            optional int64 entity_id = 2;
+            // service to which the commitment applies
+            optional int64 cloud_service_id = 3;
+            // region to which the commitment applies
+            optional int64 region_id = 4;
 
-        // container for coverage ***OR*** utilization data points from a particular time
-        message CloudCommitmentDataBucket {
-            optional int64 timestamp_millis = 1;
-            repeated CloudCommitmentDataPoint samples = 2;
-            optional Granularity granularity = 6;
+            optional int64 account_id = 5;
 
-            enum Granularity {
-                HOURLY = 0;
-                DAILY = 1;
-                MONTHLY = 2;
-            }
+            optional int64 service_provider_id = 6;
 
-            // one sample of cloud commitment coverage ***OR*** utilization data
-            message CloudCommitmentDataPoint {
-                optional int64 commitment_oid = 1;
-                // entity to which the commitment applies
-                optional string entity_id = 2;
-                // service to which the commitment applies
-                optional string service = 3;
-                // region to which the commitment applies
-                optional string region = 4;
-
-
-                // must be populated or else this object has no meaning at all. both fields must
-                // use the same unit(coupons or CurrencyAmount).
-                optional CloudCommitmentAmount used = 5;
-                optional CloudCommitmentAmount capacity = 6;
-
-                // a quantity of coupons or money
-                message CloudCommitmentAmount {
-                    oneof value {
-                        common_dto.CurrencyAmount amount = 1;
-                        float coupons = 2;
-                    }
-                }
-            }
+            // must be populated or else this object has no meaning at all. both fields must
+            // use the same unit(coupons or CurrencyAmount).
+            optional cloud_commitment_dto.CloudCommitmentAmount used = 7;
+            optional cloud_commitment_dto.CloudCommitmentAmount capacity = 8;
         }
     }
 }
 
-message UploadCloudCommitmentResponse {}
-
-service CloudCommitmentUtilizationCoverageService {
-    rpc GetCommitmentUtilization(GetCommitmentStatRecordRequest) returns (stream GetCommitmentStatRecordResponse);
-    rpc GetCommitmentCoverage(GetCommitmentStatRecordRequest) returns (stream GetCommitmentStatRecordResponse);
+message UploadCloudCommitmentDataRequest {
+    optional CloudCommitmentData cloud_commitment_data = 1;
 }
 
-message GetCommitmentStatRecordRequest {
-    optional uint64 start_date = 1;
-    optional uint64 end_date = 2;
-    optional uint64 topology_context_id = 3;
+message UploadCloudCommitmentDataResponse {
+    // empty message
+}
+
+service CloudCommitmentUtilizationCoverageService {
+    rpc GetHistoricalCommitmentUtilization(GetHistoricalCloudCommitmentUtilizationRequest)
+    returns (stream GetHistoricalCloudCommitmentUtilizationResponse);
+}
+
+message GetHistoricalCloudCommitmentUtilizationRequest {
+
+    // The start_time (inclusive) and end_time (exclusive), represented as milliseconds since epoch in UTC,
+    // are the window in which utilization stats should be queried. If start_time is not set, stats
+    // since epoch are returned. If end_time is not set, stats up until current are returned.
+    optional uint64 start_time = 1;
+    optional uint64 end_time = 2;
+
+    optional cloud_common.CloudStatGranularity granularity = 3 [default = HOURLY];
 
     // filters become necessary when scopes other than global are supported
+    // Region filter representing the purchasing region. Therefore, global cloud
+    // commitment utilization data will not be returned when a specific filter is
+    // requested
     optional cloud_common.RegionFilter region_filter = 4;
     optional cloud_common.AccountFilter account_filter = 5;
-    // for utilization requests, entity filter is ignored
-    optional cloud_common.EntityFilter entity_filter = 6;
+    optional cloud_common.CloudCommitmentFilter cloud_commitment_filter = 6;
+    optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
 
-    optional CommitmentStatType stat_type = 7;
+    // returned stats will always be grouped by the timestamp
+    repeated GroupByCondition group_by = 8;
 
-    enum CommitmentStatType {
-        COVERAGE = 0;
-        UTILIZATION = 1;
+    // The number of stat records to return per chunk. The max value is 100.
+    optional uint32 chunk_size = 9 [default = 100];
+
+    enum GroupByCondition {
+        CLOUD_COMMITMENT = 1;
+        SERVICE_PROVIDER = 2;
+        ACCOUNT = 3;
     }
 }
 
-message GetCommitmentStatRecordResponse {
+message GetHistoricalCloudCommitmentUtilizationResponse {
     repeated CloudCommitmentStatRecord commitment_stat_record_chunk = 1;
 }
 
 message CloudCommitmentStatRecord {
     optional int64 snapshot_date = 1;
+
     optional StatValue capacity = 2;
+
     optional StatValue values = 3;
 
+    optional int64 sample_count = 4;
+
+    optional int64 commitment_id = 5;
+    // entity to which the commitment applies
+    optional int64 entity_id = 6;
+    // service to which the commitment applies
+    optional int64 cloud_service_id = 7;
+    // region to which the commitment applies
+    optional int64 region_id = 8;
+
+    optional int64 account_id = 9;
+
+    optional int64 service_provider_id = 10;
+
     message StatValue {
-        optional float max = 1;
-        optional float min = 2;
-        optional float avg = 3;
-        optional float total = 4;
+        optional cloud_commitment_dto.CloudCommitmentAmount max = 1;
+        optional cloud_commitment_dto.CloudCommitmentAmount min = 2;
+        optional cloud_commitment_dto.CloudCommitmentAmount avg = 3;
+        optional cloud_commitment_dto.CloudCommitmentAmount total = 4;
     }
+}
+
+service CloudCommitmentUploadService {
+    rpc UploadCloudCommitmentData(UploadCloudCommitmentDataRequest) returns (UploadCloudCommitmentDataResponse);
+}
+
+service CloudCommitmentStatsService {
+    rpc GetHistoricalCommitmentUtilization(GetHistoricalCloudCommitmentUtilizationRequest)
+    returns (stream GetHistoricalCloudCommitmentUtilizationResponse);
 }

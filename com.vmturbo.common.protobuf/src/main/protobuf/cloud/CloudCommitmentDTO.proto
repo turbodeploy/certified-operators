@@ -4,6 +4,8 @@ package cloud_commitment_dto;
 option java_package = "com.vmturbo.common.protobuf.cloud";
 option java_outer_classname = "CloudCommitmentDTO";
 
+import "CommonCost.proto";
+
 enum CloudCommitmentType {
     RESERVED_INSTANCE = 1;
 }
@@ -17,6 +19,11 @@ enum CloudCommitmentLocation {
     AVAILABILITY_ZONE = 1;
     REGION = 2;
     GLOBAL = 3;
+}
+
+enum CloudCommitmentCoverageType {
+    COUPONS = 1;
+    SPEND_COMMITMENT = 2;
 }
 
 enum AccountReferenceType {
@@ -35,4 +42,12 @@ message AccountReferenceFilter {
     repeated int64 account_id = 1;
     // describes the semantics of the passed account Ids.
     optional AccountReferenceType account_filter_type = 2 [default = PURCHASED_BY];
+}
+
+// a quantity of coupons or money
+message CloudCommitmentAmount {
+    oneof value {
+        common_dto.CurrencyAmount amount = 1;
+        double coupons = 2;
+    }
 }
