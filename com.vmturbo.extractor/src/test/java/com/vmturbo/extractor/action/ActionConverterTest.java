@@ -7,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -50,7 +51,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.ActionModel.PendingAction;
@@ -61,6 +64,7 @@ import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
+import com.vmturbo.extractor.schema.json.export.Target;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -123,6 +127,8 @@ public class ActionConverterTest {
             .setActionState(ActionState.FAILED)
             .build();
 
+    private static final long targetId1 = 987L;
+
     private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
 
     private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
@@ -153,7 +159,7 @@ public class ActionConverterTest {
         mockEntity(234, EntityType.PHYSICAL_MACHINE_VALUE);
         mockEntity(345, EntityType.PHYSICAL_MACHINE_VALUE);
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
-        when(dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)).thenReturn(Optional.of(relatedEntitiesExtractor));
+        when(dataExtractionFactory.newRelatedEntitiesExtractor()).thenReturn(Optional.of(relatedEntitiesExtractor));
         when(cachingPolicyFetcher.getOrFetchPolicies()).thenReturn(Collections.emptyMap());
         when(actionAttributeExtractor.extractReportingAttributes(any(), any())).thenReturn(Long2ObjectMaps.emptyMap());
 
@@ -167,6 +173,13 @@ public class ActionConverterTest {
                 PHYSICAL_MACHINE.getLiteral(), Lists.newArrayList(relatedEntity1),
                 STORAGE.getLiteral(), Lists.newArrayList(relatedEntity2)
         )).when(relatedEntitiesExtractor).extractRelatedEntities(123);
+
+        // mock targets
+        TargetsExtractor targetsExtractor = mock(TargetsExtractor.class);
+        Target target = new Target();
+        target.setOid(targetId1);
+        doReturn(Collections.singletonList(target)).when(targetsExtractor).extractTargets(anyLong());
+        when(dataExtractionFactory.newTargetsExtractor()).thenReturn(targetsExtractor);
     }
 
     /**
@@ -273,6 +286,11 @@ public class ActionConverterTest {
         Assert.assertThat(action.getTarget().getOid(), is(123L));
         Assert.assertThat(action.getTarget().getName(), is(String.valueOf(123)));
         Assert.assertThat(action.getTarget().getType(), is(VIRTUAL_MACHINE.getLiteral()));
+        assertThat(action.getTarget().getAttrs().size(), is(1));
+        List<Target> targets = (List<Target>)action.getTarget().getAttrs().get(ExportUtils.TARGETS_JSON_KEY_NAME);
+        assertThat(targets.size(), is(1));
+        assertThat(targets.get(0).getOid(), is(targetId1));
+
         // related
         Assert.assertThat(action.getRelated().size(), is(2));
         Assert.assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getOid(), is(234L));

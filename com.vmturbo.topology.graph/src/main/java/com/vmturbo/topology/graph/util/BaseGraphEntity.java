@@ -83,11 +83,17 @@ public class BaseGraphEntity<T extends BaseGraphEntity> implements TopologyGraph
     /**
      * Tuple for the ID of this entity local to a particular discovering target.
      */
-    protected static class DiscoveredTargetId {
+    public static class DiscoveredTargetId {
         private final long targetId;
         private final String vendorId;
 
-        DiscoveredTargetId(long targetId, String vendorId) {
+        /**
+         * Constructor.
+         *
+         * @param targetId id of target
+         * @param vendorId vendor id of the entity in this target
+         */
+        public DiscoveredTargetId(long targetId, @Nullable String vendorId) {
             this.targetId = targetId;
             this.vendorId = vendorId;
         }

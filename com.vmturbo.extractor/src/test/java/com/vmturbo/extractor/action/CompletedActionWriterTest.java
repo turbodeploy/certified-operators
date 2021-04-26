@@ -109,7 +109,7 @@ public class CompletedActionWriterTest {
         recordBatchWriter = (RecordBatchWriter)submittedBatchWriter.getValue();
 
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
-        when(dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)).thenReturn(Optional.of(relatedEntitiesExtractor));
+        when(dataExtractionFactory.newRelatedEntitiesExtractor()).thenReturn(Optional.of(relatedEntitiesExtractor));
     }
 
     /**

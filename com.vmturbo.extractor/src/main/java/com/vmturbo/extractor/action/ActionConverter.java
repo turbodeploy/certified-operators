@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.Column.JsonString;
@@ -308,7 +309,8 @@ public class ActionConverter {
             return Collections.emptyList();
         }
         final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
-                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
+                dataExtractionFactory.newRelatedEntitiesExtractor();
+        final TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
 
         final Long2ObjectMap<Action> retActions = new Long2ObjectOpenHashMap<>(actionSpecs.size());
         actionSpecs.forEach(actionSpec -> {
@@ -336,7 +338,8 @@ public class ActionConverter {
             // set target and related
             try {
                 ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
-                action.setTarget(ActionAttributeExtractor.getActionEntityWithType(primaryEntity, topologyGraph));
+                action.setTarget(ActionAttributeExtractor.getActionEntityWithTypeAndTarget(
+                        primaryEntity, topologyGraph, targetsExtractor));
                 relatedEntitiesExtractor.ifPresent(extractor ->
                         action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
             } catch (UnsupportedActionException e) {

@@ -33,6 +33,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.extractor.action.percentile.ActionPercentileData;
 import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
@@ -182,6 +183,29 @@ public class ActionAttributeExtractor {
             TopologyGraph<SupplyChainEntity> topologyGraph) {
         final ActionEntity ae = getActionEntityWithoutType(actionEntity, topologyGraph);
         ae.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
+        return ae;
+    }
+
+    /**
+     * Create a {@link ActionEntity} instance based on given {@link ActionDTO.ActionEntity} with
+     * type field and discoveringTargets field set.
+     *
+     * @param actionEntity {@link ActionDTO.ActionEntity}
+     * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
+     * @param targetsExtractor for extracting targets info
+     * @return {@link ActionEntity}
+     */
+    @Nonnull
+    public static ActionEntity getActionEntityWithTypeAndTarget(
+            @Nonnull ActionDTO.ActionEntity actionEntity,
+            @Nonnull TopologyGraph<SupplyChainEntity> topologyGraph,
+            @Nullable TargetsExtractor targetsExtractor) {
+        final ActionEntity ae = getActionEntityWithoutType(actionEntity, topologyGraph);
+        ae.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
+        if (targetsExtractor != null) {
+            ae.setAttrs(Collections.singletonMap(ExportUtils.TARGETS_JSON_KEY_NAME,
+                    targetsExtractor.extractTargets(actionEntity.getId())));
+        }
         return ae;
     }
 
@@ -444,10 +468,10 @@ public class ActionAttributeExtractor {
     }
 
     /**
-     * Create a shallow copy of given action, without any attrs.
+     * Create a shallow copy of given action, without any type specific attrs.
      *
      * @param action the action to create shallow copy for
-     * @return shallow copy of given action without attrs
+     * @return shallow copy of given action without type specific attrs
      */
     private static Action shallowCopyWithoutAttrs(Action action) {
         Action shallowCopy = new Action();

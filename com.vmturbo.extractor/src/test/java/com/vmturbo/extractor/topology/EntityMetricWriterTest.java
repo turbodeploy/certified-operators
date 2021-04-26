@@ -108,6 +108,7 @@ import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
@@ -150,6 +151,7 @@ public class EntityMetricWriterTest {
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private ScopeManager scopeManager;
+    private DataExtractionFactory dataExtractionFactory;
 
     /**
      * Set up for tests.
@@ -196,10 +198,11 @@ public class EntityMetricWriterTest {
         final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
         entityHashManager.injectPriorTopology();
         this.scopeManager = mock(ScopeManager.class);
+        this.dataExtractionFactory = mock(DataExtractionFactory.class);
         this.writer = spy(new EntityMetricWriter(endpoint,
                 entityHashManager,
                 scopeManager, oidPack,
-                Executors.newSingleThreadScheduledExecutor()));
+                Executors.newSingleThreadScheduledExecutor(), dataExtractionFactory));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(), any());
         doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(any(), any(), any());

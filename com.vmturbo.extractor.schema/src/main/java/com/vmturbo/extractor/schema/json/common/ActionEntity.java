@@ -3,49 +3,14 @@ package com.vmturbo.extractor.schema.json.common;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.google.common.base.MoreObjects;
+
+import com.vmturbo.extractor.schema.json.export.Entity;
 
 /**
- * The entity used in action.
+ * The entity used in action. It's a subclass of {@link Entity}, but only some basic fields (like
+ * (oid, name, type, attrs.targets) are populated.
  */
 @JsonInclude(Include.NON_EMPTY)
 @JsonPropertyOrder(alphabetic = true)
-public class ActionEntity {
-    private Long oid;
-    private String name;
-    private String type;
-
-    public Long getOid() {
-        return oid;
-    }
-
-    public void setOid(Long oid) {
-        this.oid = oid;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper("ActionEntity")
-                .omitNullValues()
-                .add("type", type)
-                .add("oid", oid)
-                .add("name", name)
-                .toString();
-    }
+public class ActionEntity extends Entity {
 }

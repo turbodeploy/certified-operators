@@ -69,7 +69,7 @@ public class SupplyChainEntityTest {
         assertThat(vm.getEnvironmentType(), is(EnvironmentType.ON_PREM));
         assertThat(vm.getEntityState(), is(EntityState.POWERED_ON));
         assertThat(vm.getDiscoveringTargetIds().count(), is(0L));
-        assertThat(vm.getVendorId(0L), is(""));
+        assertThat(vm.getVendorId(0L), is(nullValue()));
         assertThat(vm.getAllVendorIds().count(), is(0L));
         assertThat(vm.toString(), is(vmEntity.getDisplayName() + "@" + vmEntity.getOid()));
         // following should reflect our connections

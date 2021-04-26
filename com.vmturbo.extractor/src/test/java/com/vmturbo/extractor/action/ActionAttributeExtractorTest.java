@@ -261,6 +261,7 @@ public class ActionAttributeExtractorTest {
         mockEntity(account1, EntityType.BUSINESS_ACCOUNT_VALUE);
         when(actionPercentileDataRetriever.getActionPercentiles(any())).thenReturn(
                 actionPercentileData);
+
     }
 
     ReportingActionAttributes extractSingleActionForReporting(ActionSpec actionSpec) {
