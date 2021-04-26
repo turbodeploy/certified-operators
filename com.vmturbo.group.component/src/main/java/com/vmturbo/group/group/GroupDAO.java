@@ -45,6 +45,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -68,6 +69,7 @@ import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -694,24 +696,35 @@ public class GroupDAO implements IGroupStore {
         }
         final StopWatch stopWatch = new StopWatch("Retrieving " + groupIds.size() + " groups");
         stopWatch.start("grouping table");
-        final Map<Long, Grouping> groupings = dslContext.selectFrom(GROUPING)
-                .where(groupIds.idCondition(GROUPING.ID))
-                .fetchInto(Grouping.class)
-                .stream()
-                .collect(Collectors.toMap(Grouping::getId, Function.identity()));
-        if (groupings.isEmpty()) {
+        final Map<Long, Map.Entry<Grouping, List<GroupSupplementaryInfo>>>
+                groupingsAndSupplementaryInfo =
+                dslContext.select(GROUPING.fields())
+                        .select(GROUP_SUPPLEMENTARY_INFO.fields())
+                        .from(GROUPING)
+                        .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                        .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                        .where(groupIds.idCondition(GROUPING.ID))
+                        .fetchGroups(
+                                r -> r.into(GROUPING).into(Grouping.class),
+                                r -> r.into(GROUP_SUPPLEMENTARY_INFO)
+                                        .into(GroupSupplementaryInfo.class)
+                        )
+                        .entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(e -> e.getKey().getId(), Function.identity()));
+        if (groupingsAndSupplementaryInfo.isEmpty()) {
             return Collections.emptyList();
         }
-        // Preserve the ordering of the input group ids. This is necessary for paginated requests.
-        final ArrayList<Grouping> sortedGroupings = new ArrayList<>();
-        groupIds.groupIds().stream().map(groupings::get).filter(Objects::nonNull)
-                .forEach(sortedGroupings::add);
+        Collection<Grouping> groupings = groupingsAndSupplementaryInfo.values()
+                .stream()
+                .map(Entry::getKey)
+                .collect(Collectors.toList());
         stopWatch.stop();
         stopWatch.start("expected member types");
         final Table<Long, MemberType, Boolean> expectedMembers = internalGetExpectedMemberTypes(dslContext, groupIds);
         stopWatch.stop();
         stopWatch.start("origins");
-        final Map<Long, Origin> groupsOrigins = getGroupOrigin(sortedGroupings);
+        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings);
         stopWatch.stop();
         stopWatch.start("tags");
         final Map<Long, Tags> groupTags = getGroupTags(groupIds);
@@ -722,8 +735,11 @@ public class GroupDAO implements IGroupStore {
         stopWatch.stop();
         stopWatch.start("calculation");
         final List<GroupDTO.Grouping> result = new ArrayList<>(groupIds.size());
-        for (Grouping grouping: sortedGroupings) {
-            final long groupId = grouping.getId();
+        // Preserve the ordering of the input group ids. This is necessary for paginated requests.
+        for (long groupId : groupIds.groupIds()) {
+            final Map.Entry<Grouping, List<GroupSupplementaryInfo>> groupingAndSupplementaryInfo =
+                    groupingsAndSupplementaryInfo.get(groupId);
+            final Grouping grouping = groupingAndSupplementaryInfo.getKey();
             final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
             builder.setId(groupId);
             builder.addAllExpectedTypes(expectedMembers.row(groupId).keySet());
@@ -759,6 +775,26 @@ public class GroupDAO implements IGroupStore {
                         grouping.getDisplayName(), groupId, e);
             }
             builder.setDefinition(defBuilder);
+            final List<GroupSupplementaryInfo> gsiList = groupingAndSupplementaryInfo.getValue();
+            if (!CollectionUtils.isEmpty(gsiList) && gsiList.get(0) != null) {
+                GroupSupplementaryInfo gsi = gsiList.get(0);
+                Integer envType = gsi.getEnvironmentType();
+                Integer cloudType = gsi.getCloudType();
+                Integer severity = gsi.getSeverity();
+                builder.setEnvironmentType(envType == null
+                        ? EnvironmentType.UNKNOWN_ENV
+                        : EnvironmentType.forNumber(gsi.getEnvironmentType()));
+                builder.setCloudType(cloudType == null
+                        ? CloudType.UNKNOWN_CLOUD
+                        : CloudType.forNumber(gsi.getCloudType()));
+                builder.setSeverity(severity == null
+                        ? Severity.NORMAL
+                        : Severity.forNumber(gsi.getSeverity()));
+            } else {
+                builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
+                builder.setCloudType(CloudType.UNKNOWN_CLOUD);
+                builder.setSeverity(Severity.NORMAL);
+            }
             result.add(builder.build());
         }
         stopWatch.stop();
@@ -1450,23 +1486,36 @@ public class GroupDAO implements IGroupStore {
         }
         if (!filter.getDirectMemberTypesList().isEmpty()) {
             filter.getDirectMemberTypesList().forEach(directMemberType ->
-                    createExpectedMembersCondition(directMemberType, conditions, true));
+                    createExpectedMembersCondition(directMemberType, conditions, Boolean.TRUE));
         }
         if (!filter.getIndirectMemberTypesList().isEmpty()) {
             filter.getIndirectMemberTypesList().forEach(indirectMemberType ->
-                    createExpectedMembersCondition(indirectMemberType, conditions, false));
+                    createExpectedMembersCondition(indirectMemberType, conditions, null));
         }
         if (filter.getExcludeEmpty()) {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.EMPTY.eq(false));
         }
         if (filter.hasEnvironmentType()) {
-            conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.eq(
-                            filter.getEnvironmentType().getNumber()));
+            EnvironmentType environmentType = filter.getEnvironmentType();
+            // Following the logic previously implemented in the api component:
+            // - If the requested environment type is ONPREM, CLOUD or UNKNOWN, include both the
+            //   requested environment type and HYBRID.
+            // - If the requested environment type is HYBRID, include everything.
+            if (!EnvironmentType.HYBRID.equals(environmentType)) {
+                conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.in(
+                        EnvironmentType.HYBRID.getNumber(), environmentType.getNumber()));
+            }
         }
         if (filter.hasCloudType()) {
-            conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.eq(EnvironmentType.CLOUD_VALUE)
-                            .and(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE.eq(
-                                    filter.getCloudType().getNumber())));
+            CloudType cloudType = filter.getCloudType();
+            // Following the logic of environment type case:
+            // - If the requested cloud type is anything but HYBRID_CLOUD, include both the
+            //   requested cloud type and HYBRID_CLOUD.
+            // - If the requested cloud type is HYBRID_CLOUD, include everything.
+            if (!CloudType.HYBRID_CLOUD.equals(cloudType)) {
+                conditions.add(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE.in(
+                        CloudType.HYBRID_CLOUD.getNumber(), filter.getCloudType().getNumber()));
+            }
         }
         if (filter.hasSeverity()) {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.SEVERITY.eq(filter.getSeverity().getNumber()));
@@ -1474,20 +1523,35 @@ public class GroupDAO implements IGroupStore {
         return combineConditions(conditions, Condition::and);
     }
 
+    /**
+     * Creates conditions related to expected members, based on input.
+     *
+     * @param memberType The member type to add to the condition.
+     * @param conditions Collection of current conditions. The new condition will be added to the
+     *                   collection.
+     * @param isDirectMember boolean flag to specify if the member type will be added to the
+     *                       condition as direct or indirect only. If null, both direct and indirect
+     *                       members will be queried.
+     */
     private void createExpectedMembersCondition(@Nonnull GroupDTO.MemberType memberType,
-            final Collection<Condition> conditions,
-            final boolean isDirectMember) {
+            @Nonnull final Collection<Condition> conditions,
+            @Nullable final Boolean isDirectMember) {
         if (memberType.hasEntity()) {
             conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID)
                     .from(GROUP_EXPECTED_MEMBERS_ENTITIES)
-                    .where(GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
-                            .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
-                                    isDirectMember)))));
+                    .where(isDirectMember == null
+                            ? GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                            : GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                                    .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
+                                            isDirectMember)))));
         } else if (memberType.hasGroup()) {
             conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID)
                     .from(GROUP_EXPECTED_MEMBERS_GROUPS)
-                    .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
-                            .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(isDirectMember)))));
+                    .where(isDirectMember == null
+                            ? GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                            : GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                                    .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(
+                                            isDirectMember)))));
         }
     }
 

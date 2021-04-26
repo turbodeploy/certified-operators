@@ -2,6 +2,9 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -9,6 +12,8 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.pagination.ActionOrderBy;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.pagination.GroupPaginationRequest;
+import com.vmturbo.api.pagination.GroupPaginationRequest.GroupOrderBy;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.TargetOrderBy;
@@ -138,5 +143,119 @@ public class PaginationMapperTest {
                 new TargetPaginationRequest(null, null, true, TargetOrderBy.VALIDATION_STATUS);
         final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getTarget(), is(OrderBy.TargetOrderBy.TARGET_VALIDATION_STATUS));
+    }
+
+    @Test
+    public void testGroupOrderByName() throws InvalidOperationException {
+        final GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(null, null, true, GroupOrderBy.NAME.name());
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertTrue(params.getOrderBy().hasGroupSearch());
+        assertThat(params.getOrderBy().getGroupSearch(), is(OrderBy.GroupOrderBy.GROUP_NAME));
+    }
+
+    @Test
+    public void testGroupOrderBySeverity() throws InvalidOperationException {
+        final GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(null, null, true, GroupOrderBy.SEVERITY.name());
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertTrue(params.getOrderBy().hasGroupSearch());
+        assertThat(params.getOrderBy().getGroupSearch(), is(OrderBy.GroupOrderBy.GROUP_SEVERITY));
+    }
+
+    @Test
+    public void testSearchToGroupPaginationRequestNoOrderBy() throws InvalidOperationException {
+        final String cursor = "12";
+        final int limit = 23;
+        final boolean ascending = false;
+        final SearchPaginationRequest searchRequest =
+                new SearchPaginationRequest(cursor, limit, ascending, null);
+        final GroupPaginationRequest groupRequest =
+                paginationMapper.searchToGroupPaginationRequest(searchRequest);
+        assertNotNull(groupRequest);
+        assertTrue(groupRequest.getCursor().isPresent());
+        assertEquals(cursor, groupRequest.getCursor().get());
+        assertTrue(groupRequest.hasLimit());
+        assertEquals(limit, groupRequest.getLimit());
+        assertEquals(ascending, groupRequest.isAscending());
+        assertEquals(GroupOrderBy.NAME, groupRequest.getOrderBy());
+    }
+
+    @Test
+    public void testSearchToGroupPaginationRequestOrderByName() throws InvalidOperationException {
+        final SearchPaginationRequest searchRequest =
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.NAME.name());
+        final GroupPaginationRequest groupRequest =
+                paginationMapper.searchToGroupPaginationRequest(searchRequest);
+        assertNotNull(groupRequest);
+        assertEquals(GroupOrderBy.NAME, groupRequest.getOrderBy());
+    }
+
+    @Test
+    public void testSearchToGroupPaginationRequestOrderBySeverity() throws InvalidOperationException {
+        final SearchPaginationRequest searchRequest =
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.SEVERITY.name());
+        final GroupPaginationRequest groupRequest =
+                paginationMapper.searchToGroupPaginationRequest(searchRequest);
+        assertNotNull(groupRequest);
+        assertEquals(GroupOrderBy.SEVERITY, groupRequest.getOrderBy());
+    }
+
+    @Test
+    public void testSearchToGroupPaginationRequestOrderByCost() throws InvalidOperationException {
+        final SearchPaginationRequest searchRequest =
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name());
+        final GroupPaginationRequest groupRequest =
+                paginationMapper.searchToGroupPaginationRequest(searchRequest);
+        assertNotNull(groupRequest);
+        assertEquals(GroupOrderBy.COST, groupRequest.getOrderBy());
+    }
+
+    @Test
+    public void testGroupToSearchPaginationRequest() throws InvalidOperationException {
+        final String cursor = "12";
+        final int limit = 23;
+        final boolean ascending = false;
+        final GroupPaginationRequest groupRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, null);
+        final SearchPaginationRequest searchRequest =
+                paginationMapper.groupToSearchPaginationRequest(groupRequest);
+        assertNotNull(searchRequest);
+        assertTrue(searchRequest.getCursor().isPresent());
+        assertEquals(cursor, searchRequest.getCursor().get());
+        assertTrue(searchRequest.hasLimit());
+        assertEquals(limit, searchRequest.getLimit());
+        assertEquals(ascending, searchRequest.isAscending());
+        assertEquals(SearchOrderBy.NAME, searchRequest.getOrderBy());
+    }
+
+    @Test
+    public void testGroupToSearchPaginationRequestOrderByName() throws InvalidOperationException {
+        final GroupPaginationRequest groupRequest =
+                new GroupPaginationRequest(null, null, true, GroupOrderBy.NAME.name());
+        final SearchPaginationRequest searchRequest =
+                paginationMapper.groupToSearchPaginationRequest(groupRequest);
+        assertNotNull(searchRequest);
+        assertEquals(SearchOrderBy.NAME, searchRequest.getOrderBy());
+    }
+
+    @Test
+    public void testGroupToSearchPaginationRequestOrderBySeverity() throws InvalidOperationException {
+        final GroupPaginationRequest groupRequest =
+                new GroupPaginationRequest(null, null, true, GroupOrderBy.SEVERITY.name());
+        final SearchPaginationRequest searchRequest =
+                paginationMapper.groupToSearchPaginationRequest(groupRequest);
+        assertNotNull(searchRequest);
+        assertEquals(SearchOrderBy.SEVERITY, searchRequest.getOrderBy());
+    }
+
+    @Test
+    public void testGroupToSearchPaginationRequestOrderByCost() throws InvalidOperationException {
+        final GroupPaginationRequest groupRequest =
+                new GroupPaginationRequest(null, null, true, GroupOrderBy.COST.name());
+        final SearchPaginationRequest searchRequest =
+                paginationMapper.groupToSearchPaginationRequest(groupRequest);
+        assertNotNull(searchRequest);
+        assertEquals(SearchOrderBy.COST, searchRequest.getOrderBy());
     }
 }

@@ -336,6 +336,7 @@
                         </database>
                         <generate>
                             <pojos>true</pojos>
+                            <pojosEqualsAndHashCode>true</pojosEqualsAndHashCode>
                         </generate>
                         <target>
                             <packageName>com.vmturbo.group.db</packageName>

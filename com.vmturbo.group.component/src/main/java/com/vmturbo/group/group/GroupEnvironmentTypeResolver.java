@@ -62,7 +62,7 @@ public class GroupEnvironmentTypeResolver {
      * @param entities the list of group's entities (with all the necessary information for
      *                 environment type calculation).
      * @param discoveredGroups a map from group id to {@link DiscoveredGroupId} containing all the
-     *                         discovered groups. For empty discovered groups, we try to deduct the
+     *                         discovered groups. For empty discovered groups, we try to deduce the
      *                         environment & cloud type based on the probe that discovered them.
      *                         When querying for environment type of user groups (e.g. during
      *                         creation/update), an empty optional can be passed as it is ignored.
