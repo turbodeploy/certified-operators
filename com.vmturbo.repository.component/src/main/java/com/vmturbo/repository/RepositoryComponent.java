@@ -373,8 +373,12 @@ public class RepositoryComponent extends BaseVmtComponent {
         topologyProcessor = tpClientConfig.topologyProcessor(
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
+            // For plan topologies we start from the last committed topology.
+            // If the repository crashes in the middle of processing a plan this may mean
+            // that we don't process the plan topology properly on restart, which will lead
+            // the plan to fail.
             TopologyProcessorSubscription.forTopicWithStartFrom(
-                    TopologyProcessorSubscription.Topic.PlanTopologies, StartFrom.BEGINNING),
+                    TopologyProcessorSubscription.Topic.PlanTopologies, StartFrom.LAST_COMMITTED),
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING),
             TopologyProcessorSubscription.forTopicWithStartFrom(
