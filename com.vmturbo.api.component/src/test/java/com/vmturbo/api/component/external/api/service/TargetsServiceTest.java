@@ -159,6 +159,7 @@ public class TargetsServiceTest {
     private static final String TGT_CANT_BE_CREATED = "cannot be created through public APIs.";
     private static final String TGT_CANT_BE_REMOVED = "cannot be removed through public APIs.";
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
+    private static final String PUBLIC_CLOUD_CATEGORY = "Public Cloud";
 
     private static final String TARGET_DISPLAY_NAME = "target name";
     private static final String APP_CONTROL = "app_control";
@@ -520,7 +521,7 @@ public class TargetsServiceTest {
      */
     @Test
     public void testGetAllCloudTargets() throws Exception {
-        testFilterTargetsByEnvironment(true);
+        testFilterTargetsByEnvironment(true, false);
     }
 
     /**
@@ -530,16 +531,27 @@ public class TargetsServiceTest {
      */
     @Test
     public void testGetAllOnPremTargets() throws Exception {
-        testFilterTargetsByEnvironment(false);
+        testFilterTargetsByEnvironment(false, false);
     }
 
-    private void testFilterTargetsByEnvironment(boolean cloud) throws Exception {
+    /**
+     * Tests if the service can filter and return the cloud targets based on target category.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllCloudTargetwithCategory() throws Exception {
+        testFilterTargetsByEnvironment(true, true);
+    }
+
+    private void testFilterTargetsByEnvironment(boolean cloud, boolean cloudTargetCategory) throws Exception {
         // ARRANGE
         final long cloudProbeId = 1L;
         final long onPremProbeId = 2L;
         final long cloudTargetId = 3L;
         final long onPremTargetId = 4L;
-        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy", "uiCategory");
+
+        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy", PUBLIC_CLOUD_CATEGORY);
         createMockProbeInfo(onPremProbeId, SDKProbeType.VCENTER.getProbeType(), "dummy", "uiCategory");
         createMockTargetInfo(cloudProbeId, cloudTargetId);
         createMockTargetInfo(onPremProbeId, onPremTargetId);
@@ -554,7 +566,8 @@ public class TargetsServiceTest {
             .build());
 
         // ACT
-        final String url = "/targets?environment_type=" + (cloud ? "CLOUD" : "ONPREM");
+        final String url = "/targets?environment_type=" + (cloud ? "CLOUD" : "ONPREM") +
+                (cloudTargetCategory ? "&target_category=" + PUBLIC_CLOUD_CATEGORY: "");
         final MvcResult result = mockMvc.perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                                     .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
@@ -567,6 +580,11 @@ public class TargetsServiceTest {
         // verify the search request
         SearchTargetsRequest request = captor.getValue();
         checkHasTargetVisibilityFilter(request);
+
+        // Verify the category
+        if (cloudTargetCategory) {
+            Assert.assertEquals(PUBLIC_CLOUD_CATEGORY, resp[0].getCategory());
+        }
 
         Optional<Search.PropertyFilter> probeTypeFilter = getPropertyByName(request,
             SearchableProperties.PROBE_TYPE);
