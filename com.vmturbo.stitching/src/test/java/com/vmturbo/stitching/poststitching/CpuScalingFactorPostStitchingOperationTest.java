@@ -408,6 +408,38 @@ public class CpuScalingFactorPostStitchingOperationTest {
         assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(2.0).build());
     }
 
+    /**
+     * Test updateScalingFactorForEntity for supported provider entity.
+     */
+    @Test
+    public void testUpdateScalingFactorForProviderEntity() {
+        final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+        final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
+            CPU_CAPACITY);
+        final CommodityBoughtDTO vcpuLimitQuotaBoughtComm = makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
+
+        final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
+        final TopologyEntity.Builder wc = makeTopologyEntityBuilder(3L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder vm = makeTopologyEntityBuilder(4L,
+            EntityType.VIRTUAL_MACHINE_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
+        pod.addProvider(wc);
+        pod.addProvider(vm);
+
+        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        // WorkloadController scalingFactor is updated because it's a supported provider of ContainerPod.
+        assertSelling(wc, vcpuLimitQuotaComm.toBuilder().setScalingFactor(CPU_SCALE_FACTOR).build());
+        // VM scalingFactor is not updated because it's not a supported provider to update from ContainerPod.
+        assertSelling(vm, vcpuComm);
+    }
+
     private static void assertSelling(@Nonnull final TopologyEntity.Builder entity,
                                       @Nonnull final CommoditySoldDTO... expectedSold) {
         final List<CommoditySoldDTO> sold = entity.getEntityBuilder().getCommoditySoldListList();
