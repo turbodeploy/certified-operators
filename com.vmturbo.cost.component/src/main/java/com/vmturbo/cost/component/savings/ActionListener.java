@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.savings;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -15,10 +14,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
@@ -47,7 +45,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -64,7 +61,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
-import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
@@ -86,12 +82,9 @@ public class ActionListener implements ActionsListener {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * Executing / Executed actions Cache of actionId to EntityActionInfo.
-     *
-     * <p>Preserves actions in various stages of execution, and the associated recommendations' action
-     * info, for an hour, in case all actions got cleared in a server that's been up and running.
+     * Action State Map.
      */
-    private static Cache<Long, EntityActionInfo> executedActionsCache;
+    private final Map<Long, ActionState> entityActionStateMap = new ConcurrentHashMap<>();
 
     /**
      * The In Memory Events Journal.
@@ -130,6 +123,10 @@ public class ActionListener implements ActionsListener {
      */
     private final ImmutableSet<ActionMode> pendingActionModes = ImmutableSet.of(ActionMode.MANUAL,
                                                                                 ActionMode.RECOMMEND);
+    /**
+     * Pending Action States.
+     */
+    private final ImmutableSet<ActionState> pendingActionStates = ImmutableSet.of(ActionState.READY);
     /**
      * Pending Action Entity Types.
      */
@@ -194,7 +191,6 @@ public class ActionListener implements ActionsListener {
      * Constructor.
      *
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
-     * @param numHoursToExpireCache number of hours after which to expire entries in the executedActionsCache, currently kept for an hour.
      * @param actionsServiceBlockingStub Stub for Grpc calls to actions service.
      * @param costServiceBlockingStub Stub for Grpc calls to cost service.
      * @param costStoreHouse Entity cost store
@@ -214,12 +210,8 @@ public class ActionListener implements ActionsListener {
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
                     @Nonnull final Long actionLifetimeMs,
-                    @Nonnull final Long deleteVolumeActionLifetimeMs,
-                    @Nonnull int numHoursToExpireCache) {
+                    @Nonnull final Long deleteVolumeActionLifetimeMs) {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        executedActionsCache = CacheBuilder.newBuilder()
-                        .expireAfterAccess(Duration.ofHours(numHoursToExpireCache))
-                        .build();
         this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         this.costService = Objects.requireNonNull(costServiceBlockingStub);
         this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -248,84 +240,54 @@ public class ActionListener implements ActionsListener {
         // Locate the target entity in the internal entity state.  If not present, create an
         //  - entry for it.
         final Long actionId = actionSuccess.getActionId();
-        logger.debug("Got success notification for action {}", actionId);
-        final EntityActionInfo entityActionInfo = executedActionsCache.getIfPresent(actionId);
-        if (entityActionInfo != null) {
-            logger.info("Action {} changed from {} to SUCCEEDED", actionId, entityActionInfo.getActionState());
+        ActionState prevActionState = entityActionStateMap.get(actionId);
+        // Check if a SUCCEEDED action id hasn't already been added, in order to to avoid processing
+        // an action more than once if multiple SUCCEEDED notifications were to be received.
+        // There could be a previous READY/PENDING_ACCEPT entry, and that's fine.
+        if (prevActionState != ActionState.SUCCEEDED) {
+            logger.info("Action {} changed from {} to SUCCEEDED", actionId, prevActionState);
             // Add a Succeeded Action event to the Events Journal with time-stamp as the completion time.
+            ActionEntity entity;
             try {
                 final ActionSpec actionSpec = actionSuccess.getActionSpec();
-                ActionEntity entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
                 if (pendingWorkloadTypes.contains(entity.getType())) {
                     final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
                     final Long entityId = entity.getId();
-                    final EntityActionCosts entityActionCosts = entityActionInfo.getEntityActionCosts();
-                    final EntityPriceChange actionPriceChange = new EntityPriceChange.Builder()
-                                    .sourceOid(entityActionInfo.sourceOid)
-                                    .sourceCost(entityActionCosts.beforeCosts)
-                                    .destinationOid(entityActionInfo.destinationOid)
-                                    .destinationCost(entityActionCosts.afterCosts)
-                                    .build();
-                    long expirationTime = completionTime
-                            + (ActionEventType.DELETE_EXECUTION_SUCCESS
-                                    .equals(entityActionInfo.getActionEventType())
-                                            ? deleteVolumeActionLifetimeMs
-                                            : actionLifetimeMs);
-                    EntityPriceChange actionPriceChangeWithExpiration =
-                            new EntityPriceChange.Builder()
-                                    .from(actionPriceChange)
-                                    .expirationTime(Optional.of(expirationTime))
-                                    .build();
-                    final SavingsEvent successEvent = createActionEvent(entity.getId(),
-                            completionTime,
-                            entityActionInfo.getActionEventType(),
-                            actionId,
-                            actionPriceChangeWithExpiration,
-                            entityActionInfo);
-                    entityEventsJournal.addEvent(successEvent);
-                    logger.debug("Added action {} for entity {}, completion time {}, recommendation"
-                                    + " time {}, journal size {}",
-                                 actionId, entityId, completionTime,
-                                 actionSpec.getRecommendationTime(),
-                                 entityEventsJournal.size());
-                    // Invalidate action in cache, after processing first SUCCEEDED notification, as there
-                    // could be multiple notifications of SUCESSS from probes as evidenced previously.
-                    // We want to add one execution event for the action execution.
-                    executedActionsCache.invalidate(actionId);
+                    final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
+                    final Map<Long, EntityPriceChange> entityPriceChangeMap =
+                            getEntityCosts(ImmutableMap.of(entityId, entityActionInfo));
+                    final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
+                    if (actionPriceChange != null) {
+                        long expirationTime = completionTime
+                                + (ActionEventType.DELETE_EXECUTION_SUCCESS
+                                        .equals(entityActionInfo.getActionEventType())
+                                                ? deleteVolumeActionLifetimeMs
+                                                : actionLifetimeMs);
+                        EntityPriceChange actionPriceChangeWithExpiration =
+                                new EntityPriceChange.Builder()
+                                        .from(actionPriceChange)
+                                        .expirationTime(Optional.of(expirationTime))
+                                        .build();
+                        final SavingsEvent successEvent = createActionEvent(entity.getId(),
+                                completionTime,
+                                entityActionInfo.getActionEventType(),
+                                actionId,
+                                actionPriceChangeWithExpiration,
+                                entityActionInfo);
+                        entityEventsJournal.addEvent(successEvent);
+                        entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
+                        logger.debug("Added action {} for entity {}, completion time {}, recommendation"
+                                        + " time {}, journal size {}",
+                                     actionId, entityId, completionTime,
+                                     actionSpec.getRecommendationTime(),
+                                     entityEventsJournal.size());
+                    }
                 }
             } catch (UnsupportedActionException e) {
-                logger.error("Cannot create action Savings event due to unsupported action type {}",
-                             actionId,
-                             e);
+                logger.error("Cannot create action Savings event due to unsupported action type",
+                            e);
             }
-        }
-    }
-
-    /**
-     * Get information about the progress of action executions.
-     *
-     * <p>This method gets called with information about the action
-     * execution progress. We add/update the executedActionsCache at this point.
-     * We only need to add an action once, but as this method is called multiple
-     * times, it's easy to just update the entry than keep track of whether the
-     * action has already been added to cache.
-     * @param actionProgress context contain action execution progress information.
-     */
-    @Override
-    public void onActionProgress(@Nonnull final ActionProgress actionProgress) {
-        final int progressPercentage = actionProgress.getProgressPercentage();
-        final long actionId = actionProgress.getActionId();
-        logger.debug("Action progress for action {}, {}", actionId, progressPercentage);
-        final Optional<EntityActionInfo> entityActionInfo = existingPendingActionsInfoToEntityId
-                        .keySet().stream()
-                        .filter(actionInfo -> actionInfo.getActionId() == actionId)
-                        .findFirst();
-        if (entityActionInfo.isPresent()) {
-            executedActionsCache.put(actionId, entityActionInfo.get());
-            logger.debug("Added/Updated action {} in cache", actionId);
-        } else {
-            logger.error("Could not retrieve action {} in progress from cache, this could affect "
-                            + "realized savings calculations");
         }
     }
 
@@ -429,32 +391,34 @@ public class ActionListener implements ActionsListener {
         Map<Long, EntityPriceChange> entityPriceChangeMap =
                                                   getEntityCosts(newPendingEntityIdToActionsInfo);
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
-        actionChanges.entriesOnlyOnLeft().forEach((newActionInfo, entityId) -> {
+        actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionInfo -> {
             final Long newActionId = newActionInfo.getActionId();
             final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
-            // We need to create RECOMMENDATION_ADDED events for actions in READY (PENDING_ACCEPT)
-            // states only.
-            if (actionPriceChange != null && actionState == ActionState.READY) {
+            if (actionPriceChange != null) {
                 logger.trace("New action price change for {}, {}, {}, {}:",
                         newActionInfo,
                         actionState, actionPriceChange.getSourceCost(),
                         actionPriceChange.getDestinationCost());
-
-                SavingsEvent pendingActionEvent = createActionEvent(entityId,
-                                                            newActionInfo.getRecommendationTime(),
-                                                            ActionEventType.RECOMMENDATION_ADDED,
-                                                            newActionId,
-                                                            actionPriceChange,
-                                                            newActionInfo);
-                newPendingActionEvents.add(pendingActionEvent);
-                logger.debug("Added new pending event for action {}, entity {},"
-                             + " action state {}, source oid {}, destination oid {},"
-                             + " entity type {}",
-                             newActionId, entityId, actionState,
-                             newActionInfo.getSourceOid(),
-                             newActionInfo.getDestinationOid(),
-                             newActionInfo.getEntityType());
+                ActionState prevActionState = entityActionStateMap.get(newActionId);
+                if (prevActionState != ActionState.SUCCEEDED) {
+                    entityActionStateMap.put(newActionId, actionState);
+                    final Long entityId = newPendingActionsInfoToEntityId
+                            .get(newActionInfo);
+                    SavingsEvent pendingActionEvent =
+                            createActionEvent(entityId,
+                                    newActionInfo.getRecommendationTime(),
+                                    ActionEventType.RECOMMENDATION_ADDED,
+                                    newActionId,
+                                    actionPriceChange,
+                                    newActionInfo);
+                    newPendingActionEvents.add(pendingActionEvent);
+                    logger.debug("Added new pending event for action {}, entity {},"
+                                    + " action state {}, source oid {}, destination oid {}, entity type {}",
+                                    newActionId, entityId, actionState, newActionInfo.getSourceOid(),
+                                    newActionInfo.getDestinationOid(),
+                                    newActionInfo.getEntityType());
+                }
             }
         });
         entityEventsJournal.addEvents(newPendingActionEvents);
@@ -462,9 +426,9 @@ public class ActionListener implements ActionsListener {
         // entityIdsOnLeft represents entities with new actions, or those with a different new action
         // than Market has recommended in previous cycle(s).
         // entityIdsOnRight represents entities with old actions.
-        Set<Long> entityIdsOfNewActions = actionChanges.entriesOnlyOnLeft().values().stream()
+        Set<Long> entityIdsOfExistingActions = actionChanges.entriesOnlyOnLeft().values().stream()
                         .collect(Collectors.toSet());
-        Set<Long> entityIdsOfExistingActions = actionChanges.entriesOnlyOnRight().values().stream()
+        Set<Long> entityIdsOfNewActions = actionChanges.entriesOnlyOnRight().values().stream()
                         .collect(Collectors.toSet());
         // This intersection of the maps values represent entities that had an action in a previous cycle
         // and have a different (replaced) action in the current cycle.  From this point on missed
@@ -480,15 +444,17 @@ public class ActionListener implements ActionsListener {
             // current time, as this will make it higher than the recommendation time of
             // all the actions being removed, as they would have been recommended in a prior cycle.
             final long currentTimeInMillis = System.currentTimeMillis();
-            actionChanges.entriesOnlyOnRight().forEach((staleActionInfo, entityId) -> {
+            actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionInfo -> {
                 final Long staleActionId = staleActionInfo.getActionId();
+                final Long entityId = existingPendingActionsInfoToEntityId
+                        .get(staleActionInfo);
                 if (!entitiesWithReplacedActions.contains(entityId)) {
                     SavingsEvent staleActionEvent =
-                                                  createActionEvent(entityId,
-                                                            currentTimeInMillis,
-                                                            ActionEventType.RECOMMENDATION_REMOVED,
-                                                            staleActionId,
-                                                            null,
+                                                    createActionEvent(entityId,
+                                                                      currentTimeInMillis,
+                                                      ActionEventType.RECOMMENDATION_REMOVED,
+                                                      staleActionId,
+                                                      null,
                                                             staleActionInfo);
                     staleActionEvents.add(staleActionEvent);
                     logger.debug("Added stale event for action {}, entity {},"
@@ -496,9 +462,10 @@ public class ActionListener implements ActionsListener {
                                  staleActionId, entityId, staleActionInfo.getSourceOid(),
                                  staleActionInfo.getDestinationOid(),
                                  staleActionInfo.getEntityType());
+                    entityActionStateMap.remove(staleActionId);
                 } else {
-                    logger.debug("Entity {} with old action {} has a different action {} this "
-                                    + "cycle. No stale event generated",
+                    logger.debug("Entity {} with old action {} has a different action {} this cycle."
+                                    + " No stale event generated",
                                  entityId, staleActionId);
                 }
             });
@@ -528,6 +495,7 @@ public class ActionListener implements ActionsListener {
                                             .newBuilder()
                                             .setVisible(true)
                                             .addAllTypes(pendingActionTypes)
+                                            .addAllStates(pendingActionStates)
                                             .addAllModes(pendingActionModes)
                                             .setEnvironmentType(EnvironmentType.CLOUD))
                                         .build())
@@ -567,12 +535,22 @@ public class ActionListener implements ActionsListener {
     }
 
     /**
+     * Getter for entityActionStateMap.
+     *
+     * @return entityActionStateMap;
+     */
+    @VisibleForTesting
+    protected Map<Long, ActionState> getEntityActionStateMap() {
+        return entityActionStateMap;
+    }
+
+    /**
      * Getter for currentPendingActionsActionSpecToEntityIdMap.
      *
      * @return currentPendingActionsActionSpecToEntityIdMap.
      */
     @VisibleForTesting
-    Map<EntityActionInfo, Long> getExistingPendingActionsInfoToEntityIdMap() {
+    protected Map<EntityActionInfo, Long> getCurrentPendingActionsActionSpecToEntityIdMap() {
         return existingPendingActionsInfoToEntityId;
     }
 
@@ -605,11 +583,6 @@ public class ActionListener implements ActionsListener {
             actionIdToEntityPriceChange.put(entityActionInfo.getActionId(), actionPriceChange);
         });
         return actionIdToEntityPriceChange;
-    }
-
-    @VisibleForTesting
-    Cache<Long, EntityActionInfo> getExecutedActionsCache() {
-        return executedActionsCache;
     }
 
     /**
@@ -730,7 +703,7 @@ public class ActionListener implements ActionsListener {
          * <p>This field should not be used for comparison in the equals and
          * hashCode() methods as it can change.
          */
-        private ActionState actionState;
+        private final ActionState actionState;
 
         /**
          * RecommendationTime of the original action.
@@ -901,15 +874,6 @@ public class ActionListener implements ActionsListener {
          */
         protected ActionState getActionState() {
             return actionState;
-        }
-
-        /**
-         * Setter for actionState.
-         *
-         * @param actionState new action state.
-         */
-        public void setActionState(ActionState actionState) {
-            this.actionState = actionState;
         }
 
         /**

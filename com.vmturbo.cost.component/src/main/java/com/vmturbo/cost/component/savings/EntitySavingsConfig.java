@@ -112,11 +112,6 @@ public class EntitySavingsConfig {
     private Long actionLifetimeHours;
 
     /**
-     * Number of hours after which to expire entries in ActionListener's executedActionsCache.  Default 1.
-     */
-    @Value("${defaultHoursForExecutedActionsCacheExpiry:1}")
-    private int hoursForExecutedActionsCacheExpiry;
-    /**
      * Real-Time Context Id.
      */
     @Value("${realtimeTopologyContextId}")
@@ -218,16 +213,11 @@ public class EntitySavingsConfig {
      */
     @Bean
     public ActionListener actionListener() {
-        ActionListener actionListener =
-                                      new ActionListener(entityEventsJournal(), actionsService(),
-                                                     costService(),
-                                                     entityCostConfig.entityCostStore(),
-                                                     entityCostConfig.projectedEntityCostStore(),
-                                                     realtimeTopologyContextId,
-                                                     supportedEntityTypes, supportedActionTypes,
-                                                     getActionLifetimeMs(),
-                                                     getDeleteVolumeActionLifetimeMs(),
-                                                     hoursForExecutedActionsCacheExpiry);
+        ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
+                costService(), entityCostConfig.entityCostStore(),
+                entityCostConfig.projectedEntityCostStore(), realtimeTopologyContextId,
+                supportedEntityTypes, supportedActionTypes,
+                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
