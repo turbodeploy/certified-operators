@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.api.component.external.api.mapper.ActionSpecMapper.mapXlActionStateToApi;
+import static com.vmturbo.common.protobuf.cost.Cost.CostCategory.ON_DEMAND_COMPUTE;
+import static com.vmturbo.common.protobuf.cost.Cost.CostCategory.ON_DEMAND_LICENSE;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -14,6 +16,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -68,11 +71,14 @@ import com.vmturbo.api.dto.QueryInputApiDTO;
 import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicInputApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
+import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
@@ -129,6 +135,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -162,6 +169,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Unit tests for {@link ActionSpecMapper}.
@@ -1300,6 +1308,91 @@ public class ActionSpecMapperTest {
             .setExclusionFilter(true)
             .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
             .build()));
+    }
+
+    /**
+     * Test that the on-demand cost and on-demand rate values can be properly aggregated and
+     * populated in the newly constructed action details.
+     */
+    @Test
+    public void testCloudProvisionSuspendActionDetails() {
+        // Set up
+        final long provisionedVMId = 1;
+        final long suspendedVMId = 2;
+        // The OnDemand cost has two records, one simulates the compute cost, the other simulates
+        // the license cost. The RPC call can get both values in one call.
+        final Cost.CloudCostStatRecord provisionedVMRecord = Cost.CloudCostStatRecord.newBuilder()
+                .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                        .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                .setAvg(10f)
+                                .setTotal(10f))
+                        .setAssociatedEntityId(provisionedVMId))
+                .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                        .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                .setAvg(20f)
+                                .setTotal(20f))
+                        .setAssociatedEntityId(provisionedVMId))
+                .build();
+        final Cost.CloudCostStatRecord suspendedVMRecord = Cost.CloudCostStatRecord.newBuilder()
+                .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                        .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                .setAvg(30f)
+                                .setTotal(30f))
+                        .setAssociatedEntityId(suspendedVMId))
+                .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
+                        .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                .setAvg(40f)
+                                .setTotal(40f))
+                        .setAssociatedEntityId(suspendedVMId))
+                .build();
+        final Cost.GetCloudCostStatsResponse costResult = Cost.GetCloudCostStatsResponse
+                .newBuilder()
+                .addCloudStatRecord(provisionedVMRecord)
+                .addCloudStatRecord(suspendedVMRecord)
+                .build();
+        // For OnDemand rate, we need to issue two separate calls for compute rate, and license rate
+        // respectively. In this test, I am assuming both calls will return the same rateResult.
+        final Cost.GetTierPriceForEntitiesResponse rateResult = Cost.GetTierPriceForEntitiesResponse
+                .newBuilder()
+                .putBeforeTierPriceByEntityOid(provisionedVMId,
+                        CurrencyAmount.newBuilder().setAmount(17d).build())
+                .putBeforeTierPriceByEntityOid(suspendedVMId,
+                        CurrencyAmount.newBuilder().setAmount(27d).build())
+                .build();
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+                ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+                .thenReturn(Collections.singletonList(costResult));
+        ArgumentCaptor<Cost.GetTierPriceForEntitiesRequest> rateParamCaptor =
+                ArgumentCaptor.forClass(Cost.GetTierPriceForEntitiesRequest.class);
+        when(costServiceMole.getTierPriceForEntities(rateParamCaptor.capture()))
+                .thenReturn(rateResult);
+        // Test
+        Map<Long, ActionDetailsApiDTO> provisionActionDetails = new HashMap<>();
+        Map<Long, ActionDetailsApiDTO> suspendActionDetails = new HashMap<>();
+                mapper.createCloudProvisionSuspendActionDetailsDTOs(
+                        Collections.singleton(provisionedVMId),
+                        Collections.singleton(suspendedVMId),
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                        provisionActionDetails,
+                        suspendActionDetails);
+        assertEquals(1, provisionActionDetails.size());
+        assertEquals(1, suspendActionDetails.size());
+        final ActionDetailsApiDTO provision = provisionActionDetails.get(provisionedVMId);
+        final ActionDetailsApiDTO suspend = suspendActionDetails.get(suspendedVMId);
+        assertNotNull(provision);
+        assertNotNull(suspend);
+        // Assert that we get the correct result:
+        // OnDemandRate (two calls returning the same result):
+        //   - Provision  17 + 17 = 34
+        //   - Suspension 27 + 27 = 54
+        assertEquals(34, ((CloudProvisionActionDetailsApiDTO)provision).getOnDemandRate(), 0);
+        assertEquals(54, ((CloudSuspendActionDetailsApiDTO)suspend).getOnDemandRate(), 0);
+        // OnDemandCost:
+        //   - Provision  10 + 20 = 30
+        //   - Suspension 30 + 40 = 70
+        assertEquals(30, ((CloudProvisionActionDetailsApiDTO)provision).getOnDemandCost(), 0);
+        assertEquals(70, ((CloudSuspendActionDetailsApiDTO)suspend).getOnDemandCost(), 0);
     }
 
     /**
