@@ -7,15 +7,16 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -86,11 +87,16 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     );
 
     /**
-     * Set of EntityTypes whose providers we need to propagate the update for CPU scalingFactor to.
+     * Map of EntityTypes to Set of supported provider EntityTypes where we need to propagate the
+     * update for CPU scalingFactor to.
+     *
+     * <p>Specifically, for ContainerPods, although VMs are also providers, we explicitly exclude
+     * them from pod providers to update here because the scalingFactor of VM should be set via hosts.
      */
-    private static final IntPredicate ENTITIES_TO_UPDATE_PROVIDERS =
-            (type) -> type == EntityType.CONTAINER_POD_VALUE
-                || type == EntityType.WORKLOAD_CONTROLLER_VALUE;
+    private static final Map<Integer, Set<Integer>> ENTITIES_TO_UPDATE_PROVIDERS =
+        ImmutableMap.of(EntityType.CONTAINER_POD_VALUE,
+            ImmutableSet.of(EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE),
+            EntityType.WORKLOAD_CONTROLLER_VALUE, ImmutableSet.of(EntityType.NAMESPACE_VALUE));
 
     private final CpuCapacityStore cpuCapacityStore;
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
@@ -175,10 +181,13 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
         // respect reseller logic so that VCPULimitQuota commodity sold by WorkloadController and
         // Namespace is consistent with VCPU commodity bought by ContainerPod.
         // We only need to do this if we updated any bought commodities.
-        if (boughtModified > 0 && ENTITIES_TO_UPDATE_PROVIDERS.test(entityToUpdate.getEntityType())) {
-            entityToUpdate.getProviders().forEach(
-                provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
-            );
+        Set<Integer> providerTypesToUpdate = ENTITIES_TO_UPDATE_PROVIDERS.get(entityToUpdate.getEntityType());
+        if (boughtModified > 0 && providerTypesToUpdate != null) {
+            entityToUpdate.getProviders().stream()
+                .filter(provider -> providerTypesToUpdate.contains(provider.getEntityType()))
+                .forEach(
+                    provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
+                );
         }
     }
 
