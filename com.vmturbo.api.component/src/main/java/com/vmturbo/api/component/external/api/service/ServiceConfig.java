@@ -410,7 +410,8 @@ public class ServiceConfig {
                 mapperConfig.groupFilterMapper(),
                 businessAccountRetriever(),
                 communicationConfig.serviceProviderExpander(),
-                mapperConfig.paginationMapper());
+                mapperConfig.paginationMapper(),
+                userSessionConfig.userSessionContext());
     }
 
     @Bean

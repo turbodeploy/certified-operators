@@ -105,6 +105,7 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -255,6 +256,8 @@ public class GroupsService implements IGroupsService {
 
     private final PaginationMapper paginationMapper;
 
+    private final UserSessionContext userSessionContext;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -275,7 +278,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final GroupFilterMapper groupFilterMapper,
                   @Nonnull final BusinessAccountRetriever businessAccountRetriever,
                   @Nonnull final ServiceProviderExpander serviceProviderExpander,
-                  @Nonnull final PaginationMapper paginationMapper) {
+                  @Nonnull final PaginationMapper paginationMapper,
+                  @Nonnull final UserSessionContext userSessionContext) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -297,6 +301,7 @@ public class GroupsService implements IGroupsService {
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
         this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -1326,9 +1331,12 @@ public class GroupsService implements IGroupsService {
          *      Currently group component doesn't support ordering groups  by COST.
          * - if scopes are being specified:
          *      Currently group component doesn't support filtering groups by a specified scope.
+         * - if the user is scoped:
+         *      Same as the previous one.
          */
         if (paginationRequest.getOrderBy() == SearchOrderBy.COST
-                || !CollectionUtils.isEmpty(scopes)) {
+                || !CollectionUtils.isEmpty(scopes)
+                || userSessionContext.isUserScoped()) {
             final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(
                     groupType == null ? GroupType.REGULAR : groupType,
                     filterList, scopes, includeAllGroupClasses, groupOrigin).build();

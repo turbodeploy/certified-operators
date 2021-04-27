@@ -94,7 +94,9 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
@@ -103,6 +105,7 @@ import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -228,6 +231,9 @@ public class GroupsServiceTest {
     @Mock
     private PaginationMapper paginationMapperMock;
 
+    @Mock
+    private UserSessionContext userSessionContextMock;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
@@ -289,7 +295,8 @@ public class GroupsServiceTest {
                 groupFilterMapper,
                 businessAccountRetriever,
                 serviceProviderExpander,
-                paginationMapperMock) {
+                paginationMapperMock,
+                userSessionContextMock) {
             @Override
             protected String getUsername() {
                 return "testUser";
@@ -1997,6 +2004,58 @@ public class GroupsServiceTest {
         assertEquals(1, capturedGroupFilter.getOriginFilter().getOriginCount());
         assertEquals(GroupsService.API_ORIGIN_TO_GROUPDTO_ORIGIN.get(origin),
                 capturedGroupFilter.getOriginFilter().getOriginList().get(0));
+    }
+
+    /**
+     * Tests the cases for which {@link GroupsService#getPaginatedGroupApiDTOs} uses the old
+     * implementation (retrieving all groups from group component and paginating inside the api
+     * component instead of forwarding the paginated query to group component).
+     * Currently there are 3 cases:
+     * - if orderBy is set to COST,
+     * - if scopes parameter is present,
+     * - if the user is a scoped user.
+     * As the relevant functionality is being implemented in group component (see OM-65839 for
+     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
+     * eventually the entire test should be removed, once everything is being forwarded to group
+     * component.
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsNotForwardingRequest()
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any()))
+                .thenReturn(GroupFilter.newBuilder());
+
+        // orderBy COST
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        String orderBy = "COST";
+        SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, null, false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scoped user
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        orderBy = "SEVERITY";
+        paginationRequest = new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, null, false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scopes parameter
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        final Long scope = 123L;
+        final ApiId apiId = mock(ApiId.class);
+        when(uuidMapper.fromUuid(scope.toString())).thenReturn(apiId);
+        when(apiId.oid()).thenReturn(scope);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, Collections.singletonList(scope.toString()), false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
     /**
