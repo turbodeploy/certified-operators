@@ -136,7 +136,6 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
             remoteIpAddress = ((WebAuthenticationDetails)authentication.getDetails()).getRemoteAddress();
         }
         logger.debug("OpenID user name: " + email);
-        Optional<String> group = Optional.empty();
         if (authentication.getPrincipal() instanceof DefaultOidcUser) {
             DefaultOidcUser user = (DefaultOidcUser)authentication.getPrincipal();
             // Use the user's email address if returned
@@ -146,18 +145,26 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
             }
             // Use the first group of the user if returned
             if (user.getAttributes().get("groups") instanceof JSONArray) {
-                JSONArray groups = (JSONArray)user.getAttributes().get("groups");
-                logger.debug("OpenID user groups: " + groups.toString());
-                if (groups.size() > 0) {
-                    group = Optional.of(groups.get(0).toString());
+                JSONArray jsongroups = (JSONArray)user.getAttributes().get("groups");
+                logger.debug("OpenID user groups: " + jsongroups.toString());
+                if (jsongroups.size() > 1) {
+                    Authentication resultAuthentication = authProvider
+                        .authorize(email, (String[]) jsongroups.toArray(), remoteIpAddress, componentJwtStore);
+                    SecurityContextHolder.getContext()
+                        .setAuthentication(resultAuthentication);
+                } else {
+                    Authentication resultAuthentication = authProvider
+                        .authorize(email, Optional.of(jsongroups.get(0).toString()), remoteIpAddress, componentJwtStore);
+                    SecurityContextHolder.getContext()
+                        .setAuthentication(resultAuthentication);
                 }
+                return;
             }
         }
         Authentication resultAuthentication = authProvider
-            .authorize(email, group, remoteIpAddress, componentJwtStore);
-
-    SecurityContextHolder.getContext()
-                .setAuthentication(resultAuthentication);
+            .authorize(email, Optional.empty(), remoteIpAddress, componentJwtStore);
+        SecurityContextHolder.getContext()
+            .setAuthentication(resultAuthentication);
     }
 
     public void setRequestCache(RequestCache requestCache) {
