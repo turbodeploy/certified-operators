@@ -38,6 +38,7 @@ import com.vmturbo.platform.analysis.actions.ReconfigureProvider;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -116,17 +117,6 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Average;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Delta;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.ExternalUpdateFunction;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.IgnoreConsumption;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.ProjectSecond;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.StandardDistribution;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdateCoupon;
-
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
@@ -248,7 +238,7 @@ public final class AnalysisToProtobuf {
     /**
      * Converts a {@link UpdatingFunction} to a {@link UpdatingFunctionTO}. 
      *
-     * @param input The {@link UpdatingFunction} to convert.
+     * @param updatingFunction The {@link UpdatingFunction} to convert.
      * @return The resulting {@link UpdatingFunctionTO}.
      */
     public static UpdatingFunctionTO updateFunctionTO(@PolyRead UpdatingFunction updatingFunction) {
@@ -674,7 +664,9 @@ public final class AnalysisToProtobuf {
                                             provSupply.getReason() == null
                                                             ? findMostExpensiveCommodity(provSupply
                                                                             .getModelSeller(),
-                                                                            topology.getEconomy())
+                                                                            topology.getEconomy(),
+                                                                            // find expensive comm across all sold comms.
+                                                                            provSupply.getModelSeller().getCommoditiesSold())
                                                             : provSupply.getReason()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
@@ -704,6 +696,22 @@ public final class AnalysisToProtobuf {
                                             resize.getOldCapacity())))
                 .setEndUtilization((float)(resize.getResizedCommodity().getStartQuantity() /
                             resize.getResizedCommodity().getEffectiveCapacity()));
+            Optional<ByProducts> byProducts = topology.getEconomy().getByProducts(resize.getResizedCommoditySpec().getBaseType());
+            if (byProducts.isPresent()) {
+                List<CommoditySold> potentialReasonCommodities = new ArrayList<>();
+                potentialReasonCommodities.add(resize.getResizedCommodity());
+                Trader targetTrader = resize.getSellingTrader();
+                for (int baseType : byProducts.get().getByProducts()) {
+                    int index = targetTrader.getBasketSold().indexOfBaseType(baseType);
+                    if (index != -1) {
+                        potentialReasonCommodities.add(targetTrader.getCommoditiesSold().get(index));
+                    }
+                }
+                // find most expensive across target comm and all by products.
+                resizeBuilder.setReasonCommodity(commoditySpecificationTO(findMostExpensiveCommodity(targetTrader,
+                                                                                topology.getEconomy(),
+                                                                                potentialReasonCommodities)));
+            }
             String scalingGroupId = resize.getSellingTrader().getScalingGroupId();
             if (!scalingGroupId.isEmpty()) {
                 resizeBuilder.setScalingGroupId(scalingGroupId);
@@ -901,34 +909,47 @@ public final class AnalysisToProtobuf {
         }
     }
 
-
     /**
-     * Finds the commodity with the highest price for a given trader.
+     * Finds the commodity with the highest price from a list of commodities sold by a given trader.
      *
-     * @param modelSeller the model seller used in provision or activation
+     * @param seller the seller that sells the commodity.
      * @param economy that the commodities are traded in
      * @return the {@link CommoditySpecification} of the most expensive commodity
      */
-    private static CommoditySpecification findMostExpensiveCommodity(Trader modelSeller,
-                                                                     UnmodifiableEconomy economy) {
+    private static CommoditySpecification findMostExpensiveCommodity(Trader seller,
+                                                                     UnmodifiableEconomy economy,
+                                                                     List<CommoditySold> commoditySoldList) {
         double mostExpensivePrice = 0;
         CommoditySpecification mostExpensiveComm = null;
         // we find the most expensive commodity at the start state to explain the provisionBySupply
         // Since we are calculating price for commodity sold, shopping list is passed as null
-        for (CommoditySold c : modelSeller.getCommoditiesSold()) {
-            double usedPrice = c.getSettings().getPriceFunction().unitPrice(c.getStartQuantity() /
-                            c.getEffectiveCapacity(), null, modelSeller, c, economy);
-            double peakPrice = c.getSettings().getPriceFunction().unitPrice(Math.max(0,
-                            c.getStartPeakQuantity() - c.getStartQuantity())
-                               / (c.getEffectiveCapacity() - c.getSettings().getUtilizationUpperBound()
-                                               * c.getStartQuantity()), null, modelSeller, c, economy);
-            double greaterPrice = usedPrice > peakPrice ? usedPrice : peakPrice;
+        for (CommoditySold c : commoditySoldList) {
+            double greaterPrice = findPriceOfCommodity(seller, economy, c);
             if (mostExpensivePrice < greaterPrice) {
                 mostExpensivePrice = greaterPrice;
-                mostExpensiveComm = modelSeller.getBasketSold().get(modelSeller.getCommoditiesSold().indexOf(c));
+                mostExpensiveComm = seller.getBasketSold().get(seller.getCommoditiesSold().indexOf(c));
             }
         }
         return mostExpensiveComm;
+    }
+
+    /**
+     * Finds the price of a commodity for a given trader.
+     *
+     * @param seller the trader that sells a list of commodities.
+     * @param economy that the commodities are traded in.
+     * @param commodity to calculate the price for.
+     * @return the highest of the usedPrice or peakPrice of the commodity.
+     */
+    private static double findPriceOfCommodity(Trader seller, UnmodifiableEconomy economy,
+                                        CommoditySold commodity) {
+        double usedPrice = commodity.getSettings().getPriceFunction().unitPrice(commodity.getStartQuantity() /
+                commodity.getEffectiveCapacity(), null, seller, commodity, economy);
+        double peakPrice = commodity.getSettings().getPriceFunction().unitPrice(Math.max(0,
+                commodity.getStartPeakQuantity() - commodity.getStartQuantity())
+                / (commodity.getEffectiveCapacity() - commodity.getSettings().getUtilizationUpperBound()
+                * commodity.getStartQuantity()), null, seller, commodity, economy);
+        return usedPrice > peakPrice ? usedPrice : peakPrice;
     }
 
     /**
