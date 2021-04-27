@@ -826,6 +826,11 @@ public class ExplanationComposer {
         if (isResizeDown) {
             return UNDERUTILIZED_EXPLANATION + commodityType;
         } else {
+            if (resize.hasReason()) {
+                final String reasonCommodityType = convertStorageAccessToIops.apply(commodityDisplayName(resize.getReason(), keepItShort)) +
+                        (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+                return reasonCommodityType + CONGESTION_EXPLANATION;
+            }
             return commodityType + CONGESTION_EXPLANATION;
         }
     }

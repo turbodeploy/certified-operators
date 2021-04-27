@@ -598,8 +598,8 @@ public class ExplanationComposerTest {
                     .setTarget(ActionEntity.newBuilder()
                         .setId(0)
                         .setType(EntityType.VIRTUAL_MACHINE.getNumber()))
-                    .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.VMEM_VALUE))))
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.VCPU_VALUE))))
             .setExplanation(Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
                     .setDeprecatedStartUtilization(0.2f)
@@ -608,33 +608,36 @@ public class ExplanationComposerTest {
 
         // test resize down by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
-        assertEquals("(^_^)~Underutilized VMem in Virtual Machine {entity:0:displayName:}",
+        assertEquals("(^_^)~Underutilized VCPU in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
-        assertEquals(Collections.singleton("Underutilized VMem"),
+        assertEquals(Collections.singleton("Underutilized VCPU"),
             ExplanationComposer.composeRelatedRisks(action.build()));
-        assertEquals("(^_^)~Underutilized VMem in Virtual Machine Danny",
+        assertEquals("(^_^)~Underutilized VCPU in Virtual Machine Danny",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
 
         // test resize up by capacity
-        action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4).build();
-        assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}",
+        action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4)
+                .setReason(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
+                .build();
+        assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
-        assertEquals(Collections.singleton("VMem Congestion"),
+        assertEquals(Collections.singleton("VCPU Throttling Congestion"),
             ExplanationComposer.composeRelatedRisks(action.build()));
-        assertEquals("(^_^)~VMem Congestion in Virtual Machine Danny",
+        assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine Danny",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
 
-        // Test the resize down again with scaling group information
+        // Test the resize up again with scaling group information
         action.getExplanationBuilder().getResizeBuilder()
             .setScalingGroupId("example scaling group");
-        assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}" +
+        assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine {entity:0:displayName:}" +
                 " (Auto Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build()));
-        assertEquals(Collections.singleton("VMem Congestion"),
+        assertEquals(Collections.singleton("VCPU Throttling Congestion"),
             ExplanationComposer.composeRelatedRisks(action.build()));
-        assertEquals("(^_^)~VMem Congestion in Virtual Machine Danny"
+        assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine Danny"
                 + " (Auto Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
