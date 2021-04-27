@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.topology.processor.migration.V_01_00_05__Standalone_AWS_Billing.FIELD_TARGET_INFO;
+import static com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore.PROBE_PROPERTY_PREFIX;
 
 import java.io.StringReader;
 import java.util.HashMap;
@@ -11,11 +12,9 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonIOException;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
-import com.google.gson.JsonSyntaxException;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
@@ -69,12 +68,20 @@ public abstract class AbstractProbeTargetMigration extends AbstractMigration {
                 keyValueStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX);
         for (Entry<String, String> entry : persistedProbes.entrySet()) {
             final String consulProbeKey = entry.getKey();
+            // Probe properties are also stored in consul with key starting with PROBE_KV_STORE_PREFIX:
+            // Regular probe key stored in consul - "probes/73548994127888"
+            // Probe property key stored in consul - "probes/73444795833808/probeproperties/monitoring.thread.timeout.sec"
+            // Skip entries for probe properties.
+            if (consulProbeKey.contains(PROBE_PROPERTY_PREFIX)) {
+                logger.trace("Skipping entry for probe property " + consulProbeKey);
+                continue;
+            }
             final String probeId = consulProbeKey.substring(ProbeStore.PROBE_KV_STORE_PREFIX.length());
             JsonObject json = null;
             try {
                 JsonReader reader = new JsonReader(new StringReader(entry.getValue()));
                 json = new JsonParser().parse(reader).getAsJsonObject();
-            } catch (IllegalStateException | JsonIOException | JsonSyntaxException e) {
+            } catch (RuntimeException e) {
                 logger.error("probeId={} unable to read JSON!", probeId);
                 continue;
             }
@@ -98,6 +105,14 @@ public abstract class AbstractProbeTargetMigration extends AbstractMigration {
                 keyValueStore.getByPrefix(TargetStore.TARGET_KV_STORE_PREFIX);
         for (Entry<String, String> entry : persistedTargets.entrySet()) {
             final String consulTargetKey = entry.getKey();
+            // Target probe properties are also stored in consul with key starting with TARGET_KV_STORE_PREFIX:
+            // Regular target key stored in consul - "targets/73732399126048"
+            // Target probe property key stored in consul - "targets/73826873424496/probeproperties/executor.service.timeout.sec"
+            // Skip entries for target properties.
+            if (consulTargetKey.contains(PROBE_PROPERTY_PREFIX)) {
+                logger.trace("Skipping entry for target probe property " + consulTargetKey);
+                continue;
+            }
             try {
                 final JsonReader reader = new JsonReader(new StringReader(entry.getValue()));
                 final JsonObject secretFields = new JsonParser().parse(reader).getAsJsonObject();
@@ -107,7 +122,7 @@ public abstract class AbstractProbeTargetMigration extends AbstractMigration {
                 final JsonObject targetInfoObject = new JsonParser().parse(reader2).getAsJsonObject();
                 // Process target and update consul
                 processIndividualTarget(secretFields, targetInfoObject, consulTargetKey);
-            } catch (JsonIOException | JsonSyntaxException e) {
+            } catch (RuntimeException e) {
                 logger.error("Could not process target " + consulTargetKey, e);
                 continue;
             }

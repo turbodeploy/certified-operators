@@ -34,6 +34,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
+import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -47,6 +49,8 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
     private static final String PROBE_1_ID = "probes/73548994148144";
     private static final String PROBE_2_ID = "probes/73548994134528";
     private static final String PROBE_3_ID = "probes/73548994127888";
+    private static final String PROBE_PROPERTY_KEY = "probes/73444795833808/probeproperties/monitoring.thread.timeout.sec";
+    private static final String PROBE_PROPERTY_VALUE = "21";
 
     private static final String TARGET_1_ID = "targets/73732399126048";
     private static final String AWS_BILLING_TARGET = "{\"secretFields\":[\"secretField1\",\"secretField2\"]}{\"targetInfo\":\"{\\n  \\\"id\\\": \\\"73732399126048"
@@ -88,6 +92,9 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
             + "\\\",\\n      \\\"stringValue\\\": \\\"aws_qa\\\"\\n    }, {\\n      \\\"key\\\": \\\"password\\\",\\n      \\\"stringValue\\\": \\\"password\\\"\\n    }],\\n    "
             + "\\\"isHidden\\\": false,\\n    \\\"readOnly\\\": false,\\n    \\\"derivedTargetIds\\\": [\\\"73532264562736\\\"]\\n  },\\n  \\\"displayName\\\": \\\"aws_qa\\\"\\n}\"}";
 
+    private static final String TARGET_PROBE_PROPERTY_KEY = "targets/73826873424496/probeproperties/executor.service.timeout.sec";
+    private static final String TARGET_PROBE_PROPERTY_VALUE = "421";
+
     /**
      * Test migration for AWS probes and targets.
      */
@@ -103,13 +110,18 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
         probesAndTargets.put(PROBE_1_ID, probe1);
         probesAndTargets.put(PROBE_2_ID, probe2);
         probesAndTargets.put(PROBE_3_ID, probe3);
+        probesAndTargets.put(PROBE_PROPERTY_KEY, PROBE_PROPERTY_VALUE);
         probesAndTargets.put(TARGET_1_ID, AWS_BILLING_TARGET);
         probesAndTargets.put(TARGET_2_ID, AWS_COST_TARGET);
         probesAndTargets.put(TARGET_3_ID, AWS_TARGET);
         probesAndTargets.put(TARGET_4_ID, AWS_TARGET_2);
+        probesAndTargets.put(TARGET_PROBE_PROPERTY_KEY, TARGET_PROBE_PROPERTY_VALUE);
 
         KeyValueStore consul = new FakeKeyValueStore(probesAndTargets);
-        new V_01_01_08__AWS_Add_AccountType(consul).doStartMigration();
+        MigrationProgressInfo migrationResult = new V_01_01_08__AWS_Add_AccountType(consul).doStartMigration();
+        // Verify that migration is successful.
+        assertEquals(MigrationStatus.SUCCEEDED, migrationResult.getStatus());
+
 
         // Test that AWS billing probe is not updated.
         final Optional<String> newProbe1 = consul.get(PROBE_1_ID);
@@ -124,6 +136,10 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
         final Optional<String> newProbe3 = consul.get(PROBE_3_ID);
         assertTrue(probeHasAccountType(newProbe3.get()));
         assertFalse(probe3 == newProbe3.get());
+        // Verify that probe property is skipped during processing.
+        final Optional<String> newProbeProperty = consul.get(PROBE_PROPERTY_KEY);
+        assertTrue(newProbeProperty.isPresent());
+        assertTrue(newProbeProperty.get() == PROBE_PROPERTY_VALUE);
 
         // Test that AWS and AWS Cost targets are updated with accountType as Standard,
         // while AWS Billing target not.
@@ -140,6 +156,10 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
         final Optional<String> newTarget4 = consul.get(TARGET_4_ID);
         assertTrue(targetHasStandardAccountType(newTarget4.get()));
         assertTrue(AWS_TARGET_2 == newTarget4.get());
+        // Verify that target probe property is skipped during processing.
+        final Optional<String> newTargetProbeProperty = consul.get(TARGET_PROBE_PROPERTY_KEY);
+        assertTrue(newTargetProbeProperty.isPresent());
+        assertTrue(newTargetProbeProperty.get() == TARGET_PROBE_PROPERTY_VALUE);
     }
 
     private boolean probeHasAccountType(String probeString) {

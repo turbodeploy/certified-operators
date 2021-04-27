@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -47,7 +46,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
  * alphanumeric characters, dots, and underscores.
  */
 public class KVBackedProbePropertyStore implements ProbePropertyStore {
-    private static final String PROBE_PROPERTY_PREFIX = "probeproperties/";
+    public static final String PROBE_PROPERTY_PREFIX = "probeproperties/";
     private static final Logger logger = LogManager.getLogger();
 
     /**
