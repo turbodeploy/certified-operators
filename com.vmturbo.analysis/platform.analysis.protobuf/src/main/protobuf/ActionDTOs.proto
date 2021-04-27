@@ -237,6 +237,8 @@ message ResizeTO {
 
     // Resize causing trader related specifications.
     repeated ResizeTriggerTraderTO resize_trigger_trader = 8;
+
+    optional CommoditySpecificationTO reason_commodity = 9;
 }
 
 // Resize causing trader related specifications.

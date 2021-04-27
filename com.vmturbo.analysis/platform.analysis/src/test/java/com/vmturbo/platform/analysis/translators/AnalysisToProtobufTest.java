@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -18,6 +19,9 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
+import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
+import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunctionFactory;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -39,6 +43,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -75,6 +80,7 @@ public class AnalysisToProtobufTest {
     private static final Economy e = new Economy();
     private static final CommoditySpecification CPU = new CommoditySpecification(100, 1000);
     private static final CommoditySpecification MEM = new CommoditySpecification(101, 1001);
+    private static final CommoditySpecification BYPROD = new CommoditySpecification(102, 1002);
     private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(200);
     private static final Basket empty = new Basket();
     private static final Basket basketBought1 = new Basket(CPU, MEM);
@@ -164,8 +170,15 @@ public class AnalysisToProtobufTest {
         pm1.getCommoditySold(MEM).setCapacity(100).setQuantity(10);
         pm2.getCommoditySold(CPU).setCapacity(25).setQuantity(10);
         pm2.getCommoditySold(MEM).setCapacity(200).setQuantity(10);
+        Map<Integer, ProjectionFunction> projectionFunctionMap = new HashMap<>();
+        projectionFunctionMap.put(BYPROD.getBaseType(), ProjectionFunctionFactory.createProjectionFunction(UpdatingFunctionDTOs
+                .UpdatingFunctionTO.newBuilder().setMm1Distribution(UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution.newBuilder()
+                        .addDependentCommodities(UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity.newBuilder()
+                                .setCommodityType(BYPROD.getBaseType()).build())
+                        .build()).build()));
 
         Topology topo = new Topology();
+        topo.getModifiableByProductsMap().put(CPU.getBaseType(), new ByProducts(projectionFunctionMap));
         Map<@NonNull Long, @NonNull Trader> traderOids = null;
         BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids = null;
         ShoppingList shop1 = null;
@@ -303,11 +316,24 @@ public class AnalysisToProtobufTest {
         ActionTO resizeTO = ActionTO.newBuilder().setResize(ResizeTO.newBuilder()
                         .setSellingTrader(2l).setNewCapacity(500).setOldCapacity(15)
                         .setStartUtilization(0).setEndUtilization(0)
-                        .setSpecification(
-                                        CommoditySpecificationTO.newBuilder().setType(100)
-                                                        .setBaseType(1000)
-                                                        .build())).setImportance((float)
-                                                        ((ActionImpl)resize).getImportance())
+                        .setReasonCommodity(CommoditySpecificationTO.newBuilder().setType(CPU.getType())
+                                .setBaseType(CPU.getBaseType())
+                                .build())
+                        .setSpecification(CommoditySpecificationTO.newBuilder().setType(CPU.getType())
+                                .setBaseType(CPU.getBaseType())
+                                .build()))
+                    .setImportance((float)((ActionImpl)resize).getImportance())
+                    .setIsNotExecutable(false)
+                    .build();
+
+        Action resize2 = new Resize(e, pm1, MEM, 500);
+        ActionTO resizeTO2 = ActionTO.newBuilder().setResize(ResizeTO.newBuilder()
+                        .setSellingTrader(2l).setNewCapacity(500).setOldCapacity(100)
+                        .setStartUtilization(0).setEndUtilization(0)
+                        .setSpecification(CommoditySpecificationTO.newBuilder().setType(MEM.getType())
+                                .setBaseType(MEM.getBaseType())
+                                .build()))
+                        .setImportance((float)((ActionImpl)resize).getImportance())
                         .setIsNotExecutable(false)
                         .build();
 
@@ -366,6 +392,8 @@ public class AnalysisToProtobufTest {
                         {provisionBySupply, shoppingListOids, topo,
                                         provisionBySupplyTO},
                         {resize, shoppingListOids, topo, resizeTO},
+                        // resize up without reason
+                        {resize2, shoppingListOids, topo, resizeTO2},
                         {reconfigure, shoppingListOids, topo, reconfigureTO},
                         {compoundMove, shoppingListOids, topo,
                                         compoundMoveActionTO}};
