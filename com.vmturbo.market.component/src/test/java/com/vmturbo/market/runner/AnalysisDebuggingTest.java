@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -34,8 +33,6 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -59,6 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -70,6 +68,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -268,7 +267,7 @@ public class AnalysisDebuggingTest {
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                   false, false)
+                   false, false, false)
                 .setIncludeVDC(analysisInput.getIncludeVdc())
                 .setUseQuoteCacheDuringSNM(analysisInput.getUseQuoteCacheDuringSnm())
                 .setReplayProvisionsForRealTime(analysisInput.getReplayProvisionsForRealTime())

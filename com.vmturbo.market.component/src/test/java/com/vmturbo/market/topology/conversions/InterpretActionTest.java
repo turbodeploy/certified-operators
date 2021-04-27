@@ -1159,6 +1159,7 @@ public class InterpretActionTest {
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
                 null);
+        interpreter.enableContainerClusterScalingCost(true);
 
         final ActionTO deactivateActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -1278,6 +1279,7 @@ public class InterpretActionTest {
                 CommodityIndex.newFactory()::newIndex,
                 null);
 
+        interpreter.enableContainerClusterScalingCost(true);
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
                         .setKey("Seg")
