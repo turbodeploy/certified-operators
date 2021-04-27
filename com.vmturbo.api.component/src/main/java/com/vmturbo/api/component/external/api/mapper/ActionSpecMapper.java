@@ -56,7 +56,9 @@ import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
+import com.vmturbo.api.dto.action.CloudProvisionActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.CloudSuspendActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -1991,21 +1993,36 @@ public class ActionSpecMapper {
             final Collection<ActionOrchestratorAction> actions, Long topologyContextId) {
 
         Map<String, ActionDetailsApiDTO> response = new HashMap<>();
-        Map<String, Long> actionToEntityUuidMap = new HashMap<>();
+        Map<String, Long> resizeCloudVMActionToVMUuidMap = new HashMap<>();
         Map<String, Long> scaleCloudVolumeActionToVolumeUuidMap = new HashMap<>();
+        Map<String, Long> provisionCloudVMActionToVMUuidMap = new HashMap<>();
+        Map<String, Long> suspendCloudVMActionToVMUuidMap = new HashMap<>();
 
         for (ActionOrchestratorAction action: actions) {
-            final ActionSpec actionSpec = action.getActionSpec();
-            if (actionSpec == null || !actionSpec.hasRecommendation()) {
+            @Nonnull final ActionSpec actionSpec = action.getActionSpec();
+            if (!actionSpec.hasRecommendation()) {
                 response.put(Long.toString(action.getActionId()), new NoDetailsApiDTO());
                 continue;
             }
-            ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+            // Get the recommended action
+            @Nonnull final ActionDTO.Action recommendation = actionSpec.getRecommendation();
+            // Get primary entity of the action
+            ActionEntity entity;
+            try {
+                entity = ActionDTOUtil.getPrimaryEntity(recommendation);
+            } catch (UnsupportedActionException e) {
+                logger.warn("Cannot create action details due to unsupported action type", e);
+                continue;
+            }
+            final String actionIdString = Long.toString(action.getActionId());
+            final long entityUuid = entity.getId();
+            final int entityType = entity.getType();
+            @Nonnull final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
             // Buy RI action - set est. on-demand cost and coverage values + historical demand data
-            if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
+            if (recommendation.hasExplanation() && actionType.equals(BUY_RI)) {
                 RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
                 // set est RI Coverage
-                ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation().getExplanation().getBuyRI();
+                ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = recommendation.getExplanation().getBuyRI();
                 final double covered = buyRIExplanation.getCoveredAverageDemand();
                 final double capacity = buyRIExplanation.getTotalAverageDemand();
                 detailsDto.setEstimatedRICoverage((float)(covered / capacity) * 100);
@@ -2014,48 +2031,79 @@ public class ActionSpecMapper {
                 // set demand data
                 Cost.riBuyDemandStats snapshots = riStub
                         .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
-                                .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
+                                .setActionId(Long.toString(recommendation.getId())).build());
                 List<StatSnapshotApiDTO> demandList = createRiHistoricalContextStatSnapshotDTO(
                         snapshots.getStatSnapshotsList());
                 detailsDto.setHistoricalDemandData(demandList);
-                response.put(Long.toString(action.getActionId()), detailsDto);
+                response.put(actionIdString, detailsDto);
                 continue;
             }
-
-            if (shouldGetDetailsForActionType(actionSpec.getRecommendation())) {
-                Long cloudEntityUuid = getCloudEntityUuidFromActionSpec(actionSpec);
-                if (Objects.isNull(cloudEntityUuid)) {
-                    continue;
-                }
-                ActionEntity entity;
-                try {
-                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                } catch (UnsupportedActionException e) {
-                    logger.warn("Cannot create action details due to unsupported action type", e);
-                    continue;
-                }
-                final String actionIdString = Long.toString(action.getActionId());
-                // Scaling cloud volume action
-                if (actionType == SCALE && entity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, cloudEntityUuid);
-                } else {
-                    // Scaling cloud VM/DB/DBS action
-                    actionToEntityUuidMap.put(actionIdString, cloudEntityUuid);
-                }
+            // Skip if the entity is not a cloud entity
+            if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+                continue;
+            }
+            // We show action details for
+            // - Cloud VM Provision
+            // - Cloud VM Suspend/Deactivate
+            // - Cloud Migration Move across region
+            // - Cloud Volume Scale
+            // - Cloud Resize
+             switch (actionType) {
+                case PROVISION:
+                    if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        provisionCloudVMActionToVMUuidMap.put(actionIdString, entityUuid);
+                    }
+                    break;
+                case DEACTIVATE:
+                case SUSPEND:
+                    if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        suspendCloudVMActionToVMUuidMap.put(actionIdString, entityUuid);
+                    }
+                    break;
+                case MOVE:
+                    // If we are moving across regions, as in cloud migration for example, then
+                    // we need to show details. Otherwise, skip.
+                    if (!TopologyDTOUtil.isMigrationAction(recommendation)) {
+                        break;
+                    }
+                case RESIZE:
+                case SCALE:
+                case ALLOCATE:
+                    if (actionType == SCALE && entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
+                        // Scaling cloud volume action
+                        scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
+                    } else {
+                        // Scaling cloud VM/DB/DBS action
+                        resizeCloudVMActionToVMUuidMap.put(actionIdString, entityUuid);
+                    }
+                    break;
+                default:
+                    break;
             }
         }
 
-        Map<Long, CloudResizeActionDetailsApiDTO> actionDetailMap =
-                createCloudResizeActionDetailsDTO(actionToEntityUuidMap.values(),
+        Map<Long, CloudResizeActionDetailsApiDTO> cloudResizeActionDetailMap =
+                createCloudResizeActionDetailsDTO(resizeCloudVMActionToVMUuidMap.values(),
                         scaleCloudVolumeActionToVolumeUuidMap.values(), topologyContextId);
-
-        actionToEntityUuidMap.forEach((actionId, entityId) -> {
-            response.put(actionId, actionDetailMap.get(entityId));
+        resizeCloudVMActionToVMUuidMap.forEach((actionId, entityId) -> {
+            response.put(actionId, cloudResizeActionDetailMap.get(entityId));
         });
-
         scaleCloudVolumeActionToVolumeUuidMap.forEach((actionId, volumeId) -> {
-            response.put(actionId, actionDetailMap.get(volumeId));
+            response.put(actionId, cloudResizeActionDetailMap.get(volumeId));
         });
+
+        Map<Long, ActionDetailsApiDTO> cloudProvisionActionDetailMap = new HashMap<>();
+        Map<Long, ActionDetailsApiDTO> cloudSuspendActionDetailMap = new HashMap<>();
+        createCloudProvisionSuspendActionDetailsDTOs(
+                provisionCloudVMActionToVMUuidMap.values(),
+                suspendCloudVMActionToVMUuidMap.values(),
+                topologyContextId,
+                cloudProvisionActionDetailMap,
+                cloudSuspendActionDetailMap);
+        provisionCloudVMActionToVMUuidMap.forEach((actionId, vmId) ->
+                response.put(actionId, cloudProvisionActionDetailMap.get(vmId)));
+        suspendCloudVMActionToVMUuidMap.forEach((actionId, vmId) ->
+                response.put(actionId, cloudSuspendActionDetailMap.get(vmId)));
 
         return response;
     }
@@ -2080,29 +2128,6 @@ public class ActionSpecMapper {
             return null;
         }
         return entityUuid;
-    }
-
-    /**
-     * Whether to show action details. Usual actions like SCALE, RESIZE we show details.
-     * For cloud migration moves across regions, we show details as well.
-     *
-     * @param action Action to check.
-     * @return True if action details need to be fetched.
-     */
-    private boolean shouldGetDetailsForActionType(@Nonnull final ActionDTO.Action action) {
-        ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
-        switch (actionType) {
-            case RESIZE:
-            case SCALE:
-            case ALLOCATE:
-                return true;
-            case MOVE:
-                // If we are moving across regions, as in cloud migration for example, then
-                // we need to show details, so return true in that case.
-                return TopologyDTOUtil.isMigrationAction(action);
-            default:
-                return false;
-        }
     }
 
     /**
@@ -2140,15 +2165,109 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Set on-demand costs for target entity which factors in RI usage.
+     * Create Cloud Provision or Suspend Action Details DTOs for a list of entity ids.
      *
-     * @param topologyContextId - context Id
-     * @param dtoMap - cloud resize action details DTO, key is action target entity id
+     * @param provisionUuids list of cloud VMs to be provisioned
+     * @param suspendUuids list of cloud VMs to be suspended
+     * @param topologyContextId the topology context of the actions
+     * @param provisionActionDetails the map of provision action details
+     * @param suspendActionDetails the map suspend action details
      */
-    private void setOnDemandCosts(Long topologyContextId, Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
-        EntityFilter entityFilter = EntityFilter.newBuilder().addAllEntityId(dtoMap.keySet()).build();
+    public void createCloudProvisionSuspendActionDetailsDTOs(
+            @Nonnull final Collection<Long> provisionUuids,
+            @Nonnull final Collection<Long> suspendUuids,
+            @Nullable final Long topologyContextId,
+            @Nonnull Map<Long, ActionDetailsApiDTO> provisionActionDetails,
+            @Nonnull Map<Long, ActionDetailsApiDTO> suspendActionDetails) {
+        Collection<Long> entityUuids = new HashSet<>(provisionUuids);
+        entityUuids.addAll(suspendUuids);
+        // Get current on-demand costs. For provision and suspend action, we only need to obtain the
+        // cost from the real entity store. There is no need to obtain cost from projected entity
+        // store because for suspend action, the entity is deactivated so there is no associated
+        // cost, and for provision action, the cost will be the same.
+        final Map<Long, Double> onDemandCostsByEntity =
+                getOnDemandCosts(entityUuids, topologyContextId, false)
+                        .values()
+                        .stream()
+                        // Get the records from the first time snapshot
+                        .findFirst()
+                        // Group the records by entityId
+                        .map(currentRecords -> currentRecords.stream()
+                                .collect(Collectors.groupingBy(StatRecord::getAssociatedEntityId,
+                                        Collectors.summingDouble(record -> record.getValues().getTotal()))))
+                        .orElse(new HashMap<>());
+        // Get current on-demand compute rates
+        final Map<Long, CurrencyAmount> onDemandComputeRatesByEntity =
+                getOnDemandRates(entityUuids, CostCategory.ON_DEMAND_COMPUTE, topologyContextId)
+                        .getBeforeTierPriceByEntityOidMap();
+        // Get current on-demand license rates
+        final Map<Long, CurrencyAmount> onDemandLicenseRatesByEntity =
+                getOnDemandRates(entityUuids, CostCategory.ON_DEMAND_LICENSE, topologyContextId)
+                        .getBeforeTierPriceByEntityOidMap();
+        // Sum the on-demand license and compute rates
+        final Map<Long, Double> onDemandRatesByEntity =
+                Stream.of(onDemandComputeRatesByEntity, onDemandLicenseRatesByEntity)
+                        .flatMap(map -> map.entrySet().stream())
+                        .collect(Collectors.groupingBy(Map.Entry::getKey,
+                                Collectors.summingDouble(amount -> amount.getValue().getAmount())));
+        // Fill action details for provisioned entities
+        provisionUuids.forEach(id -> provisionActionDetails
+                .putIfAbsent(id, createCloudProvisionSuspendActionDetailsDTO(
+                        onDemandCostsByEntity.getOrDefault(id, 0d),
+                        onDemandRatesByEntity.getOrDefault(id, 0d),
+                        true)));
+        // Fill action details for suspended entities
+        suspendUuids.forEach(id -> suspendActionDetails
+                .putIfAbsent(id, createCloudProvisionSuspendActionDetailsDTO(
+                        onDemandCostsByEntity.getOrDefault(id, 0d),
+                        onDemandRatesByEntity.getOrDefault(id, 0d),
+                        false)));
+    }
+
+    /**
+     * Create Cloud Provision or Suspend Action Details DTO for an entity.
+     *
+     * @param onDemandCost the on-demand cost of the entity
+     * @param onDemandRate the on-demant rate of the entity
+     * @param isProvision if the action is provision
+     * @return the action details DTO
+     */
+    @Nonnull
+    private ActionDetailsApiDTO createCloudProvisionSuspendActionDetailsDTO(
+            @Nonnull final Double onDemandCost,
+            @Nonnull final Double onDemandRate,
+            final boolean isProvision) {
+        if (isProvision) {
+            CloudProvisionActionDetailsApiDTO provisionActionDetailsApiDTO =
+                    new CloudProvisionActionDetailsApiDTO();
+            provisionActionDetailsApiDTO.setOnDemandCost(onDemandCost.floatValue());
+            provisionActionDetailsApiDTO.setOnDemandRate(onDemandRate.floatValue());
+            return provisionActionDetailsApiDTO;
+        }
+        CloudSuspendActionDetailsApiDTO suspendActionDetailsApiDTO =
+                new CloudSuspendActionDetailsApiDTO();
+        suspendActionDetailsApiDTO.setOnDemandCost(onDemandCost.floatValue());
+        suspendActionDetailsApiDTO.setOnDemandRate(onDemandRate.floatValue());
+        return suspendActionDetailsApiDTO;
+    }
+
+    /**
+     * Get the on-demand compute and license cost for a collection of entities.
+     *
+     * @param entityUuids the given entities
+     * @param topologyContextId the context Id
+     * @param requestProjected whether or not to request projected bottom-up costs.
+     * @return the on demand costs of the given entities
+     */
+    @Nonnull
+    private Map<Long, List<StatRecord>> getOnDemandCosts(@Nonnull final Collection<Long> entityUuids,
+                                                         @Nullable final Long topologyContextId,
+                                                         boolean requestProjected) {
+        EntityFilter entityFilter = EntityFilter.newBuilder()
+                .addAllEntityId(entityUuids)
+                .build();
         CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
-                .setRequestProjected(true)
+                .setRequestProjected(requestProjected)
                 .setEntityFilter(entityFilter)
                 // For cloud scale actions, the action savings will reflect only the savings from
                 // accepting the specific action, ignoring any potential discount from Buy RI actions.
@@ -2179,7 +2298,18 @@ public class ActionSpecMapper {
                 recordsByTime.computeIfAbsent(rec.getSnapshotDate(), x -> new ArrayList<>()).addAll(rec.getStatRecordsList());
             }
         }
+        return recordsByTime;
+    }
 
+    /**
+     * Set on-demand costs for target entity which factors in RI usage.
+     *
+     * @param topologyContextId - context Id
+     * @param dtoMap - cloud resize action details DTO, key is action target entity id
+     */
+    private void setOnDemandCosts(Long topologyContextId, Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
+        final Map<Long, List<StatRecord>> recordsByTime =
+                getOnDemandCosts(dtoMap.keySet(), topologyContextId, true);
         // We expect to receive only current and future times, unless it is an on-prem to cloud
         // migration, in which case there are only projected costs.
         Set<Long> timeSet = recordsByTime.keySet();
@@ -2281,6 +2411,26 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Get the on-demand rate for a list of entities.
+     *
+     * @param entityUuids the list of entity uuids
+     * @param costCategory the cost category
+     * @param topologyContextId the topology context ID
+     * @return the on-demand rate for a list of entities
+     */
+    @Nonnull
+    private GetTierPriceForEntitiesResponse getOnDemandRates(@Nonnull final Collection<Long> entityUuids,
+                                                             @Nonnull final CostCategory costCategory,
+                                                             @Nullable Long topologyContextId) {
+        // Get the On Demand compute costs
+        GetTierPriceForEntitiesRequest.Builder onDemandRatesRequest = GetTierPriceForEntitiesRequest.newBuilder()
+                .addAllOids(entityUuids)
+                .setCostCategory(costCategory);
+        Optional.ofNullable(topologyContextId).ifPresent(onDemandRatesRequest::setTopologyContextId);
+        return costServiceBlockingStub.getTierPriceForEntities(onDemandRatesRequest.build());
+    }
+
+    /**
      * Set on-demand template rates for a list of target entities.
      *
      * @param topologyContextId - topology context ID
@@ -2291,28 +2441,16 @@ public class ActionSpecMapper {
         Set<Long> entityUuids = dtoMap.keySet();
 
         // Get the On Demand compute costs
-        GetTierPriceForEntitiesRequest.Builder onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .addAllOids(entityUuids)
-                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE);
-        if (Objects.nonNull(topologyContextId)) {
-            onDemandComputeCostsRequest.setTopologyContextId(topologyContextId);
-        }
-        GetTierPriceForEntitiesResponse onDemandComputeCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandComputeCostsRequest.build());
+        GetTierPriceForEntitiesResponse onDemandComputeCostsResponse =
+                getOnDemandRates(entityUuids, CostCategory.ON_DEMAND_COMPUTE, topologyContextId);
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
         // Get the On Demand License costs
-        GetTierPriceForEntitiesRequest.Builder onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .addAllOids(entityUuids)
-                .setCostCategory(CostCategory.ON_DEMAND_LICENSE);
-        if (Objects.nonNull(topologyContextId)) {
-            onDemandLicenseCostsRequest.setTopologyContextId(topologyContextId);
-        }
-        GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandLicenseCostsRequest.build());
+        GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse =
+                getOnDemandRates(entityUuids, CostCategory.ON_DEMAND_LICENSE, topologyContextId);
         Map<Long, CurrencyAmount> beforeLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
