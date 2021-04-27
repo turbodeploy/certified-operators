@@ -42,6 +42,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
@@ -345,10 +346,10 @@ public class PlanDaoImpl implements PlanDao {
             updateResult = dsl.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 final PlanDTO.PlanInstance src = getPlanInstance(context, planId).orElseThrow(
-                        () -> new NoSuchObjectException(
-                                "Plan with id " + planId + " not found while trying to " +
-                                        "update it"));
-                if (src.getStatus() != PlanStatus.STOPPED && src.getStatus() != PlanStatus.FAILED) {
+                    () -> new NoSuchObjectException("Plan with id " + planId
+                        + " not found while trying to update it"));
+                // If a plan is in terminal state we don't update its status anymore.
+                if (!PlanDTOUtil.isTerminalStatus(src.getStatus())) {
                     final PlanDTO.PlanInstance.Builder newBuilder =
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
@@ -376,8 +377,9 @@ public class PlanDaoImpl implements PlanDao {
                     }
                     return new PlanUpdateResult(src, planInstance);
                 } else {
-                    // oldStatus = newStatus = STOPPED
-                    logger.info("Maintaining planStatus as {}", src.getStatus().name());
+                    logger.info("Plan {} (id: {}) in terminal state."
+                            + " Ignoring update, and maintaining planStatus as {}", src.getName(),
+                            planId, src.getStatus().name());
                     return new PlanUpdateResult(src, src);
                 }
             });
@@ -399,8 +401,8 @@ public class PlanDaoImpl implements PlanDao {
                     try {
                         listener.onPlanStatusChanged(updateResult.newPlan);
                     } catch (PlanStatusListenerException e) {
-                        logger.error("Error sending plan update notification for plan " +
-                                planId, e);
+                        logger.error("Error sending plan update notification for plan "
+                            + planId, e);
                     }
                 }
             }
@@ -472,9 +474,9 @@ public class PlanDaoImpl implements PlanDao {
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();
         if (numRunningInstances >= maxNumOfRunningInstances) {
-            logger.info("No plan execution capacity available, there are {} executing plans " +
-                            "which exceeds the maximum execution capacity: {}.",
-                    numRunningInstances, maxNumOfRunningInstances);
+            logger.info("No plan execution capacity available, there are {} executing plans "
+                    + "which exceeds the maximum execution capacity: {}.",
+                numRunningInstances, maxNumOfRunningInstances);
         }
         return numRunningInstances < maxNumOfRunningInstances;
     }
@@ -594,8 +596,8 @@ public class PlanDaoImpl implements PlanDao {
                     try {
                         listener.onPlanStatusChanged(updatedInst);
                     } catch (PlanStatusListenerException e) {
-                        logger.error("Error sending plan update notification for plan " +
-                                planId, e);
+                        logger.error("Error sending plan update notification for plan "
+                            + planId, e);
                     }
                 }
             }
@@ -689,10 +691,8 @@ public class PlanDaoImpl implements PlanDao {
      *
      * <p>This method retrieves all plan instances and serializes them as JSON strings.
      *
-     * @return a list of serialized plan instances
      * @throws DiagnosticsException If there is an error collecting diagnostics.
      */
-    @Nonnull
     @Override
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
 
@@ -724,8 +724,8 @@ public class PlanDaoImpl implements PlanDao {
         final Set<PlanDTO.PlanInstance> preexisting = getAllPlanInstances();
         if (!preexisting.isEmpty()) {
             final int numPreexisting = preexisting.size();
-            final String clearingMessage = "Clearing " + numPreexisting +
-                " preexisting plan instances: " + preexisting.stream()
+            final String clearingMessage = "Clearing " + numPreexisting
+                + " preexisting plan instances: " + preexisting.stream()
                     .map(PlanDTO.PlanInstance::getPlanId)
                     .collect(Collectors.toList());
             errors.add(clearingMessage);
@@ -733,8 +733,8 @@ public class PlanDaoImpl implements PlanDao {
 
             final int deleted = deleteAllPlanInstances();
             if (deleted != numPreexisting) {
-                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
-                    " preexisting plan instances: " + getAllPlanInstances().stream()
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted)
+                    + " preexisting plan instances: " + getAllPlanInstances().stream()
                         .map(PlanDTO.PlanInstance::getPlanId)
                         .collect(Collectors.toList());
                 logger.error(deletedMessage);
@@ -748,8 +748,8 @@ public class PlanDaoImpl implements PlanDao {
             try {
                 return GSON.fromJson(serialized, PlanDTO.PlanInstance.class);
             } catch (JsonParseException e) {
-                errors.add("Failed to deserialize plan instance " + serialized +
-                    " because of parse exception " + e.getMessage());
+                errors.add("Failed to deserialize plan instance " + serialized
+                    + " because of parse exception " + e.getMessage());
                 return null;
             }
         }).filter(Objects::nonNull).map(this::restorePlanInstance).filter(optional -> {
@@ -787,8 +787,8 @@ public class PlanDaoImpl implements PlanDao {
             final int r = dsl.newRecord(PLAN_INSTANCE, record).store();
             return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan instance " + planInstance);
         } catch (DataAccessException e) {
-            return Optional.of("Could not restore plan instance " + planInstance +
-                " because of DataAccessException " + e.getMessage());
+            return Optional.of("Could not restore plan instance " + planInstance
+                + " because of DataAccessException " + e.getMessage());
         }
     }
 
@@ -846,8 +846,8 @@ public class PlanDaoImpl implements PlanDao {
 
                 for (PlanInstance expiredInstance : expiredInstances) {
                     try {
-                        logger.info("Plan {} has no updates since {}," +
-                            " exceeding the timeout threshold of {}. Marking it as failed.",
+                        logger.info("Plan {} has no updates since {},"
+                            + " exceeding the timeout threshold of {}. Marking it as failed.",
                             expiredInstance.getId(), expiredInstance.getUpdateTime(),
                             Duration.ofSeconds(planTimeoutSec));
                         planDao.updatePlanInstance(expiredInstance.getId(), (bldr) -> {
