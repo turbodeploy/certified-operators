@@ -49,7 +49,8 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
     private static final Map<EntityDTO.AutomationLevel, AutomationLevel> PLATFORM_TO_API_AUTOMATION_LEVEL =
         ImmutableMap.of(EntityDTO.AutomationLevel.FULLY_AUTOMATED, AutomationLevel.FULLY_AUTOMATED,
             EntityDTO.AutomationLevel.PARTIALLY_AUTOMATED, AutomationLevel.PARTIALLY_AUTOMATED,
-            EntityDTO.AutomationLevel.NOT_AUTOMATED, AutomationLevel.NOT_AUTOMATED);
+            EntityDTO.AutomationLevel.NOT_AUTOMATED, AutomationLevel.NOT_AUTOMATED,
+            EntityDTO.AutomationLevel.DISABLED, AutomationLevel.DISABLED);
 
     private final RepositoryApi repositoryApi;
 
