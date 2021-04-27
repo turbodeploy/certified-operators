@@ -1,5 +1,7 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -182,6 +184,19 @@ public class TopologyDTOUtilTest {
         Assert.assertTrue(actionEntityInfo.get().getVirtualMachine().hasCpuCoreMhz());
         double expectedCpuCoreMhz = VCPU_CAPACITY / NUM_CPUS;
         Assert.assertEquals(expectedCpuCoreMhz, actionEntityInfo.get().getVirtualMachine().getCpuCoreMhz(), 0);
+    }
+
+    /**
+     * Test {@link TopologyDTOUtil#getPrimaryProviderIndex}.
+     */
+    @Test
+    public void testGetPrimaryProviderIndex() {
+        int entityType = EntityType.CONTAINER_POD_VALUE;
+        List<Integer> providerTypes = Arrays.asList(EntityType.WORKLOAD_CONTROLLER_VALUE,
+            EntityType.VIRTUAL_MACHINE_VALUE);
+        Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(entityType, providerTypes);
+        Assert.assertTrue(primaryProviderIndex.isPresent());
+        Assert.assertEquals(1, primaryProviderIndex.get().intValue());
     }
 
     @Nonnull
