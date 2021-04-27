@@ -40,6 +40,10 @@ import io.prometheus.client.hotspot.DefaultExports;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.server.Connector;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -717,6 +721,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final ServletContextHandler contextServer =
             new ServletContextHandler(ServletContextHandler.SESSIONS);
         final ConfigurableWebApplicationContext context;
+        HttpConfiguration httpConfig = new HttpConfiguration();
+        httpConfig.setSendServerVersion( false );
+        HttpConnectionFactory httpFactory = new HttpConnectionFactory( httpConfig );
+        ServerConnector httpConnector = new ServerConnector( server, httpFactory );
+        httpConnector.setPort(serverPort);
+        server.setConnectors( new Connector[] { httpConnector } );
         server.setHandler(contextServer);
         context = contextConfigurer.configure(contextServer);
         addMetricsServlet(contextServer);
