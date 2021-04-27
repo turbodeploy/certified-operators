@@ -2142,8 +2142,8 @@ public class GroupDaoTest {
         // GIVEN
         prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
 
-        // expected return order (we're sorting by severity, having id as secondary sorting for
-        // duplicate primary sorting values, and descending) :
+        // expected return order (we're sorting by severity, having emptiness as secondary sorting
+        // and id as last sorting for duplicate entries, and descending) :
         // group2 group1 group4 group3
         // first call:
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
@@ -2193,6 +2193,53 @@ public class GroupDaoTest {
                 response.getGroups(0).getDefinition().getDisplayName());
         Assert.assertEquals(group3DisplayName,
                 response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that results of {@link GroupDAO#getPaginatedGroups} are ordered secondarily by
+     * emptiness.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testSecondaryOrderByEmptiness() throws StoreOperationException {
+        final String group1DisplayName = "testGroupA";
+        final String group2DisplayName = "testGroupB";
+        final String group3DisplayName = "testGroupC";
+        final String group4DisplayName = "testGroupD";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+
+        // expected return order (we're sorting by severity, having emptiness as secondary sorting
+        // (empty first on ascending and last on descending), and id as last sorting for duplicate
+        // entries, and descending) :
+        // group2 group1 group4 group3
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(false)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(4, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(2).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(3).getDefinition().getDisplayName());
     }
 
     /**

@@ -1251,8 +1251,11 @@ public class GroupDAO implements IGroupStore {
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
                 .where(sqlCondition.orElse(DSL.noCondition()))
                 .orderBy(createOrderByClause(paginationParams, ascendingOrder),
-                        // add secondary sorting to catch edge cases of duplicate values in primary
-                        // sorting
+                        ascendingOrder
+                                ? GROUP_SUPPLEMENTARY_INFO.EMPTY.desc().nullsFirst()
+                                : GROUP_SUPPLEMENTARY_INFO.EMPTY.asc().nullsLast(),
+                        // add last sorting to catch edge cases of duplicate values in both previous
+                        // sortings
                         ascendingOrder ? GROUPING.ID.asc() : GROUPING.ID.desc())
                 // apply pagination
                 .offset(cursorValue)
