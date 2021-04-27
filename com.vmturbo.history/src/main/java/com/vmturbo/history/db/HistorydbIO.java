@@ -2020,7 +2020,7 @@ public class HistorydbIO extends BasedbIO {
         try (Connection conn = connection()) {
             List<Long> timestamps = new ArrayList<>();
             using(conn)
-                .select(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP)
+                .selectDistinct(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP)
                 .from(PercentileBlobs.PERCENTILE_BLOBS)
                 .where(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP.greaterOrEqual(startMs))
                 .and(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP.lessThan(endMs))
