@@ -470,6 +470,9 @@ message Resize {
     // The supplier who triggers the resize
     // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
     optional ActionEntity resize_trigger_trader = 9;
+
+    // The reason for the commodity being resized is populated for commodities with byProducts while resizing up.
+    optional topology.CommodityType reason = 10;
 }
 
 // Activate an existing deactivated entity.

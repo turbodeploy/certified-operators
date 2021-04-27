@@ -1077,6 +1077,15 @@ public class ActionInterpreter {
                 .setNewCapacity(adjustedResizeTO.getNewCapacity())
                 .setOldCapacity(adjustedResizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
+        if (resizeTO.hasReasonCommodity()) {
+            final CommodityType reasonCommodityType =
+                    commodityConverter.marketToTopologyCommodity(resizeTO.getReasonCommodity())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Resize commodity can't be converted to topology commodity format! "
+                                            + cs));
+            resizeBuilder.setReason(reasonCommodityType);
+
+        }
         setHotAddRemove(resizeBuilder, resizeCommSold);
         if (resizeTO.hasScalingGroupId()) {
             resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
