@@ -16,14 +16,14 @@
 package com.vmturbo.api.component.external.api;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
-import net.minidev.json.JSONArray;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -144,12 +144,12 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
                 logger.debug("OpenID user email: " + email);
             }
             // Use the first group of the user if returned
-            if (user.getAttributes().get("groups") instanceof JSONArray) {
-                JSONArray jsongroups = (JSONArray)user.getAttributes().get("groups");
+            if (user.getAttributes().get("groups") instanceof ArrayList) {
+                List<String> jsongroups = (ArrayList)user.getAttributes().get("groups");
                 logger.debug("OpenID user groups: " + jsongroups.toString());
                 if (jsongroups.size() > 1) {
                     Authentication resultAuthentication = authProvider
-                        .authorize(email, (String[]) jsongroups.toArray(), remoteIpAddress, componentJwtStore);
+                        .authorize(email, jsongroups.toArray(new String[0]), remoteIpAddress, componentJwtStore);
                     SecurityContextHolder.getContext()
                         .setAuthentication(resultAuthentication);
                 } else {
