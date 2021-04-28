@@ -395,7 +395,7 @@ public class SqlEntityCostStoreTest {
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(Collections.singleton(1L))
                         .costSources(false,
-                                Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
+                                Collections.singleton(CostSource.ON_DEMAND_RATE))
                         .costCategoryFilter(CostCategoryFilter.newBuilder()
                                 .setExclusionFilter(false)
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)

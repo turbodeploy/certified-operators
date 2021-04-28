@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -7,6 +8,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -17,6 +19,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
@@ -76,7 +80,7 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(
+    public Collection<CostItem> calculateHourlyCost(
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
@@ -118,7 +122,11 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         }
         logger.trace("Purchase from entity {} of type {} has cost: {}", infoExtractor.getId(payee),
                 infoExtractor.getEntityType(payee), cost);
-        return cost;
+        return ImmutableList.of(
+                CostItem.builder()
+                        .costSourceLink(CostSourceLink.of(costSource))
+                        .cost(cost)
+                        .build());
     }
 
     @Nonnull

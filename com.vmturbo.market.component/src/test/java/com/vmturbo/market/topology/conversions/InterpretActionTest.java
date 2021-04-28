@@ -1014,7 +1014,7 @@ public class InterpretActionTest {
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
         // Total Source cost = 20
-        when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(20d));
+        when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
 
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
@@ -1025,7 +1025,7 @@ public class InterpretActionTest {
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(2d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(5d));
         // Total destination cost = 15
-        when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(15d));
+        when(projectedCostJournal.getTotalHourlyCost()).thenReturn(trax(15d));
         projectedCosts.put(vm.getOid(), projectedCostJournal);
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();

@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -58,7 +59,9 @@ public class ProjectedEntityCostStoreTest {
 
     private static final ComponentCost VM1_ON_DEM_COST = ComponentCost.newBuilder()
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(CostSource.ON_DEMAND_RATE)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                    .setCostSource(CostSource.ON_DEMAND_RATE)
+                    .build())
             .setAmount(CurrencyAmount.newBuilder()
                     .setAmount(100).setCurrency(840))
             .build();
@@ -71,7 +74,9 @@ public class ProjectedEntityCostStoreTest {
 
     private static final ComponentCost VM2_ON_DEM_COST = ComponentCost.newBuilder()
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(Cost.CostSource.ON_DEMAND_RATE)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                    .setCostSource(CostSource.ON_DEMAND_RATE)
+                    .build())
             .setAmount(CurrencyAmount.newBuilder()
                     .setAmount(35).setCurrency(840))
             .build();
@@ -85,7 +90,9 @@ public class ProjectedEntityCostStoreTest {
     private static final ComponentCost VM2_BUY_RI_DIS = ComponentCost.newBuilder()
             .setCategory(CostCategory.STORAGE)
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(CostSource.BUY_RI_DISCOUNT)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                    .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                    .build())
             .setAmount(CurrencyAmount.newBuilder()
                     .setAmount(-10).setCurrency(840))
             .build();
@@ -250,7 +257,7 @@ public class ProjectedEntityCostStoreTest {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
-                .costSources(false, ImmutableSet.of(CostSource.ON_DEMAND_RATE_VALUE))
+                .costSources(false, ImmutableSet.of(CostSource.ON_DEMAND_RATE))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID));
         assertThat(costs.get(VM1_OID).getComponentCostCount(), is(1));
@@ -268,7 +275,7 @@ public class ProjectedEntityCostStoreTest {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
-                .costSources(true, ImmutableSet.of(CostSource.BUY_RI_DISCOUNT_VALUE))
+                .costSources(true, ImmutableSet.of(CostSource.BUY_RI_DISCOUNT))
                 .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID, DB1_OID));
         assertThat(costs.get(VM1_OID), is(VM1_COST));

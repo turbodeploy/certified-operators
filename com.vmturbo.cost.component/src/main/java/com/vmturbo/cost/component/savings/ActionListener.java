@@ -154,9 +154,9 @@ public class ActionListener implements ActionsListener {
     /**
      * Set of Cost Sources for which costs are queried.
      */
-    private static final ImmutableSet<Integer> costSources = ImmutableSet
-                    .of(CostSource.ON_DEMAND_RATE.getNumber(),
-                        CostSource.RI_INVENTORY_DISCOUNT.getNumber());
+    private static final ImmutableSet<CostSource> costSources = ImmutableSet.of(
+            CostSource.ON_DEMAND_RATE,
+            CostSource.RI_INVENTORY_DISCOUNT);
 
     /**
      * String to describe before action costs for an entity.

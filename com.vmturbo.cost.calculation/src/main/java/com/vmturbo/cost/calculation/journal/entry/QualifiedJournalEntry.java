@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -9,8 +10,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
-import com.vmturbo.trax.TraxNumber;
 
 /**
  * A single item contributing to the cost of an entity.
@@ -31,9 +32,9 @@ public interface QualifiedJournalEntry<ENTITY_CLASS> extends Comparable {
      *
      * @return The hourly cost.
      */
-    TraxNumber calculateHourlyCost(@Nonnull EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                                   @Nonnull DiscountApplicator<ENTITY_CLASS> discountApplicator,
-                                   @Nonnull RateExtractor rateExtractor);
+    Collection<CostItem> calculateHourlyCost(@Nonnull EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                                             @Nonnull DiscountApplicator<ENTITY_CLASS> discountApplicator,
+                                             @Nonnull RateExtractor rateExtractor);
 
     /**
      * Get the cost source associated with the journal entry.

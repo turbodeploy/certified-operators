@@ -226,7 +226,7 @@ public class CostRpcService extends CostServiceImplBase {
                             .build())
                     .latestTimestampRequested(true)
                     .costSources(false,
-                        Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
+                        Collections.singleton(CostSource.ON_DEMAND_RATE))
                     .build());
             Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
             // Because we requested latest timestamp, every entity will have only one record.
@@ -796,10 +796,7 @@ public class CostRpcService extends CostServiceImplBase {
 
         if (request.hasCostSourceFilter()) {
             filterBuilder.costSources(request.getCostSourceFilter().getExclusionFilter(),
-                request.getCostSourceFilter().getCostSourcesList()
-                    .stream()
-                    .map(CostSource::getNumber)
-                    .collect(Collectors.toSet()));
+                request.getCostSourceFilter().getCostSourcesList());
         }
 
         if (request.hasCostCategoryFilter()) {

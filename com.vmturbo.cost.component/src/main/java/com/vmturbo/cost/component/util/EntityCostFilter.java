@@ -9,6 +9,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -32,7 +33,9 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
@@ -49,7 +52,7 @@ public class EntityCostFilter extends CostFilter {
     private static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
 
     private final boolean excludeCostSources;
-    private final Set<Integer> costSources;
+    private final Set<CostSource> costSources;
     private final CostCategoryFilter costCategoryFilter;
     private final Set<Long> accountIds;
     private final Set<Long> availabilityZoneIds;
@@ -67,7 +70,7 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final TimeFrame timeFrame,
                      @Nonnull Set<String> groupByFields,
                      final boolean excludeCostSources,
-                     @Nullable final Set<Integer> costSources,
+                     @Nullable final Set<CostSource> costSources,
                      @Nullable final CostCategoryFilter costCategoryFilter,
                      @Nullable final Set<Long> accountIds,
                      @Nullable final Set<Long> availabilityZoneIds,
@@ -146,11 +149,14 @@ public class EntityCostFilter extends CostFilter {
         }
 
         if (costSources != null && !costSources.isEmpty()) {
+            final Set<Integer> costSourceValues = costSources.stream()
+                    .map(CostSource::getNumber)
+                    .collect(ImmutableSet.toImmutableSet());
             if (getTable() == ENTITY_COST || getTable() == PLAN_ENTITY_COST) {
                 if (excludeCostSources) {
-                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSources));
+                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSourceValues));
                 } else {
-                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).in(costSources));
+                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).in(costSourceValues));
                 }
             } else {
                 logger.warn("Cost source filter has been set on a query on a table other than the"
@@ -205,7 +211,7 @@ public class EntityCostFilter extends CostFilter {
         return excludeCostSources;
     }
 
-    public Optional<Set<Integer>> getCostSources() {
+    public Optional<Set<CostSource>> getCostSources() {
         return Optional.ofNullable(costSources);
     }
 
@@ -304,20 +310,36 @@ public class EntityCostFilter extends CostFilter {
         return builder.toString();
     }
 
+    private Set<CostSource> resolveCostSources(@Nonnull CostSourceLinkDTO costSourceLink) {
+
+        final ImmutableSet.Builder<CostSource> costSources = ImmutableSet.<CostSource>builder()
+                .add(costSourceLink.getCostSource());
+
+        if (costSourceLink.hasDiscountCostSourceLink()) {
+            costSources.addAll(resolveCostSources(costSourceLink.getDiscountCostSourceLink()));
+        }
+
+        return costSources.build();
+    }
+
     private boolean filterComponentCostByCostSource(@Nonnull EntityCost.ComponentCost componentCost) {
+
+        final Set<CostSource> componentCostSources = componentCost.hasCostSourceLink()
+                ? resolveCostSources(componentCost.getCostSourceLink())
+                : Collections.EMPTY_SET;
 
         return getCostSources().map(costSources -> {
 
             // If this is exclusion filter, it covers those entries that don't have cost source and
-            // those that have cost source and is in the filter
+            // those that don't have any of the filtered costs sources in the cost source chain.
             if (excludeCostSources) {
-                return !componentCost.hasCostSource()
-                        || !costSources.contains(componentCost.getCostSource().getNumber());
+                return Sets.intersection(costSources, componentCostSources).isEmpty();
             } else {
                 // if this is inclusion filter only return true if the cost component has a cost source
-                // and its value is in input filter
-                return componentCost.hasCostSource()
-                        && costSources.contains(componentCost.getCostSource().getNumber());
+                // chain and all cost sources in the chain are included in the filter
+                final Set<CostSource> costSourceIntersection = Sets.intersection(costSources, componentCostSources);
+                return !componentCostSources.isEmpty()
+                        && costSourceIntersection.size() == componentCostSources.size();
             }
         }).orElse(true);
     }
@@ -338,7 +360,7 @@ public class EntityCostFilter extends CostFilter {
     public static class EntityCostFilterBuilder extends CostFilterBuilder<EntityCostFilterBuilder,
             EntityCostFilter> {
         private boolean excludeCostSources = false;
-        private Set<Integer> costSources = null;
+        private Set<CostSource> costSources = null;
         private CostCategoryFilter costCategoryFilter = null;
         private Set<Long> accountIds = null;
         private Set<Long> availabilityZoneIds = null;
@@ -382,9 +404,9 @@ public class EntityCostFilter extends CostFilter {
          */
         @Nonnull
         public EntityCostFilterBuilder costSources(boolean excludeCostSources,
-                @Nonnull Set<Integer> costSources) {
+                @Nonnull Collection<CostSource> costSources) {
             this.excludeCostSources = excludeCostSources;
-            this.costSources = costSources;
+            this.costSources = ImmutableSet.copyOf(costSources);
             return this;
         }
 
