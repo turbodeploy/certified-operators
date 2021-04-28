@@ -52,7 +52,9 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -200,6 +202,12 @@ public class TopologyConverterFromMarketTest {
     private CloudTopology<TopologyEntityDTO> cloudTopology =
             mock(TopologyEntityCloudTopology.class);
 
+    /**
+     * The expected exception.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
@@ -249,15 +257,17 @@ public class TopologyConverterFromMarketTest {
      */
     private void constructTopologyConverter(final CommodityIndexFactory commodityIndexFactory,
             final TopologyInfo topologyInfo) {
-        converter = Mockito.spy(new TopologyConverter(
-                topologyInfo,
-                marketCloudRateExtractor,
-                mockCommodityConverter,
-                mockCCD,
-                commodityIndexFactory,
-                tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-                analysisConfig));
+        final TopologyConverter topologyConverter = new TopologyConverter(
+            topologyInfo,
+            marketCloudRateExtractor,
+            mockCommodityConverter,
+            mockCCD,
+            commodityIndexFactory,
+            tierExcluderFactory,
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
+            analysisConfig);
+        topologyConverter.setConvertToMarketComplete();
+        converter = Mockito.spy(topologyConverter);
     }
 
     /**
@@ -856,11 +866,13 @@ public class TopologyConverterFromMarketTest {
         when(indexFactory.newIndex()).thenReturn(commodityIndex);
 
         // converter under test
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        TopologyConverter converter = Mockito.spy(topologyConverter);
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1002,11 +1014,13 @@ public class TopologyConverterFromMarketTest {
                         .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
                 .build());
 
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
-                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
-                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-                reversibilitySettingFetcher, analysisConfig));
+        final TopologyConverter topologyConverter = new TopologyConverter(
+            TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
+            marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
+            tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+            reversibilitySettingFetcher, analysisConfig);
+        topologyConverter.setConvertToMarketComplete();
+        TopologyConverter converter = Mockito.spy(topologyConverter);
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1550,10 +1564,12 @@ public class TopologyConverterFromMarketTest {
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo,
-                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
-                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-                reversibilitySettingFetcher, analysisConfig));
+        final TopologyConverter topologyConverter = new TopologyConverter(topoInfo,
+            marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
+            tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+            reversibilitySettingFetcher, analysisConfig);
+        topologyConverter.setConvertToMarketComplete();
+        TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1652,10 +1668,12 @@ public class TopologyConverterFromMarketTest {
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo,
-                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
-                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-                reversibilitySettingFetcher, analysisConfig));
+        final TopologyConverter topologyConverter = new TopologyConverter(topoInfo,
+            marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
+            tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+            reversibilitySettingFetcher, analysisConfig);
+        topologyConverter.setConvertToMarketComplete();
+        TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1890,6 +1908,29 @@ public class TopologyConverterFromMarketTest {
         assertEquals(used, timeSlotValues.get(0), DELTA);
         assertEquals(used, timeSlotValues.get(1), DELTA);
         assertEquals(used, timeSlotValues.get(2), DELTA);
+    }
+
+    /**
+     * Ensure we throw an IllegalArgumentException if we create a CommodityIndex before
+     * the CommodityConverter has the required data.
+     */
+    @Test
+    public void testIllegalCommodityConverterConstruction() {
+        final CommodityIndex mockIndex = mock(CommodityIndex.class);
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        doReturn(mockIndex).when(indexFactory).newIndex();
+
+        expectedException.expect(IllegalStateException.class);
+        final TopologyConverter topologyConverter = new TopologyConverter(
+            REALTIME_TOPOLOGY_INFO,
+            marketCloudRateExtractor,
+            mockCommodityConverter,
+            mockCCD,
+            indexFactory,
+            tierExcluderFactory,
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
+            analysisConfig);
+        topologyConverter.getCommodityIndex();
     }
 
     /**
@@ -2783,12 +2824,14 @@ public class TopologyConverterFromMarketTest {
             .marketToTopologyCommodity(Mockito.eq(commoditySoldTO.getSpecification()));
 
         // Mock a TopologyConverter.
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false));
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = Mockito.spy(topologyConverter);
 
         // Mock entityOidToDto field of TopologyConverter.
         final Map<Long, TopologyEntityDTO> entityOidToDtoMap =
@@ -2906,11 +2949,14 @@ public class TopologyConverterFromMarketTest {
         commodityIndex.addEntity(pmEntityDTO);
 
         // Mock a TopologyConverter.
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false));
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = Mockito.spy(topologyConverter);
 
         // Mock entityOidToDto field of TopologyConverter.
         final Map<Long, TopologyEntityDTO> entityOidToDtoMap =
@@ -3038,10 +3084,12 @@ public class TopologyConverterFromMarketTest {
         when(mockCloudTc.getTraderTOOid(marketTier)).thenReturn(CLOUD_COMPUTE_TIER_OID);
         when(mockCloudTc.getMarketTier(Mockito.anyLong())).thenReturn(marketTier);
 
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
             tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
-            reversibilitySettingFetcher, analysisConfig));
+            reversibilitySettingFetcher, analysisConfig);
+        topologyConverter.setConvertToMarketComplete();
+        TopologyConverter converter = Mockito.spy(topologyConverter);
         converter.setCloudTc(mockCloudTc);
 
         // Only add vmEntityDTO to providersOfContainers.

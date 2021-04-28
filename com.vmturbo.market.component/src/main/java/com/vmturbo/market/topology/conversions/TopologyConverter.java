@@ -469,7 +469,8 @@ public class TopologyConverter {
                              @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                              @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final boolean enableContainerClusterScalingCost) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -500,7 +501,9 @@ public class TopologyConverter {
                 projectedRICoverageCalculator,
                 tierExcluder,
                 commodityIndex,
-                getExplanationOverride()));
+                getExplanationOverride())
+            .enableContainerClusterScalingCost(enableContainerClusterScalingCost)
+        );
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
         this.reversibilitySettingFetcher = reversibilitySettingFetcher;
@@ -532,7 +535,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
     }
 
     /**
@@ -563,7 +566,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
     }
 
 
@@ -597,8 +600,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
-                analysisConfig.isEnableOP());
-        this.actionInterpreter.get().enableContainerClusterScalingCost(analysisConfig.enableContainerClusterScalingCost());
+                analysisConfig.isEnableOP(), analysisConfig.enableContainerClusterScalingCost());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -617,11 +619,12 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final boolean enableContainerClusterScalingCost) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP);
+                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, enableContainerClusterScalingCost);
     }
 
     /**
@@ -640,6 +643,7 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
+     * @param enableContainerClusterScalingCost Flag to enable or disable cost calculations for container cluster scaling.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -655,11 +659,12 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final boolean enableContainerClusterScalingCost) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP);
+            enableOP, enableContainerClusterScalingCost);
     }
 
     /**
@@ -678,6 +683,8 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
+     * @param enableContainerClusterScalingCost Flag to enable or disable cost calculations for
+     *                                          container cluster scaling.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -694,11 +701,12 @@ public class TopologyConverter {
                     reversibilitySettingFetcher,
             final int licensePriceWeightScale,
             final CloudTopology cloudTopology,
-            final boolean enableOP) {
+            final boolean enableOP,
+            final boolean enableContainerClusterScalingCost) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP);
+                enableOP, enableContainerClusterScalingCost);
     }
 
 
@@ -776,6 +784,11 @@ public class TopologyConverter {
     private boolean isPlan() {
         return TopologyDTOUtil.isPlan(topologyInfo);
     }
+
+    /**
+     * Whether we have finished converting to market already.
+     */
+    private boolean convertToMarketComplete = false;
 
     /**
      * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
@@ -906,6 +919,7 @@ public class TopologyConverter {
         } finally {
             conversionErrorCounts.endPhase();
             tierExcluder.clearStateNeededForConvertToMarket();
+            setConvertToMarketComplete();
             long convertToMarketEndTime = System.currentTimeMillis();
             logger.info("Completed converting TopologyEntityDTOs to traderTOs. Time taken = {} seconds",
                 ((double)(convertToMarketEndTime - convertToMarketStartTime)) / 1000);
@@ -4565,11 +4579,21 @@ public class TopologyConverter {
 
     /**
      * Create the commodity index from the input TopologyDTO's.
+     * <p/>
+     * Note: It is illegal to call this before converting entities to market because
+     * the OID to DTO map required to populate the commodity index properly will
+     * be empty.
      *
      * @param commodityIndexFactory Factory to use to create the commodity index.
      * @return the commodity index created from the input TopologyDTO's.
      */
     private CommodityIndex createCommodityIndex(final CommodityIndexFactory commodityIndexFactory) {
+        if (!convertToMarketComplete) {
+            throw new IllegalStateException("Illegal request to createCommodityIndex before convertToMarket is complete. "
+                + "If this is a unit test, you can call #convertToMarket with an empty map before calling #convertFromMarket. "
+                + "Seeing this exception in production is a serious error.");
+        }
+
         final CommodityIndex index = commodityIndexFactory.newIndex();
         for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
             index.addEntity(dto);
@@ -4794,6 +4818,14 @@ public class TopologyConverter {
                             .addCongestedCommodities(iopsReasonCommodity)).build();
         }
         return null;
+    }
+
+    /**
+     * Set that the convertToMarket call has completed.
+     */
+    @VisibleForTesting
+    void setConvertToMarketComplete() {
+        convertToMarketComplete = true;
     }
 
     /**

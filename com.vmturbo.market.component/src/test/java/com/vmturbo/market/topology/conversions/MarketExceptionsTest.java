@@ -4,6 +4,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -131,19 +132,21 @@ public class MarketExceptionsTest {
      */
     private void constructTopologyConverter(final CommodityIndexFactory commodityIndexFactory,
             final TopologyInfo topologyInfo) {
-        converter = Mockito.spy(new TopologyConverter(
-                topologyInfo,
-                false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketMode.M2Only,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor,
-                mockCommodityConverter,
-                mockCCD,
-                commodityIndexFactory,
-                tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false));
+        final TopologyConverter topologyConverter = new TopologyConverter(
+            topologyInfo,
+            false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketMode.M2Only,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor,
+            mockCommodityConverter,
+            mockCCD,
+            commodityIndexFactory,
+            tierExcluderFactory,
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
+            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false);
+        topologyConverter.setConvertToMarketComplete();
+        converter = Mockito.spy(topologyConverter);
     }
 
     /**
@@ -214,6 +217,7 @@ public class MarketExceptionsTest {
                     .setModelBuyer(-DS_OID).setModelSeller(DA_OID)
                     .setProvisionedSeller(DA_OID + 100L).build())
             .build();
+        converter.convertToMarket(Collections.emptyMap());
         Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopo = converter.convertFromMarket(
             traderTOs, origTopoMap, PriceIndexMessage.getDefaultInstance(), reservedCapacityResults, wastedFilesAnalysisMock);
         converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);

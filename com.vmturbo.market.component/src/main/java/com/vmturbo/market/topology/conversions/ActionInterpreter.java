@@ -179,8 +179,15 @@ public class ActionInterpreter {
         this.complianceExplanationOverride = explanationFunction;
     }
 
-    void  enableContainerClusterScalingCost(boolean enable) {
+    /**
+     * Enable or disable container cluster scaling costs.
+     *
+     * @param enable Whether or not cost calculations for container cluster scaling is enabled.
+     * @return A reference to {@link this} for method chaining.
+     */
+    ActionInterpreter enableContainerClusterScalingCost(boolean enable) {
         this.enableContainerClusterScalingCost = enable;
+        return this;
     }
 
     /**
