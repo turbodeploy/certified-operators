@@ -55,7 +55,8 @@ public class ControllableManager {
     public int applyControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final Set<Long> oidModified = new HashSet<>();
         oidModified.addAll(applyControllableEntityAction(topology));
-        oidModified.addAll(markVMsOnFailoverHostAsNotControllable(topology));
+        oidModified.addAll(markVMsOnFailoverOrUnknownHostAsNotControllable(topology));
+        oidModified.addAll(markSuspendedEntitiesAsNotControllable(topology));
         if (accountForVendorAutomation) {
             oidModified.addAll(applyControllableAutomationLevel(topology));
         }
@@ -108,20 +109,38 @@ public class ControllableManager {
     }
 
     /**
-     * Mark VMs on a failover host as not controllable.
-     * We don't need to mark failover hosts non-controllable. We skip failover hosts in market analysis.
+     * Mark VMs on a failover or unknown host as not controllable.
+     * We don't need to mark failover or unknown hosts non-controllable. We skip them in market analysis.
      *
      * @param topology a topology graph.
      * @return a set of modified entity oids.
      */
-    private Set<Long> markVMsOnFailoverHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+    private Set<Long> markVMsOnFailoverOrUnknownHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
-            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.FAILOVER)
+            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.FAILOVER
+                || entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.UNKNOWN)
             .flatMap(entity -> entity.getConsumers().stream())
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
             .map(entity -> {
                 entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
                 logger.trace("Mark VM {}({}) as not controllable", entity.getDisplayName(), entity.getOid());
+                return entity.getOid();
+            })
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Mark suspended entities as not controllable.
+     *
+     * @param topology a topology graph.
+     * @return a set of modified entity oids.
+     */
+    private Set<Long> markSuspendedEntitiesAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entities()
+            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.SUSPENDED)
+            .map(entity -> {
+                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                logger.trace("Mark suspended entity {}({}) as not controllable", entity.getDisplayName(), entity.getOid());
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
