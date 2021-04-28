@@ -49,6 +49,18 @@ public class SdkServerConfig {
     @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
     private int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
 
+    /**
+     * Oldest version of client allowed to connect to TP. Empty string will be translated
+     * to previous minor release. For example, 8.2.1 server will accept any client 8.1.0 or newer.
+     * For major releases, empty string will be converted to the previous
+     * major release. For example, for 9.0.0 if you specify no value here, any client 8.0.0 or
+     * newer will be accepted. We default to 8.0.0 as 8.0 is the current version of Kubernetes probe
+     * and those are updated separately from the rest of XL, thus may lag in version number by a
+     * bit.
+     */
+    @Value("${oldestSupportedClientProtocolVersion:8.0.0}")
+    private String oldestSupportedClientProtocolVersion;
+
     @Autowired
     private ProbeConfig probeConfig;
 
@@ -102,7 +114,7 @@ public class SdkServerConfig {
     @Bean
     public TransportHandler remoteMediationTransportHandler() {
         return new SdkWebsocketServerTransportHandler(remoteMediation(), sdkServerThreadPool(),
-                negotiationTimeoutSec);
+                oldestSupportedClientProtocolVersion, negotiationTimeoutSec);
     }
 
     /**
