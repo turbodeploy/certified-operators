@@ -423,7 +423,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false);
+                        false, false);
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -504,7 +504,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false);
+                        false, false);
 
         Collection<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -1068,7 +1068,7 @@ public class TopologyEntitiesHandlerTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
@@ -1078,7 +1078,7 @@ public class TopologyEntitiesHandlerTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
