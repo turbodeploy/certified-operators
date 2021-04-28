@@ -45,12 +45,14 @@ public class CloudCommitmentCostUploader {
         final CloudCommitmentData.Builder dataBuilder = CloudCommitmentData.newBuilder();
 
         costDataByTargetIdSnapshot.forEach((targetId, costData) -> {
-            costData.cloudCommitmentData.forEach(nme -> {
-                if (nme.hasCloudCommitmentData()) {
-                    nme.getCloudCommitmentData().getCoverageDataList().forEach(coverageBucket -> dataBuilder.addCoverageData(convertBucket(cloudEntitiesMap, coverageBucket)));
-                    nme.getCloudCommitmentData().getUtilizationDataList().forEach(utilizationBucket -> dataBuilder.addUtilizationData(convertBucket(cloudEntitiesMap, utilizationBucket)));
-                }
-            });
+            if (null != costData.cloudCommitmentData) {
+                costData.cloudCommitmentData.forEach(nme -> {
+                    if (nme.hasCloudCommitmentData()) {
+                        nme.getCloudCommitmentData().getCoverageDataList().forEach(coverageBucket -> dataBuilder.addCoverageData(convertBucket(cloudEntitiesMap, coverageBucket)));
+                        nme.getCloudCommitmentData().getUtilizationDataList().forEach(utilizationBucket -> dataBuilder.addUtilizationData(convertBucket(cloudEntitiesMap, utilizationBucket)));
+                    }
+                });
+            }
         });
 
         final UploadCloudCommitmentDataRequest.Builder requestBuilder =
