@@ -1165,13 +1165,15 @@ public class TargetsService implements ITargetsService {
 
     @Override
     @Nonnull
-    public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) {
+    public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) throws UnknownObjectException {
         long targetId = Long.parseLong(uuid);
         try {
             ITargetHealthInfo healthInfo = topologyProcessor.getTargetHealth(targetId);
             return HealthDataMapper.mapTargetHealthInfoToDTO(healthInfo);
-        } catch (CommunicationException | TopologyProcessorException e) {
-            throw new RuntimeException("Error getting target health info", e);
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        } catch (TopologyProcessorException e) {
+            throw new UnknownObjectException("Error getting target health info", e);
         }
     }
 

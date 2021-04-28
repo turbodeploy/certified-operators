@@ -94,7 +94,9 @@ import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.serviceinterfaces.IActionsService;
@@ -144,6 +146,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 
 /**
  * Test the {@link TargetsService}. Mocks calls to the underlying {@link TopologyProcessor}.
@@ -243,6 +246,20 @@ public class TargetsServiceTest {
                                 }
                             }
                         });
+
+        when(topologyProcessor.getTargetHealth(Mockito.anyLong()))
+                .thenAnswer(new Answer<TargetHealthInfo>() {
+
+                    @Override
+                    public TargetHealthInfo answer(InvocationOnMock invocation) throws Throwable {
+                        final long id = invocation.getArgumentAt(0, long.class);
+                        if (registeredTargets.get(id) == null) {
+                            throw new TopologyProcessorException("Error getting target health info: " + id);
+                        } else {
+                            return new TargetHealthInfo(null, id, null);
+                        }
+                    }
+                });
 
         when(topologyProcessor.getTargets(Mockito.any()))
             .thenAnswer((Answer<List<TargetInfo>>)invocation -> {
@@ -2081,5 +2098,43 @@ public class TargetsServiceTest {
 
         //WHEN
         this.targetsService.getEntitiesByTargetUuid(targetUuid, null, limit, ascending, searchOrderBy);
+    }
+
+    /**
+     * Tests getting target's health for non existing target.
+     *
+     * @throws Exception expected.
+     */
+    @Test
+    public void getTargetHealthForNonExistingTarget() throws Exception {
+        final MvcResult result = mockMvc.perform(get("/targets/3/health")
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString("Error getting target health info: 3"));
+        Assert.assertEquals(resp.getType(), 404);
+    }
+
+    /**
+     * Tests getting target's health for existing target.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getTargetHealthForExistingTarget() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
+        final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
+                createAccountValue("field1", "value1"),
+                createAccountValue("field2", "value2"));
+
+        final MvcResult result = mockMvc
+                .perform(get("/targets/3/health").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetHealthApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetHealthApiDTO.class);
+
+       Assert.assertEquals(target.getId(), Long.parseLong(resp.getUuid()));
     }
 }
