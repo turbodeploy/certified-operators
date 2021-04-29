@@ -30,14 +30,11 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
-import com.vmturbo.extractor.schema.enums.CostCategory;
-import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -77,10 +74,6 @@ public class EnumTests {
                     ActionDTO.ActionState.FAILING, ActionDTO.ActionState.QUEUED,
                     ActionDTO.ActionState.PRE_IN_PROGRESS, ActionDTO.ActionState.POST_IN_PROGRESS,
                     ActionDTO.ActionState.REJECTED);
-    private static final ImmutableSet<CostCategory> OK_EXTRA_COST_CATEGORIES =
-            ImmutableSet.of(CostCategory.TOTAL);
-    private static final ImmutableSet<CostSource> OK_EXTRA_COST_SOURCES =
-            ImmutableSet.of(CostSource.TOTAL);
 
 
     /**
@@ -174,24 +167,6 @@ public class EnumTests {
     public void testMetricTypeEnum() {
         testEnum(MetricType.class, CommodityType.class,
                 OK_MISSING_METRIC_TYPES, OK_EXTRA_METRIC_TYPES);
-    }
-
-    /**
-     * Test that we have the correct `cost_category` values.
-     *
-     * <p>We include a `TOTAL` value in the DB enum for convenience.</p>
-     */
-    @Test
-    public void testCostCategoryEnum() {
-        testEnum(CostCategory.class, Cost.CostCategory.class, null, OK_EXTRA_COST_CATEGORIES);
-    }
-
-    /**
-     * Test that we have the correct `cost_source` values.
-     */
-    @Test
-    public void testCostSourceEnum() {
-        testEnum(CostSource.class, Cost.CostSource.class, null, OK_EXTRA_COST_SOURCES);
     }
 
     /**

@@ -23,8 +23,6 @@ import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.AttrType;
-import com.vmturbo.extractor.schema.enums.CostCategory;
-import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -104,13 +102,7 @@ public enum ColType {
     ACTION_CATEGORY(ActionCategory.values()[0].getName()),
 
     /** attr_type column of historical attributes. */
-    ATTR_TYPE(AttrType.values()[0].getName()),
-
-    /** cost categiry column. */
-    COST_CATEGORY(CostCategory.values()[0].getName()),
-
-    /** cost source colunn. */
-    COST_SOURCE(CostSource.values()[0].getName());
+    ATTR_TYPE(AttrType.values()[0].getName());
 
     static final byte[] NULL_BYTE_ARRAY = {0};
     static final byte[] TRUE_BYTE_ARRAY = {1};
@@ -463,8 +455,6 @@ public enum ColType {
             case ACTION_CATEGORY:
             case METRIC_TYPE:
             case ATTR_TYPE:
-            case COST_CATEGORY:
-            case COST_SOURCE:
                 return ((EnumType)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());

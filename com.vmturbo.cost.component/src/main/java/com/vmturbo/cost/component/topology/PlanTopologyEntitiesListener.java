@@ -124,7 +124,7 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
     private void sendPlanEntityCostNotification(@Nonnull final CostNotification planEntityCostNotification) {
         final StatusUpdate planEntityCostUpdate = planEntityCostNotification.getStatusUpdate();
         try {
-            costNotificationSender.sendCostNotification(planEntityCostNotification);
+            costNotificationSender.sendStatusNotification(planEntityCostNotification);
             logger.info("The plan entity cost notification has been sent successfully. Topology "
                             + "ID: {} topology context ID: {} status: {}",
                     planEntityCostUpdate.getTopologyId(),

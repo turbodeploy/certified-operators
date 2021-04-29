@@ -971,14 +971,15 @@ message GetCloudCostStatsRequest {
 
 message CloudCostStatsQuery {
 
-    optional int64 query_id = 1;
-
     // The start date of the request
     // If the start date is set and the end date is not set, we will only get the latest stats.
-    optional uint64 start_date = 2;
+    optional int64 query_id = 1;
 
     // The end date of the request
     // If the end date is set and the start date is not set, we will only get the latest stats.
+    optional uint64 start_date = 2;
+
+    // Entity ids filter, return all entities if not set
     optional uint64 end_date = 3;
 
     // Whether or not to request projected bottom-up costs.

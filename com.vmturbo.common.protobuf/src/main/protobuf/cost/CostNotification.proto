@@ -12,7 +12,6 @@ message CostNotification {
     oneof Type {
         // Currently, status notifications are the only type sent as a cost notification
         StatusUpdate status_update = 1;
-        CloudCostStatsAvailable cloud_cost_stats_available = 2;
     }
 
     // A message about a cost operation stats
@@ -52,9 +51,4 @@ message CostNotification {
         PLAN_ENTITY_COST_UPDATE = 4;
     }
 
-    // Notification that newly computed cloud cost stats data have become available
-    message CloudCostStatsAvailable {
-        // the snapshot_date of the topology on which the costs are based
-        required int64 snapshot_date = 1;
-    }
 }

@@ -447,7 +447,7 @@ public class ReservedInstanceCoverageUpdate {
                                                         @Nonnull Status status) {
         // send notification on projected topology
         try {
-            costNotificationSender.sendCostNotification(
+            costNotificationSender.sendStatusNotification(
                     CostNotification.newBuilder()
                             .setStatusUpdate(StatusUpdate.newBuilder()
                                     .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)

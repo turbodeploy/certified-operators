@@ -224,7 +224,7 @@ public class ProjectedRICoverageListener implements RepositoryListener, Projecte
     protected void sendProjectedRiCoverageNotification(
             @Nonnull final CostNotification projectedRiCoverageNotification) {
         try {
-            costNotificationSender.sendCostNotification(projectedRiCoverageNotification);
+            costNotificationSender.sendStatusNotification(projectedRiCoverageNotification);
             final StatusUpdate projectedRiCoverageUpdate = projectedRiCoverageNotification.getStatusUpdate();
             logger.debug("The projected RI coverage notification has been sent successfully. " +
                             "topology ID: {} topology context ID: {} status: {}",
