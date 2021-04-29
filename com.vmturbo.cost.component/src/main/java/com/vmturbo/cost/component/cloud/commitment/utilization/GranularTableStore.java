@@ -315,13 +315,13 @@ class GranularTableStore<
         final int coverageSubType = recordAccessor.coverageSubType();
 
         final long sampleCount = record.get(SAMPLE_COUNT, Long.class);
-        final long minUtilizationAmount = record.get(MIN_UTILIZATION_AMOUNT, Long.class);
-        final long maxUtilizationAmount = record.get(MAX_UTILIZATION_AMOUNT, Long.class);
-        final long sumUtilizationAmount = record.get(SUM_UTILIZATION_AMOUNT, Long.class);
+        final double minUtilizationAmount = record.get(MIN_UTILIZATION_AMOUNT, Double.class);
+        final double maxUtilizationAmount = record.get(MAX_UTILIZATION_AMOUNT, Double.class);
+        final double sumUtilizationAmount = record.get(SUM_UTILIZATION_AMOUNT, Double.class);
         final BigDecimal avgUtilizationAmount = record.get(AVG_UTILIZATION_AMOUNT, BigDecimal.class);
-        final long minCommitmentCapacity = record.get(MIN_COMMITMENT_CAPACITY, Long.class);
-        final long maxCommitmentCapacity = record.get(MAX_COMMITMENT_CAPACITY, Long.class);
-        final long sumCommitmentCapacity = record.get(SUM_COMMITMENT_CAPACITY, Long.class);
+        final double minCommitmentCapacity = record.get(MIN_COMMITMENT_CAPACITY, Double.class);
+        final double maxCommitmentCapacity = record.get(MAX_COMMITMENT_CAPACITY, Double.class);
+        final double sumCommitmentCapacity = record.get(SUM_COMMITMENT_CAPACITY, Double.class);
         final BigDecimal avgCommitmentCapacity = record.get(AVG_COMMITMENT_CAPACITY, BigDecimal.class);
 
         final CloudCommitmentStatRecord.Builder statRecord = CloudCommitmentStatRecord.newBuilder()
