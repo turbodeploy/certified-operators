@@ -30,6 +30,8 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomUpCostData;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
@@ -59,19 +61,22 @@ public class DataProvider {
     private volatile TopologyGraph<SupplyChainEntity> graph;
     private volatile List<EntityStats> clusterStats;
     private volatile TopDownCostData topDownCostData;
+    private volatile BottomUpCostData bottomUpCostData;
 
     private final ClusterStatsFetcherFactory clusterStatsFetcherFactory;
     private final TopDownCostFetcherFactory topDownCostFetcherFactory;
+    private final BottomUpCostFetcherFactory bottomUpCostFetcherFactory;
     private final ExtractorFeatureFlags extractorFeatureFlags;
 
-
     DataProvider(GroupServiceBlockingStub groupService,
-                 ClusterStatsFetcherFactory clusterStatsFetcherFactory,
-                 TopDownCostFetcherFactory topDownCostFetcherFactory,
-                 ExtractorFeatureFlags extractorFeatureFlags) {
+            ClusterStatsFetcherFactory clusterStatsFetcherFactory,
+            TopDownCostFetcherFactory topDownCostFetcherFactory,
+            BottomUpCostFetcherFactory bottomUpCostFetcherFactory,
+            ExtractorFeatureFlags extractorFeatureFlags) {
         this.groupService = groupService;
         this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
         this.topDownCostFetcherFactory = topDownCostFetcherFactory;
+        this.bottomUpCostFetcherFactory = bottomUpCostFetcherFactory;
         this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
@@ -170,6 +175,20 @@ public class DataProvider {
     }
 
     /**
+     * Get bottom-up cost data for the given snapshot.
+     *
+     * @param snapshotTime snapshot time of topology whose cost data is needed
+     * @param timer        timer to use
+     * @return cost data, or null if none is available
+     */
+    public BottomUpCostData fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
+        bottomUpCostFetcherFactory.newFetcher(timer, snapshotTime, this::setBottomUpCostData)
+                .fetchAndConsume();
+        return bottomUpCostData;
+    }
+
+
+    /**
      * Clean unneeded data while keeping useful data for actions ingestion.
      */
     public void clean() {
@@ -193,6 +212,10 @@ public class DataProvider {
 
     private void setTopDownCostData(TopDownCostData topDownCostData) {
         this.topDownCostData = topDownCostData;
+    }
+
+    private void setBottomUpCostData(BottomUpCostData bottomUpCostData) {
+        this.bottomUpCostData = bottomUpCostData;
     }
 
     /**
@@ -538,6 +561,11 @@ public class DataProvider {
     @Nullable
     public TopDownCostData getTopDownCostData() {
         return topDownCostData;
+    }
+
+    @Nullable
+    public BottomUpCostData getBottomUpCostData() {
+        return bottomUpCostData;
     }
 
     /**

@@ -16,8 +16,10 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -229,7 +231,8 @@ public class DbEndpointTestRule implements TestRule {
             throws UnsupportedDialectException {
         List<String> names = new ArrayList<>();
         names.add(endpointName);
-        names.addAll(DbEndpointResolver.dialectPropertyPrefixes(dialect));
+        names.addAll(DbEndpointResolver.dialectPropertyPrefixes(dialect).stream()
+                .filter(Objects::nonNull).collect(Collectors.toList()));
         for (final String name : names) {
             String prefix = name;
             while (true) {

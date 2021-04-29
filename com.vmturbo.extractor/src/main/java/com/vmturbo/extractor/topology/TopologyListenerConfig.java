@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -32,6 +33,8 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.cost.api.impl.CostComponentImpl;
+import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
@@ -44,6 +47,7 @@ import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -81,6 +85,9 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
+    private CostClientConfig costClientConfig;
+
+    @Autowired
     private ActionOrchestratorClientConfig actionClientConfig;
 
     @Autowired
@@ -91,9 +98,6 @@ public class TopologyListenerConfig {
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
-
-    @Autowired
-    private CostClientConfig costClientConfig;
 
     /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
@@ -138,6 +142,24 @@ public class TopologyListenerConfig {
                 writerFactories(), writerConfig(), dataProvider());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
+    }
+
+    /**
+     * Set up to process cost data availability notifications from cost component.
+     *
+     * @return listener
+     */
+    @Bean
+    public EntityCostListener entityCostListener() {
+        final ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
+        if (extractorFeatureFlags.isEntityCostEnabled() && extractorFeatureFlags.isReportingEnabled()) {
+            final EntityCostListener entityCostListener = new EntityCostListener(
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig());
+            costNotificationProcessor().addCostNotificationListener(entityCostListener);
+            return entityCostListener;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -204,6 +226,16 @@ public class TopologyListenerConfig {
         return tpConfig.topologyProcessor(
                 TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
                 TopologyProcessorSubscription.forTopic(Topic.Notifications));
+    }
+
+    /**
+     * Subscribe to cost component's notification kafka topic.
+     *
+     * @return cost notification processor
+     */
+    public CostComponentImpl costNotificationProcessor() {
+        return costClientConfig.costComponent(
+                CostSubscription.forTopic(CostSubscription.Topic.COST_STATUS_NOTIFICATION));
     }
 
     /**
@@ -328,9 +360,18 @@ public class TopologyListenerConfig {
      */
     @Bean
     public TopDownCostFetcherFactory topDownCostFetcherFactory() {
-        return new TopDownCostFetcherFactory(
-            CostServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-            RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+        return new TopDownCostFetcherFactory(costService(),
+                RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+    }
+
+    /**
+     * The {@link BottomUpCostFetcherFactory} for the {@link DataProvider}.
+     *
+     * @return the {@link BottomUpCostFetcherFactory}
+     */
+    @Bean
+    public BottomUpCostFetcherFactory bottomUpCostFetcherFactory() {
+        return new BottomUpCostFetcherFactory(costService());
     }
 
     /**
@@ -341,8 +382,9 @@ public class TopologyListenerConfig {
     @Bean
     public DataProvider dataProvider() {
         return new DataProvider(groupServiceBlockingStub(),
-            clusterStatsFetcherFactory(),
-            topDownCostFetcherFactory(),
+                clusterStatsFetcherFactory(),
+                topDownCostFetcherFactory(),
+                bottomUpCostFetcherFactory(),
                 extractorGlobalConfig.featureFlags());
     }
 
@@ -376,5 +418,16 @@ public class TopologyListenerConfig {
     public ThinTargetCache targetCache() {
         return new ThinTargetCache(topologyProcessor());
     }
+
+    /**
+     * Cost service endpoint.
+     *
+     * @return service endpoint
+     */
+    @Bean
+    public CostServiceBlockingStub costService() {
+        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
 }
 

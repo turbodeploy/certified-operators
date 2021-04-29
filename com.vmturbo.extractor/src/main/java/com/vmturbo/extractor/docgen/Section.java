@@ -32,6 +32,8 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.AttrType;
+import com.vmturbo.extractor.schema.enums.CostCategory;
+import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -263,6 +265,10 @@ public abstract class Section<T> {
         ActionTypeEnum((docTree) -> new EnumTypeSection<>(ActionType.class, docTree)),
         /** attr_type enum. */
         AttrTypeEnum((docTree) -> new EnumTypeSection<>(AttrType.class, docTree)),
+        /** cost_category enum. */
+        CostCategoryEnum((docTree) -> new EnumTypeSection<>(CostCategory.class, docTree)),
+        /** cost_source enum. */
+        CostSourceEnum((docTree) -> new EnumTypeSection<>(CostSource.class, docTree)),
         /** entity_state enum. */
         EntityStateEnum((docTree) -> new EnumTypeSection<>(EntityState.class, docTree)),
         /** entity_type enum. */
