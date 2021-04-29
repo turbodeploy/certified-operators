@@ -290,7 +290,8 @@ public class TopologyListenerConfig {
     @Bean
     public EntityCostWriter entityCostWriter() {
         return new EntityCostWriter(reservedInstanceConfig.reservedInstanceCoverageUpload(), topologyCostCalculatorFactory(),
-                costJournalRecorder(), entityCostConfig.entityCostStore());
+                costJournalRecorder(), entityCostConfig.entityCostStore(),
+                costNotificationConfig.costNotificationSender());
     }
 
     /**

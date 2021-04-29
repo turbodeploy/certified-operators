@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
@@ -305,6 +306,23 @@ public class Table {
             this.table = table;
             this.tableWriter = null;
             this.values = new HashMap<>();
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final Record record = (Record)o;
+            return Objects.equals(table, record.table) && Objects.equals(values, record.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(table, values);
         }
 
         /**

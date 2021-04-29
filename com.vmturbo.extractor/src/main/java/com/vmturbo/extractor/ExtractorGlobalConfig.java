@@ -42,6 +42,12 @@ public class ExtractorGlobalConfig {
     private boolean enableDataExtraction;
 
     /**
+     * Configuration used to enable/disable bottom-up entity cost ingestion.
+     */
+    @Value("${enableEntityCost:false}")
+    private boolean enableEntityCost;
+
+    /**
      * Clock for the component.
      *
      * @return The clock.
@@ -58,10 +64,12 @@ public class ExtractorGlobalConfig {
      */
     @Bean
     public ExtractorFeatureFlags featureFlags() {
-        return new ExtractorFeatureFlags(enableSearchApi,
+        return new ExtractorFeatureFlags(
+                enableSearchApi,
                 enableReporting,
                 enableActionIngestion,
-                enableDataExtraction);
+                enableDataExtraction,
+                enableEntityCost);
     }
 
     /**
@@ -81,13 +89,16 @@ public class ExtractorGlobalConfig {
         private final boolean enableReporting;
         private final boolean enableReportActionIngestion;
         private final boolean enableExtraction;
+        private final boolean enableEntityCost;
 
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
-                boolean enableReportActionIngestion, boolean enableExtraction) {
+                boolean enableReportActionIngestion, boolean enableExtraction,
+                boolean enableEntityCost) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
+            this.enableEntityCost = enableEntityCost;
         }
 
         public boolean isSearchEnabled() {
@@ -106,14 +117,20 @@ public class ExtractorGlobalConfig {
             return enableExtraction;
         }
 
+        public boolean isEntityCostEnabled() {
+            return enableEntityCost;
+        }
+
         @Override
         public String toString() {
             return FormattedString.format("Flags:\n"
-                + "Report Ingestion: {}\n"
-                + "Report Action Ingestion {}\n"
-                + "Search Ingestion {}\n"
-                + "Data Extraction {}", isReportingEnabled(),
-                    isReportingActionIngestionEnabled(), isSearchEnabled(), isExtractionEnabled());
+                            + "Report Ingestion: {}\n"
+                            + "Report Action Ingestion {}\n"
+                            + "Search Ingestion {}\n"
+                            + "Data Extraction {}\n"
+                            + "Entity Cost Ingestion {}",
+                    isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
+                    isExtractionEnabled(), isEntityCostEnabled());
         }
     }
 }
