@@ -100,8 +100,7 @@ public class PercentileReader
                 }
                 final ServerCallStreamObserver<PercentileChunk> serverObserver =
                                 (ServerCallStreamObserver<PercentileChunk>)responseObserver;
-                int totalProcessed = 0;
-                readPercentileData(percentileBlobsRecords, totalProcessed, serverObserver,
+                final long totalProcessed = readPercentileData(percentileBlobsRecords, serverObserver,
                         request.getChunkSize());
                 LOGGER.debug("Percentile data read '{}' bytes from database for '{}' timestamp in '{}' seconds from '{}' records",
                                 () -> totalProcessed, () -> startTimestamp,
@@ -115,9 +114,9 @@ public class PercentileReader
         }
     }
 
-    private void readPercentileData(@Nonnull Collection<PercentileBlobsRecord> records,
-            int totalProcessed, @Nonnull ServerCallStreamObserver<PercentileChunk> serverObserver,
-            int chunkSize) {
+    private long readPercentileData(@Nonnull Collection<PercentileBlobsRecord> records,
+            @Nonnull ServerCallStreamObserver<PercentileChunk> serverObserver, int chunkSize) {
+        long totalProcessed = 0;
         final LinkedList<PercentileBlobsRecord> percentileBlobsRecords = new LinkedList<>(records);
         final PercentileBlobsRecord anyRecord = percentileBlobsRecords.iterator().next();
         final long startTimestamp = anyRecord.getStartTimestamp();
@@ -132,7 +131,7 @@ public class PercentileReader
                             "Percentile blob for '%s' is corrupted. Its chunk#%s has period '%s', initial chunk had period '%s'",
                             record.getStartTimestamp(), record.getChunkIndex(),
                             record.getAggregationWindowLength(), period));
-                    return;
+                    return totalProcessed;
                 }
                 final byte[] sourceData = record.getData();
                 long subChunk = 0;
@@ -146,7 +145,7 @@ public class PercentileReader
                                 "Cannot read percentile data for start timestamp '%s' and period '%s' because of exceeding GRPC timeout '%s' ms",
                                 startTimestamp, period, grpcTimeoutMs);
                         sendError(serverObserver, message);
-                        return;
+                        return totalProcessed;
                     }
                     if (!serverObserver.isReady()) {
                         Thread.sleep(timeToWaitNetworkReadinessMs);
@@ -175,7 +174,6 @@ public class PercentileReader
                             recordProcessed, startTimestamp, recordRead.elapsed(TimeUnit.SECONDS),
                             subChunk);
                 }
-
             }
         } catch (IOException ex) {
             LOGGER.error(
@@ -188,6 +186,7 @@ public class PercentileReader
                     startTimestamp, period));
             Thread.currentThread().interrupt();
         }
+        return totalProcessed;
     }
 
     private void sendError(@Nonnull ServerCallStreamObserver<PercentileChunk> serverObserver,
