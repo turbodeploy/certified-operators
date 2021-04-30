@@ -275,96 +275,134 @@ public class SupplyChainCalculatorTest {
      */
    @Test
    public void testSpecialPMStorageRule() {
+       /*
+        *  Topology:
+        *  VM1     VM2
+        *   |\     /|
+        *   | \   / |
+        *   |  \ /  |
+        *   |  PM   |
+        *   |  / \  |
+        *   | /   \ |
+        *   ST1   ST2
+        *
+        *   Thanks to the special rule between PM/ST,
+        *   scoping on VM1 will not bring in ST2
+        *   scoping on PM will bring everything.
+        *   Same functionality should work for VDC.
+        */
+       checkSpecialStorageRule(ApiEntityType.PHYSICAL_MACHINE);
+   }
+
+    /**
+     * Tests special rule for relationship between VDCs and storage.
+     */
+    @Test
+    public void testSpecialVDCStorageRule() {
         /*
          *  Topology:
          *  VM1     VM2
          *   |\     /|
          *   | \   / |
          *   |  \ /  |
-         *   |  PM   |
+         *   |  VDC  |
          *   |  / \  |
          *   | /   \ |
          *   ST1   ST2
          *
-         *   Thanks to the special rule between PM/ST,
+         *   Thanks to the special rule between VDC/ST,
          *   scoping on VM1 will not bring in ST2
-         *   scoping on PM will bring everything
+         *   scoping on VDC will bring everything.
+         *   Same functionality should work for VDC.
          */
-       final long vm1Id = 1;
-       final long vm2Id = 2;
-       final long pmId = 11;
-       final long st1Id = 21;
-       final long st2Id = 22;
-       final TopologyGraph<TestGraphEntity> graph =
-           TestGraphEntity.newGraph(
-               TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
-                   .addProviderId(pmId)
-                   .addProviderId(st1Id),
-               TestGraphEntity.newBuilder(vm2Id, ApiEntityType.VIRTUAL_MACHINE)
-                   .addProviderId(pmId)
-                   .addProviderId(st2Id),
-               TestGraphEntity.newBuilder(pmId, ApiEntityType.PHYSICAL_MACHINE)
-                   .addProviderId(st1Id)
-                   .addProviderId(st2Id),
-               TestGraphEntity.newBuilder(st1Id, ApiEntityType.STORAGE),
-               TestGraphEntity.newBuilder(st2Id, ApiEntityType.STORAGE));
+        checkSpecialStorageRule(ApiEntityType.VIRTUAL_DATACENTER);
+    }
 
-       final Map<Integer, SupplyChainNode> supplychainFromVM1 = getSupplyChain(graph, vm1Id);
-       final Map<Integer, SupplyChainNode> supplychainFromPM = getSupplyChain(graph, pmId);
+    private void checkSpecialStorageRule(ApiEntityType excludingObjectType) {
+        final long vm1Id = 1;
+        final long vm2Id = 2;
+        final long excludingObjectId = 11;
+        final long st1Id = 21;
+        final long st2Id = 22;
+        final TopologyGraph<TestGraphEntity> graph =
+            TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
+                    .addProviderId(excludingObjectId)
+                    .addProviderId(st1Id),
+                TestGraphEntity.newBuilder(vm2Id, ApiEntityType.VIRTUAL_MACHINE)
+                    .addProviderId(excludingObjectId)
+                    .addProviderId(st2Id),
+                TestGraphEntity.newBuilder(excludingObjectId, excludingObjectType)
+                    .addProviderId(st1Id)
+                    .addProviderId(st2Id),
+                TestGraphEntity.newBuilder(st1Id, ApiEntityType.STORAGE),
+                TestGraphEntity.newBuilder(st2Id, ApiEntityType.STORAGE));
 
-       commonForSpecialPMStorageRule(supplychainFromVM1);
-       commonForSpecialPMStorageRule(supplychainFromPM);
+        final Map<Integer, SupplyChainNode> supplychainFromVM1 = getSupplyChain(graph, vm1Id);
+        final Map<Integer, SupplyChainNode> supplychainFromExcludingObject = getSupplyChain(graph,
+                        excludingObjectId);
+        final Map<Integer, SupplyChainNode> suppplyChainFromStorage = getSupplyChain(graph,
+                        st1Id);
 
-       final SupplyChainNode vmNodeFromChainScopedOnVM1 =
-               supplychainFromVM1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
-       final SupplyChainNode pmNodeFromChainScopedOnVM1 =
-               supplychainFromVM1.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-       final SupplyChainNode stNodeFromChainScopedOnVM1 =
-               supplychainFromVM1.get(ApiEntityType.STORAGE.typeNumber());
-       assertThat(getAllNodeIds(vmNodeFromChainScopedOnVM1),
-                  containsInAnyOrder(vm1Id));
-       assertThat(getAllNodeIds(pmNodeFromChainScopedOnVM1),
-                  containsInAnyOrder(pmId));
-       assertThat(getAllNodeIds(stNodeFromChainScopedOnVM1),
-                  containsInAnyOrder(st1Id));
+        commonForSpecialStorageRule(supplychainFromVM1, excludingObjectType);
+        commonForSpecialStorageRule(supplychainFromExcludingObject, excludingObjectType);
+        commonForSpecialStorageRule(suppplyChainFromStorage, excludingObjectType);
 
-       final SupplyChainNode vmNodeFromChainScopedOnPM =
-               supplychainFromPM.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
-       final SupplyChainNode pmNodeFromChainScopedOnPM =
-               supplychainFromPM.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-       final SupplyChainNode stNodeFromChainScopedOnPM =
-               supplychainFromPM.get(ApiEntityType.STORAGE.typeNumber());
-       assertThat(getAllNodeIds(vmNodeFromChainScopedOnPM),
-                  containsInAnyOrder(vm2Id, vm1Id));
-       assertThat(getAllNodeIds(pmNodeFromChainScopedOnPM),
-                  containsInAnyOrder(pmId));
-       assertThat(getAllNodeIds(stNodeFromChainScopedOnPM),
-                  containsInAnyOrder(st2Id, st1Id));
-   }
+        final SupplyChainNode vmNodeFromChainScopedOnStorage =
+                        suppplyChainFromStorage.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        Assert.assertThat(getAllNodeIds(vmNodeFromChainScopedOnStorage),
+                        CoreMatchers.is(Collections.singleton(1L)));
+        final SupplyChainNode vmNodeFromChainScopedOnVM1 =
+                supplychainFromVM1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        final SupplyChainNode excludedObjectNodeFromChainScopedOnVM1 =
+                supplychainFromVM1.get(excludingObjectType.typeNumber());
+        final SupplyChainNode stNodeFromChainScopedOnVM1 =
+                supplychainFromVM1.get(ApiEntityType.STORAGE.typeNumber());
+        assertThat(getAllNodeIds(vmNodeFromChainScopedOnVM1),
+                   containsInAnyOrder(vm1Id));
+        assertThat(getAllNodeIds(excludedObjectNodeFromChainScopedOnVM1),
+                   containsInAnyOrder(excludingObjectId));
+        assertThat(getAllNodeIds(stNodeFromChainScopedOnVM1),
+                   containsInAnyOrder(st1Id));
 
-   private void commonForSpecialPMStorageRule(
-           @Nonnull Map<Integer, SupplyChainNode> supplychain) {
+        final SupplyChainNode vmNodeFromChainScopedOnExcludedObject =
+                supplychainFromExcludingObject.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        final SupplyChainNode excludedObjectNodeFromChainScopedOnExcludedObject =
+                supplychainFromExcludingObject.get(excludingObjectType.typeNumber());
+        final SupplyChainNode stNodeFromChainScopedOnExcludedObject =
+                supplychainFromExcludingObject.get(ApiEntityType.STORAGE.typeNumber());
+        assertThat(getAllNodeIds(vmNodeFromChainScopedOnExcludedObject),
+                   containsInAnyOrder(vm2Id, vm1Id));
+        assertThat(getAllNodeIds(excludedObjectNodeFromChainScopedOnExcludedObject),
+                   containsInAnyOrder(excludingObjectId));
+        assertThat(getAllNodeIds(stNodeFromChainScopedOnExcludedObject),
+                   containsInAnyOrder(st2Id, st1Id));
+    }
+
+    private static void commonForSpecialStorageRule(
+                    @Nonnull Map<Integer, SupplyChainNode> supplychain,
+                    ApiEntityType excludingObjectType) {
        assertThat(supplychain.keySet(),
                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
                                      ApiEntityType.STORAGE.typeNumber(),
-                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+                                     excludingObjectType.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber(),
-                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+                                     excludingObjectType.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
                   containsInAnyOrder());
 
-       assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+       assertThat(supplychain.get(excludingObjectType.typeNumber())
                        .getConnectedProviderTypesList(),
                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
-       assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+       assertThat(supplychain.get(excludingObjectType.typeNumber())
                        .getConnectedConsumerTypesList(),
                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedConsumerTypesList(),
                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+                                     excludingObjectType.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedProviderTypesList(),
                   containsInAnyOrder());
    }
