@@ -257,6 +257,63 @@ public class ControllableManagerTest {
     }
 
     /**
+     * Make sure that VMs on a unknown host are not controllable.
+     */
+    @Test
+    public void testApplyControllableUnknownHost() {
+        topology.get(pmFailover.getOid()).getEntityBuilder().setEntityState(EntityState.UNKNOWN);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        Mockito.when(entityActionDao.getNonControllableEntityIds())
+            .thenReturn(Collections.emptySet());
+        assertEquals(EntityState.UNKNOWN, pmFailover.getEntityState());
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(3, numModified);
+        assertFalse(vm1.getAnalysisSettings().getControllable());
+        assertFalse(vm2.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+    }
+
+    /**
+     * Suspended entities should be marked as not controllable.
+     */
+    @Test
+    public void testApplyControllableSuspendedEntity() {
+        final TopologyEntityDTO.Builder suspendedVM = TopologyEntityDTO.newBuilder()
+            .setOid(201)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setControllable(true))
+            .setEntityState(EntityState.SUSPENDED)
+            .addCommoditiesBoughtFromProviders(
+                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmPoweredOn.getOid()));
+        final TopologyEntityDTO.Builder suspendedContainer = TopologyEntityDTO.newBuilder()
+            .setOid(202)
+            .setEntityType(EntityType.CONTAINER_VALUE)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setControllable(true))
+            .setEntityState(EntityState.SUSPENDED)
+            .addCommoditiesBoughtFromProviders(
+                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pod2.getOid()));
+
+        topology.put(suspendedVM.getOid(), TopologyEntity.newBuilder(suspendedVM));
+        topology.put(suspendedContainer.getOid(), TopologyEntity.newBuilder(suspendedContainer));
+        topology.get(pmPoweredOn.getOid()).addConsumer(topology.get(suspendedVM.getOid()));
+        topology.get(pod2.getOid()).addConsumer(topology.get(suspendedContainer.getOid()));
+
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        Mockito.when(entityActionDao.getNonControllableEntityIds())
+            .thenReturn(Collections.emptySet());
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(5, numModified);
+        assertFalse(vm1.getAnalysisSettings().getControllable());
+        assertFalse(vm2.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+        assertFalse(suspendedContainer.getAnalysisSettings().getControllable());
+        assertFalse(suspendedContainer.getAnalysisSettings().getControllable());
+    }
+
+    /**
      * Make sure all hosts in Maintenance mode and with automation level equal to FULLY_AUTOMATED are set to non-controllable.
      */
     @Test
