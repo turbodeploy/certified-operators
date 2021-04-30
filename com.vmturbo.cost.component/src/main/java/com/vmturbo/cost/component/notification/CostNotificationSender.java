@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.notification;
 
+import java.sql.Timestamp;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -10,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudCostStatsAvailable;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -39,7 +41,7 @@ public class CostNotificationSender extends
     }
 
     /**
-     * Sends the cost status notification.
+     * Sends a cost notification.
      *
      * @param costNotification The cost notification
      * @throws InterruptedException   if sending thread has been interrupted. This does not
@@ -47,7 +49,7 @@ public class CostNotificationSender extends
      * @throws CommunicationException if persistent communication error occurred (message could
      *                                not be sent in future).
      */
-    public void sendStatusNotification(@Nonnull final CostNotification costNotification)
+    public void sendCostNotification(@Nonnull final CostNotification costNotification)
             throws CommunicationException, InterruptedException {
         sendMessage(notificationSender, costNotification);
     }
@@ -62,9 +64,14 @@ public class CostNotificationSender extends
                     .append("Topology ID", statusUpdate.getTopologyId())
                     .append("Topology Context ID", statusUpdate.getTopologyContextId())
                     .build();
+        } else if (costNotification.hasCloudCostStatsAvailable()) {
+            final CloudCostStatsAvailable ccsa = costNotification.getCloudCostStatsAvailable();
+            return new ToStringBuilder(costNotification, ToStringStyle.SHORT_PREFIX_STYLE)
+                    .append("Snapshot Time", new Timestamp(ccsa.getSnapshotDate()))
+                    .build();
+        } else {
+            return CostNotificationSender.class.getSimpleName()
+                    + "[ This message type is not implemented. ]";
         }
-        return CostNotificationSender.class.getSimpleName()
-                + "[ This message type is not implemented. ]";
     }
-
 }

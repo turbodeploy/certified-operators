@@ -5,13 +5,16 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "plan/PlanProgressStatusEnum.proto";
 
-// This is the notification message from cost component to plan orchestrator at the end of an
+// This defines notifications that are sent to subscriging components in varios circumstances
+// is the notification message from cost component to plan orchestrator at the end of an
 // optimize cloud plan.
 message CostNotification {
 
     oneof Type {
-        // Currently, status notifications are the only type sent as a cost notification
+        // notify of events in the lifecycle of certain plans
         StatusUpdate status_update = 1;
+        // notify of new cost data computed from a source real-time topology
+        CloudCostStatsAvailable cloud_cost_stats_available = 2;
     }
 
     // A message about a cost operation stats
@@ -51,4 +54,9 @@ message CostNotification {
         PLAN_ENTITY_COST_UPDATE = 4;
     }
 
+    // Notification that newly computed cloud cost stats data have become available
+    message CloudCostStatsAvailable {
+        // the snapshot_date of the topology on which the costs are based
+        required int64 snapshot_date = 1;
+    }
 }
