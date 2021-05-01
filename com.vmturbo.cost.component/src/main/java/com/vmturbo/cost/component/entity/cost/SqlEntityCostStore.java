@@ -41,6 +41,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
+import com.google.common.math.DoubleMath;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
@@ -498,7 +499,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                         final TraxNumber categoryCost =
                                 journal.getHourlyCostBySourceAndCategory(costType,
                                         costSource);
-                        if (categoryCost != null) {
+                        if (categoryCost != null && !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d)) {
                             final long entityOid = journal.getEntity().getOid();
                             if (planId.isPresent()) {
                                 batch.bind(entityOid,
