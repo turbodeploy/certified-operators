@@ -1,10 +1,13 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
@@ -13,6 +16,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
@@ -51,7 +56,7 @@ public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E> 
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(
+    public Collection<CostItem> calculateHourlyCost(
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
@@ -64,7 +69,13 @@ public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E> 
         final TraxNumber unitPrice =
                 Trax.trax(price.getPriceAmount().getAmount() * riBoughtPercentage.getValue(),
                         "Unit Full Price.");
-        return unitPrice.times(discountedPricePercentage).compute("discounted unit price");
+        final TraxNumber discountedLicensePrice =
+                unitPrice.times(discountedPricePercentage).compute("discounted unit price");
+
+        return ImmutableList.of(CostItem.builder()
+                .costSourceLink(CostSourceLink.of(costSource))
+                .cost(discountedLicensePrice)
+                .build());
     }
 
     @Nonnull

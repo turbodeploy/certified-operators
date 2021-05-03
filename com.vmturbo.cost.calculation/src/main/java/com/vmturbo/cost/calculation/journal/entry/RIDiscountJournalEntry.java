@@ -1,9 +1,12 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
@@ -12,6 +15,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.Trax;
@@ -67,16 +72,26 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(
+    public Collection<CostItem> calculateHourlyCost(
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
         // OnDemand rate is already price-adjusted (discounted), so don't discount again.
-        TraxNumber onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory, EXCLUDE_RI_DISCOUNTS_FILTER);
-        return Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
-                .times(onDemandRate)
-                .compute(String.format("RI discounted %s cost (BuyRI=%s)",
-                        targetCostCategory.getDescriptorForType().getFullName(), isBuyRI));
+        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, EXCLUDE_RI_DISCOUNTS_FILTER);
+        final TraxNumber riDiscount =  Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue());
+
+        return costItems.stream()
+                .map(costItem -> {
+
+                    final TraxNumber discount = riDiscount.times(costItem.cost())
+                            .compute(String.format("RI discounted %s cost (BuyRI=%s, Cost Source Link=%s)",
+                                    targetCostCategory.getDescriptorForType().getFullName(),
+                                    isBuyRI, costItem.costSourceLink()));
+                    return CostItem.builder()
+                            .costSourceLink(CostSourceLink.of(costSource, Optional.of(costItem.costSourceLink())))
+                            .cost(discount)
+                            .build();
+                }).collect(ImmutableList.toImmutableList());
     }
 
     @Nonnull

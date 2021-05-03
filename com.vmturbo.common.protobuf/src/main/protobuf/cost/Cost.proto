@@ -454,7 +454,22 @@ message EntityCost {
         // Hourly rate for Cloud entity
         optional common_dto.CurrencyAmount amount = 2;
 
-        optional CostSource costSource = 3;
+        // This has been deprecated in favor of the cost_source_link
+        optional CostSource costSource = 3 [deprecated = true];
+
+        optional CostSourceLinkDTO cost_source_link = 4;
+
+        message CostSourceLinkDTO {
+
+            // The immediate cost source of this component cost.
+            optional CostSource cost_source = 1;
+
+            // If the immediate cost source represents a discount (e.g. entity uptime, buy RI,
+            // RI inventory, etc.), the discount_cost_source_link will indicate which cost source
+            // this discount was applied to. Given discounts can be stacked (ex: RI inventory on
+            // top of entity uptime), the cost_source_links may be chained.
+            optional CostSourceLinkDTO discount_cost_source_link = 2;
+        }
     }
 }
 
