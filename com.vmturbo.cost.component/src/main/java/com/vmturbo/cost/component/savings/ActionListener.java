@@ -177,6 +177,9 @@ public class ActionListener implements ActionsListener {
         costCategoriesByEntityType.put(EntityType.DATABASE_VALUE,
                                        ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
                                                        CostCategory.STORAGE));
+        costCategoriesByEntityType.put(EntityType.DATABASE_SERVER_VALUE,
+                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
+                                                       CostCategory.STORAGE));
     }
 
     /**
