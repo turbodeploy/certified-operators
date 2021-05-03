@@ -45,7 +45,7 @@ class SmtpConfig:
         env["GF_SMTP_USER"] = self.user
         env["GF_SMTP_PASSWORD"] = self.password
         env["GF_SMTP_FROM_NAME"] = self.from_name
-        env["GF_SMTP_FROM_ADDR"] = self.from_addr
+        env["GF_SMTP_FROM_ADDRESS"] = self.from_addr
         if self.encryption == "SSL":
             env["GF_SMTP_SKIP_VERIFY"] = "false"
             env.pop("GF_SMTP_STARTTLS_POLICY", None)
