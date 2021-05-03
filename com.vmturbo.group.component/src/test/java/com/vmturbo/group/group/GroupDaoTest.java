@@ -1,6 +1,8 @@
 package com.vmturbo.group.group;
 
 import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMENTARY_INFO;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,6 +65,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
@@ -413,6 +416,33 @@ public class GroupDaoTest {
         groupStore.createGroup(OID1, origin, groupDefinition, Collections.emptySet(), true);
         final GroupDTO.Grouping group = getGroupFromStore(OID1);
         Assert.assertEquals(groupDefinition, group.getDefinition());
+    }
+
+    /**
+     * Check that dynamic groups can still be queried by direct member type.
+     *
+     * @throws Exception If exception.
+     */
+    @Test
+    public void testDynamicGroupExpectedTypes() throws Exception {
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
+                // We set these filters to indicate that its a dynamic group.
+                .setEntityFilters(EntityFilters.getDefaultInstance())
+                .build();
+        final MemberType memberType = MemberType.newBuilder()
+            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .build();
+        groupStore.createGroup(OID1, createUserOrigin(), groupDefinition,
+                Collections.singleton(memberType), true);
+
+        GetPaginatedGroupsResponse resp =  groupStore.getPaginatedGroups(GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addDirectMemberTypes(memberType))
+                .build());
+
+        assertThat(resp.getGroupsList().stream()
+                .map(Grouping::getId)
+                .collect(Collectors.toList()), containsInAnyOrder(OID1));
     }
 
     /**

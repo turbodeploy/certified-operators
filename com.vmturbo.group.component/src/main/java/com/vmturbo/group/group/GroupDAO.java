@@ -366,7 +366,7 @@ public class GroupDAO implements IGroupStore {
                 insertGroupDefinitionDependencies(context, groupPojo.getId(), groupDefinition));
         inserts.addAll(
                 insertExpectedMembers(context, groupPojo.getId(), new HashSet<>(expectedMembers),
-                        groupDefinition.getStaticGroupMembers()));
+                        groupDefinition));
         context.batch(inserts).execute();
     }
 
@@ -505,32 +505,38 @@ public class GroupDAO implements IGroupStore {
 
     private Collection<Query> insertExpectedMembers(@Nonnull DSLContext context,
             long groupId, @Nonnull Set<MemberType> memberTypes,
-            @Nullable StaticMembers staticMembers) throws StoreOperationException {
+            @Nonnull GroupDefinition groupDefinition) throws StoreOperationException {
         final Collection<Query> records = new ArrayList<>();
         final Set<MemberType> directMembers;
-        if (staticMembers != null) {
-            directMembers = staticMembers.getMembersByTypeList()
+        if (groupDefinition.hasGroupFilters() || groupDefinition.hasEntityFilters()) {
+            // For dynamic groups we assume that all member types are direct members.
+            //
+            // This is the correct assumption in all cases at the time of this writing, because
+            // for dynamic nested groups we do not resolve expected types
+            // (see GroupRpcService#findGroupExpectedTypes).
+            directMembers = memberTypes;
+        } else {
+            directMembers = groupDefinition.getStaticGroupMembers().getMembersByTypeList()
                     .stream()
                     .map(StaticMembersByType::getType)
                     .collect(Collectors.toSet());
-        } else {
-            directMembers = Collections.emptySet();
+            if (!memberTypes.containsAll(directMembers)) {
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Group " + groupId + " declared expected members  " + memberTypes.stream()
+                                .map(memberType -> memberType.hasGroup() ? memberType.getGroup()
+                                        .toString() : Integer.toString(memberType.getEntity()))
+                                .collect(Collectors.joining(",", "[", "]"))
+                                + " does not contain all the direct members: "
+                                + groupDefinition.getStaticGroupMembers().getMembersByTypeList()
+                                .stream()
+                                .map(StaticMembersByType::getType)
+                                .map(memberType -> memberType.hasGroup()
+                                        ? memberType.getGroup().toString()
+                                        : Integer.toString(memberType.getEntity()))
+                                .collect(Collectors.joining(",", "[", "]")));
+            }
         }
-        if (!memberTypes.containsAll(directMembers)) {
-            throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                    "Group " + groupId + " declared expected members  " + memberTypes.stream()
-                            .map(memberType -> memberType.hasGroup() ? memberType.getGroup()
-                                    .toString() : Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]"))
-                            + " does not contain all the direct members: "
-                            + staticMembers.getMembersByTypeList()
-                            .stream()
-                            .map(StaticMembersByType::getType)
-                            .map(memberType -> memberType.hasGroup()
-                                    ? memberType.getGroup().toString()
-                                    : Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]")));
-        }
+
         for (MemberType memberType : memberTypes) {
             final boolean directMember = directMembers.contains(memberType);
             if (memberType.getTypeCase() == TypeCase.GROUP) {
@@ -1177,8 +1183,7 @@ public class GroupDAO implements IGroupStore {
         cleanGroupChildTables(context, groupId);
         final Collection<Query> children = new ArrayList<>();
         children.addAll(insertGroupDefinitionDependencies(context, groupId, groupDefinition));
-        children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes,
-                groupDefinition.getStaticGroupMembers()));
+        children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes, groupDefinition));
 
         // Set the values that don't get updated as a part of update
         group.setOriginSystemDescription(record.value1());
@@ -1848,8 +1853,7 @@ public class GroupDAO implements IGroupStore {
             queriesToAppend.add(createFunction.apply(groupPojo));
             insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
             insertsToAppend.addAll(insertExpectedMembers(context, groupPojo.getId(),
-                    new HashSet<>(group.getExpectedMembers()),
-                    group.getDefinition().getStaticGroupMembers()));
+                    new HashSet<>(group.getExpectedMembers()), group.getDefinition()));
             insertsToAppend.addAll(
                     createTargetForGroupRecords(context, effectiveId, group.getTargetIds()));
         }
