@@ -202,7 +202,8 @@ public class BuyRiScopeHandler {
             }
             // Otherwise only return true if this is a billing family or group of billing family
             return groupInfo.getGroupType() == GroupType.BILLING_FAMILY
-                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes());
+                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())
+                    || groupInfo.isGlobalTempGroup();
         }
         return false;
     }
