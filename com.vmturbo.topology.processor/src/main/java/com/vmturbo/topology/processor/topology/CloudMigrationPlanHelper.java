@@ -652,7 +652,8 @@ public class CloudMigrationPlanHelper {
      *
      * @param vm the {@link TopologyEntity} source entity being processed
      */
-    private void addCouponCommodity(final TopologyEntity vm) {
+    @VisibleForTesting
+    void addCouponCommodity(final TopologyEntity vm) {
         if (vm.getEntityType() != VIRTUAL_MACHINE_VALUE) {
             // Only updating coupon commodity for VMs
             return;
@@ -667,8 +668,8 @@ public class CloudMigrationPlanHelper {
             // first, verify that we're dealing with a compute provider, and that this VM isn't
             // already buying a coupon commodity from it
             if (EntityType.PHYSICAL_MACHINE_VALUE == commoditiesBoughtFromProvider.getProviderEntityType()
-                    && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
-                        .anyMatch(commodityBoughtDTO -> CommodityType.COUPON.equals(commodityBoughtDTO.getCommodityType()))) {
+                && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                        .anyMatch(commodityBoughtDTO -> CommodityType.COUPON_VALUE == commodityBoughtDTO.getCommodityType().getType())) {
                 //Add CouponCommodity
                 CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
                         CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)

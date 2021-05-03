@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.COMMODITIES_TO_SKIP;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
@@ -848,6 +849,157 @@ public class CloudMigrationPlanHelperTest {
     }
 
     /**
+     * Check a coupon commodity IS ADDED to PM provider when the VM has such provider but no
+     * existing COUPON commodity.  The coupon commodity should only added to PM provider of a VM.
+     */
+    @Test
+    public void addCouponCommodityWhenVmIsProvidedByPMAndNoCoupon() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long diskProviderId = 301L;
+        final long vmId = 201L;
+        vm.setOid(vmId);
+        vm.setEntityType(VIRTUAL_MACHINE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                   .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE))));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(diskProviderId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        // Verify PM Provider
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(3, pmProvider.getCommodityBoughtCount());
+        assertTrue(pmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+
+
+        // Verify non PM Provider, no coupon should be added
+        List<CommoditiesBoughtFromProvider.Builder> nonPmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE != provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, nonPmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder nonPmProvider = nonPmProviders.get(0);
+        assertEquals(diskProviderId, nonPmProvider.getProviderId());
+        assertEquals(1, nonPmProvider.getCommodityBoughtCount());
+        assertFalse(nonPmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+    }
+
+    /**
+     * Check coupon commodity IS NOT CHANGED to PM provider when the VM has such provider has
+     * existing COUPON commodity.
+     */
+    @Test
+    public void addCouponCommodityWhenVmIsProvidedByPMAndHasCoupon() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long vmId = 201L;
+        final double couponUsed = 3.0d;
+        final double couponPeak = 5.0d;
+        final double delta = 0.000001d;
+        vm.setOid(vmId);
+        vm.setEntityType(VIRTUAL_MACHINE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.COUPON_VALUE))
+                    .setUsed(couponUsed)
+                    .setPeak(couponPeak)));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(301L)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        // Verify
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .filter(provider -> EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType())
+            .collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(3, pmProvider.getCommodityBoughtCount());
+
+        // Check the coupon values are not changed by the method
+        List<CommodityBoughtDTO.Builder> couponCommodities = pmProvider.getCommodityBoughtBuilderList().stream()
+            .filter(commodity -> CommodityType.COUPON_VALUE == commodity.getCommodityType().getType())
+            .collect(Collectors.toList());
+        assertEquals(1, couponCommodities.size());
+        final CommodityBoughtDTO.Builder couponCommodity = couponCommodities.get(0);
+        assertEquals(couponPeak, couponCommodity.getPeak(), delta);
+        assertEquals(couponUsed, couponCommodity.getUsed(), delta);
+    }
+
+    /**
+     * When the entity is not a VM, the commodity list should not be touched
+     * by the addCouponCommodity() method, regardless of the provider type.
+     */
+    @Test
+    public void addCouponCommodityWhenEntityIsNonVm() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long diskProviderId = 301L;
+        final long vmId = 201L;
+        vm.setOid(vmId);
+        vm.setEntityType(STORAGE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE))));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(diskProviderId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        // Verify PM Provider
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(2, pmProvider.getCommodityBoughtCount());
+        assertFalse(pmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+
+
+        // Verify non PM Provider, no coupon should be added
+        List<CommoditiesBoughtFromProvider.Builder> nonPmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE != provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, nonPmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder nonPmProvider = nonPmProviders.get(0);
+        assertEquals(diskProviderId, nonPmProvider.getProviderId());
+        assertEquals(1, nonPmProvider.getCommodityBoughtCount());
+        assertFalse(nonPmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+    }
+
+    /**
      * Checks if commodities are getting skipped correctly when doing on-prem to cloud migration.
      * Certain on-prem commodities don't apply to cloud and are thus not sold by cloud tiers,
      * so those are being removed from TopologyEntity, before they can be migrated to cloud.
@@ -975,4 +1127,3 @@ public class CloudMigrationPlanHelperTest {
         return commoditiesByProvider;
     }
 }
-
