@@ -23,6 +23,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
@@ -37,7 +38,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsReq
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -228,9 +231,26 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()
                         && context.getQueryScope() != null) {
-            final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();
+            final Map<ApiEntityType, Set<Long>> scopeEntitiesByType;
             // This is a set of scope oids filtered by CSP.
-            final Set<Long> scopeOids = context.getQueryScope().getScopeOids();
+            final Set<Long> scopeOids;
+            // check if originalId (scope oid) is a group oid
+            if (inputScope.isGlobalTempGroup()) {
+                // filter value: 'AWS' or 'Azure'
+                Set<StatApiInputDTO> inputDtoSet = context.getRequestedStats();
+                final Set<String> cspNameSet = getFilterValue(inputDtoSet);
+                if (cspNameSet.size() > 0) {
+                    // get current cloud provider's oid (AWS oid or Azure oid)
+                    scopeOids = getOidByCspName(cspNameSet);
+                    scopeEntitiesByType = Collections.singletonMap(ApiEntityType.SERVICE_PROVIDER, scopeOids);
+                } else {
+                    scopeOids = context.getQueryScope().getScopeOids();
+                    scopeEntitiesByType = inputScope.getScopeEntitiesByType();
+                }
+            } else {
+                scopeOids = context.getQueryScope().getScopeOids();
+                scopeEntitiesByType = inputScope.getScopeEntitiesByType();
+            }
             if (scopeEntitiesByType.containsKey(ApiEntityType.SERVICE_PROVIDER)) {
                 reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(
@@ -268,6 +288,29 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                     "Invalid scope for query. Must be global or have an entity type.");
         }
         return reqBuilder.build();
+    }
+
+    @Nonnull
+    private Set<String> getFilterValue(@Nonnull Set<StatApiInputDTO> inputDtoSet) {
+        return inputDtoSet.stream()
+                .map(inputDto -> inputDto.getFilters())
+                .filter(filters -> filters != null)       // filter != null => with filter => type = "CSP" => value = "AWS" or "Azure"
+                .flatMap(filters -> filters.stream())
+                .filter(filter -> filter.getType().equals(StringConstants.CSP))
+                .map(StatFilterApiDTO::getValue)
+                .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    private Set<Long> getOidByCspName(@Nonnull Set<String> cspNameSet) {
+        // Make the call to repository API to fetch CSP List
+        final RepositoryApi.SearchRequest searchRequest = this.repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.SERVICE_PROVIDER)).build());
+        final List<TopologyDTO.PartialEntity.MinimalEntity> cspList = searchRequest.getMinimalEntities().collect(Collectors.toList());
+
+        return cspList.stream()     // for each CSP ('AWS', 'Azure')
+                .filter(csp -> cspNameSet.stream().anyMatch(csp.getDisplayName()::equalsIgnoreCase))
+                .map(com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity::getOid)
+                .collect(Collectors.toSet());
     }
 
     @Nonnull
