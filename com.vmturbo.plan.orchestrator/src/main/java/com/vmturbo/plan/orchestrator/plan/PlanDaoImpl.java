@@ -348,40 +348,42 @@ public class PlanDaoImpl implements PlanDao {
                 final PlanDTO.PlanInstance src = getPlanInstance(context, planId).orElseThrow(
                     () -> new NoSuchObjectException("Plan with id " + planId
                         + " not found while trying to update it"));
-                // If a plan is in terminal state we don't update its status anymore.
-                if (!PlanDTOUtil.isTerminalStatus(src.getStatus())) {
-                    final PlanDTO.PlanInstance.Builder newBuilder =
-                            PlanDTO.PlanInstance.newBuilder(src);
-                    updater.accept(newBuilder);
-                    final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                    // Don't info print annoying 'from WAITING_FOR_RESULT to WAITING_FOR_RESULT'.
-                    // Log info only if status code is different or if status messages are different.
-                    boolean newStatusMessage = !src.getStatusMessage().equals(
-                            planInstance.getStatusMessage());
-                    final Level logLevel = ((src.getStatus() != planInstance.getStatus())
-                            || newStatusMessage) ? Level.INFO : Level.DEBUG;
-                    logger.log(logLevel, "Updating planInstance : {} from {} to {}. {}",
-                        planId, src.getStatus().name(), planInstance.getStatus().name(),
-                        newStatusMessage ? "New status message: " + planInstance.getStatusMessage()
-                            : "");
-                    checkPlanConsistency(planInstance);
-                    final int numRows = context.update(PLAN_INSTANCE)
-                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
-                            .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
-                            .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
-                            .where(PLAN_INSTANCE.ID.eq(planId))
-                            .execute();
-                    if (numRows == 0) {
-                        throw new NoSuchObjectException(
-                                "Plan with id " + planInstance.getPlanId() + " does not exist");
-                    }
-                    return new PlanUpdateResult(src, planInstance);
-                } else {
-                    logger.info("Plan {} (id: {}) in terminal state."
-                            + " Ignoring update, and maintaining planStatus as {}", src.getName(),
-                            planId, src.getStatus().name());
+                final PlanDTO.PlanInstance.Builder newBuilder =
+                        PlanDTO.PlanInstance.newBuilder(src);
+                // Note - it is the responsibility of the caller, not the DAO, to ensure that we
+                // are not updating a plan when we shouldn't be (e.g. ignore updates received to
+                // a plan that was stopped).
+                updater.accept(newBuilder);
+                final PlanDTO.PlanInstance planInstance = newBuilder.build();
+                // If the updater didn't have any effect we don't need to make a database call.
+                if (src.equals(planInstance)) {
+                    logger.info("Plan {} unchanged after update. Omitting database call.",
+                        planInstance.getPlanId());
                     return new PlanUpdateResult(src, src);
                 }
+
+                // Don't info print annoying 'from WAITING_FOR_RESULT to WAITING_FOR_RESULT'.
+                // Log info only if status code is different or if status messages are different.
+                boolean newStatusMessage = !src.getStatusMessage().equals(
+                        planInstance.getStatusMessage());
+                final Level logLevel = ((src.getStatus() != planInstance.getStatus())
+                        || newStatusMessage) ? Level.INFO : Level.DEBUG;
+                logger.log(logLevel, "Updating planInstance : {} from {} to {}. {}",
+                    planId, src.getStatus().name(), planInstance.getStatus().name(),
+                    newStatusMessage ? "New status message: " + planInstance.getStatusMessage()
+                        : "");
+                checkPlanConsistency(planInstance);
+                final int numRows = context.update(PLAN_INSTANCE)
+                        .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
+                        .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
+                        .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
+                        .where(PLAN_INSTANCE.ID.eq(planId))
+                        .execute();
+                if (numRows == 0) {
+                    throw new NoSuchObjectException(
+                            "Plan with id " + planInstance.getPlanId() + " does not exist");
+                }
+                return new PlanUpdateResult(src, planInstance);
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
