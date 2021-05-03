@@ -1245,6 +1245,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             case GROUP_FILTERS:
                 // If the group type is dynamic group of groups we currently cannot determine the type
                 // expected in the group so we return empty list
+                //
+                // Note - we could do this by querying existing groups, but to be 100% accurate we
+                // would need to re-run this query every time we add a new group.
                 break;
             case SELECTIONCRITERIA_NOT_SET:
                 logger.error("Member selection criteria has not been set in group definition `{}`",
