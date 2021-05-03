@@ -179,6 +179,7 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.BILLING).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.CUSTOM).stitchAfter(ProbeCategory.GUEST_OS_PROCESSES)
                 // probe type ordering, we only support the probe types comparison if they are
                 // belonged to same category.
                 .requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.PIVOTAL_OPSMAN)

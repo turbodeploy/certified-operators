@@ -125,6 +125,27 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     }
 
     /**
+     * Test that stitching both consumer and provider proxy entities with real entities will not be
+     * affected by the order of stitching operations.
+     * Test stitching proxy application first, and then stitching proxy virtual machine next.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testStitchingBillingFirst() throws Exception {
+        init(ImmutableList.of(
+            createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CUSTOM),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.GUEST_OS_PROCESSES),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE)));
+        testStitching();
+    }
+
+    /**
      * Test the stitching between Custom and Kubernetes targets. Please note that the supply chain
      * defined in this test may not reflect the true entities relationship of kubernetes targets.
      * This is just an example of verifying that stitching both proxy entities with real entities
