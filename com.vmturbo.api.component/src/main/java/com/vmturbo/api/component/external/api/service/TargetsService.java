@@ -71,10 +71,12 @@ import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
+import com.vmturbo.auth.api.licensing.LicenseWorkloadLimitExceededException;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -599,7 +601,8 @@ public class TargetsService implements ITargetsService {
         Objects.requireNonNull(inputFields);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
-
+        // Check if the active workloads exceed the limit covered by current licenses.
+        checkLicensedWorkloadLimit();
         // create a target
         try {
             final Collection<ProbeInfo> probes = topologyProcessor.getAllProbes();
@@ -1229,6 +1232,22 @@ public class TargetsService implements ITargetsService {
                             .ifPresent(licenseCheckClient::checkFeatureAvailable);
         } catch (CommunicationException e) {
             logger.error("Failed to check license for probe type " + probeType, e);
+        }
+    }
+
+    /**
+     * Check if the active workloads exceed the limit covered by current licenses.
+     *
+     * @throws LicenseWorkloadLimitExceededException if the active workloads exceed the
+     *         limit covered by current licenses
+     */
+    private void checkLicensedWorkloadLimit() {
+        final LicenseSummary licenseSummary = licenseCheckClient.getLicenseSummary();
+        final boolean isOverLicensedWorkloadLimit =
+                licenseCheckClient != null && licenseSummary != null
+                        && licenseSummary.getIsOverEntityLimit();
+        if (isOverLicensedWorkloadLimit) {
+            throw new LicenseWorkloadLimitExceededException();
         }
     }
 }
