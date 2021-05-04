@@ -235,7 +235,7 @@
                                 </unzip>
                                 <path id="swagger_tmp_dir">
                                     <dirset dir="${base.generated.docs.dir}/swagger/tmp/">
-                                        <include name="*SNAPSHOT"/>
+                                        <include name="*${com.vmturbo.api.version}*"/>
                                     </dirset>
                                 </path>
                                 <property name="swagger.tmp.dir" refid="swagger_tmp_dir" />
