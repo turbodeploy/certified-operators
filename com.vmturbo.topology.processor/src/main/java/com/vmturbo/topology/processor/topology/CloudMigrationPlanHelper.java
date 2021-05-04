@@ -124,7 +124,6 @@ public class CloudMigrationPlanHelper {
      */
     private static final Set<String> ALLOCATION_PLAN_KEEP_STORAGE_TIERS = ImmutableSet.of(
             StorageTier.GP2.getDisplayName(),
-            StorageTier.GP3.getDisplayName(),
             StorageTier.MANAGED_PREMIUM.getDisplayName()
     );
 
@@ -1776,6 +1775,7 @@ public class CloudMigrationPlanHelper {
                     VIRTUAL_MACHINE_VALUE, groupName),
                     Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, sqlServerVmIds));
         }
+
         @Nonnull
         @Override
         public List<SettingPolicy> applyEdits(@Nonnull final List<SettingPolicy> settingPolicies,
