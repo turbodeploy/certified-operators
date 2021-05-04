@@ -85,12 +85,14 @@ public class EntityCostListener implements CostNotificationListener {
         final DslRecordSink sink = getEntityCostInserterSink();
         final Timestamp snapshotTimestamp = new Timestamp(snapshotTime);
         try (TableWriter writer = EntityCost.TABLE.open(sink, "entity_cost inserter", logger)) {
-            return entityCosts.getEntityOids().map(oid ->
-                    entityCosts.getEntityCostDataPoints(oid).stream()
-                            .map(p -> entityCostRecord(snapshotTimestamp, oid, p))
-                            .peek(writer::accept)
-                            .count())
-                    .sum();
+            final int[] entityCount = new int[]{0};
+            entityCosts.getEntityOids().forEach(oid -> {
+                entityCount[0] += 1;
+                entityCosts.getEntityCostDataPoints(oid).stream()
+                        .map(p -> entityCostRecord(snapshotTimestamp, oid, p))
+                        .forEach(writer::accept);
+            });
+            return entityCount[0];
         }
     }
 
