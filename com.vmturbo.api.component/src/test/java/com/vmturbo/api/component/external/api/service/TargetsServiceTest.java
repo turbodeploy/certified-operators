@@ -110,12 +110,14 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseWorkloadLimitExceededException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
@@ -1801,9 +1803,14 @@ public class TargetsServiceTest {
 
         @Bean
         public TargetsService targetsService() {
+            LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+            LicenseSummary summary = LicenseSummary.newBuilder()
+                    .setNumLicensedEntities(10)
+                    .setNumInUseEntities(1).build();
+            when(licenseCheckClient.getLicenseSummary()).thenReturn(summary);
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60),
                             Duration.ofSeconds(1), Duration.ofSeconds(60),
-                            Duration.ofSeconds(1), Mockito.mock(LicenseCheckClient.class),
+                            Duration.ofSeconds(1), licenseCheckClient,
                             apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
                 actionSearchUtil(),
                 apiWebsocketHandler(), targetsRpcService(), new PaginationMapper(),
@@ -2136,5 +2143,40 @@ public class TargetsServiceTest {
                 TargetHealthApiDTO.class);
 
        Assert.assertEquals(target.getId(), Long.parseLong(resp.getUuid()));
+    }
+
+    /**
+     * Verify when in-used entities are more than licensed entities, XL blocks adding new target.
+     *
+     * @throws LicenseWorkloadLimitExceededException security exception.
+     */
+    @Test(expected = LicenseWorkloadLimitExceededException.class)
+    public void testNotAllowAddNewTargetWhenLicensedWorkloadExceeded() throws Exception {
+        final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+        final TargetInfo targetInfo = mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(3L);
+        when(targetInfo.getProbeId()).thenReturn(2L);
+        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
+        when(targetInfo.getStatus()).thenReturn(
+                StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
+        when(topologyProcessor.getTarget(3L)).thenReturn(targetInfo);
+        when(topologyProcessor.getTarget(111L)).thenReturn(targetInfo);
+        LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+        // In use entity is more than licensed entity.
+        LicenseSummary summary = LicenseSummary.newBuilder()
+                .setIsExpired(false)
+                .setIsValid(true)
+                .setIsOverEntityLimit(true)
+                .setNumLicensedEntities(1)
+                .setNumInUseEntities(10)
+                .build();
+        when(licenseCheckClient.getLicenseSummary()).thenReturn(summary);
+        final TargetsService targetsService = new TargetsService(topologyProcessor, MILLIS_50,
+                MILLIS_100, MILLIS_50, MILLIS_100, licenseCheckClient, apiComponentTargetListener,
+                repositoryApi, actionSpecMapper, actionSearchUtil, apiWebsocketHandler,
+                targetsServiceBlockingStub, new PaginationMapper(), true, 100);
+        // this should throw IllegalStateException exception
+        targetsService.createTarget("", Collections.emptyList());
     }
 }
