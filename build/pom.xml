@@ -130,7 +130,7 @@
         <mariadb.client.version>2.3.0</mariadb.client.version>
         <postgresql.client.version>42.2.12</postgresql.client.version>
 
-        <reactor.version>3.0.4.RELEASE</reactor.version>
+        <reactor.version>3.3.10.RELEASE</reactor.version>
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>

@@ -13,19 +13,6 @@
     <artifactId>com.vmturbo.discovery.deserializer</artifactId>
     <description>Component to deserialize binary discovery dumps</description>
 
-    <properties>
-        <swagger.component.name>Discovery deserializer</swagger.component.name>
-        <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
-
-        <java.version>1.8</java.version>
-        <assertj.version>3.6.1</assertj.version>
-        <guava-retrying.version>2.0.0</guava-retrying.version>
-        <immutables.version>2.3.10</immutables.version>
-        <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
-        <javaslang.version>2.0.5</javaslang.version>
-        <reactor.version>3.0.3.RELEASE</reactor.version>
-        <ical4j.version>3.0.10</ical4j.version>
-    </properties>
     <profiles>
         <profile>
             <id>release</id>
