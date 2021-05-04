@@ -1,5 +1,6 @@
 package com.vmturbo.auth.api.licensing;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,7 +51,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     // how long to wait for the first license summary to be retrieved before throwing a
     // LicenseCheckNotReady exception
-    private long licenseSummaryTimeoutMs;
+    private final long licenseSummaryTimeoutMs;
 
     // cache the most recent license summary
     @GuardedBy("this")
@@ -123,7 +124,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         if (lastLicenseSummary == null) {
             // see if we can wait for it
             try {
-                updateEventFlux.blockFirstMillis(licenseSummaryTimeoutMs);
+                updateEventFlux.blockFirst(Duration.ofMillis(licenseSummaryTimeoutMs));
             } catch (IllegalStateException ise) {
                 // this is just a timeout on the block -- no need to log anything. We'll throw the exception later.
             }

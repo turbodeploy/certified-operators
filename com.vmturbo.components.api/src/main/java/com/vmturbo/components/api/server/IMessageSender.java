@@ -4,8 +4,6 @@ import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
-import org.apache.kafka.clients.producer.RecordMetadata;
-
 import com.vmturbo.communication.CommunicationException;
 
 /**

@@ -21,8 +21,6 @@
         <guava-retrying.version>2.0.0</guava-retrying.version>
         <immutables.version>2.3.10</immutables.version>
         <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
-        <javaslang.version>2.0.5</javaslang.version>
-        <reactor.version>3.0.3.RELEASE</reactor.version>
         <ical4j.version>3.0.10</ical4j.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
@@ -175,12 +173,6 @@
             <groupId>io.javaslang</groupId>
             <artifactId>javaslang-test</artifactId>
             <version>${javaslang.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.projectreactor.addons</groupId>
-            <artifactId>reactor-test</artifactId>
-            <version>${reactor.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
