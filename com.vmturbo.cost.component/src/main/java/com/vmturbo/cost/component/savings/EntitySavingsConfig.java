@@ -147,7 +147,7 @@ public class EntitySavingsConfig {
      * Types of actions we currently support Savings feature for.
      */
     private static final Set<ActionType> supportedActionTypes =
-            ImmutableSet.of(ActionType.SCALE, ActionType.DELETE);
+            ImmutableSet.of(ActionType.SCALE, ActionType.DELETE, ActionType.ALLOCATE);
 
     /**
      * Return whether entity savings tracking is enabled.

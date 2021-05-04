@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.jetbrains.annotations.NotNull;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -121,6 +123,12 @@ public class ActionListenerTest {
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc);
 
     /**
+     * Test gRPC server to mock out cost service gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
+
+    /**
      * Setup before each test.
      *
      * @throws IOException on error
@@ -130,9 +138,6 @@ public class ActionListenerTest {
         MockitoAnnotations.initMocks(this);
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        // Test gRPC server to mock out actions service gRPC dependencies.
-        GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
-        costGrpcServer.start();
         costService = CostServiceGrpc.newBlockingStub(costGrpcServer.getChannel());
         // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService, costService,
@@ -157,6 +162,12 @@ public class ActionListenerTest {
                          .build())
                         .when(costServiceRpc)
                         .getTierPriceForEntities(any(GetTierPriceForEntitiesRequest.class));
+    }
+
+    @After
+    public void cleanup() {
+        grpcTestServer.getChannel().shutdownNow();
+        costGrpcServer.getChannel().shutdownNow();
     }
 
     /**
@@ -246,25 +257,35 @@ public class ActionListenerTest {
         final ActionEntity actionEntityScale2 =
                 createActionEntity(3L, EntityType.VIRTUAL_VOLUME_VALUE);
         final Scale scale2 = createScale(actionEntityScale2);
+        final ActionEntity actionEntityAllocate =
+                        createActionEntity(4L, EntityType.VIRTUAL_MACHINE_VALUE);
+        final ActionEntity actionEntityWorkloadTier =
+                                                    createActionEntity(5L,
+                                                       EntityType.COMPUTE_TIER_VALUE);
+        final Allocate allocate = createAllocate(actionEntityAllocate, actionEntityWorkloadTier);
         ActionSpec actionSpec1 =
                 createActionSpec(scale1, 1234L, 1234L, System.currentTimeMillis());
         ActionSpec actionSpec2 =
                 createActionSpec(4321L, 4321L, ActionInfo.newBuilder().setDelete(delete));
         ActionSpec actionSpec3 =
                 createActionSpec(5658L, 5658L, ActionInfo.newBuilder().setScale(scale2));
+        ActionSpec actionSpec4 =
+                createActionSpec(5154L, 5154L, ActionInfo.newBuilder().setAllocate(allocate));
 
         FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSpec1);
         FilteredActionResponse filteredResponse2 = createFilteredActionResponse(actionSpec2);
         FilteredActionResponse filteredResponse3 = createFilteredActionResponse(actionSpec3);
+        FilteredActionResponse filteredResponse4 = createFilteredActionResponse(actionSpec4);
 
-        doReturn(Arrays.asList(filteredResponse1, filteredResponse2, filteredResponse3))
+        doReturn(Arrays.asList(filteredResponse1, filteredResponse2, filteredResponse3, filteredResponse4))
                         .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
 
         // create the conditions that happen after actions progress, so that we can test execution.
         final Map<Long, EntityActionInfo> entityActionIdToInfoMap = ImmutableMap.of(
                             1234L, new EntityActionInfo(actionSpec1, actionEntityScale1),
                             4321L, new EntityActionInfo(actionSpec2, actionEntityDelete),
-                            5658L, new EntityActionInfo(actionSpec3, actionEntityScale2)
+                            5658L, new EntityActionInfo(actionSpec3, actionEntityScale2),
+                            5154L, new EntityActionInfo(actionSpec4, actionEntityAllocate)
                     );
         actionListener.getExecutedActionsCache().putAll(entityActionIdToInfoMap);
 
@@ -272,16 +293,19 @@ public class ActionListenerTest {
         final long vmIdScale1 = 1L;
         final long volumeIdDelete = 2L;
         final long volumeIdScale2 = 3L;
+        final long vmIdAllocate = 4L;
 
         Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
         beforeEntityCostbyOid.put(vmIdScale1, entityCost1);
         beforeEntityCostbyOid.put(volumeIdDelete, entityCost2);
         beforeEntityCostbyOid.put(volumeIdScale2, entityCost3);
+        beforeEntityCostbyOid.put(vmIdAllocate, entityCost1);
 
         Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
         afterEntityCostbyOid.put(vmIdScale1, entityCost3);
         afterEntityCostbyOid.put(volumeIdDelete, entityCost1);
         afterEntityCostbyOid.put(volumeIdScale2, entityCost2);
+        afterEntityCostbyOid.put(vmIdAllocate, entityCost3);
 
         given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class)))
                 .willReturn(afterEntityCostbyOid);
@@ -299,8 +323,8 @@ public class ActionListenerTest {
                         .build());
 
 
-        assertEquals(3, store.size());
-        assertEquals(3, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
+        assertEquals(4, store.size());
+        assertEquals(4, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
 
         List<SavingsEvent> savingsEvents = store.removeAllEvents();
         savingsEvents.forEach(se ->
@@ -311,6 +335,8 @@ public class ActionListenerTest {
         // First remove action no longer being generated from Market from costMap.
         beforeEntityCostbyOid.remove(vmIdScale1);
         afterEntityCostbyOid.remove(vmIdScale1);
+        beforeEntityCostbyOid.remove(vmIdAllocate);
+        afterEntityCostbyOid.remove(vmIdAllocate);
 
         given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class)))
                 .willReturn(afterEntityCostbyOid);
@@ -331,7 +357,9 @@ public class ActionListenerTest {
                 .build());
 
         // Monitoring savings for VM and other cloud entities Scale actions.
-        assertEquals(1, store.size());
+        // After removing all events from store in the last test, one new RECOMMENDATION_REMOVED
+        // event should have been added in this test.
+        assertEquals(2, store.size());
         assertEquals(2, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
 
         savingsEvents = store.removeAllEvents();
@@ -455,8 +483,17 @@ public class ActionListenerTest {
     }
 
     @NotNull
-    private Scale createScale(ActionEntity actionEntityVm1) {
-        return Scale.newBuilder().setTarget(actionEntityVm1).build();
+    private Scale createScale(@Nonnull final ActionEntity actionEntityVm) {
+        return Scale.newBuilder().setTarget(actionEntityVm).build();
+    }
+
+    @NotNull
+    private Allocate createAllocate(@Nonnull final ActionEntity actionEntityVm,
+                              @Nonnull final ActionEntity actionEntityWorkloadTier) {
+        return Allocate.newBuilder()
+                        .setTarget(actionEntityVm)
+                        .setWorkloadTier(actionEntityWorkloadTier)
+                        .build();
     }
 
     @NotNull

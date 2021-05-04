@@ -396,8 +396,11 @@ public class ActionListener implements ActionsListener {
                                     continue;
                                 }
                                 final Long entityId = entity.getId();
-                                logger.debug("Saving Info for Pending Action {}, at {} for entity {}", actionId,
-                                             actionSpec.getRecommendationTime(), entityId);
+                                logger.debug("Saving Info for Action {}, of type {}, at {}"
+                                                        + " for entity {}", actionId,
+                                                     ActionDTOUtil.getActionInfoActionType(
+                                                                   actionSpec.getRecommendation()),
+                                                     actionSpec.getRecommendationTime(), entityId);
                                 newPendingActionsInfoToEntityId.put(new EntityActionInfo(actionSpec, entity), entityId);
                             }
                         } else if (filteredActionResponse.hasPaginationResponse()) {
