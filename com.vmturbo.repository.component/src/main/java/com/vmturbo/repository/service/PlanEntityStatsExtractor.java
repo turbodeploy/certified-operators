@@ -225,7 +225,7 @@ interface PlanEntityStatsExtractor {
             }
 
             List<StatRecord> attributeStatsRecords =
-                    extractEntityAttributeStatsRecords(projectedEntity.getEntity());
+                    extractEntityAttributeStatsRecords(projectedEntity.getEntity(), commodityNames);
             snapshot.addAllStatRecords(attributeStatsRecords);
 
             return EntityStats.newBuilder()
@@ -327,33 +327,37 @@ interface PlanEntityStatsExtractor {
         /**
          * Extract attributes from given TopologyEntityDTO and create stats records for the attributes.
          *
-         * @param entityDTO Given plan TopologyEntityDTO.
+         * @param entityDTO      Given plan TopologyEntityDTO.
+         * @param attributeNames Given attribute names to extract.
          * @return List of {@link StatRecord} created from entity attributes.
          */
-        private List<StatRecord> extractEntityAttributeStatsRecords(@Nonnull final TopologyEntityDTO entityDTO) {
+        private List<StatRecord> extractEntityAttributeStatsRecords(@Nonnull final TopologyEntityDTO entityDTO,
+                                                                    @Nonnull final Set<String> attributeNames) {
             List<StatRecord> statRecords = new ArrayList<>();
             if (!entityDTO.hasTypeSpecificInfo()) {
                 return statRecords;
             }
             TypeSpecificInfo entityInfo = entityDTO.getTypeSpecificInfo();
-            List<String> attributeNames = ENTITY_TYPE_TO_ATTRIBUTE_MAP.get(entityInfo.getTypeCase());
-            if (attributeNames == null) {
+            List<String> supportedAttributeNames = ENTITY_TYPE_TO_ATTRIBUTE_MAP.get(entityInfo.getTypeCase());
+            if (supportedAttributeNames == null) {
                 return statRecords;
             }
-            for (String attributeName : attributeNames) {
-                Optional<Double> attributeValue = extractAttributeValue(entityInfo, attributeName);
-                attributeValue.ifPresent(value -> {
-                    final StatValue statValue = PlanEntityStatsExtractorUtil.buildStatValue(value.floatValue());
-                    final StatRecord attributeStatRecord = StatRecord.newBuilder()
+            supportedAttributeNames.stream()
+                .filter(attributeName -> shouldIncludeCommodity(attributeName, attributeNames))
+                .forEach(attributeName -> {
+                    Optional<Double> attributeValue = extractAttributeValue(entityInfo, attributeName);
+                    attributeValue.ifPresent(value -> {
+                        final StatValue statValue = PlanEntityStatsExtractorUtil.buildStatValue(value.floatValue());
+                        final StatRecord attributeStatRecord = StatRecord.newBuilder()
                             .setName(attributeName)
                             .setCurrentValue(value.floatValue())
                             .setUsed(statValue)
                             .setPeak(statValue)
                             .setCapacity(statValue)
                             .build();
-                    statRecords.add(attributeStatRecord);
+                        statRecords.add(attributeStatRecord);
+                    });
                 });
-            }
             return statRecords;
         }
 
