@@ -11,6 +11,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STO
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
@@ -233,8 +234,14 @@ public class CloudMigrationPlanHelper {
      */
     private static final Set<EntityType> NON_MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
             PHYSICAL_MACHINE,
-            STORAGE);
+            STORAGE, STORAGE_TIER, COMPUTE_TIER);
 
+    /**
+     * These entities should always be movable and scalable for MCP plan regardless of
+     * real time settings.
+     */
+    private static final Set<EntityType> MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
+            VIRTUAL_MACHINE, VIRTUAL_VOLUME);
     /**
      * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
      * value is initially set in the commodity of the VM. Keep the updated storage amount value
@@ -449,7 +456,10 @@ public class CloudMigrationPlanHelper {
                 // applying template exclusions, obtaining pricing, etc.
                 if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
                     // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
-                    entity.getOutboundAssociatedEntities().stream()
+                    // New on prem volume model is VM->VV, so VV comes as providers instead of
+                    // getOutboundAssociatedEntities.
+                    Stream.concat(entity.getProviders().stream(),
+                            entity.getOutboundAssociatedEntities().stream())
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
@@ -838,43 +848,19 @@ public class CloudMigrationPlanHelper {
 
                     // Set suspendable false, so we don't see suspend actions for these providers.
                     providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
-
+                    // Regardless of real time setting, override controllable true for VV ST Tier
+                    // and PM, controllable false for DC, LP and DA.
                     providerDtoBuilder.getAnalysisSettingsBuilder()
                             .setControllable(!NON_CONTROLLABLE_PROVIDER_TYPES.contains(providerType));
+
 
                     if (PROCESS_PROVIDER_TYPES.contains(providerType)) {
                         // Need to set movable/scalable true for provider commBought.
                         prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
                                 sourceToProducerToMaxStorageAccess, isDestinationAws, false);
-                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap, topologyInfo, isDestinationAws);
+                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
                     }
                 });
-    }
-
-    /**
-     * This is a workaround to get around the issue where some provider's commSold doesn't have
-     * proper capacities set, including some access commodities. This results in EntityValidator
-     * (later stage in pipeline) making the entity non-controllable, causing market to not have
-     * any actions for that entity.
-     * Sets the capacity to infinite if it is found to be 0.
-     *
-     * @param providerDtoBuilder Builder for provider whose commSold capacity is updated.
-     */
-    private void fixZeroCapacity(@Nonnull final TopologyEntityDTO.Builder providerDtoBuilder) {
-        switch (providerDtoBuilder.getEntityType()) {
-            case VIRTUAL_VOLUME_VALUE:
-            case STORAGE_VALUE:
-                providerDtoBuilder.getCommoditySoldListBuilderList()
-                        .forEach(commSoldBuilder -> {
-                            if (commSoldBuilder.getCapacity() == 0d) {
-                                logger.trace("Fixing capacity for provider {} (id: {}) sold: {}",
-                                        providerDtoBuilder.getDisplayName(),
-                                        providerDtoBuilder.getOid(),
-                                        commSoldBuilder);
-                                commSoldBuilder.setCapacity(1E9);
-                            }
-                        });
-        }
     }
 
     /**
@@ -884,14 +870,9 @@ public class CloudMigrationPlanHelper {
      *
      * @param dtoBuilder Provider DTO being updated.
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
-     * @param topologyInfo topology info
-     * @param isDestinationAws boolean to indicate if destination is AWS
      */
     void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
-                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap,
-                                @Nonnull final TopologyInfo topologyInfo,
-                                final boolean isDestinationAws) {
-        fixZeroCapacity(dtoBuilder);
+                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
         if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
             dtoBuilder.getCommoditySoldListBuilderList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
@@ -987,7 +968,10 @@ public class CloudMigrationPlanHelper {
                 newCommBoughtGrouping
                         .setMovable(false)
                         .setScalable(false);
-            } else if (!isMovable || !isScalable) {
+            } else if (!isMovable || !isScalable || MOVABLE_PROVIDER_TYPES.contains(entityType)) {
+                // A migration plane would always have VM and VV movable and scalable because the
+                // volume CommoditiesBoughtFromProvider, when it is present, it would become
+                // trader's shopping list.
                 newCommBoughtGrouping
                         .setMovable(true)
                         .setScalable(true);

@@ -1598,6 +1598,13 @@ public class TopologyConverter {
         return result;
     }
 
+    /**
+     * Populate the commodities sold of collpased entity based on its commodity bought.
+     *
+     * @param entity A collpased entity.
+     * @param commodityBoughtTOS the list of commodity bought DTOs
+     * @return a list of CommoditySoldDTOs.
+     */
     private List<CommoditySoldDTO> createCommoditySoldFromCommBoughtTO(
         final TopologyEntityDTO entity, final List<CommodityBoughtTO> commodityBoughtTOS) {
         final List<CommoditySoldDTO> result = new ArrayList<>();
@@ -1612,7 +1619,7 @@ public class TopologyConverter {
             }
             newCapacity =
                 TopologyConversionUtils.convertMarketUnitToTopologyUnit(commodityType.getType(),
-                    newCapacity, entity);
+                    newCapacity, entity, isCloudMigration);
             final CommoditySoldDTO.Builder soldBuilder = CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType)
                 .setCapacity(newCapacity);
@@ -2739,7 +2746,7 @@ public class TopologyConverter {
                     double currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, originalEntity);
                     currentUsage = TopologyConversionUtils.convertMarketUnitToTopologyUnit(
-                            commType.getType(), currentUsage, originalEntity);
+                            commType.getType(), currentUsage, originalEntity, isCloudMigration);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
                     builder.setUsed(reverseScaleComm(currentUsage, boughtDTObyTraderFromProjectedSellerInRealTopology,
                                     CommodityBoughtDTO::getScalingFactor))
@@ -3215,10 +3222,10 @@ public class TopologyConverter {
                     && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE) {
                 TopologyEntityDTO entityForSL = topologyEntity;
                 CommoditiesBoughtFromProvider commBoughtGroupingForSL = commBoughtGrouping;
-                final Integer providerTypeAfterCollapsing = CollapsedTraderHelper
+                final Set<Integer> providerTypeAfterCollapsing = CollapsedTraderHelper
                         .getNewProviderTypeAfterCollapsing(topologyEntity.getEntityType(),
                                 commBoughtGrouping.getProviderEntityType());
-                if (providerTypeAfterCollapsing != null) {
+                if (providerTypeAfterCollapsing != null && !providerTypeAfterCollapsing.isEmpty()) {
                     Long directProviderId = commBoughtGrouping.getProviderId();
                     TopologyEntityDTO directProvider = entityOidToDto.get(directProviderId);
                     if (directProvider == null) {
@@ -3227,21 +3234,20 @@ public class TopologyConverter {
                     }
                     commBoughtGroupingForSL = directProvider.getCommoditiesBoughtFromProvidersList().stream()
                             .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                            .filter(commBought -> commBought.getProviderEntityType() == providerTypeAfterCollapsing)
+                            .filter(commBought -> providerTypeAfterCollapsing.contains(commBought.getProviderEntityType()))
                             .findAny().orElse(null);
                     if (commBoughtGroupingForSL == null) {
-                        logger.error("Couldn't find commBoughtGrouping with provider type {} for collapsed entity {}",
-                                providerTypeAfterCollapsing, directProviderId);
+                        // When directProviderId is an on prem volume constructed from classic model,
+                        // it has empty bought list so commBoughtGroupingForSL is expected to be null.
+                        // When directProviderId is an on prem volume constructed from new model or
+                        // directProvider is a cloud volume, the commBoughtGroupingForSL will be the
+                        // volume's commBoughtGroupingForSL that consumes on a storage or a storage tier.
+                        if (!directProvider.getCommoditySoldListList().isEmpty()
+                                || !directProvider.getCommoditiesBoughtFromProvidersList().isEmpty()) {
+                            logger.error("Couldn't find commBoughtGrouping with provider type {} for"
+                                    + " collapsed entity {}", providerTypeAfterCollapsing, directProviderId);
+                        }
                         continue;
-                    }
-                    if (isCloudMigration) {
-                        // Volume may not be movable for real-time, but for plans, make it
-                        // movable if commBoughtGrouping b/w VM -> Volume is set so.
-                        CommoditiesBoughtFromProvider.Builder cbgBuilder
-                            = CommoditiesBoughtFromProvider.newBuilder(commBoughtGroupingForSL);
-                        cbgBuilder.setMovable(commBoughtGrouping.hasMovable()
-                            && commBoughtGrouping.getMovable());
-                        commBoughtGroupingForSL = cbgBuilder.build();
                     }
                     entityForSL = directProvider;
                 }
@@ -3530,7 +3536,8 @@ public class TopologyConverter {
             }
             resourceIds = Collections.singleton(resourceIds.iterator().next());
         }
-        // Preserve collapsedBuyerId in ShoppingListInfo.
+        // Preserve collapsedBuyerId in ShoppingListInfo. With new on prem volume model (VM -> VV- > ST),
+        // collapsedBuyerId(volume id) is preserved in shopping list.
         final Long collapsedBuyerId = entityForSL == originalEntityAsTrader ? null : entityForSLOid;
         shoppingListOidToInfos.put(id, new ShoppingListInfo(id, originalEntityAsTrader.getOid(),
                         providerOid, resourceIds, resourceDisplayName, collapsedBuyerId,
@@ -3940,7 +3947,7 @@ public class TopologyConverter {
             float peakQuantity = quantities.peak;
             CommodityBoughtTO.Builder builder = CommodityDTOs.CommodityBoughtTO.newBuilder().setSpecification(spec);
             final int commodityType = topologyCommBought.getCommodityType().getType();
-            // Add old capacity for cloud volume shoppingList.
+            // Add old capacity for cloud volume or on prem new model volume shoppingList.
             int buyerEntityType = buyer.getEntityType();
             if (OLD_CAPACITY_REQUIRED_ENTITIES_TO_COMMODITIES.containsKey(buyerEntityType)) {
                 Set<Integer> oldCapacityRequiredCommodityTypes =

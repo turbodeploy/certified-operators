@@ -86,10 +86,21 @@ public class TopologyConversionUtils {
                         .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
     }
 
+    /**
+     * Convert the Volume commodities that from market to the correct amount that comply with
+     * TopologyEntotyDTO unit.
+     *
+     * @param commodityType a commodity type
+     * @param valueToConvert the amount to be converted
+     * @param entityDTO the TopologyEntityDTO
+     * @param isCloudMigration whether the topology is cloud migration plan
+     * @return the amount after conversion
+     */
     static double convertMarketUnitToTopologyUnit(final int commodityType,
                                                   final double valueToConvert,
-                                                  @Nullable final TopologyEntityDTO entityDTO) {
-        if (entityDTO != null && isEntityConsumingCloud(entityDTO)
+                                                  @Nullable final TopologyEntityDTO entityDTO,
+                                                  final boolean isCloudMigration) {
+        if (entityDTO != null && (isEntityConsumingCloud(entityDTO) || isCloudMigration)
             && entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
             && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return valueToConvert * Units.KBYTE;

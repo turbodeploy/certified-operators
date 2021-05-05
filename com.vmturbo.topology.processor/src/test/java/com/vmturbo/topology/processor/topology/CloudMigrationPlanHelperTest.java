@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -246,6 +248,49 @@ public class CloudMigrationPlanHelperTest {
         // calculation on the destination
         assertEquals(LicenseModel.LICENSE_INCLUDED,
             resultVm.getTypeSpecificInfo().getVirtualMachine().getLicenseModel());
+    }
+
+    /**
+     * Given an on prem vm that consumes on a volume, and the vm is not movable and not scalable.
+     * After prepareEntities(), it would be set to movable and scalable. The environment type would
+     * become CLOUD.
+     *
+     * @throws PipelineStageException should not happen in this test
+     */
+    @Test
+    public void testPrepareEntitiesVMConsumesFromVolume()  throws PipelineStageException {
+        long volumeId = 2222L;
+        long vmId = 1111L;
+        // Create a vm that is not movable and not scalable.
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder().addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder().setProviderId(volumeId).setMovable(false)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setScalable(false)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))))
+                .setOid(vmId).setEntityType(VIRTUAL_MACHINE_VALUE).setEnvironmentType(EnvironmentType.ON_PREM)
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build());
+        TopologyEntityDTO.Builder volume = TopologyEntityDTO.newBuilder().addCommoditySoldList(
+                CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_AMOUNT_VALUE)))
+                .setEnvironmentType(EnvironmentType.ON_PREM).setOid(volumeId)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+                TopologyEntity.newBuilder(vm), TopologyEntity.newBuilder(volume));
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(allocationTopologyInfo);
+        cloudMigrationPlanHelper.prepareEntities(context, graph, TopologyMigration.getDefaultInstance(),
+                Collections.EMPTY_MAP, Collections.singleton(vm.getOid()), true);
+
+        TopologyEntity resultVolume = graph.getEntity(volumeId).orElse(null);
+        assertNotNull(resultVolume);
+        assertEquals(EnvironmentType.CLOUD, resultVolume.getEnvironmentType());
+        TopologyEntity resultVm = graph.getEntity(vmId).orElse(null);
+        assertNotNull(resultVm);
+        assertEquals(EnvironmentType.CLOUD, resultVm.getEnvironmentType());
+        assertTrue(resultVm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                .stream().allMatch(sl -> sl.getMovable() == true && sl.getScalable() == true));
+
     }
 
     /**
@@ -477,7 +522,7 @@ public class CloudMigrationPlanHelperTest {
                         .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                 .setType(CommodityType.STORAGE_ACCESS_VALUE).build()));
 
-        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap, allocationTopologyInfo, true);
+        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap);
         double iopsValue = volumeDtoBuild.getCommoditySoldListBuilderList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                 .findFirst().map(c -> c.getUsed()).orElse(-1d);
