@@ -71,9 +71,9 @@ public class EntityConfig {
     public EntityStore entityStore() {
         EntityStore store = new EntityStore(targetConfig.targetStore(),
             identityProviderConfig.identityProvider(),
-            sender,
             targetDeduplicationOverlapRatio,
             targetDeduplicationMergeKubernetesProbeTypes,
+            Lists.newArrayList(sender, controllableConfig.entityMaintenanceTimeDao()),
             clockConfig.clock(),
             accountForVendorAutomation);
         store.setEntityDetailsEnabled(entityDetailsEnabled);

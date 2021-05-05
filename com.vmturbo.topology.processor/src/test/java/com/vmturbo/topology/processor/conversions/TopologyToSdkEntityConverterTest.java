@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,8 +55,7 @@ public class TopologyToSdkEntityConverterTest {
 
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-    private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
-        sender, 0.3F, true, Clock.systemUTC(), false));
+    private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
 
     /**
      * The class under test.

@@ -122,8 +122,7 @@ public class EntityStoreTest {
             .setProbeType("foo")
             .build();
 
-    private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider,
-        sender, 0.3F, true, Clock.systemUTC(), false));
+    private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
 
     /**
      * Expected exception rule.
@@ -543,7 +542,7 @@ public class EntityStoreTest {
 
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
+        entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
                 mockClock, false);
 
         addEntities(entities);
@@ -631,7 +630,7 @@ public class EntityStoreTest {
             throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
+        entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
                 mockClock, false);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
@@ -710,8 +709,8 @@ public class EntityStoreTest {
      */
     @Test
     public void testSendEntitiesWithNewState() throws Exception {
-        entityStore = spy(new EntityStore(targetStore, identityProvider, sender,
-            0.3F, true, Clock.systemUTC(), true));
+        entityStore = spy(new EntityStore(targetStore, identityProvider,
+            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), true));
 
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
@@ -754,8 +753,8 @@ public class EntityStoreTest {
                 .build());
 
         // Disable maintenance mode feature. Automation level is not sent.
-        entityStore = spy(new EntityStore(targetStore, identityProvider, sender,
-            0.3F, true, Clock.systemUTC(), false));
+        entityStore = spy(new EntityStore(targetStore, identityProvider,
+            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
         addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
         verify(sender, times(1)).onEntitiesWithNewState(
             EntitiesWithNewState.newBuilder()

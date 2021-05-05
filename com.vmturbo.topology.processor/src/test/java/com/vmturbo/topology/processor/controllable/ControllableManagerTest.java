@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.controllable;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -31,6 +33,8 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 public class ControllableManagerTest {
 
     private final EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
+
+    private final EntityMaintenanceTimeDao entityMaintenanceTimeDao = Mockito.mock(EntityMaintenanceTimeDao.class);
 
     private ControllableManager controllableManager;
 
@@ -180,7 +184,7 @@ public class ControllableManagerTest {
 
     @Before
     public void setup() {
-        controllableManager = new ControllableManager(entityActionDao, true);
+        controllableManager = new ControllableManager(entityActionDao, entityMaintenanceTimeDao, true);
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
@@ -225,7 +229,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyControllableEntityAction() {
-        Mockito.when(entityActionDao.getNonControllableEntityIds())
+        when(entityActionDao.getNonControllableEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 3L, 4L));
         controllableManager.applyControllable(topologyGraph);
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getControllable());
@@ -242,7 +246,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyControllableFailoverHost() {
-        Mockito.when(entityActionDao.getNonControllableEntityIds())
+        when(entityActionDao.getNonControllableEntityIds())
             .thenReturn(Collections.emptySet());
         int numModified = controllableManager.applyControllable(topologyGraph);
         assertEquals(3, numModified);
@@ -333,7 +337,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyControllableAutomationLevelFeatureDisabled() {
-        controllableManager = new ControllableManager(entityActionDao, false);
+        controllableManager = new ControllableManager(entityActionDao, entityMaintenanceTimeDao, false);
         int numModified = controllableManager.applyControllable(topologyGraph);
         assertEquals(2, numModified);
         assertTrue(pmInMaintenance2.getAnalysisSettings().getControllable());
@@ -344,7 +348,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyScale() {
-        Mockito.when(entityActionDao.ineligibleForScaleEntityIds())
+        when(entityActionDao.ineligibleForScaleEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L));
         controllableManager.applyScaleEligibility(topologyGraph);
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
@@ -358,7 +362,7 @@ public class ControllableManagerTest {
      */
     @Test
     public void testApplyResizeDownEligibility() {
-        Mockito.when(entityActionDao.ineligibleForResizeDownEntityIds())
+        when(entityActionDao.ineligibleForResizeDownEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L));
         controllableManager.applyResizable(topologyGraph);
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
@@ -383,5 +387,22 @@ public class ControllableManagerTest {
         for (CommoditySoldDTO.Builder commSold : vmBazEntityBuilder.getCommoditySoldListBuilderList()) {
             assertTrue(commSold.getIsResizeable());
         }
+    }
+
+    /**
+     * Test hosts exit maintenance mode.
+     */
+    @Test
+    public void testKeepControllableFalseAfterExitingMaintenanceMode() {
+        when(entityMaintenanceTimeDao.getControllableFalseHost())
+            .thenReturn(ImmutableSet.of(pmPoweredOn.getOid(), pmInMaintenance.getOid(), pmFailover.getOid()));
+        int numModified = controllableManager.applyControllable(topologyGraph);
+        assertEquals(6, numModified);
+        assertFalse(pmPoweredOn.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance.getAnalysisSettings().getControllable());
+        assertFalse(pmFailover.getAnalysisSettings().getControllable());
+        assertFalse(pmInMaintenance2.getAnalysisSettings().getControllable());
+        assertFalse(vm1.getAnalysisSettings().getControllable());
+        assertFalse(vm2.getAnalysisSettings().getControllable());
     }
 }

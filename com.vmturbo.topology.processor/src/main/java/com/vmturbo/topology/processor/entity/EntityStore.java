@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
@@ -132,12 +133,9 @@ public class EntityStore {
      */
     private final TargetStore targetStore;
 
-    /**
-     * Used to send notifications.
-     */
-    private final TopologyProcessorNotificationSender sender;
-
     private final InternalDuplicateTargetDetector duplicateTargetDetector;
+
+    private final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners;
 
     /**
      * Enable entity details support.
@@ -214,16 +212,16 @@ public class EntityStore {
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
-                       @Nonnull final TopologyProcessorNotificationSender sender,
                        final float duplicateTargetOverlapRatio,
                        final boolean mergeKubernetesTypesForDuplicateDetection,
+                       @Nonnull final List<EntitiesWithNewStateListener> entitiesWithNewStateListeners,
                        @Nonnull final Clock clock,
                        final boolean accountForVendorAutomation) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.sender = Objects.requireNonNull(sender);
         this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
                 duplicateTargetOverlapRatio, mergeKubernetesTypesForDuplicateDetection);
+        this.entitiesWithNewStateListeners = Objects.requireNonNull(entitiesWithNewStateListeners);
         this.clock = Objects.requireNonNull(clock);
         this.accountForVendorAutomation = accountForVendorAutomation;
         targetStore.addListener(new TargetStoreListener() {
@@ -833,12 +831,14 @@ public class EntityStore {
         if (entitiesWithNewStateBuilder.getTopologyEntityCount() > 0) {
             entitiesWithNewStateBuilder.setStateChangeId(identityProvider.generateTopologyId());
             EntitiesWithNewState entitiesWithNewStateMessage = entitiesWithNewStateBuilder.build();
-            try {
-                sender.onEntitiesWithNewState(entitiesWithNewStateMessage);
-            } catch (Exception e) {
-                logger.error("Problem occurred while sending entity state change message {}",
-                    entitiesWithNewStateMessage);
-            }
+            logger.trace("Sending entity state change message {}", entitiesWithNewStateMessage);
+            entitiesWithNewStateListeners.forEach(listener -> {
+                try {
+                    listener.onEntitiesWithNewState(entitiesWithNewStateMessage);
+                } catch (CommunicationException | InterruptedException e) {
+                    logger.error("Problem occurred while sending entity state change message {}", e);
+                }
+            });
         }
     }
 
