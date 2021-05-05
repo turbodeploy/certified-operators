@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -452,7 +453,15 @@ public class TierExcluder {
                 targetSlOid = m2Action.getReconfigure().getConsumer().getShoppingListToReconfigure();
                 break;
             case COMPOUND_MOVE:
-                targetSlOid = m2Action.getCompoundMove().getMovesList().get(0).getShoppingListToMove();
+                Optional<MoveTO> moveTO = m2Action.getCompoundMove().getMovesList().stream()
+                        .filter(m -> isMoveForTierExclusion(m)).findAny();
+                if (moveTO.isPresent()) {
+                    targetSlOid = moveTO.get().getShoppingListToMove();
+                } else {
+                    logger.error("No shoppingListInfo of tier exclusion action in a given"
+                            + " CompoundMove -> {}.", m2Action);
+                    return Optional.empty();
+                }
                 break;
             default:
                 logger.error("Trying to find shoppingListInfo of tier exclusion action. Action type {} not supported.",

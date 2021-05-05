@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -320,17 +321,21 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
     }
 
     /**
-     * Checks to see if entity is an onPrem volume.
+     * Checks to see if entity is an onPrem volume that is discovered from classic model.
+     * In the classic model, volumes does not have any commodity sold nor bought.
      *
      * @param entity Entity to check.
-     * @return Whether entity is onPrem volume - is a volume and if no owner or owner not a BA.
+     * @return Whether entity is onPrem classic model volume - is a classic model volume and if
+     * no owner or owner not a BA.
      */
-    private static boolean isOnPremVolume(final TopologyEntity entity) {
+    private static boolean isOnPremVolumeClassicModel(final TopologyEntity entity) {
         if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
             return false;
         }
         final Optional<TopologyEntity> owner = entity.getOwner();
-        return !owner.isPresent() || owner.get().getEntityType() != BUSINESS_ACCOUNT_VALUE;
+        return (!owner.isPresent() || owner.get().getEntityType() != BUSINESS_ACCOUNT_VALUE)
+                && entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().isEmpty()
+                && entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().isEmpty();
     }
 
     /**
@@ -357,8 +362,8 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
 
             final TopologyEntityDTO.Builder consumer;
             final Optional<Long> onPremStorageId;
-            if (isOnPremVolume(entity)) {
-                // if it's volume, the real consumer should be the VM which uses this volume
+            if (isOnPremVolumeClassicModel(entity)) {
+                // if it's volume from classic model, the real consumer should be the VM which uses this volume
                 Optional<TopologyEntity> optVM = entity
                     .getInboundAssociatedEntities()
                     .stream()
@@ -388,8 +393,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                         map(TopologyEntity::getOid).findAny();
             } else {
                 // We come here if either entity is not a volume (e.g is a VM) or if it is a
-                // cloud volume, in which case we create policy on that volume, instead of the VM,
-                // so consumer in this case should be the cloud volume.
+                // cloud volume or if it is an on prem volume discovered with new model,
+                // in which case we create policy on that volume, instead of the VM,
+                // so consumer in this case should be the volume.
                 consumer = entity.getTopologyEntityDtoBuilder();
                 onPremStorageId = Optional.empty();
             }

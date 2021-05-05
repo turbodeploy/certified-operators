@@ -93,6 +93,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
@@ -102,8 +103,10 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdatingFunctionTypeCase;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -2478,5 +2481,72 @@ public class TopologyConverterToMarketTest {
         assertEquals(expectedValue, cs.getSettings().getCapacityLowerBound(), 0);
         assertEquals(expectedValue, cs.getSettings().getCapacityUpperBound(), 0);
         assertEquals(expectedValue, cs.getMaxQuantity(), 0);
+    }
+
+    /**
+     * Test a vm that consumes on volume with actual commodities(new model) can be converted to traderTO.
+     * The volume id is referenced as CollapsedBuyerId in the shoppingListInfo.
+     */
+    @Test
+    public void testCreateMPCVolumeToShoppingList() {
+        final long vmId = 1111l;
+        final long volumeId = 22222l;
+        final long stId = 33333l;
+        CommodityType stAccessType = CommodityType.newBuilder().setType(CommodityDTO.CommodityType
+                .STORAGE_ACCESS_VALUE).build();
+        CommodityType stAmtType = CommodityType.newBuilder().setType(CommodityDTO.CommodityType
+                .STORAGE_AMOUNT_VALUE).build();
+        CommodityType stProvType = CommodityType.newBuilder().setType(CommodityDTO.CommodityType
+                .STORAGE_PROVISIONED_VALUE).build();
+        CommoditySoldDTO stAmt = CommoditySoldDTO.newBuilder().setCommodityType(stAmtType)
+                .setUsed(50000).setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(50000))
+                .setCapacity(60000).build();
+        CommoditySoldDTO stAccess = CommoditySoldDTO.newBuilder().setCommodityType(stAccessType)
+                .setUsed(2000).setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(2000))
+                .setCapacity(50000).build();
+        CommoditySoldDTO stProv = CommoditySoldDTO.newBuilder().setCommodityType(stProvType)
+                .setUsed(80000).setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(80000))
+                .setCapacity(80000).build();
+        final TopologyEntityDTO.Builder volume = entity(EntityType.VIRTUAL_VOLUME_VALUE, volumeId,
+                EntityState.POWERED_ON, Collections.emptyList(), Arrays.asList(stAmt, stAccess, stProv)).toBuilder();
+        CommoditiesBoughtFromProvider volumeCommBoughtPrvd = CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(stAmtType)
+                        .setUsed(50000))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(stAccessType)
+                        .setUsed(2000))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(stProvType)
+                        .setUsed(80000))
+                .setProviderEntityType(EntityType.STORAGE_VALUE)
+                .setProviderId(stId).build();
+        TopologyEntityDTO volumeDTO = volume.addAllCommoditiesBoughtFromProviders(Arrays.asList(volumeCommBoughtPrvd)).build();
+        final TopologyEntityDTO.Builder vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId,
+                EntityState.POWERED_ON, Collections.emptyList(), Collections.emptyList()).toBuilder();
+        CommoditiesBoughtFromProvider vmCommBoughtPrvd = CommoditiesBoughtFromProvider.newBuilder()
+                .setMovable(true).setScalable(true).setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setProviderId(volumeId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(stAmtType).setUsed(50000))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(stAccessType).setUsed(2000))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(stProvType).setUsed(80000)).build();
+        TopologyEntityDTO vmDTO = vm.addAllCommoditiesBoughtFromProviders(Arrays.asList(vmCommBoughtPrvd)).build();
+        TopologyConverter converter = new TopologyConverter(MCP_ALLOCATION_PLAN_TOPOLOGY_INFO, false,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketCloudRateExtractor,
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher,
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false);
+        Collection<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(new HashMap(){{
+            put(vmId, vmDTO);
+            put(volumeId, volumeDTO);
+        }}, new HashSet());
+        // Only VM is converted to traderTO.
+        assertEquals(1, traderTOs.size());
+        TraderTO vmTO = traderTOs.stream().findFirst().get();
+        assertTrue(converter.getShoppingListOidToInfos().containsKey(vmTO.getShoppingLists(0).getOid()));
+        assertEquals(Long.valueOf(volumeId), converter.getShoppingListOidToInfos().get(vmTO.getShoppingLists(0).getOid())
+                .getCollapsedBuyerId().get());
     }
 }

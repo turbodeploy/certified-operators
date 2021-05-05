@@ -1,10 +1,12 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -26,8 +28,9 @@ public class CollapsedTraderHelper {
      * Mapping from entity type to new provider type after collapsing.
      * Map recording entity type to provider type for collapsed entity.
      */
-    private static final Map<Integer, Integer> ENTITY_NEWPROVIDER_TYPE_MAP =
-            ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.STORAGE_TIER_VALUE);
+    private static final Map<Integer, Set<Integer>> ENTITY_NEWPROVIDER_TYPE_MAP =
+            ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(EntityType.STORAGE_VALUE,
+                    EntityType.STORAGE_TIER_VALUE));
 
     /**
      * Get new provider type after collapsing. Return null if no need to collapse.
@@ -38,8 +41,9 @@ public class CollapsedTraderHelper {
      *         return null if no need to collapse.
      */
     @Nullable
-    public static Integer getNewProviderTypeAfterCollapsing(Integer entityType, Integer directProviderType) {
-        return shouldDirectProviderCollapse(entityType, directProviderType) ? ENTITY_NEWPROVIDER_TYPE_MAP.get(entityType) : null;
+    public static Set<Integer> getNewProviderTypeAfterCollapsing(Integer entityType, Integer directProviderType) {
+        return shouldDirectProviderCollapse(entityType, directProviderType)
+                ? ENTITY_NEWPROVIDER_TYPE_MAP.get(entityType) : null;
     }
 
     /**
