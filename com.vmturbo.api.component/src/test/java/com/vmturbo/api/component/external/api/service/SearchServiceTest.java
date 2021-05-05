@@ -8,9 +8,9 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.V
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -65,6 +65,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestRe
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -141,7 +142,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -1017,6 +1017,34 @@ public class SearchServiceTest {
         getSearchResults(searchService, null, types, scopes,
             null, null, null, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList());
+    }
+
+    /**
+     * Test that a business account search request with probe types specified will create and use
+     * the appropriate filter.
+     *
+     * @throws Exception never
+     */
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testBusinessAccountFilterByProbeType() throws Exception {
+        final String probeType1 = "asdfasdf";
+        final String probeType2 = "jkljkl";
+        getSearchResults(searchService, null,
+            Collections.singletonList(ApiEntityType.BUSINESS_ACCOUNT.apiStr()), null, null, null,
+            null, Arrays.asList(probeType1, probeType2), null);
+
+        final ArgumentCaptor<List<FilterApiDTO>> filterListCaptor =
+            ArgumentCaptor.forClass((Class<List<FilterApiDTO>>)(Class)List.class);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(
+            isNull((Class<List<String>>)(Class)List.class), filterListCaptor.capture());
+        final List<FilterApiDTO> actualFilterList = filterListCaptor.getValue();
+        assertEquals(1, actualFilterList.size());
+        final FilterApiDTO filterDTO = actualFilterList.iterator().next();
+        assertFalse(filterDTO.getCaseSensitive());
+        assertEquals(EntityFilterMapper.ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE, filterDTO.getFilterType());
+        assertEquals(EntityFilterMapper.EQUAL, filterDTO.getExpType());
+        assertEquals(probeType1 + GroupFilterMapper.OR_DELIMITER + probeType2, filterDTO.getExpVal());
     }
 
     @Test

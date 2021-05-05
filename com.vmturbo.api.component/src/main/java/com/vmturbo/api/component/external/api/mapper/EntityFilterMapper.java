@@ -128,6 +128,8 @@ public class EntityFilterMapper {
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
 
+    public static final String ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE = "businessAccountCloudProvider";
+
     /**
      * We prepend  and append \Q and \E to string when we want to
      * match something literally in regex if we have string with only those that is an empty
