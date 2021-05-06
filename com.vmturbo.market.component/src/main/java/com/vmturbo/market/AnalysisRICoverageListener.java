@@ -42,10 +42,14 @@ public class AnalysisRICoverageListener implements CostNotificationListener {
     @Nonnull
     public Future<CostNotification> receiveCostNotification(@Nonnull final Analysis analysis) {
         return CompletableFuture.supplyAsync(() -> {
+            CostNotification receivedNotification = null;
             boolean timedOut = false;
             notificationLock.lock();
             try {
-                while (!timedOut && !isOfInterest(costNotification, analysis)) {
+                while (!timedOut && (costNotification == null
+                        || costNotification.getStatusUpdate().getType() != SOURCE_RI_COVERAGE_UPDATE
+                        || costNotification.getStatusUpdate().getTopologyId()
+                        != analysis.getTopologyId())) {
                     // await() returns false if the wait time has elapsed, and returns true if
                     // signalAll() has been invoked on the received Condition
                     timedOut = !received.await(10, TimeUnit.MINUTES);
@@ -55,34 +59,18 @@ public class AnalysisRICoverageListener implements CostNotificationListener {
                             .newBuilder().setStatus(Status.FAIL)
                             .setStatusDescription("Timed out waiting for Cost notification.")
                             .build()).build();
-                } else {
-                    logger.debug("Analysis: {} received cost notification message: {}",
-                            analysis.getTopologyInfo(), costNotification);
-                    return costNotification;
                 }
+                receivedNotification = costNotification;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.error("Error while waiting for cost notification", e);
-                return null;
             } finally {
                 notificationLock.unlock();
             }
+            logger.debug("Analysis: {} received cost notification message: {}",
+                    analysis.getTopologyInfo(), receivedNotification);
+            return receivedNotification;
         });
-    }
-
-    /**
-     * Determines whether this notification is one that we care about for the given analysis.
-     *
-     * @param costNotification cost notification received
-     * @param analysis         current analysis
-     * @return true if this notification applies
-     */
-    private boolean isOfInterest(final CostNotification costNotification,
-            final Analysis analysis) {
-        return costNotification != null
-                && costNotification.hasStatusUpdate()
-                && costNotification.getStatusUpdate().getType() == SOURCE_RI_COVERAGE_UPDATE
-                && costNotification.getStatusUpdate().getTopologyId() == analysis.getTopologyId();
     }
 
     /**
@@ -91,15 +79,16 @@ public class AnalysisRICoverageListener implements CostNotificationListener {
      * @param costNotification The cost notification.
      */
     @Override
-    public void onCostNotificationReceived(
-            @Nonnull final CostNotification costNotification) {
-        notificationLock.lock();
-        try {
-            this.costNotification = costNotification;
-            received.signalAll();
-        } finally {
-            notificationLock.unlock();
-            logger.debug("Listener received cost notification message: {}", costNotification);
+    public void onCostNotificationReceived(@Nonnull final CostNotification costNotification) {
+        if (costNotification.getStatusUpdate().getType() == SOURCE_RI_COVERAGE_UPDATE) {
+            notificationLock.lock();
+            try {
+                this.costNotification = costNotification;
+                received.signalAll();
+            } finally {
+                notificationLock.unlock();
+                logger.debug("Listener received cost notification message: {}", costNotification);
+            }
         }
     }
 }
