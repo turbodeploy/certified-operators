@@ -58,8 +58,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
@@ -86,13 +84,13 @@ public class ActionListenerTest {
     private final ActionsServiceMole actionsServiceRpc = Mockito.spy(new ActionsServiceMole());
     private final CostServiceMole costServiceRpc = Mockito.spy(new CostServiceMole());
     private ActionsServiceBlockingStub actionsService;
-    private CostServiceBlockingStub costService;
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
     private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
     private static final double EPSILON_PRECISION = 0.0000001d;
 
     private static final long ASSOCIATED_SERVICE_ID = 4L;
-    private static final int ASSOCIATED_ENTITY_TYPE = 10;
+    private static final int ASSOCIATED_ENTITY_TYPE_VM = 10;
+    private static final int ASSOCIATED_ENTITY_TYPE_STORAGE = 60;
 
     private final CurrencyAmount currencyAmount = buildCurrencyAmount(1.111, 1);
     private final CurrencyAmount currencyAmount1 = buildCurrencyAmount(1.21, 1);
@@ -107,26 +105,37 @@ public class ActionListenerTest {
     private final ComponentCost componentCost2 = buildComponentCost(currencyAmount2.getAmount(),
                                                                     CostCategory.ON_DEMAND_COMPUTE,
                                                                     CostSource.ON_DEMAND_RATE);
+    private final ComponentCost componentCost3 = buildComponentCost(currencyAmount1.getAmount(),
+                                                                    CostCategory.STORAGE,
+                                                                    CostSource.ON_DEMAND_RATE);
+    private final ComponentCost componentCost4 = buildComponentCost(currencyAmount2.getAmount(),
+                                                                    CostCategory.STORAGE,
+                                                                    CostSource.ON_DEMAND_RATE);
 
     private final EntityCost entityCost = buildEntityCost(ASSOCIATED_SERVICE_ID,
-            ImmutableSet.of(componentCost), ASSOCIATED_ENTITY_TYPE);
+                                                          ImmutableSet.of(componentCost),
+                                                          ASSOCIATED_ENTITY_TYPE_VM);
     private final EntityCost entityCost1 = buildEntityCost(ASSOCIATED_SERVICE_ID,
-            ImmutableSet.of(componentCost, componentCost1), ASSOCIATED_ENTITY_TYPE);
+                                                           ImmutableSet.of(componentCost, componentCost1),
+                                                           ASSOCIATED_ENTITY_TYPE_VM);
     private final EntityCost entityCost2 = buildEntityCost(ASSOCIATED_SERVICE_ID,
-            ImmutableSet.of(componentCost1), ASSOCIATED_ENTITY_TYPE);
+                                                           ImmutableSet.of(componentCost1),
+                                                           ASSOCIATED_ENTITY_TYPE_VM);
     private final EntityCost entityCost3 = buildEntityCost(ASSOCIATED_SERVICE_ID,
-            ImmutableSet.of(componentCost2), ASSOCIATED_ENTITY_TYPE);
+                                                           ImmutableSet.of(componentCost2),
+                                                           ASSOCIATED_ENTITY_TYPE_VM);
+    private final EntityCost entityCost4 = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                           ImmutableSet.of(componentCost3, componentCost1),
+                                                           ASSOCIATED_ENTITY_TYPE_STORAGE);
+    private final EntityCost entityCost5 = buildEntityCost(ASSOCIATED_SERVICE_ID,
+                                                           ImmutableSet.of(componentCost4),
+                                                           ASSOCIATED_ENTITY_TYPE_STORAGE);
+
     /**
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc);
-
-    /**
-     * Test gRPC server to mock out cost service gRPC dependencies.
-     */
-    @Rule
-    public GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
 
     /**
      * Setup before each test.
@@ -138,13 +147,12 @@ public class ActionListenerTest {
         MockitoAnnotations.initMocks(this);
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        costService = CostServiceGrpc.newBlockingStub(costGrpcServer.getChannel());
         // Initialize ActionListener with a one hour action lifetime.
-        actionListener = new ActionListener(store, actionsService, costService,
+        actionListener = new ActionListener(store, actionsService,
                                             entityCostStore, projectedEntityCostStore,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L, 1);
+                EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()
@@ -167,7 +175,6 @@ public class ActionListenerTest {
     @After
     public void cleanup() {
         grpcTestServer.getChannel().shutdownNow();
-        costGrpcServer.getChannel().shutdownNow();
     }
 
     /**
@@ -214,13 +221,6 @@ public class ActionListenerTest {
                         .setActionId(succeededActionId2)
                         .setActionSpec(actionSpec2)
                         .build();
-
-        // create the conditions that happen after actions progress, so that we can test execution.
-        final Map<Long, EntityActionInfo> entityActionIdToInfoMap = ImmutableMap.of(
-                            1234L, new EntityActionInfo(actionSpec1, actionEntityScale1),
-                            4321L, new EntityActionInfo(actionSpec2, actionEntityScale2)
-                    );
-        actionListener.getExecutedActionsCache().putAll(entityActionIdToInfoMap);
 
         actionListener.onActionSuccess(actionSuccess1);
         assertEquals(1, store.size());
@@ -280,15 +280,6 @@ public class ActionListenerTest {
         doReturn(Arrays.asList(filteredResponse1, filteredResponse2, filteredResponse3, filteredResponse4))
                         .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
 
-        // create the conditions that happen after actions progress, so that we can test execution.
-        final Map<Long, EntityActionInfo> entityActionIdToInfoMap = ImmutableMap.of(
-                            1234L, new EntityActionInfo(actionSpec1, actionEntityScale1),
-                            4321L, new EntityActionInfo(actionSpec2, actionEntityDelete),
-                            5658L, new EntityActionInfo(actionSpec3, actionEntityScale2),
-                            5154L, new EntityActionInfo(actionSpec4, actionEntityAllocate)
-                    );
-        actionListener.getExecutedActionsCache().putAll(entityActionIdToInfoMap);
-
         // Make fake cost response
         final long vmIdScale1 = 1L;
         final long volumeIdDelete = 2L;
@@ -297,13 +288,13 @@ public class ActionListenerTest {
 
         Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
         beforeEntityCostbyOid.put(vmIdScale1, entityCost1);
-        beforeEntityCostbyOid.put(volumeIdDelete, entityCost2);
+        beforeEntityCostbyOid.put(volumeIdDelete, entityCost4);
         beforeEntityCostbyOid.put(volumeIdScale2, entityCost3);
         beforeEntityCostbyOid.put(vmIdAllocate, entityCost1);
 
         Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
         afterEntityCostbyOid.put(vmIdScale1, entityCost3);
-        afterEntityCostbyOid.put(volumeIdDelete, entityCost1);
+        afterEntityCostbyOid.put(volumeIdDelete, entityCost4);
         afterEntityCostbyOid.put(volumeIdScale2, entityCost2);
         afterEntityCostbyOid.put(vmIdAllocate, entityCost3);
 
@@ -363,8 +354,51 @@ public class ActionListenerTest {
         assertEquals(2, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
 
         savingsEvents = store.removeAllEvents();
-        savingsEvents.forEach(se -> assertEquals(se.getActionEvent().get().getEventType(),
-                ActionEventType.RECOMMENDATION_REMOVED));
+        savingsEvents.stream().forEach(se -> {
+            assertEquals(se.getActionEvent().get().getEventType(),
+                         ActionEventType.RECOMMENDATION_REMOVED);
+        });
+
+        // Test for changing costs of an existing action.
+        // In this case the old action will be replaced and a new one added.
+        // Note that since this is replaced action, and we don't generate removal events for those,
+        // the store size will be 1.
+        afterEntityCostbyOid.put(volumeIdDelete, entityCost5);  //used to be entityCost4
+        // Make fake cost response
+        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+                beforeEntityCostbyOid));
+
+        doReturn(Arrays.asList(filteredResponse2, filteredResponse3))
+        .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+         // Execute Actions Update again.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                        .setActionPlanId(actionPlanId)
+                        .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                                        .setSourceTopologyInfo(TopologyInfo
+                                                                        .newBuilder()
+                                                                        .setTopologyContextId(realTimeTopologyContextId))))
+                        .build());
+
+        assertEquals(1, store.size());
+        assertEquals(2, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
+
+        savingsEvents = store.removeAllEvents();
+        int numAdded = 0;
+        int numRemoved = 0;
+        for (SavingsEvent se : savingsEvents) {
+            if (se.getActionEvent().get().getEventType()
+                            == ActionEventType.RECOMMENDATION_REMOVED) {
+                numRemoved++;
+            } else if (se.getActionEvent().get().getEventType()
+                            == ActionEventType.RECOMMENDATION_ADDED) {
+                numAdded++;
+            }
+        }
+        assertEquals(1, numAdded);
+        assertEquals(0, numRemoved);
     }
 
     @NotNull

@@ -134,6 +134,7 @@ public class EntitySavingsTrackerTest {
                 createEntityState(vm3Id, 1d, 2d, 3d, 4d),
                 createEntityState(vm4Id, 1d, null, null, null));
         Answer<Stream> stateStream = new Answer<Stream>() {
+            @Override
             public Stream answer(InvocationOnMock invocation) throws Throwable {
                 return stateSet.stream();
             }
@@ -198,6 +199,7 @@ public class EntitySavingsTrackerTest {
                 .thenReturn(ImmutableSet.of(account1Id, account2Id));
 
         Answer<Stream> regionServiceProviderStream = new Answer<Stream>() {
+            @Override
             public Stream answer(InvocationOnMock invocation) throws Throwable {
                 return Stream.of(region1, region2, serviceProvider1, serviceProvider2);
             }
@@ -211,10 +213,13 @@ public class EntitySavingsTrackerTest {
         final long time0945amMillis = TimeUtil.localDateTimeToMilli(time0945am, clock);
         final long time1130amMillis = TimeUtil.localDateTimeToMilli(time1130am, clock);
         eventsByPeriod.put(time0900am, Arrays.asList(
+                getActionEvent(vm1Id, time0915amMillis, ActionEventType.RECOMMENDATION_ADDED, action1Id),
                 getActionEvent(vm1Id, time0915amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action1Id),
+                getActionEvent(vm2Id, time0945amMillis, ActionEventType.RECOMMENDATION_ADDED, action2Id),
                 getActionEvent(vm2Id, time0945amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action2Id)));
         eventsByPeriod.put(time1000am, new ArrayList<>());
         eventsByPeriod.put(time1100am, Arrays.asList(
+                getActionEvent(vm1Id, time1130amMillis, ActionEventType.RECOMMENDATION_ADDED, action3Id),
                 getActionEvent(vm1Id, time1130amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action3Id)));
     }
 

@@ -287,7 +287,7 @@ public class SqlAuditLogWriter implements AuditLogWriter {
             }
             jsonData.put("sc", priceChange.getSourceCost());
             jsonData.put("dc", priceChange.getDestinationCost());
-            double diff = priceChange.getDestinationCost() - priceChange.getSourceCost();
+            double diff = priceChange.getDelta();
             jsonData.put("d", diff);
 
             long srcOid = priceChange.getSourceOid().orElse(0L);
