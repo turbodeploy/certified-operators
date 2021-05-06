@@ -39,6 +39,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
@@ -498,6 +500,11 @@ public class CommunicationConfig {
     @Bean
     public ReservedInstanceCostServiceBlockingStub reservedInstanceCostServiceBlockingStub() {
         return ReservedInstanceCostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public CloudCommitmentStatsServiceBlockingStub cloudCommitmentStatsServiceBlockingStub() {
+        return CloudCommitmentStatsServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

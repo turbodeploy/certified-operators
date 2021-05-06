@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCommitmentStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudPlanNumEntitiesByTierSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ClusterStatsSubQuery;
@@ -932,6 +933,13 @@ public class ServiceConfig {
                         userSessionContext());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
+    }
+
+    @Bean
+    public CloudCommitmentStatsSubQuery cloudCommitmentStatsSubQuery() {
+        final CloudCommitmentStatsSubQuery cloudCommitmentStatsSubQuery = new CloudCommitmentStatsSubQuery(communicationConfig.cloudCommitmentStatsServiceBlockingStub());
+        statsQueryExecutor().addSubquery(cloudCommitmentStatsSubQuery);
+        return cloudCommitmentStatsSubQuery;
     }
 
     /**
