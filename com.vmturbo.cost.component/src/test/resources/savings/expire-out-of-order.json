@@ -1,18 +1,34 @@
 [
     {
-        "timestamp": 1618819200000,
+        "destTier": 6,
+        "eventType": "RECOMMENDATION_ADDED",
         "expirationTimestamp": 1681891200000,
-        "uuid": 2116,
-        "eventType": "RESIZE_EXECUTED",
         "sourceTier": 9,
-        "destTier": 6
+        "timestamp": 1618819200000,
+        "uuid": 2116
     },
     {
-        "timestamp": 1618826400000,
-        "expirationTimestamp": 1618828200000,
-        "uuid": 2116,
+        "destTier": 6,
         "eventType": "RESIZE_EXECUTED",
+        "expirationTimestamp": 1681891200000,
+        "sourceTier": 9,
+        "timestamp": 1618819200000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 7,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1618828200000,
         "sourceTier": 6,
-        "destTier": 7
+        "timestamp": 1618826400000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 7,
+        "eventType": "RESIZE_EXECUTED",
+        "expirationTimestamp": 1618828200000,
+        "sourceTier": 6,
+        "timestamp": 1618826400000,
+        "uuid": 2116
     }
 ]
