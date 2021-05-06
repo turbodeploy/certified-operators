@@ -60,9 +60,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * results.
  */
 public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
-    private static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(
-        StringConstants.OPTIMIZE_CLOUD_PLAN, StringConstants.CLOUD_MIGRATION_PLAN);
-
     /**
      * Mapping of all 'numEntity' stat types to a Set of their respective API strings.
      */
@@ -125,7 +122,8 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // Check if it's not a cloud plan type.
         Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
         return planInstanceOpt.isPresent() &&
-            CLOUD_PLAN_TYPES.contains(planInstanceOpt.get().getScenario().getScenarioInfo().getType());
+            StringConstants.CLOUD_PLAN_TYPES.contains(
+                planInstanceOpt.get().getScenario().getScenarioInfo().getType());
     }
 
     @Override

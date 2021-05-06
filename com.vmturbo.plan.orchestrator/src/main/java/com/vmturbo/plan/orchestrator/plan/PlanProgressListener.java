@@ -548,7 +548,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             return newStatus;
         }
 
-        // Plans other than OCPs/MCPs.
+        // Plans other than Cloud.
         newStatus = checkCommonNotificationsSuccessful(plan)
                 ? PlanStatus.SUCCEEDED
                 : PlanStatus.WAITING_FOR_RESULT;
@@ -570,7 +570,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     }
 
     /**
-     * Defines the OCP plan with buy RI status based on the notifications from stats, topology and
+     * Defines the cloud plan status with buy RI status based on the notifications from stats, topology and
      * cost.
      * TODO: (OM-51279) Add the timeout logic to this method.
      *
@@ -609,7 +609,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 && costNotificationsSuccessful;
         String planSubType = PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario()
                 .getScenarioInfo());
-        if (isOCPBuyRIOnly(planSubType)) {
+        if (isOCPBuyRIOnly(planSubType)
+            || StringConstants.BUY_RI_PLAN.equals(plan.getScenario().getScenarioInfo().getType())) {
             return commonAndCostSuccessful
                     ? PlanStatus.SUCCEEDED
                     : PlanStatus.WAITING_FOR_RESULT;
@@ -627,7 +628,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                     : PlanStatus.WAITING_FOR_RESULT;
         } else {
             // Non-cloud plans are processed in calling method.
-            logger.error("This is not an optimize cloud or cloud migration plan. Returning FAILED status");
+            logger.error("This is not an implemented plan type. Returning FAILED status");
             return plan.getStatus();
         }
     }
@@ -658,9 +659,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         if (scenarioInfo == null) {
             return false;
         }
-        final String scenarioType = scenarioInfo.getType();
-        return StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioType)
-            || StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioType);
+        return StringConstants.CLOUD_PLAN_TYPES.contains(scenarioInfo.getType());
     }
 
     /**

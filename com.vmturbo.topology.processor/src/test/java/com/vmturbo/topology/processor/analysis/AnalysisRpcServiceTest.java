@@ -262,5 +262,14 @@ public class AnalysisRpcServiceTest {
                                                  StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES,
                                                  topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
 
+        // BUY_RI_PLAN should always only run BUY_RI_IMPACT_ANALYSIS
+        analysisService.setAllowBoughtRiInAnalysis(true);
+        assertTrue(analysisService.getAnalysisTypes(StringConstants.BUY_RI_PLAN,
+            StringConstants.PLAN__NO_SUB_TYPE,
+            topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
+        analysisService.setAllowBoughtRiInAnalysis(false);
+        assertTrue(analysisService.getAnalysisTypes(StringConstants.BUY_RI_PLAN,
+            StringConstants.PLAN__NO_SUB_TYPE,
+            topologyHandler).contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS));
     }
 }

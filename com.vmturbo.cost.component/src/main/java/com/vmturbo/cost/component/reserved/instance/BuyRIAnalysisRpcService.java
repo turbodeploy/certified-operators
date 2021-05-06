@@ -135,9 +135,8 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                                    StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
         try {
             if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
-                if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(request.getTopologyInfo().getPlanInfo().getPlanType())
-                        && StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(request.getTopologyInfo().getPlanInfo().getPlanSubType())
-                && cloudCommitmentSettingsFetcher.runCloudCommitmentAnalysis()) {
+                if (StringConstants.BUY_RI_PLAN.equals(request.getTopologyInfo().getPlanInfo().getPlanType()) &&
+                    cloudCommitmentSettingsFetcher.runCloudCommitmentAnalysis()) {
                     cloudCommitmentAnalysisRunner.runCloudCommitmentAnalysis(request, responseObserver);
                 } else {
                     runPlanBuyRIAnalysis(request, responseObserver);
