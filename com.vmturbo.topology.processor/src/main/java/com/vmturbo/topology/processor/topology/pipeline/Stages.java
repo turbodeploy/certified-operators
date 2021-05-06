@@ -1707,8 +1707,7 @@ public class Stages {
             }
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
-            if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
-                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
+            if (!StringConstants.CLOUD_PLAN_TYPES.contains(topologyInfo.getPlanInfo().getPlanType())) {
                 // populate InvertedIndex
                 logger.info("Indexing on-prem entities for scoping .....");
                 InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>

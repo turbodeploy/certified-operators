@@ -509,4 +509,19 @@ public class StringConstants {
      * Optimize container cluster plan type.
      */
     public static final String OPTIMIZE_CONTAINER_CLUSTER_PLAN = "OPTIMIZE_CONTAINER_CLUSTER";
+
+    /**
+     * Buy RI plan type.
+     */
+    public static final String BUY_RI_PLAN = "BUY_RI_PLAN";
+
+    /**
+     * To be used when a plan (like a BUY_RI_PLAN) which has no defined subtype.
+     */
+    public static final String PLAN__NO_SUB_TYPE = "PLAN_NO_SUB_TYPE";
+
+    /**
+     * Set of all Cloud Plan Types (not including sub plans).
+     */
+    public static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(OPTIMIZE_CLOUD_PLAN, CLOUD_MIGRATION_PLAN, BUY_RI_PLAN);
 }

@@ -128,10 +128,28 @@ public class PlanRpcServiceTest {
     }
 
     /**
+     * Tests workflow of runQueuedPlan for run of BUY_RI_PLAN.
+     */
+    @Test
+    public void testRunQueuedPlanWithBuyRi() {
+        planService.runQueuedPlan(createBuyRIPlan(), response);
+        verify(testBuyRiRpcService, times(1)).startBuyRIAnalysis(any());
+        verify(testAnalysisRpcService, times(0)).startAnalysis(any());
+    }
+
+    private PlanInstance createBuyRIPlan() {
+        return PlanInstance.newBuilder().setPlanId(9L).setStatus(PlanStatus.QUEUED)
+                .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                    .setType(StringConstants.BUY_RI_PLAN)
+                    .addChanges(ScenarioChange.newBuilder()
+                        .setRiSetting(RISetting.newBuilder())))).build();
+    }
+
+    /**
      * Tests workflow of runQueuedPlan for run of plan option 3: RI Buy only using allocation demand.
      */
     @Test
-    public void testRunQueuedPlanWithBuyRiOnly() {
+    public void testRunQueuedPlanWithOCPBuyRiOnly() {
         PlanInstance planInstance = createOptimizePlanWithBuyRiOnly();
         planService.runQueuedPlan(planInstance, response);
         verify(testBuyRiRpcService, times(1)).startBuyRIAnalysis(any());

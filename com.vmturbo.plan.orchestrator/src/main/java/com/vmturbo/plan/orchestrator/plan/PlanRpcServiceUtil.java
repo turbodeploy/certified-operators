@@ -273,24 +273,28 @@ public class PlanRpcServiceUtil {
      * @param scenarioInfo Input scenarioInfo
      * @return The cloud plan sub type
      */
+    @Nonnull
     public static String getCloudPlanSubType(ScenarioInfo scenarioInfo) {
         if (StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioInfo.getType())) {
             return isScalingEnabled(scenarioInfo)
-                    ? CLOUD_MIGRATION_PLAN__CONSUMPTION : CLOUD_MIGRATION_PLAN__ALLOCATION;
+                    ? StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION
+                    : StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
         }
-        final boolean isRIBuyEnabled = !scenarioInfo.getChangesList()
+
+        if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType())) {
+            final boolean isRIBuyEnabled = !scenarioInfo.getChangesList()
                 .stream()
                 .filter(ScenarioChange::hasRiSetting)
                 .collect(Collectors.toList()).isEmpty();
-        String planSubType;
-        if (isRIBuyEnabled) {
-            planSubType = isScalingEnabled(scenarioInfo)
+            if (isRIBuyEnabled) {
+                return isScalingEnabled(scenarioInfo)
                     ? StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES
                     : StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY;
-        } else {
-            planSubType = StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES;
+            }
+            return StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES;
         }
-        return planSubType;
+
+        return StringConstants.PLAN__NO_SUB_TYPE;
     }
 
     /**
