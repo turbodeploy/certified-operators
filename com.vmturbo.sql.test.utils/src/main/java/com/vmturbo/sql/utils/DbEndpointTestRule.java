@@ -146,9 +146,7 @@ public class DbEndpointTestRule implements TestRule {
         for (final DbEndpoint endpoint : endpoints) {
             if (endpoint.isReady()) {
                 logger.info("Dropping database & user for {}", endpoint);
-                endpoint.getAdapter().dropDatabase();
-                endpoint.getAdapter().dropUser();
-                endpoint.getAdapter().dropReadersGroupUser();
+                endpoint.getAdapter().tearDown();
             }
         }
     }
@@ -260,5 +258,4 @@ public class DbEndpointTestRule implements TestRule {
         when(dbPasswordUtil.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
         return dbPasswordUtil;
     }
-
 }

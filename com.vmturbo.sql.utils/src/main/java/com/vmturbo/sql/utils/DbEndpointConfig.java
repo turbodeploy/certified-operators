@@ -30,11 +30,11 @@ public class DbEndpointConfig {
     private DbEndpointAccess access;
     private String rootUserName;
     private String rootPassword;
+    private Boolean rootAccessEnabled;
     private Map<String, String> driverProperties;
     private Boolean secure;
     private String migrationLocations;
     private FlywayCallback[] flywayCallbacks;
-    private Boolean destructiveProvisioningEnabled;
     private Boolean endpointEnabled;
     private Function<UnaryOperator<String>, Boolean> endpointEnabledFn;
     private DbEndpoint template;
@@ -128,6 +128,12 @@ public class DbEndpointConfig {
         this.rootUserName = rootUserName;
     }
 
+    public Boolean isRootAccessEnabled() { return rootAccessEnabled; }
+
+    public void setRootAccessEnabled(final boolean rootAccessEnabled) {
+        this.rootAccessEnabled = rootAccessEnabled;
+    }
+
     public String getRootPassword() {
         return rootPassword;
     }
@@ -166,14 +172,6 @@ public class DbEndpointConfig {
 
     public void setFlywayCallbacks(final FlywayCallback[] flywayCallbacks) {
         this.flywayCallbacks = flywayCallbacks;
-    }
-
-    public Boolean getDestructiveProvisioningEnabled() {
-        return destructiveProvisioningEnabled;
-    }
-
-    public void setDestructiveProvisioningEnabled(final Boolean destructiveProvisioningEnabled) {
-        this.destructiveProvisioningEnabled = destructiveProvisioningEnabled;
     }
 
     public Boolean getEndpointEnabled() {

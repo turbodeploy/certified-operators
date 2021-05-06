@@ -126,6 +126,8 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  * or built-in defaults.</p>
  */
 public class DbEndpoint {
+    private static final Logger logger = LogManager.getLogger();
+
     private final DbEndpointConfig config;
     private CompletableFuture<Void> future;
     private DbAdapter adapter;
@@ -152,9 +154,6 @@ public class DbEndpoint {
         this.failureCause = e;
         future.completeExceptionally(e);
     }
-
-    // TODO add some debug logging
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create a {@link DSLContext} bound to this endpoint.
@@ -283,19 +282,11 @@ public class DbEndpoint {
      * will be repeated indefinitely, and this method will not return until the endpoint is
      * successfully initialized.</p>
      *
-     * <p>TODO: Try to determine cases where the reason is unrepairable, and don't perform
-     * additional retries.</p>
-     *
      * @param timeout The time to wait for completion to be finished.
      * @param timeUnit The time unit for the completion wait time.
      * @throws InterruptedException if interrupted
      */
     public synchronized void awaitCompletion(Long timeout, TimeUnit timeUnit) throws InterruptedException {
-        // TODO 64844 git rid of this!
-        if (timeout == null) {
-            timeout = 30L;
-            timeUnit = TimeUnit.MINUTES;
-        }
         try {
             if (isReady()) {
                 if (!retriesCompleted) {
@@ -640,4 +631,29 @@ public class DbEndpoint {
             return createNewTable;
         }
     }
+
+    /**
+     * Exception class for failures related to {@link DbEndpoint} objects.
+     */
+    public static class DbEndpointException extends Exception {
+        /**
+         * Create a new instance.
+         *
+         * @param s message string
+         */
+        public DbEndpointException(final String s) {
+            super(s);
+        }
+
+        /**
+         * Create a new instance.
+         *
+         * @param s         message string
+         * @param throwable nested exception
+         */
+        public DbEndpointException(final String s, final Throwable throwable) {
+            super(s, throwable);
+        }
+    }
+
 }
