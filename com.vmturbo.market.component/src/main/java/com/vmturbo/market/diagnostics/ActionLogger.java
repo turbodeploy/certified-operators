@@ -104,7 +104,7 @@ public class ActionLogger {
     private int templateChange;
     private int familyChange;
 
-    private CspFromRegion cspFromRegion = new CspFromRegion();
+    private CspFromRegion cspFromRegion;
 
     /**
      * Given a list of actions, log each action in CSV format.
@@ -132,7 +132,7 @@ public class ActionLogger {
         List<String> buffer = new ArrayList<>();
         buffer.add(header);
         engine = "M2";
-
+        cspFromRegion = new CspFromRegion(sourceCloudTopology);
         for (Action action : actions) {
             initialize();
             ActionInfo info = action.getInfo();
