@@ -84,6 +84,8 @@ public class GroupFilterMapper {
      */
     public static final String BILLING_FAMILY_FILTER_TYPE = "billingFamilyByName";
 
+    public static final String OR_DELIMITER = "|";
+
     /**
      * A map between group type and property to UI filter that we use for that property. We use
      * different filter for same property of different entity types. For example, for filter based
@@ -317,7 +319,7 @@ public class GroupFilterMapper {
             filterApiDTO.setExpVal(
                     mapFilter.getValuesList().stream()
                             .map(v -> mapFilter.getKey() + "=" + v)
-                            .collect(Collectors.joining("|")));
+                            .collect(Collectors.joining(OR_DELIMITER)));
             filterApiDTO.setExpType(mapFilter.getPositiveMatch() ?
                             EntityFilterMapper.EQUAL :
                             EntityFilterMapper.NOT_EQUAL);
@@ -336,7 +338,7 @@ public class GroupFilterMapper {
                         propFilter.getStringFilter()
                                 .getOptionsList()
                                 .stream()
-                                .collect(Collectors.joining("|")));
+                                .collect(Collectors.joining(OR_DELIMITER)));
 
         filterApiDTO.setExpType(propFilter.getStringFilter().getPositiveMatch() ?
                                 EntityFilterMapper.EQUAL :

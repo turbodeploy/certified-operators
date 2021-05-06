@@ -496,9 +496,9 @@ public class SearchService implements ISearchService {
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, null, new HashSet(groupTypes), environmentType, null, scopes, true, groupOrigin);
+                paginationRequest, null, new HashSet<>(groupTypes), environmentType, null, scopes, true, groupOrigin);
         } else if (types != null) {
-            final Set<String> typesHashSet = new HashSet(types);
+            final Set<String> typesHashSet = new HashSet<>(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (typesHashSet.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we pass in true for
@@ -525,9 +525,12 @@ public class SearchService implements ISearchService {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets();
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (typesHashSet.contains(ApiEntityType.BUSINESS_ACCOUNT.apiStr())) {
+                final List<FilterApiDTO> cloudfilter = (probeTypes == null || probeTypes.isEmpty()) ?
+                    Collections.emptyList() :
+                    Collections.singletonList(createCloudProbeMatcher(probeTypes));
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessAccountRetriever.getBusinessAccountsInScope(scopes,
-                            addNameMatcher(query, Collections.emptyList(),
+                            addNameMatcher(query, cloudfilter,
                                 EntityFilterMapper.ACCOUNT_NAME, queryType));
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
@@ -887,6 +890,15 @@ public class SearchService implements ISearchService {
             returnFilters.addAll(originalFilters);
         }
         return returnFilters;
+    }
+
+    private FilterApiDTO createCloudProbeMatcher(List<String> probesToMatch) {
+        final FilterApiDTO providerFilter = new FilterApiDTO();
+        providerFilter.setCaseSensitive(false);
+        providerFilter.setFilterType(EntityFilterMapper.ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE);
+        providerFilter.setExpType(EntityFilterMapper.EQUAL);
+        providerFilter.setExpVal(String.join(GroupFilterMapper.OR_DELIMITER, probesToMatch));
+        return providerFilter;
     }
 
     /**
