@@ -46,8 +46,8 @@ panels:
             value: 90
   gridPos:
     h: 8
-    w: 9
-    x: 7
+    w: 13
+    x: 6
     y: 5
   id: 13
   options:
@@ -721,7 +721,7 @@ panels:
       type: macro
   timeFrom:
   timeShift:
-  title: Virtual Machine Physical Resource Usage
+  title: Virtual Machine Resource Usage
   transform: table
   type: table-old
 refresh: false
