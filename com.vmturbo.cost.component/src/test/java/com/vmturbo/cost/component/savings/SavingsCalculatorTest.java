@@ -227,8 +227,7 @@ public class SavingsCalculatorTest {
                 new Result(2, false, ImmutableList.of(-60d), 30d, null),
                 new Result(2, false, ImmutableList.of(-60d), 60d, null),
                 new Result(2, false, ImmutableList.of(), 30d, null),
-                new Result(2, false, ImmutableList.of(), 0d, null),
-                new Result(3, false, ImmutableList.of(), 0d, null)
+                new Result(2, false, ImmutableList.of(), 0d, null)
         };
         for (int period = 0; period < results.length; period++) {
             long start = baseTime + period * 3600000L;
