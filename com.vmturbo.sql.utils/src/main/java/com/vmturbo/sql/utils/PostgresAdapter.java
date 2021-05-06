@@ -39,10 +39,14 @@ public class PostgresAdapter extends DbAdapter {
                     ChronoUnit.HOURS, "hours"
             );
 
-    /**
-     * Prefix for the name of the readers group role.
-     */
+    /** Prefix for the name of the readers group role. */
     private static final String READERS_GROUP_ROLE_PREFIX = "readers";
+
+    /** Prefix for the name of the writers group role. */
+    private static final String WRITERS_GROUP_ROLE_PREFIX = "writers";
+
+    private static final String DUPLICATE_DATABASE_SQLSTATE = "42P04";
+    private static final String DUPLICATE_OBJECT_SQLSTATE = "42710";
 
     PostgresAdapter(final DbEndpointConfig config) {
         super(config);
@@ -63,48 +67,21 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     protected void createNonRootUser() throws SQLException, UnsupportedDialectException {
-        createNonRootUser(config.getUserName());
-    }
-
-    /**
-     * Create non-root user of given name.
-     *
-     * @param userName name of the user
-     * @throws SQLException                if there's a problem gaining access
-     * @throws UnsupportedDialectException if the endpoint is mis-configured
-     */
-    private void createNonRootUser(String userName) throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(null)) {
-            dropUser(conn, userName);
-            execute(conn, String.format("CREATE USER \"%s\" WITH PASSWORD '%s'",
-                    userName, config.getPassword()));
-            execute(conn, String.format("ALTER ROLE \"%s\" SET search_path TO \"%s\"",
+        final String userName = config.getUserName();
+        createRoleIfNotExists(userName, config.getPassword());
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("ALTER USER \"%s\" SET search_path TO \"%s\"",
                     userName, config.getSchemaName()));
-        }
-    }
-
-    private void dropUser(final Connection conn, final String user) throws SQLException {
-        if (!config.getDestructiveProvisioningEnabled()) {
-            return;
-        }
-        try {
-            execute(conn, String.format("DROP USER IF EXISTS \"%s\"", user));
-        } catch (SQLException e) {
-            logger.error("DROP USER failed");
-            throw e;
         }
     }
 
     @Override
     protected void createReadersGroup() throws SQLException, UnsupportedDialectException {
         // create readers group role if it doesn't exist
-        final String readersGroupRoleName = getReadersGroupRoleName();
-        if (roleExists(readersGroupRoleName)) {
-            return;
-        }
-        createNonRootUser(readersGroupRoleName);
+        final String readersGroupRoleName = getGroupName(READERS_GROUP_ROLE_PREFIX);
+        createRoleIfNotExists(readersGroupRoleName, null);
         // grant privileges to read only user
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+        try (Connection conn = getRootConnection()) {
             execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
                     config.getDatabaseName(), readersGroupRoleName));
             execute(conn, String.format("GRANT USAGE ON SCHEMA \"%s\" TO \"%s\"",
@@ -114,95 +91,176 @@ public class PostgresAdapter extends DbAdapter {
         }
     }
 
-    /**
-     * Get the name of the readers group role for current db config.
-     *
-     * @return readers group role name
-     */
-    private String getReadersGroupRoleName() {
-        return String.join("_", READERS_GROUP_ROLE_PREFIX, config.getDatabaseName(),
-                config.getSchemaName());
-    }
-
-    /**
-     * Check if the role exists.
-     *
-     * @param roleName name of the role
-     * @return true if role exists in db, otherwise false
-     * @throws SQLException if there's a problem gaining access
-     * @throws UnsupportedDialectException if the endpoint is mis-configured
-     */
-    private boolean roleExists(String roleName) throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(null)) {
-            ResultSet results = conn.createStatement().executeQuery(
-                    String.format("SELECT * FROM pg_catalog.pg_roles WHERE rolname = '%s'",
-                            roleName));
-            return results.next();
+    @Override
+    protected void createWritersGroup() throws SQLException, UnsupportedDialectException {
+        // create writers group role if it doesn't exist
+        final String writersGroupRoleName = getGroupName(WRITERS_GROUP_ROLE_PREFIX);
+        createRoleIfNotExists(writersGroupRoleName, null);
+        // grant privileges to writer user
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("GRANT CONNECT ON DATABASE \"%s\" TO \"%s\"",
+                    config.getDatabaseName(), writersGroupRoleName));
+            execute(conn, String.format("GRANT USAGE ON SCHEMA \"%s\" TO \"%s\"",
+                    config.getSchemaName(), writersGroupRoleName));
+            execute(conn, String.format("GRANT ALL ON ALL TABLES IN SCHEMA \"%s\" TO \"%s\"",
+                    config.getSchemaName(), writersGroupRoleName));
         }
     }
 
+    /**
+     * Get the name of a group role for current db config.
+     *
+     * <p>THe name is created by starting with a prefix and appending the database name and, if
+     * it's not the same, the schema name.</p>
+     *
+     * @param prefix prefix to use for group name
+     * @return readers group role name
+     */
+    private String getGroupName(String prefix) {
+        final String dbName = config.getDatabaseName();
+        final String schemaName = config.getSchemaName();
+
+        return dbName.equals(schemaName) ? String.join("_", prefix, dbName)
+                : String.join("_", prefix, dbName, schemaName);
+    }
+
     @Override
-    protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException {
+    protected String obscurePasswords(final String sql) {
+        return sql.replaceAll("(\\bWITH\\s+PASSWORD\\s*')([^']*)'", "$1***'");
+    }
+
+    @Override
+    protected void performNonRootGrants() throws SQLException, UnsupportedDialectException {
+        final DbEndpointAccess access = config.getAccess();
         switch (access) {
             case ALL:
-                performRWGrants();
+                performAllGrants();
                 alterDefaultPrivileges();
                 break;
+            case READ_WRITE_DATA:
+                performWriteGrants();
             case READ_ONLY:
                 performROGrants();
                 break;
-            case READ_WRITE_DATA:
-                throw new UnsupportedOperationException(("Unsupported DB endpoint access: " + access.name()));
             default:
                 throw new IllegalAccessError("Unknown DB endpoint access: " + access.name());
         }
     }
 
-    private void performRWGrants() throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+    private void performAllGrants() throws UnsupportedDialectException, SQLException {
+        try (Connection conn = getRootConnection()) {
             execute(conn, String.format("GRANT ALL PRIVILEGES ON SCHEMA \"%s\" TO \"%s\"",
                     config.getSchemaName(), config.getUserName()));
         }
     }
 
+    private void performWriteGrants() throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            // make this user a member of the writers group, so it inherits the privileges
+            execute(conn, String.format("GRANT \"%s\" TO \"%s\"",
+                    getGroupName(WRITERS_GROUP_ROLE_PREFIX), config.getUserName()));
+        }
+    }
+
     private void performROGrants() throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+        try (Connection conn = getRootConnection()) {
             // make this user a member of the readers group, so it inherits the privileges
-            execute(conn, String.format("GRANT \"%s\" TO \"%s\"", getReadersGroupRoleName(),
-                    config.getUserName()));
+            execute(conn, String.format("GRANT \"%s\" TO \"%s\"",
+                    getGroupName(READERS_GROUP_ROLE_PREFIX), config.getUserName()));
         }
     }
 
     /**
-     * Alter the default privileges for user {@link DbEndpointConfig#getUserName()}.
+     * Alter the default privileges for the schema so that the reader and writer groups
+     * automatically - and therefore their members - automatically get needed access to newly
+     * created tables.
      *
      * @throws UnsupportedDialectException if the endpoint is mis-configured
-     * @throws SQLException if there's a problem gaining access
+     * @throws SQLException                if there's a problem gaining access
      */
     private void alterDefaultPrivileges() throws UnsupportedDialectException, SQLException {
-        // any new tables created by current non-root user will be readable by users in the readers group
+        // we must perform this operation if this endpoint's non-root user is capable of creating
+        // new tables, and we must do it while logged in as that user.
         if (config.getAccess().canCreateNewTable()) {
             try (Connection conn = getNonRootConnection()) {
                 execute(conn, String.format("ALTER DEFAULT PRIVILEGES IN SCHEMA \"%s\" "
                                 + "GRANT SELECT ON TABLES TO \"%s\"",
-                        config.getSchemaName(), getReadersGroupRoleName()));
+                        config.getSchemaName(), getGroupName(READERS_GROUP_ROLE_PREFIX)));
+                execute(conn, String.format("ALTER DEFAULT PRIVILEGES IN SCHEMA \"%s\" "
+                                + "GRANT ALL ON TABLES TO \"%s\"",
+                        config.getSchemaName(), getGroupName(WRITERS_GROUP_ROLE_PREFIX)));
             }
         }
     }
 
     @Override
     protected void createSchema() throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(null)) {
-            if (!databaseExists(conn, config.getDatabaseName())) {
-                execute(conn, String.format("CREATE DATABASE \"%s\"", config.getDatabaseName()));
-            }
-        }
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
-            if (config.getDestructiveProvisioningEnabled()) {
-                execute(conn, "DROP SCHEMA public CASCADE");
-            }
+        createDatabaseIfNotExists(config.getDatabaseName());
+        try (Connection conn = getRootConnection()) {
+            // we don't really want a "public" schema here, but more importantly, when it's created
+            // during database creation, the timescaledb plugin is automatically installed in it,
+            // and that prevents it being installed in the endpoint schema, where we want it.
+            execute(conn, "DROP SCHEMA IF EXISTS public CASCADE");
             execute(conn, String.format("CREATE SCHEMA IF NOT EXISTS \"%s\"", config.getSchemaName()));
             setupTimescaleDb();
+        }
+    }
+
+    /**
+     * Create a database if it doesn't already exist.
+     *
+     * <p>This is required because there is no `IF NOT EXISTS` syntax on `CREATE DATABASE`</p>
+     *
+     * @param name database name
+     * @throws SQLException                if the operation fails for any reason other than that the
+     *                                     database already exists
+     * @throws UnsupportedDialectException for unsupported dialect
+     */
+    private void createDatabaseIfNotExists(String name)
+            throws UnsupportedDialectException, SQLException {
+        try (Connection conn = getRootConnection(null)) {
+            execute(conn, String.format("CREATE DATABASE \"%s\"", name));
+        } catch (SQLException e) {
+            if (e.getSQLState().equals(DUPLICATE_DATABASE_SQLSTATE)) {
+                logger.info("Database {} already exists", name);
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Create a user/role if it doesn't already exist.
+     *
+     * <p>This is required because there is no `IF NOT EXISTS` syntax on `CREATE ROLE`</p>
+     *
+     * <p>If the `password` parameter is not null, it is set as the password for the user.
+     * (We don't include it in `CREATE USER` because we want it re-done on restart, in case the
+     * password has been reset to a value that doesn't match the configuration.</p>
+     *
+     * @param name     user name
+     * @param password password, or null to not set a password
+     * @throws UnsupportedDialectException for unsupported dialect
+     * @throws SQLException                if the operation fails for any reason other than that the
+     *                                     role already exists
+     */
+    private void createRoleIfNotExists(String name, String password)
+            throws UnsupportedDialectException, SQLException {
+        final String roleOrUser = password != null ? "USER" : "ROLE";
+        try (Connection conn = getRootConnection(null)) {
+            try {
+                execute(conn, String.format("CREATE %s \"%s\"", roleOrUser, name));
+            } catch (SQLException e) {
+                if (e.getSQLState().equals(DUPLICATE_OBJECT_SQLSTATE)) {
+                    logger.info("Role {} already exists", name);
+                } else {
+                    throw e;
+                }
+            }
+            if (password != null) {
+                execute(conn, String.format("ALTER USER \"%s\" WITH PASSWORD '%s'",
+                        name, config.getPassword()));
+            }
         }
     }
 
@@ -214,21 +272,14 @@ public class PostgresAdapter extends DbAdapter {
      * so we'll need a way to introduce that in our basic endpoint definitions. Perhaps something
      * like a list of required features?</p>
      *
-     * @throws SQLException if there's a problem adding the extension
-     * @throws UnsupportedDialectException if the endpoint is mis-configured
+     * @throws SQLException                if there's a problem adding the extension
+     * @throws UnsupportedDialectException on unsupported dialect
      */
     protected void setupTimescaleDb() throws SQLException, UnsupportedDialectException {
-        try (Connection conn = getRootConnection(config.getDatabaseName())) {
+        try (Connection conn = getRootConnection()) {
             execute(conn, String.format("CREATE EXTENSION IF NOT EXISTS timescaledb SCHEMA \"%s\"",
                     config.getSchemaName()));
         }
-    }
-
-    private boolean databaseExists(final Connection conn, final String databaseName) throws SQLException {
-        ResultSet results = conn.createStatement().executeQuery(
-                String.format("SELECT * FROM pg_catalog.pg_database WHERE datname = '%s'",
-                        databaseName));
-        return results.next();
     }
 
     @Override
@@ -257,13 +308,13 @@ public class PostgresAdapter extends DbAdapter {
                     "SELECT add_retention_policy('%s', INTERVAL '%d %s')",
                     table, retentionPeriod, timeUnit));
             if (!resultSet.next()) {
-                logger.error("Unable to create drop_chunks for table \"{}\" with period \"{} {}\"",
+                logger.error("Unable to create retention policy for table \"{}\" with period \"{} {}\"",
                         table, retentionPeriod, timeUnit);
                 return;
             }
 
             final int jobId = resultSet.getInt("add_retention_policy");
-            // set the drop_chunks background job to run every day, starting from next midnight
+            // set the retention job to run every day, starting from next midnight
             conn.createStatement().execute(String.format("SELECT alter_job(%d, "
                     + "schedule_interval => INTERVAL '1 days', "
                     + "next_start => date_trunc('DAY', now()) + INTERVAL '1 day');", jobId));
@@ -271,6 +322,16 @@ public class PostgresAdapter extends DbAdapter {
             logger.info("Created retention policy for table \"{}\" with period \"{} {}\"", table,
                     retentionPeriod, timeUnit);
         }
+    }
+
+    @Override
+    public void setConnectionUser(final Connection conn, final String userName) throws SQLException {
+        conn.getClientInfo().setProperty("ClientUser", userName);
+    }
+
+    @Override
+    public String getConnectionUser(final Connection conn) throws SQLException {
+        return conn.getClientInfo().getProperty("ClientUser");
     }
 
     @Override
@@ -287,30 +348,32 @@ public class PostgresAdapter extends DbAdapter {
     }
 
     @Override
-    protected void dropDatabaseIfExists(final Connection conn) throws SQLException {
-        execute(conn, "DROP DATABASE IF EXISTS " + config.getDatabaseName());
-    }
-
-    @Override
-    protected void dropUserIfExists(final Connection conn) throws SQLException {
-        dropUserIfExists(conn, config.getUserName());
-    }
-
-    /**
-     * Drop the given user if existing.
-     *
-     * @param conn db connection
-     * @param userName name of the user
-     * @throws SQLException if there's a problem gaining access
-     */
-    protected void dropUserIfExists(final Connection conn, String userName) throws SQLException {
-        execute(conn, "DROP USER IF EXISTS " + userName);
-    }
-
-    @Override
-    public void dropReadersGroupUser() throws UnsupportedDialectException, SQLException {
-        try (Connection conn = getRootConnection(null)) {
-            dropUserIfExists(conn, getReadersGroupRoleName());
+    protected void tearDown() {
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("DROP DATABASE IF EXISTS \"%s\" CASCADE",
+                    config.getDatabaseName()));
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
+        }
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("DROP USER IF EXISTS \"%s\" CASCADE",
+                    config.getUserName()));
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to drop user {}", config.getUserName(), e);
+        }
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\" CASCADE",
+                    getGroupName(READERS_GROUP_ROLE_PREFIX)));
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to drop readers group {}",
+                    getGroupName(READERS_GROUP_ROLE_PREFIX), e);
+        }
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("DROP ROLE IF EXISTS \"%s\" CASCADE",
+                    getGroupName(WRITERS_GROUP_ROLE_PREFIX)));
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Failed to drop writers group {}",
+                    getGroupName(WRITERS_GROUP_ROLE_PREFIX), e);
         }
     }
 }

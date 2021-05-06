@@ -169,6 +169,19 @@ public class DbEndpointBuilder {
     }
 
     /**
+     * Specify whether root access is enabled for this endpoint. Provisioning operations that would
+     * normally require root access will fail without attempting to obtain a connection if this is
+     * disabled.
+     *
+     * @param rootAccessEnabled true of root access is enabled
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withRootAccessEnabled(boolean rootAccessEnabled) {
+        config.setRootAccessEnabled(rootAccessEnabled);
+        return this;
+    }
+
+    /**
      * Specify a driverProperties property value for this endpoint.
      *
      * @param driverProperties property value
@@ -219,21 +232,6 @@ public class DbEndpointBuilder {
      */
     public DbEndpointBuilder withFlywayCallbacks(FlywayCallback... flywayCallbacks) {
         config.setFlywayCallbacks(flywayCallbacks);
-        return this;
-    }
-
-    /**
-     * Specify a destructiveProvisioningEnabled property value for this endpoint.
-     *
-     * <p>This will permit operations like dropping a user or a database to be performed using
-     * root credentials, during endpoint initialization, in order to attempt to fix a situation
-     * where the non-root user credentials are found not to work.</p>
-     *
-     * @param destructiveProvisioningEnabled property value
-     * @return this endpoint
-     */
-    public DbEndpointBuilder withDestructiveProvisioningEnabled(boolean destructiveProvisioningEnabled) {
-        config.setDestructiveProvisioningEnabled(destructiveProvisioningEnabled);
         return this;
     }
 

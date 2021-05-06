@@ -64,7 +64,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.READ_ONLY));
         assertThat(config.getDatabaseName(), is("xyzzy"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(false));
         assertThat(config.getDialect(), is(SQLDialect.POSTGRES));
         assertThat(config.getDriverProperties(), is(anEmptyMap()));
         assertThat(config.getEndpointEnabled(), is(true));
@@ -77,6 +76,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("postgres"));
+        assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
         assertThat(config.getShouldProvisionDatabase(), is(false));
@@ -97,7 +97,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.READ_ONLY));
         assertThat(config.getDatabaseName(), is("xyzzy"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(false));
         assertThat(config.getDialect(), is(SQLDialect.MARIADB));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("useServerPrepStmts", "true")));
         assertThat(config.getEndpointEnabled(), is(true));
@@ -110,6 +109,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
+        assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
         assertThat(config.getShouldProvisionDatabase(), is(false));
@@ -130,7 +130,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.READ_ONLY));
         assertThat(config.getDatabaseName(), is("xyzzy"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(false));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(anEmptyMap()));
         assertThat(config.getEndpointEnabled(), is(true));
@@ -143,6 +142,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is(""));
         assertThat(config.getRootPassword(), is("pw"));
         assertThat(config.getRootUserName(), is("root"));
+        assertThat(config.isRootAccessEnabled(), is(false));
         assertThat(config.getSchemaName(), is("xyzzy"));
         assertThat(config.getSecure(), is(false));
         assertThat(config.getShouldProvisionDatabase(), is(false));
@@ -164,7 +164,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
         assertThat(config.getDatabaseName(), is("foobar-xxxx"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(true));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -177,6 +176,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s-xxxx"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
@@ -199,7 +199,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = ep.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
         assertThat(config.getDatabaseName(), is("foobar-xxxx"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(true));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -212,6 +211,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s-xxxx"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
@@ -237,7 +237,6 @@ public class DbEndpointResolverTest {
         final DbEndpointConfig config = derived.getConfig();
         assertThat(config.getAccess(), is(DbEndpointAccess.ALL));
         assertThat(config.getDatabaseName(), is("foobar-xxxx"));
-        assertThat(config.getDestructiveProvisioningEnabled(), is(true));
         assertThat(config.getDialect(), is(SQLDialect.MYSQL));
         assertThat(config.getDriverProperties(), is(ImmutableMap.of("cookies", "yum")));
         assertThat(config.getEndpointEnabled(), is(false));
@@ -250,6 +249,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getProvisioningSuffix(), is("-xxxx"));
         assertThat(config.getRootPassword(), is("root-pw"));
         assertThat(config.getRootUserName(), is("myroot"));
+        assertThat(config.isRootAccessEnabled(), is(true));
         assertThat(config.getSchemaName(), is("s-xxxx"));
         assertThat(config.getSecure(), is(true));
         assertThat(config.getShouldProvisionDatabase(), is(true));
@@ -432,6 +432,7 @@ public class DbEndpointResolverTest {
         configMap.put(prefix + "nameSuffix", "-xxxx");
         configMap.put(prefix + "rootPassword", "root-pw");
         configMap.put(prefix + "rootUserName", "myroot");
+        configMap.put(prefix + "rootAccessEnabled", "true");
         configMap.put(prefix + "schemaName", "s");
         configMap.put(prefix + "secure", "true");
         configMap.put(prefix + "shouldProvisionDatabase", "true");
@@ -450,7 +451,6 @@ public class DbEndpointResolverTest {
         return new DbEndpointBuilder(name, dialect, completer)
                 .withAccess(DbEndpointAccess.ALL)
                 .withDatabaseName("foobar")
-                .withDestructiveProvisioningEnabled(true)
                 .withDriverProperties(ImmutableMap.of("cookies", "yum"))
                 .withEndpointEnabled(false)
                 .withHost("h")
@@ -460,6 +460,7 @@ public class DbEndpointResolverTest {
                 .withProvisioningSuffix("-xxxx")
                 .withRootPassword("root-pw")
                 .withRootUserName("myroot")
+                .withRootAccessEnabled(true)
                 .withSchemaName("s")
                 .withSecure(true)
                 .withShouldProvisionDatabase(true)

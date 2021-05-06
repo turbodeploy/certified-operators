@@ -43,7 +43,7 @@ public class ExtractorDbConfig {
         return dbConfig.derivedDbEndpoint("dbs.extractor", dbBaseConfig.extractorDbEndpointBase())
                 .withAccess(DbEndpointAccess.ALL)
                 .withShouldProvision(true)
-                .withDestructiveProvisioningEnabled(true)
+                .withRootAccessEnabled(true)
                 .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
                 .withFlywayCallbacks(flywayCallbacks())
                 .build();
@@ -59,6 +59,7 @@ public class ExtractorDbConfig {
         return dbConfig.derivedDbEndpoint("dbs.extractor.query",
                 dbBaseConfig.extractorQueryDbEndpointBase())
                 .withShouldProvisionUser(true)
+                .withRootAccessEnabled(true)
                 .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
                 .build();
     }
@@ -80,6 +81,7 @@ public class ExtractorDbConfig {
                 .withAccess(DbEndpointAccess.ALL)
                 .withNoMigrations()
                 .withShouldProvision(true)
+                .withRootAccessEnabled(true)
                 .withEndpointEnabled(r ->
                         r.apply("dbs.grafana.databaseName") != null
                                 && r.apply("dbs.grafana.userName") != null
@@ -89,8 +91,8 @@ public class ExtractorDbConfig {
     }
 
     /**
-     * This endpoint is not used in our code, but it's used to initialize the timescale
-     * datasource in Grafana. This user has read-only access to the data written to by the ingester.
+     * This endpoint is not used in our code, but it's used to initialize the timescale datasource
+     * in Grafana. This user has read-only access to the data written to by the ingester.
      *
      * @return The {@link DbEndpoint}.
      */
