@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
+import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -375,7 +376,11 @@ public class ProbeCapabilityCache implements ProbeListener {
          */
         private boolean capabilityAppliesToActions(@Nonnull ActionDTO.Action action,
                                                    @Nonnull ActionCapabilityElement actionCapabilityElement) {
-            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
+            // Action is not yet translated at this point. Therefore Cloud Move action has MOVE
+            // type and we need to change it to SCALE.
+            final ActionType actionType = CloudMoveBatchTranslator.isTranslateCloudMoveToScaleAction(action)
+                    ? ActionType.SCALE
+                    : ActionDTOUtil.getActionInfoActionType(action);
             boolean match = actionType == actionCapabilityElement.getActionType();
 
             // For a Move action, we need to check that the destination type is supported by the

@@ -130,9 +130,7 @@ public class ActionInterpreter {
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private static final Set<Integer> TRANSLATE_MOVE_TO_SCALE_PROVIDER_TYPE =
-            ImmutableSet.of(EntityType.STORAGE_TIER_VALUE,
-                    EntityType.DATABASE_TIER_VALUE,
-                    EntityType.DATABASE_SERVER_TIER_VALUE);
+            ImmutableSet.of(EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
     private boolean enableContainerClusterScalingCost;

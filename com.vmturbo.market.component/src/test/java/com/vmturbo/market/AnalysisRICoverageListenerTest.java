@@ -5,8 +5,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,7 +12,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudCostStatsAvailable;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
@@ -42,70 +39,26 @@ public class AnalysisRICoverageListenerTest {
      * Test that Analysis with same topology id as cost notification results in the notification
      * being returned by the listener.
      *
-     * @throws ExecutionException   on exception encountered in the task.
+     * @throws ExecutionException on exception encountered in the task.
      * @throws InterruptedException on interruption encountered by the task.
      */
     @Test
     public void testNotificationRecdSameTopologyId() throws ExecutionException,
-            InterruptedException, TimeoutException {
+            InterruptedException {
         final Analysis analysis = createAnalysis(topologyId1);
         final Future<CostNotification> costNotificationFuture =
                 listener.receiveCostNotification(analysis);
         final CostNotification costNotification = createCostNotification(topologyId1);
         listener.onCostNotificationReceived(costNotification);
-        Assert.assertEquals(costNotification, costNotificationFuture.get(1L, TimeUnit.SECONDS));
+        Assert.assertEquals(costNotification, costNotificationFuture.get());
     }
 
     /**
-     * Make sure that status update notifications which are of the wrong type are ignored.
-     *
-     * @throws ExecutionException   on exception encountered in the task
-     * @throws InterruptedException on interruption encountered by the task
-     * @throws TimeoutException     expected exception
-     */
-    @Test(expected = TimeoutException.class)
-    public void testReceiverIgnoresIrrelevantStatusType() throws ExecutionException,
-            InterruptedException, TimeoutException {
-        final Analysis analysis = createAnalysis(topologyId1);
-        final Future<CostNotification> costNotificationFuture =
-                listener.receiveCostNotification(analysis);
-        CostNotification costNotification = createWrongTypeCostNotification(topologyId1);
-        listener.onCostNotificationReceived(costNotification);
-        try {
-            costNotificationFuture.get(1L, TimeUnit.SECONDS);
-        } finally {
-            costNotificationFuture.cancel(true);
-        }
-    }
-
-    /**
-     * Make sure that cost notifications that are not StatusUpdate notifications are ignored..
-     *
-     * @throws ExecutionException   on exception encountered in the task
-     * @throws InterruptedException on interruption encountered by the task
-     * @throws TimeoutException     expected exception
-     */
-    @Test(expected = TimeoutException.class)
-    public void testReceiverIgnoresWrongNotificationFlavor() throws ExecutionException,
-            InterruptedException, TimeoutException {
-        final Analysis analysis = createAnalysis(topologyId1);
-        final Future<CostNotification> costNotificationFuture =
-                listener.receiveCostNotification(analysis);
-        CostNotification costNotification = createWrongOneofFlavorNotification(topologyId1);
-        listener.onCostNotificationReceived(costNotification);
-        try {
-            costNotificationFuture.get(1L, TimeUnit.SECONDS);
-        } finally {
-            costNotificationFuture.cancel(true);
-        }
-    }
-
-    /**
-     * Test that Analysis with *different* topology id as cost notification results in a timeout and
-     * a failed notification is returned by the listener.
+     * Test that Analysis with *different* topology id as cost notification results in a timeout
+     * and a failed notification is returned by the listener.
      *
      * @throws InterruptedException on exception encountered in the task.
-     * @throws ExecutionException   on interruption encountered by the task.
+     * @throws ExecutionException on interruption encountered by the task.
      */
     @Ignore("Test involves a 10-minute wait.")
     @Test
@@ -157,22 +110,6 @@ public class AnalysisRICoverageListenerTest {
                         .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)
                         .setTopologyId(topologyId)
                         .build())
-                .build();
-    }
-
-    private CostNotification createWrongTypeCostNotification(final long topologyId) {
-        return CostNotification.newBuilder()
-                .setStatusUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
-                        .setType(StatusUpdateType.PLAN_ENTITY_COST_UPDATE)
-                        .setTopologyId(topologyId)
-                        .build())
-                .build();
-    }
-
-    private CostNotification createWrongOneofFlavorNotification(final long topologyId) {
-        return CostNotification.newBuilder()
-                .setCloudCostStatsAvailable(CloudCostStatsAvailable.newBuilder()
-                        .setSnapshotDate(topologyId))
                 .build();
     }
 }

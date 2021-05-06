@@ -142,7 +142,7 @@ public class SMAInput {
         /*
          * Dictionary for SMACSP by region.  Only regions where VMs were found.
          */
-        CspFromRegion cspFromRegion = new CspFromRegion(cloudTopology);
+        CspFromRegion cspFromRegion = new CspFromRegion();
         /*
          * Map from computeTier OID to context to template, needed to convert provider list from
          * compute tier to template.  Need context, because there is a one to many relationship
@@ -1270,11 +1270,6 @@ public class SMAInput {
          * Map from region OID to SMACSP.  Driven by regions where VM are found.
          */
         private Map<Long, SMACSP> regionIdToCspCache = new HashMap<>();
-        private final CloudTopology<TopologyEntityDTO> cloudTopology;
-        public CspFromRegion(
-                @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
-            this.cloudTopology = cloudTopology;
-        }
 
         /**
          * Given a region, update regionOidToCsp map.
@@ -1285,16 +1280,15 @@ public class SMAInput {
             long regionId = region.getOid();
             if (regionIdToCspCache.get(regionId) == null) {
                 // not in the map
-                String cspDisplayName = cloudTopology.getServiceProvider(regionId)
-                        .map(TopologyEntityDTO::getDisplayName).orElse("");
+                String regionName = region.getDisplayName();
                 // Determine CSP from region name.
-                if (cspDisplayName.equalsIgnoreCase("AWS")) {
+                if (regionName.startsWith("aws")) {
                     regionIdToCspCache.put(regionId, SMACSP.AWS);
-                } else if (cspDisplayName.equalsIgnoreCase("Azure")) {
+                } else if (regionName.startsWith("azure")) {
                     regionIdToCspCache.put(regionId, SMACSP.AZURE);
                 } else {
                     logger.warn("getVMRegionId() region OID={} name={} has unknown CSP",
-                        regionId, cspDisplayName);
+                        regionId, regionName);
                     regionIdToCspCache.put(regionId, SMACSP.UNKNOWN);
                 }
             }
