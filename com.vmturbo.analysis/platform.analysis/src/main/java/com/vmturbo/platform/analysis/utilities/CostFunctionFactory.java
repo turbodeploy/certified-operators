@@ -618,7 +618,7 @@ public class CostFunctionFactory {
      */
     private static double getDependentCost(Trader seller, CostTuple costTuple, ShoppingList sl, List<CommodityContext> commodityContexts) {
 
-        double cost = 0;
+        double totalCost = 0;
         List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
         if (!dependentCostTuplesList.isEmpty()) {
             for (DependentCostTuple dependentCostTuple : dependentCostTuplesList) {
@@ -645,6 +645,7 @@ public class CostFunctionFactory {
                     final boolean isNewSupplier = seller != sl.getSupplier();
                     final SelectedStorageAndCost newSelection = generateDependentSizeAndDependentCost(
                             dependentResourceOptions, dependentResourceQuantity, seller, sl);
+                    double cost = 0;
                     if (isNewSupplier || isCongested) {
                         selectedAmount = newSelection.getSelectedAmount();
                         cost = newSelection.getCost();
@@ -664,11 +665,12 @@ public class CostFunctionFactory {
                     commodityContexts.add(
                             new CommodityContext(sl.getBasket().get(dependentResourceIndex),
                                     selectedAmount, true));
+                    totalCost += cost;
                 }
             }
         }
 
-        return cost;
+        return totalCost;
     }
 
     @Nonnull

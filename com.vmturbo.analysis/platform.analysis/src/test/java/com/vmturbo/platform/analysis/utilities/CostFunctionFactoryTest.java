@@ -73,15 +73,21 @@ public class CostFunctionFactoryTest {
     public static final long DB_REGION_ID = 11L;
     public static final long DB_BUSINESS_ACCOUNT_ID = 33L;
     public static final int DB_LICENSE_COMMODITY_TYPE = 200;
-    public static final int DB_STORAGE_AMOUNT_TYPE = 3;
+    public static final int DB_STORAGE_AMOUNT_TYPE = TestUtils.ST_AMT.getType();
     public static final double DB_S3_DTU_PRICE = 150.0;
     public static final double DELTA = 0.01;
     private static final double STORAGE_COST_PER_GB = 0.2;
+    private static final double IOPS_COST = 0.1;
+    private static final double DBS_TIER_COST = 10;
+    private static final long DBS_STORAGE_AMOUNT = 1024;
+    private static final long DBS_IOPS_AMOUNT = 1000;
     private static CommoditySpecification dbLicense;
     private static Trader databaseTier;
     private static ShoppingList databaseSL1;
     private static ShoppingList databaseSL2;
     private static ShoppingList databaseSL3;
+    private static Trader databaseServerTier;
+    private static ShoppingList databaseServerSL;
 
     @BeforeClass
     public static void setUp() {
@@ -120,6 +126,16 @@ public class CostFunctionFactoryTest {
                 Arrays.asList(TestUtils.DTU, TestUtils.ST_AMT, dbLicense), testVM,
                 new double[]{77, 1024, 0}, new double[]{77, 1024, 0}, databaseTier);
         databaseSL3.setGroupFactor(1);
+
+        List<CommoditySpecification> dbsCommList = Arrays.asList(TestUtils.IOPS, TestUtils.ST_AMT,
+                dbLicense);
+        databaseServerTier = TestUtils.createTrader(economy, TestUtils.DB_TIER_TYPE,
+                Arrays.asList(0L), dbsCommList, new double[]{8000, 2048, 10000}, false, false);
+        databaseServerSL = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.IOPS, TestUtils.ST_AMT, dbLicense), testVM,
+                new double[]{DBS_IOPS_AMOUNT, DBS_STORAGE_AMOUNT, 0},
+                new double[]{DBS_IOPS_AMOUNT, DBS_STORAGE_AMOUNT, 0}, databaseServerTier);
+        databaseServerSL.setGroupFactor(1);
 
         List<CommoditySpecification> stCommList = Arrays.asList(TestUtils.ST_AMT);
         storageTier = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(0L),
@@ -564,6 +580,42 @@ public class CostFunctionFactoryTest {
     }
 
     /**
+     * Tests generating a quote for a DB Server with dependent options for StorageAmount and IOPS.
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseServerCostQuote() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        when(context.getRegionId()).thenReturn(DB_REGION_ID);
+        when(context.getBalanceAccount()).thenReturn(balanceAccount);
+        when(balanceAccount.getPriceId()).thenReturn(DB_BUSINESS_ACCOUNT_ID);
+        databaseServerSL.getBuyer().getSettings().setContext(context);
+        DatabaseServerTierCostDTO dbCostDTO = createDBSCostDTO();
+        CostTable costTable = Mockito.mock(CostTable.class);
+        when(costTable.hasAccountId(DB_BUSINESS_ACCOUNT_ID)).thenReturn(true);
+        when(costTable.getTuple(DB_REGION_ID, DB_BUSINESS_ACCOUNT_ID,
+                DB_LICENSE_COMMODITY_TYPE)).thenReturn(dbCostDTO.getCostTupleList(0));
+        // SL demand: DTU: 77 Storage Amount: 730GB
+        MutableQuote quote1 =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseServerTier, databaseServerSL,
+                        costTable, licenseAccessCommBaseType);
+        //check total price
+        final double expectedPrice = DBS_TIER_COST + STORAGE_COST_PER_GB * DBS_STORAGE_AMOUNT + IOPS_COST * DBS_IOPS_AMOUNT;
+        Assert.assertEquals(expectedPrice, quote1.quoteValues[0], DELTA);
+        //storage amount
+        CommodityContext commodityContext1 = quote1.getCommodityContexts().get(0);
+        Assert.assertEquals(TestUtils.ST_AMT.getType(),
+                commodityContext1.getCommoditySpecification().getType());
+        Assert.assertEquals(DBS_STORAGE_AMOUNT, commodityContext1.getNewCapacityOnSeller(), DELTA);
+        //iops amount
+        CommodityContext commodityContext2 = quote1.getCommodityContexts().get(1);
+        Assert.assertEquals(TestUtils.IOPS.getType(),
+                commodityContext2.getCommoditySpecification().getType());
+        Assert.assertEquals(DBS_IOPS_AMOUNT, commodityContext2.getNewCapacityOnSeller(), DELTA);
+
+    }
+
+    /**
      * Tests generating a quote for a DB with dependent options. The demand is DTU: 77, Storage
      * Amount: SL1:730GB.
      */
@@ -804,6 +856,49 @@ public class CostFunctionFactoryTest {
                 .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
                 .build();
         return DatabaseTierCostDTO.newBuilder()
+                .addCostTupleList(costTuple)
+                .setCouponBaseType(couponBaseType)
+                .build();
+    }
+
+    private DatabaseServerTierCostDTO createDBSCostDTO() {
+        DependentCostTuple dependentCostTuple1 = DependentCostTuple.newBuilder()
+                .setDependentResourceType(TestUtils.ST_AMT.getType())
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(20)
+                        .setEndRange(20)
+                        .setPrice(STORAGE_COST_PER_GB)
+                        .build())
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(1)
+                        .setEndRange(16384)
+                        .setPrice(STORAGE_COST_PER_GB)
+                        .build())
+                .build();
+        DependentCostTuple dependentCostTuple2 = DependentCostTuple.newBuilder()
+                .setDependentResourceType(TestUtils.IOPS.getType())
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(100)
+                        .setEndRange(100)
+                        .setPrice(IOPS_COST)
+                        .build())
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(1)
+                        .setEndRange(8000)
+                        .setPrice(IOPS_COST)
+                        .build())
+                .build();
+
+        CostTuple costTuple = CostTuple.newBuilder()
+                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
+                .setRegionId(DB_REGION_ID)
+                .setLicenseCommodityType(licenseAccessCommBaseType)
+                .setPrice(DBS_TIER_COST)
+                .addDependentCostTuples(dependentCostTuple1)
+                .addDependentCostTuples(dependentCostTuple2)
+                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
+                .build();
+        return DatabaseServerTierCostDTO.newBuilder()
                 .addCostTupleList(costTuple)
                 .setCouponBaseType(couponBaseType)
                 .build();

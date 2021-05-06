@@ -76,10 +76,7 @@ message CostDTO {
             repeated DependentResourceOption dependent_resource_options = 2;
             message DependentResourceOption {
                 // The increment of the option
-                oneof incremental_type {
-                    int64 absolute_increment = 4;
-                    int64 percentage_increment = 5;
-                }
+                optional int64 absolute_increment = 4;
                 // The end range of the option
                 optional int64 end_range = 2;
                 // The price of the option
