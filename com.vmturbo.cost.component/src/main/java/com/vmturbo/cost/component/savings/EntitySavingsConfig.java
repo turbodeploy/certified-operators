@@ -25,10 +25,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
@@ -50,7 +47,6 @@ import com.vmturbo.topology.event.library.TopologyEventProvider;
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
         CostComponentGlobalConfig.class,
-        CostClientConfig.class,
         TopologyProcessorListenerConfig.class,
         RepositoryClientConfig.class,
         GroupClientConfig.class,
@@ -68,9 +64,6 @@ public class EntitySavingsConfig {
 
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
-
-    @Autowired
-    private CostClientConfig costClientConfig;
 
     @Autowired
     private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
@@ -111,11 +104,6 @@ public class EntitySavingsConfig {
     @Value("${defaultActionLifetimeHours:17520}")     // Default is 730 days (approximately 2 years)
     private Long actionLifetimeHours;
 
-    /**
-     * Number of hours after which to expire entries in ActionListener's executedActionsCache.  Default 1.
-     */
-    @Value("${defaultHoursForExecutedActionsCacheExpiry:1}")
-    private int hoursForExecutedActionsCacheExpiry;
     /**
      * Real-Time Context Id.
      */
@@ -220,14 +208,12 @@ public class EntitySavingsConfig {
     public ActionListener actionListener() {
         ActionListener actionListener =
                                       new ActionListener(entityEventsJournal(), actionsService(),
-                                                     costService(),
                                                      entityCostConfig.entityCostStore(),
                                                      entityCostConfig.projectedEntityCostStore(),
                                                      realtimeTopologyContextId,
                                                      supportedEntityTypes, supportedActionTypes,
                                                      getActionLifetimeMs(),
-                                                     getDeleteVolumeActionLifetimeMs(),
-                                                     hoursForExecutedActionsCacheExpiry);
+                                                     getDeleteVolumeActionLifetimeMs());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -320,16 +306,6 @@ public class EntitySavingsConfig {
     @Bean
     public ActionsServiceBlockingStub actionsService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
-    }
-
-    /**
-     * Gets Cost information.
-     *
-     * @return CostServiceBlockingStub.
-     */
-    @Bean
-    public CostServiceBlockingStub costService() {
-        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     /**

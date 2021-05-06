@@ -54,13 +54,6 @@ interface EntityPriceChange {
     Optional<Long> getDestinationOid();
 
     /**
-     * Time that the price change will become inactive.
-     *
-     * @return Time in milliseconds that the price change will expire.
-     */
-    Optional<Long> getExpirationTime();
-
-    /**
      * Creates a new builder.
      */
     class Builder extends ImmutableEntityPriceChange.Builder {}

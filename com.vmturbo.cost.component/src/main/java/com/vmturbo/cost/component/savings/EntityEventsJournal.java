@@ -262,6 +262,13 @@ interface EntityEventsJournal {
         ActionEventType getEventType();
 
         /**
+         * Time that the price change will become inactive.
+         *
+         * @return Time in milliseconds after execution when the action will expire.
+         */
+       Optional<Long> getExpirationTime();
+
+        /**
          * Action description.
          *
          * @return E.g "vol-0bff4fc40fa6b045e from GP2 to GP3".
