@@ -44,6 +44,7 @@ import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.export.CostAmount;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
@@ -335,11 +336,9 @@ public class ActionConverter {
                 logger.error("Cannot calculate risk for unsupported action {}", actionSpec, e);
             }
 
-            // set target and related
+            // set related entities
             try {
                 ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
-                action.setTarget(ActionAttributeExtractor.getActionEntityWithTypeAndTarget(
-                        primaryEntity, topologyGraph, targetsExtractor));
                 relatedEntitiesExtractor.ifPresent(extractor ->
                         action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
             } catch (UnsupportedActionException e) {
@@ -359,6 +358,17 @@ public class ActionConverter {
 
         // populate attributes as a last step, since a single action (like atomic resize) may be
         // flattened into multiple actions and it requires all other fields to create copy of an action
-        return actionAttributeExtractor.populateExporterAttributes(actionSpecs, topologyGraph, retActions);
+        List<Action> actions = actionAttributeExtractor.populateExporterAttributes(
+                actionSpecs, topologyGraph, retActions);
+
+        // The attribute extractor sets the target entity.
+        actions.forEach(action -> {
+            ActionImpactedEntity target = action.getTarget();
+            if (target != null && targetsExtractor != null) {
+                target.setAttrs(Collections.singletonMap(ExportUtils.TARGETS_JSON_KEY_NAME,
+                        targetsExtractor.extractTargets(target.getOid())));
+            }
+        });
+        return actions;
     }
 }

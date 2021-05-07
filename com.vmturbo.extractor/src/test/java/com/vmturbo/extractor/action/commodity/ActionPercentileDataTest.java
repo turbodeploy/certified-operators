@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertNull;

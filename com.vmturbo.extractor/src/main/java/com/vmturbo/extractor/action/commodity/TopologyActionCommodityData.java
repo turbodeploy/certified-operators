@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -15,24 +16,37 @@ import com.google.common.annotations.VisibleForTesting;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
 import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectMap;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ActionCommodity;
 
 /**
  * Captures per-entity-per-commodity percentile data scraped from a source or projected topology.
  */
-class TopologyPercentileData {
+class TopologyActionCommodityData {
     private final Int2ObjectMap<CommoditiesOfType> commoditiesOfType = new Int2ObjectOpenHashMap<>();
 
-    private final Long2ObjectOpenHashMap<Object2DoubleMap<CommType>> soldPercentilesByEntity =
+    // entity id -> commType -> percentiles
+    private final Long2ObjectOpenHashMap<Object2DoubleOpenHashMap<CommType>> soldPercentilesByEntity =
             new Long2ObjectOpenHashMap<>();
 
+    // entity id -> UICommodityType -> ActionCommodityAggregator
+    private final Long2ObjectOpenHashMap<Short2ObjectOpenHashMap<ActionCommodity>>
+            soldCommodityByEntity = new Long2ObjectOpenHashMap<>();
+
     private static final double NO_PERCENTILE_VALUE = -1.0;
+
+    private static final Short2ObjectOpenHashMap<ActionCommodity> EMPTY = new Short2ObjectOpenHashMap<>();
 
     Optional<Double> getSoldPercentile(long entityId, CommodityType commodityType) {
         Object2DoubleMap<CommType> percentileByCommodity = soldPercentilesByEntity.get(entityId);
@@ -45,21 +59,95 @@ class TopologyPercentileData {
         return Optional.empty();
     }
 
+    public IntSet getCommodityTypes() {
+        IntSet ret = new IntOpenHashSet();
+        soldCommodityByEntity.values().forEach(s -> s.keySet().forEach((IntConsumer)ret::add));
+        return ret;
+    }
+
+    @VisibleForTesting
+    Short2ObjectMap<ActionCommodity> getSoldCommms(final long entityId) {
+        return soldCommodityByEntity.getOrDefault(entityId, EMPTY);
+    }
+
+    /**
+     * Helper interface to process differences in commodities between two
+     * {@link TopologyActionCommodityData}s.
+     */
+    public interface ImpactedCommoditiesConsumer {
+        void accept(short commType, @Nullable ActionCommodity mine, @Nullable ActionCommodity other);
+    }
+
+    void visitDifferentCommodities(final long entityId, TopologyActionCommodityData other, ImpactedCommoditiesConsumer consumer) {
+        final Short2ObjectMap<ActionCommodity> mine = getSoldCommms(entityId);
+        final Short2ObjectMap<ActionCommodity> theirs = other.getSoldCommms(entityId);
+
+        // Loop over "mine", and consume any commodities that are different from "theirs."
+        mine.short2ObjectEntrySet().forEach(e -> {
+            final ActionCommodity myComm = e.getValue();
+            final ActionCommodity theirComm = theirs.get(e.getShortKey());
+            final boolean different;
+            if (theirComm == null) {
+                different = true;
+            } else {
+                float totalDelta = Math.abs(myComm.getCapacity() - theirComm.getCapacity()
+                        + myComm.getUsed() - theirComm.getUsed());
+                // We only care about commodities with a non-negligible difference.
+                different = totalDelta > 0.001f;
+            }
+
+            if (different) {
+                consumer.accept(e.getShortKey(), myComm, theirComm);
+            }
+        });
+        // Loop over "theirs" to catch any commodities present there that are not in "mine."
+        theirs.short2ObjectEntrySet().forEach(e -> {
+            if (!mine.containsKey(e.getShortKey())) {
+                consumer.accept(e.getShortKey(), null, e.getValue());
+            }
+        });
+    }
+
+    public void finish() {
+        soldCommodityByEntity.trim();
+        soldCommodityByEntity.values().forEach(Short2ObjectOpenHashMap::trim);
+        soldPercentilesByEntity.trim();
+        soldPercentilesByEntity.values().forEach(Object2DoubleOpenHashMap::trim);
+    }
+
     @Override
     public String toString() {
         final Set<UICommodityType> soldComms = new HashSet<>();
-        soldPercentilesByEntity.values().forEach(commToPercentile -> {
-            commToPercentile.keySet().forEach((CommType commType) -> soldComms.add(UICommodityType.fromType(commType.type)));
-        });
+        soldPercentilesByEntity.values().forEach(commToPercentile -> commToPercentile.keySet()
+                .forEach((CommType commType) -> soldComms.add(
+                        UICommodityType.fromType(commType.type))));
         return FormattedString.format("SOLD: {} entities with percentiles for commodities {}",
                 soldPercentilesByEntity.size(), soldComms.stream()
                         .map(UICommodityType::displayName)
                         .collect(Collectors.joining(", ")));
     }
 
+    void processSoldCommodity(long entityId, CommoditySoldDTO commSold) {
+        if (commSold.hasUsed() && commSold.hasCapacity()) {
+            putSoldCommodity(entityId, commSold.getCommodityType(), commSold.getUsed(), commSold.getCapacity());
+        }
+
+        if (commSold.getHistoricalUsed().hasPercentile()) {
+            putSoldPercentile(entityId, commSold.getCommodityType(),
+                    commSold.getHistoricalUsed().getPercentile());
+        }
+    }
+
+    void putSoldCommodity(long entityId, @Nonnull CommodityType commodityType, double used, double capacity) {
+        Short2ObjectOpenHashMap<ActionCommodity> actionCommodityMap = soldCommodityByEntity.computeIfAbsent(entityId, k -> new Short2ObjectOpenHashMap<>());
+        ActionCommodity actionCommodity = actionCommodityMap.computeIfAbsent((short)commodityType.getType(), k -> new ActionCommodity());
+        actionCommodity.addUsed((float)used);
+        actionCommodity.addCapacity((float)capacity);
+    }
+
     void putSoldPercentile(long entityId, CommodityType commodityType, double percentile) {
         soldPercentilesByEntity.computeIfAbsent(entityId, k -> {
-            Object2DoubleMap<CommType> newMap = new Object2DoubleOpenHashMap<>();
+            Object2DoubleOpenHashMap<CommType> newMap = new Object2DoubleOpenHashMap<>();
             newMap.defaultReturnValue(NO_PERCENTILE_VALUE);
             return newMap;
         }).put(getCommType(commodityType),
@@ -106,7 +194,7 @@ class TopologyPercentileData {
     /**
      * The equivalent of a {@link CommodityType}. Takes up less space in memory than {@link CommodityType},
      * and allows us to reuse references to the same commodity type object across multiple entities.
-     * Since we keep {@link TopologyPercentileData} cached across broadcasts this can be valuable.
+     * Since we keep {@link TopologyActionCommodityData} cached across broadcasts this can be valuable.
      */
     @VisibleForTesting
     static class CommType {

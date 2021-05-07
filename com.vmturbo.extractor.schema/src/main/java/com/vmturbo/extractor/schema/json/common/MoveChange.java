@@ -13,24 +13,24 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonPropertyOrder(alphabetic = true)
 public class MoveChange {
 
-    private ActionEntity from;
-    private ActionEntity to;
+    private ActionImpactedEntity from;
+    private ActionImpactedEntity to;
     // resources to move, like volumes of a VirtualMachine
     private List<ActionEntity> resource;
 
-    public ActionEntity getFrom() {
+    public ActionImpactedEntity getFrom() {
         return from;
     }
 
-    public void setFrom(ActionEntity from) {
+    public void setFrom(ActionImpactedEntity from) {
         this.from = from;
     }
 
-    public ActionEntity getTo() {
+    public ActionImpactedEntity getTo() {
         return to;
     }
 
-    public void setTo(ActionEntity to) {
+    public void setTo(ActionImpactedEntity to) {
         this.to = to;
     }
 

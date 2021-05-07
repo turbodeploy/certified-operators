@@ -14,22 +14,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -39,13 +47,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.extractor.action.percentile.ActionPercentileData;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
+import com.vmturbo.extractor.action.commodity.ActionCommodityData;
+import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ActionCommodity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.CommodityPercentileChange;
@@ -56,6 +68,7 @@ import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -64,6 +77,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class ActionAttributeExtractorTest {
 
     private static final long vm1 = 10L;
+    private static final long vm2 = 11L;
     private static final long host1 = 20L;
     private static final long host2 = 21L;
     private static final long storage1 = 30L;
@@ -192,6 +206,9 @@ public class ActionAttributeExtractorTest {
                     .setDeprecatedImportance(0)
                     .setInfo(ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder()
+                            .setTarget(ActionEntity.newBuilder()
+                                .setId(volume1)
+                                .setType(EntityType.VIRTUAL_VOLUME_VALUE))
                             .setFilePath("foo/bar")))
                     .setExplanation(Explanation.newBuilder()
                             .setDelete(DeleteExplanation.newBuilder()
@@ -226,15 +243,40 @@ public class ActionAttributeExtractorTest {
                     .setExplanation(Explanation.getDefaultInstance()))
             .build();
 
+    private static final ActionInfo SCALE_ACTION_INFO = ActionInfo.newBuilder().setScale(
+            Scale.newBuilder()
+                    .addCommodityResizes(ResizeInfo.newBuilder()
+                            .setCommodityType(CommodityType.newBuilder().setType(0).build())
+                            .setNewCapacity(20)
+                            .setOldCapacity(10)
+                            .build())
+                    .setTarget(ActionEntity.newBuilder()
+                            .setId(vm1)
+                            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                            .build())
+                    .addChanges(ChangeProvider.newBuilder()
+                            .setSource(ActionEntity.newBuilder()
+                                    .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                    .setId(host1)
+                                    .build())
+                            .setDestination(ActionEntity.newBuilder()
+                                    .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                    .setId(host2)
+                                    .build())
+                            .build())
+                    .build()).build();
+
     private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
 
-    private ActionPercentileDataRetriever actionPercentileDataRetriever = mock(
-            ActionPercentileDataRetriever.class);
+    private ActionCommodityDataRetriever actionCommodityDataRetriever = mock(
+            ActionCommodityDataRetriever.class);
 
-    private ActionPercentileData actionPercentileData = mock(ActionPercentileData.class);
+    private ActionCommodityData actionCommodityData = mock(ActionCommodityData.class);
+
+    private ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
 
     private ActionAttributeExtractor actionAttributeExtractor = new ActionAttributeExtractor(
-            actionPercentileDataRetriever);
+            actionCommodityDataRetriever);
 
     /**
      * Common setup code before each test.
@@ -243,6 +285,7 @@ public class ActionAttributeExtractorTest {
     public void setup() {
         // capture actions sent to kafka
         mockEntity(vm1, EntityType.VIRTUAL_MACHINE_VALUE);
+        mockEntity(vm2, EntityType.VIRTUAL_MACHINE_VALUE);
         mockEntity(host1, EntityType.PHYSICAL_MACHINE_VALUE);
         mockEntity(host2, EntityType.PHYSICAL_MACHINE_VALUE);
         mockEntity(storage1, EntityType.STORAGE_VALUE);
@@ -259,9 +302,8 @@ public class ActionAttributeExtractorTest {
         mockEntity(computeTier1, EntityType.COMPUTE_TIER_VALUE);
         mockEntity(region1, EntityType.REGION_VALUE);
         mockEntity(account1, EntityType.BUSINESS_ACCOUNT_VALUE);
-        when(actionPercentileDataRetriever.getActionPercentiles(any())).thenReturn(
-                actionPercentileData);
-
+        when(actionCommodityDataRetriever.getActionCommodityData(any())).thenReturn(
+                actionCommodityData);
     }
 
     ReportingActionAttributes extractSingleActionForReporting(ActionSpec actionSpec) {
@@ -329,6 +371,123 @@ public class ActionAttributeExtractorTest {
     }
 
     /**
+     * Test that for completed actions we don't populate impact.
+     */
+    @Test
+    public void testNotPopulatingImpactForCompletedAction() {
+        // ARRANGE
+        final ActionSpec scaleAction = createAction(SCALE_ACTION_INFO, ActionState.SUCCEEDED);
+        final Action exportedAction = new Action();
+        final long actionId = scaleAction.getRecommendation().getId();
+        exportedAction.setOid(actionId);
+
+        final Long2ObjectMap<Action> actions = new Long2ObjectOpenHashMap<>();
+        actions.put(actionId, exportedAction);
+
+        // ACT
+        List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
+                Collections.singletonList(scaleAction), topologyGraph, actions);
+
+
+        // ASSERT
+        Assert.assertEquals(1, exportedActions.size());
+        final MoveChange scaleInfo = exportedActions.get(0).getScaleInfo();
+        Assert.assertNull(exportedActions.get(0).getTarget().getAffectedMetrics());
+        Assert.assertNull(scaleInfo.getFrom().getAffectedMetrics());
+        Assert.assertNull(scaleInfo.getTo().getAffectedMetrics());
+    }
+
+    /**
+     * Test populating impact for pending action.
+     */
+    @Test
+    public void testPopulatingImpactForPendingAction() {
+        // ARRANGE
+        final float vmVmemUsed = 5f;
+        final float vmVmemCapacityBefore = 10f;
+        final float vmVmemCapacityAfter = 20f;
+        final float vmVcpuUsed = 6f;
+        final float vmVcpuCapacityBefore = 100f;
+        final float vmVcpuCapacityAfter = 200f;
+        final float sourceHostMemCapacity = 1000f;
+        final float sourceHostMemUsedBefore = 850f;
+        final float sourceHostMemUsedAfter = 800f;
+        final float sourceHostCpuCapacity = 1000f;
+        final float sourceHostCpuUsedBefore = 150f;
+        final float sourceHostCpuUsedAfter = 130f;
+        final float destHostMemCapacity = 2000f;
+        final float destHostMemUsedBefore = 450f;
+        final float destHostMemUsedAfter = 500f;
+        final float destHostCpuCapacity = 500f;
+        final float destHostCpuUsedBefore = 150f;
+        final float destHostCpuUsedAfter = 180f;
+
+        final ActionSpec scaleAction = createAction(SCALE_ACTION_INFO, ActionState.READY);
+        final Action exportedAction = new Action();
+        final long actionId = scaleAction.getRecommendation().getId();
+        exportedAction.setOid(actionId);
+
+        final Long2ObjectMap<Action> actions = new Long2ObjectOpenHashMap<>();
+        actions.put(actionId, exportedAction);
+
+        final Map<String, ImpactedMetric> vmImpact = new HashMap<>();
+        vmImpact.put(CommodityDTO.CommodityType.VMEM.name(),
+                createImpactedMetric(vmVmemUsed, vmVmemCapacityBefore, vmVmemUsed, vmVmemCapacityAfter));
+        vmImpact.put(CommodityDTO.CommodityType.VCPU.name(),
+                createImpactedMetric(vmVcpuUsed, vmVcpuCapacityBefore, vmVcpuUsed, vmVcpuCapacityAfter));
+        final Map<String, ImpactedMetric> sourceHostImpact = new HashMap<>();
+        sourceHostImpact.put(CommodityDTO.CommodityType.MEM.name(),
+                createImpactedMetric(sourceHostMemUsedBefore, sourceHostMemCapacity, sourceHostMemUsedAfter, sourceHostMemCapacity));
+        sourceHostImpact.put(CommodityDTO.CommodityType.CPU.name(),
+                createImpactedMetric(sourceHostCpuUsedBefore, sourceHostCpuCapacity, sourceHostCpuUsedAfter, sourceHostCpuCapacity));
+        final Map<String, ImpactedMetric> destinationHostImpact = new HashMap<>();
+        destinationHostImpact.put(CommodityDTO.CommodityType.MEM.name(),
+                createImpactedMetric(destHostMemUsedBefore, destHostMemCapacity, destHostMemUsedAfter, destHostMemCapacity));
+        destinationHostImpact.put(CommodityDTO.CommodityType.CPU.name(),
+                createImpactedMetric(destHostCpuUsedBefore, destHostCpuCapacity, destHostCpuUsedAfter, destHostCpuCapacity));
+        when(actionCommodityData.getEntityImpact(vm1)).thenReturn(vmImpact);
+        when(actionCommodityData.getEntityImpact(host1)).thenReturn(sourceHostImpact);
+        when(actionCommodityData.getEntityImpact(host2)).thenReturn(destinationHostImpact);
+
+        // ACT
+        List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
+                Collections.singletonList(scaleAction), topologyGraph, actions);
+
+
+        // ASSERT
+        Assert.assertEquals(1, exportedActions.size());
+        final MoveChange scaleInfo = exportedActions.get(0).getScaleInfo();
+
+        // validate affected metrics
+        validateImpactedMetric(exportedActions.get(0)
+                        .getTarget()
+                        .getAffectedMetrics()
+                        .get(CommodityDTO.CommodityType.VMEM.name()), vmVmemUsed, vmVmemCapacityBefore,
+                vmVmemUsed, vmVmemCapacityAfter);
+        validateImpactedMetric(exportedActions.get(0)
+                        .getTarget()
+                        .getAffectedMetrics()
+                        .get(CommodityDTO.CommodityType.VCPU.name()), vmVcpuUsed, vmVcpuCapacityBefore,
+                vmVcpuUsed, vmVcpuCapacityAfter);
+        validateImpactedMetric(
+                scaleInfo.getFrom().getAffectedMetrics().get(CommodityDTO.CommodityType.MEM.name()),
+                sourceHostMemUsedBefore, sourceHostMemCapacity, sourceHostMemUsedAfter,
+                sourceHostMemCapacity);
+        validateImpactedMetric(
+                scaleInfo.getFrom().getAffectedMetrics().get(CommodityDTO.CommodityType.CPU.name()),
+                sourceHostCpuUsedBefore, sourceHostCpuCapacity, sourceHostCpuUsedAfter,
+                sourceHostCpuCapacity);
+        validateImpactedMetric(
+                scaleInfo.getTo().getAffectedMetrics().get(CommodityDTO.CommodityType.MEM.name()),
+                destHostMemUsedBefore, destHostMemCapacity, destHostMemUsedAfter,
+                destHostMemCapacity);
+        validateImpactedMetric(
+                scaleInfo.getTo().getAffectedMetrics().get(CommodityDTO.CommodityType.CPU.name()),
+                destHostCpuUsedBefore, destHostCpuCapacity, destHostCpuUsedAfter,
+                destHostCpuCapacity);
+    }
+
+    /**
      * Test that atomic resize attribute extractor takes percentiles into account.
      */
     @Test
@@ -337,9 +496,9 @@ public class ActionAttributeExtractorTest {
         vmemPercentileChange.setAggressiveness(1);
         CommodityPercentileChange vcpuPercentileChange = new CommodityPercentileChange();
         vcpuPercentileChange.setAggressiveness(2);
-        when(actionPercentileData.getChange(containerSpec1, VMEM))
+        when(actionCommodityData.getPercentileChange(containerSpec1, VMEM))
                 .thenReturn(vmemPercentileChange);
-        when(actionPercentileData.getChange(containerSpec1, VCPU_REQUEST))
+        when(actionCommodityData.getPercentileChange(containerSpec1, VCPU_REQUEST))
                 .thenReturn(vmemPercentileChange);
 
         ReportingActionAttributes actionAttributes = extractSingleActionForReporting(ATOMIC_RESIZE);
@@ -365,7 +524,7 @@ public class ActionAttributeExtractorTest {
     public void testNormalResizePercentile() {
         CommodityPercentileChange percentileChange = new CommodityPercentileChange();
         percentileChange.setAggressiveness(1);
-        when(actionPercentileData.getChange(containerSpec1, VMEM))
+        when(actionCommodityData.getPercentileChange(containerSpec1, VMEM))
                 .thenReturn(percentileChange);
         ReportingActionAttributes actionAttributes = extractSingleActionForReporting(NORMAL_RESIZE);
         assertThat(actionAttributes.getResizeInfo().get(MetricType.VMEM.getLiteral()).getPercentileChange(),
@@ -398,6 +557,40 @@ public class ActionAttributeExtractorTest {
         assertThat(buyRiInfo.getRegion().getName(), is(String.valueOf(region1)));
         assertThat(buyRiInfo.getTarget().getOid(), is(expectedBuyRI.getTargetEntity().getId()));
         assertThat(buyRiInfo.getTarget().getName(), is(String.valueOf(vm1)));
+    }
+
+    private ImpactedMetric createImpactedMetric(float beforeUsed, float beforeCapacity, float afterUsed, float afterCapacity) {
+        final ImpactedMetric impactedMetric = new ImpactedMetric();
+        final ActionCommodity beforeActionCommodity = new ActionCommodity();
+        beforeActionCommodity.addUsed(beforeUsed);
+        beforeActionCommodity.addCapacity(beforeCapacity);
+        final ActionCommodity afterActionCommodity = new ActionCommodity();
+        afterActionCommodity.addUsed(afterUsed);
+        afterActionCommodity.addCapacity(afterCapacity);
+        impactedMetric.setBeforeActions(beforeActionCommodity);
+        impactedMetric.setAfterActions(afterActionCommodity);
+        return impactedMetric;
+    }
+
+    private ActionSpec createAction(@Nonnull ActionInfo actionInfo, @Nonnull ActionState actionState) {
+        return ActionSpec.newBuilder()
+                .setRecommendationId(7L)
+                .setRecommendationTime(1_000_000)
+                .setRecommendation(ActionDTO.Action.newBuilder()
+                        .setDeprecatedImportance(123)
+                        .setId(1023L)
+                        .setSavingsPerHour(CurrencyAmount.getDefaultInstance())
+                        .setExplanation(Explanation.getDefaultInstance())
+                        .setInfo(actionInfo))
+                .setDescription("Action description")
+                .setSeverity(ActionDTO.Severity.CRITICAL)
+                .setCategory(ActionDTO.ActionCategory.COMPLIANCE)
+                .setActionState(actionState)
+                .setDecision(ActionDecision.newBuilder()
+                        .setExecutionDecision(ExecutionDecision.newBuilder()
+                                .setReason(Reason.MANUALLY_ACCEPTED)
+                                .setUserUuid("me")))
+                .build();
     }
 
     /**
@@ -477,5 +670,12 @@ public class ActionAttributeExtractorTest {
         assertThat(deleteInfo.getFilePath(), is("foo/bar"));
         assertThat(deleteInfo.getFileSize(), is(2.0));
         assertThat(deleteInfo.getUnit(), is("MB"));
+    }
+
+    private void validateImpactedMetric(@Nonnull ImpactedMetric impactedMetric, float beforeUsed, float beforeCapacity, float afterUsed, float afterCapacity) {
+        assertThat(impactedMetric.getBeforeActions().getUsed(), is(beforeUsed));
+        assertThat(impactedMetric.getBeforeActions().getCapacity(), is(beforeCapacity));
+        assertThat(impactedMetric.getAfterActions().getUsed(), is(afterUsed));
+        assertThat(impactedMetric.getAfterActions().getCapacity(), is(afterCapacity));
     }
 }

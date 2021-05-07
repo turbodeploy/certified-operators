@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import java.util.stream.Collectors;
 
@@ -29,17 +29,17 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
  * The history component keeps these values in memory so the overhead of making remote calls
  * shouldn't be too bad.
  */
-class ProjectedTopologyPercentileDataRetriever {
+class ProjectedTopologyCommodityDataRetriever {
     private static final Logger logger = LogManager.getLogger();
 
     private final StatsHistoryServiceBlockingStub statsService;
 
-    ProjectedTopologyPercentileDataRetriever(StatsHistoryServiceBlockingStub statsService) {
+    ProjectedTopologyCommodityDataRetriever(StatsHistoryServiceBlockingStub statsService) {
         this.statsService = statsService;
     }
 
     @Nonnull
-    TopologyPercentileData fetchPercentileData(@Nonnull final LongSet entityIds,
+    TopologyActionCommodityData fetchProjectedCommodityData(@Nonnull final LongSet entityIds,
                                                @Nonnull final IntSet commodityTypes) {
         // Pagination is mandatory on the getProjectedEntityStats call.
         // TODO: Allow streaming, to avoid unnecessary sorting + RPC calls in large environments.
@@ -47,18 +47,20 @@ class ProjectedTopologyPercentileDataRetriever {
         // Enforce a maximum number of iterations to avoid an infinite loop in case there is
         // something wrong with the server.
         int maxNumIterations = 10000;
-        TopologyPercentileData data = new TopologyPercentileData();
+        TopologyActionCommodityData data = new TopologyActionCommodityData();
         try {
             do {
                 PaginationParameters params =
                         nextCursor.isEmpty() ? PaginationParameters.getDefaultInstance() : PaginationParameters.newBuilder().setCursor(nextCursor).build();
                 ProjectedEntityStatsResponse response = statsService.getProjectedEntityStats(
                         ProjectedEntityStatsRequest.newBuilder().setScope(EntityStatsScope.newBuilder()
-                                .setEntityList(EntityList.newBuilder().addAllEntities(entityIds))).addAllCommodityName(commodityTypes.stream()
+                                .setEntityList(EntityList.newBuilder()
+                                        .addAllEntities(entityIds)))
+                                .addAllCommodityName(commodityTypes.stream()
                                 .map(UICommodityType::fromType)
                                 .map(UICommodityType::apiStr)
                                 .collect(Collectors.toList())).setPaginationParams(params).build());
-                response.getEntityStatsList().forEach(entityStats -> addPercentilesForEntity(data, entityStats));
+                response.getEntityStatsList().forEach(entityStats -> addCommodityDataForEntity(data, entityStats));
                 nextCursor = response.getPaginationResponse().getNextCursor();
             } while (!nextCursor.isEmpty() && maxNumIterations-- > 0);
 
@@ -69,12 +71,14 @@ class ProjectedTopologyPercentileDataRetriever {
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve projected percentile data for action percentiles.", e);
         }
+        data.finish();
         return data;
     }
 
-    private void addPercentilesForEntity(TopologyPercentileData percentileData,
+    private void addCommodityDataForEntity(TopologyActionCommodityData commodityData,
             EntityStats entityStats) {
         final long oid = entityStats.getOid();
+
         entityStats.getStatSnapshotsList().stream().findFirst().ifPresent(projectedSnapshot -> {
             projectedSnapshot.getStatRecordsList().forEach(statRecord -> {
                 final CommodityType.Builder commTypeBldr = CommodityType.newBuilder();
@@ -83,6 +87,13 @@ class ProjectedTopologyPercentileDataRetriever {
                     commTypeBldr.setKey(statRecord.getStatKey());
                 }
                 final CommodityType commType = commTypeBldr.build();
+
+                if (statRecord.hasUsed() && statRecord.getUsed().hasTotal()
+                        && statRecord.hasCapacity() && statRecord.getCapacity().hasTotal()) {
+                    commodityData.putSoldCommodity(oid, commType,
+                            statRecord.getUsed().getTotal(),
+                            statRecord.getCapacity().getTotal());
+                }
 
                 if (statRecord.getProviderUuid().isEmpty()) {
                     statRecord.getHistUtilizationValueList().stream()
@@ -95,7 +106,7 @@ class ProjectedTopologyPercentileDataRetriever {
                             if (capacity > 0) {
                                 final float projectedPercentile = usage / capacity;
                                 // Sold
-                                percentileData.putSoldPercentile(oid, commType,
+                                commodityData.putSoldPercentile(oid, commType,
                                         projectedPercentile);
                             }
                         });

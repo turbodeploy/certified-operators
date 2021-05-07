@@ -38,7 +38,7 @@ import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
+import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -112,6 +112,12 @@ public class TopologyListenerConfig {
     @Value("${reportingCommodityWhitelistRemoved:#{null}}")
     private String[] reportingCommodityWhitelistRemoved;
 
+    @Value("${reportingActionCommodityWhitelistRemoved:#{null}}")
+    private String[] actionCommodityWhitelistAdded;
+
+    @Value("${reportingActionCommodityWhitelistAdded:#{null}}")
+    private String[] actionCommodityWhitelistRemoved;
+
     /**
      * The interval at which we will force-write historical attributes to the database even if
      * they have not changed.
@@ -165,12 +171,13 @@ public class TopologyListenerConfig {
     /**
      * Used to retrieve percentile-related data for actions.
      *
-     * @return The {@link ActionPercentileDataRetriever}.
+     * @return The {@link ActionCommodityDataRetriever}.
      */
     @Bean
-    public ActionPercentileDataRetriever percentileActionDecorator() {
-        return new ActionPercentileDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
-                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+    public ActionCommodityDataRetriever actionCommodityDataRetriever() {
+        return new ActionCommodityDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+                getActionCommodityWhiteList());
     }
 
     /**
@@ -194,24 +201,32 @@ public class TopologyListenerConfig {
      * @return set of commodity types in integer format
      */
     private Set<Integer> getReportingCommodityWhitelist() {
-        // use default whitelist as a basis
-        final Set<CommodityType> reportingCommodityTypes = Sets.newHashSet(
-                Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
+        return getCommodityWhitelist(Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST,
+                reportingCommodityWhitelistAdded, reportingCommodityWhitelistRemoved);
+    }
+
+    private Set<Integer> getActionCommodityWhiteList() {
+        return getCommodityWhitelist(Constants.REPORTING_ACTION_COMMODITY_TYPES_WHITELIST,
+                actionCommodityWhitelistAdded, actionCommodityWhitelistRemoved);
+    }
+
+    private Set<Integer> getCommodityWhitelist(Set<CommodityType> defaults, String[] added, String[] removed) {
+        final Set<CommodityType> retTypes = Sets.newHashSet(defaults);
         // add new commodities to whitelist if provided
-        if (reportingCommodityWhitelistAdded != null) {
-            reportingCommodityTypes.addAll(Arrays.stream(reportingCommodityWhitelistAdded)
+        if (added != null) {
+            retTypes.addAll(Arrays.stream(added)
                     .map(CommodityType::valueOf)
                     .collect(Collectors.toSet()));
         }
         // remove commodities from whitelist if provided
-        if (reportingCommodityWhitelistRemoved != null) {
-            reportingCommodityTypes.removeAll(Arrays.stream(reportingCommodityWhitelistRemoved)
+        if (removed != null) {
+            retTypes.removeAll(Arrays.stream(removed)
                     .map(CommodityType::valueOf)
                     .collect(Collectors.toSet()));
         }
-        return reportingCommodityTypes.stream()
-                .map(CommodityType::getNumber)
-                .collect(Collectors.toSet());
+        return retTypes.stream()
+            .map(CommodityType::getNumber)
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -282,7 +297,7 @@ public class TopologyListenerConfig {
         }
 
         if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
-            retFactories.add(() -> percentileActionDecorator());
+            retFactories.add(() -> actionCommodityDataRetriever());
         }
         return Collections.unmodifiableList(retFactories);
     }

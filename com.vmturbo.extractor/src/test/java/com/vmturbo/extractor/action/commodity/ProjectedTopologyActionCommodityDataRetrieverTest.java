@@ -1,5 +1,6 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.mockito.Matchers.any;
@@ -31,11 +32,12 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ActionCommodity;
 
 /**
- * Unit tests for {@link ProjectedTopologyPercentileDataRetriever}.
+ * Unit tests for {@link ProjectedTopologyCommodityDataRetriever}.
  */
-public class ProjectedTopologyPercentileDataRetrieverTest {
+public class ProjectedTopologyActionCommodityDataRetrieverTest {
 
     private StatsHistoryServiceMole statsHistoryServiceMole = spy(StatsHistoryServiceMole.class);
 
@@ -45,14 +47,14 @@ public class ProjectedTopologyPercentileDataRetrieverTest {
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(statsHistoryServiceMole);
 
-    private ProjectedTopologyPercentileDataRetriever projectedTopologyPercentileDataRetriever;
+    private ProjectedTopologyCommodityDataRetriever projectedTopologyCommodityDataRetriever;
 
     /**
      * Common setup before every test.
      */
     @Before
     public void setup() {
-        projectedTopologyPercentileDataRetriever = new ProjectedTopologyPercentileDataRetriever(
+        projectedTopologyCommodityDataRetriever = new ProjectedTopologyCommodityDataRetriever(
                 StatsHistoryServiceGrpc.newBlockingStub(server.getChannel()));
     }
 
@@ -74,8 +76,15 @@ public class ProjectedTopologyPercentileDataRetrieverTest {
         commInput.add(UICommodityType.VMEM.typeNumber());
         commInput.add(UICommodityType.VCPU.typeNumber());
 
-        final TopologyPercentileData projData =
-                projectedTopologyPercentileDataRetriever.fetchPercentileData(input, commInput);
+        final TopologyActionCommodityData projData =
+                projectedTopologyCommodityDataRetriever.fetchProjectedCommodityData(input, commInput);
+        ActionCommodity e1Comm = projData.getSoldCommms(1L).get((short)UICommodityType.VMEM.typeNumber());
+        assertThat(e1Comm.getUsed(), is(10.0f));
+        ActionCommodity e1VcpuComm = projData.getSoldCommms(1L).get((short)UICommodityType.VCPU.typeNumber());
+        assertThat(e1VcpuComm.getUsed(), is(20.0f));
+        ActionCommodity e3Comm = projData.getSoldCommms(2L).get((short)UICommodityType.VMEM.typeNumber());
+        assertThat(e3Comm.getUsed(), is(30.0f));
+
         assertThat(projData.getSoldPercentile(1L, CommodityType.newBuilder()
                 .setType(UICommodityType.VMEM.typeNumber())
                 .build()).get(), closeTo(10, 0.0001));
@@ -94,6 +103,10 @@ public class ProjectedTopologyPercentileDataRetrieverTest {
                 .addStatSnapshots(StatSnapshot.newBuilder()
                    .addStatRecords(StatRecord.newBuilder()
                        .setName(commType.apiStr())
+                       .setUsed(StatValue.newBuilder()
+                           .setTotal(usage))
+                       .setCapacity(StatValue.newBuilder()
+                               .setTotal(usage))
                        .addHistUtilizationValue(HistUtilizationValue.newBuilder()
                            .setType("percentile")
                            .setUsage(StatValue.newBuilder()
