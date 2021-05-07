@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -29,13 +30,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.commons.Units;
-import com.vmturbo.extractor.action.percentile.ActionPercentileData;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
+import com.vmturbo.extractor.action.commodity.ActionCommodityData;
+import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
-import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
@@ -53,10 +55,10 @@ public class ActionAttributeExtractor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ActionPercentileDataRetriever actionPercentileDataRetriever;
+    private final ActionCommodityDataRetriever actionCommodityDataRetriever;
 
-    ActionAttributeExtractor(@Nonnull final ActionPercentileDataRetriever actionPercentileDataRetriever) {
-        this.actionPercentileDataRetriever = actionPercentileDataRetriever;
+    ActionAttributeExtractor(@Nonnull final ActionCommodityDataRetriever actionCommodityDataRetriever) {
+        this.actionCommodityDataRetriever = actionCommodityDataRetriever;
     }
 
     /**
@@ -119,42 +121,61 @@ public class ActionAttributeExtractor {
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
         final List<T> result = new ArrayList<>();
-        final ActionPercentileData percentileChanges =
-                actionPercentileDataRetriever.getActionPercentiles(actionSpecs);
+        final ActionCommodityData commodityChanges =
+                actionCommodityDataRetriever.getActionCommodityData(actionSpecs);
         actionSpecs.forEach(actionSpec -> {
             final T actionAttrs = attributes.get(actionSpec.getRecommendation().getId());
             if (actionAttrs != null) {
                 result.addAll(populateAttributes(actionSpec, actionAttrs, topologyGraph,
-                        percentileChanges, processResizeChanges, processMoveChanges, processScaleChanges));
+                        commodityChanges, processResizeChanges, processMoveChanges, processScaleChanges));
             }
         });
         return result;
     }
 
     private <T extends ActionAttributes> List<T> populateAttributes(ActionSpec actionSpec,
-            T actionOrAttributes, TopologyGraph<SupplyChainEntity> topologyGraph,
-            ActionPercentileData actionPercentileData,
+            T actionOrAttributes,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData,
             BiFunction<T, List<CommodityChange>, List<T>> processResizeChanges,
             BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
             BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
         final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
+
+        // We only populate impact for pending actions.
+        // Impact doesn't really make sense in the context of completed actions.
+        final boolean populateImpact = actionSpec.getActionState() == ActionState.READY;
+
+        // set target and related
+        try {
+            ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
+            final boolean populateTargetImpact = populateImpact
+                    && (actionType == ActionType.START || actionType == ActionType.ACTIVATE
+                    || actionType == ActionType.SCALE || actionType == ActionType.PROVISION);
+            ActionImpactedEntity targetEntity = buildImpactedEntity(primaryEntity,
+                    populateTargetImpact, topologyGraph, actionCommodityData);
+            actionOrAttributes.setTarget(targetEntity);
+        } catch (UnsupportedActionException e) {
+            // this should not happen
+            logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
+        }
         switch (actionType) {
             case MOVE:
                 return processMoveChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, topologyGraph));
+                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
             case SCALE:
                 return processScaleChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, topologyGraph));
+                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
             case RESIZE:
                 final List<CommodityChange> resizeChanges;
                 if (actionInfo.hasAtomicResize()) {
                     resizeChanges = getAtomicResizeChanges(actionInfo.getAtomicResize(), topologyGraph,
-                            actionPercentileData);
+                            actionCommodityData);
                 } else {
                     resizeChanges = Collections.singletonList(getNormalResizeChange(
-                            actionInfo.getResize(), actionPercentileData));
+                            actionInfo.getResize(), actionCommodityData));
                 }
                 return processResizeChanges.apply(actionOrAttributes, resizeChanges);
             case DELETE:
@@ -186,27 +207,22 @@ public class ActionAttributeExtractor {
         return ae;
     }
 
-    /**
-     * Create a {@link ActionEntity} instance based on given {@link ActionDTO.ActionEntity} with
-     * type field and discoveringTargets field set.
-     *
-     * @param actionEntity {@link ActionDTO.ActionEntity}
-     * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
-     * @param targetsExtractor for extracting targets info
-     * @return {@link ActionEntity}
-     */
-    @Nonnull
-    public static ActionEntity getActionEntityWithTypeAndTarget(
-            @Nonnull ActionDTO.ActionEntity actionEntity,
-            @Nonnull TopologyGraph<SupplyChainEntity> topologyGraph,
-            @Nullable TargetsExtractor targetsExtractor) {
-        final ActionEntity ae = getActionEntityWithoutType(actionEntity, topologyGraph);
-        ae.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
-        if (targetsExtractor != null) {
-            ae.setAttrs(Collections.singletonMap(ExportUtils.TARGETS_JSON_KEY_NAME,
-                    targetsExtractor.extractTargets(actionEntity.getId())));
+    private ActionImpactedEntity buildImpactedEntity(ActionDTO.ActionEntity actionEntity,
+            final boolean populateImpact,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData) {
+        ActionImpactedEntity entity = new ActionImpactedEntity();
+        // TODO: refactor common code between ActionEntity and ActionImpactedEntity
+        entity.setOid(actionEntity.getId());
+        entity.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
+        if (topologyGraph != null) {
+            topologyGraph.getEntity(actionEntity.getId())
+                    .ifPresent(e -> entity.setName(e.getDisplayName()));
         }
-        return ae;
+        if (populateImpact) {
+            entity.setAffectedMetrics(actionCommodityData.getEntityImpact(actionEntity.getId()));
+        }
+        return entity;
     }
 
     /**
@@ -214,16 +230,20 @@ public class ActionAttributeExtractor {
      * move change, but it may return multiple for compound moves.
      *
      * @param recommendation action from AO
+     * @param populateImpact If before/after metrics for involved entities should be set.
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
+     * @param actionCommodityData Used to look up commodity information.
      * @return map of move change by entity type
      */
     private List<MoveChange> getMoveChanges(ActionDTO.Action recommendation,
-            TopologyGraph<SupplyChainEntity> topologyGraph) {
+            final boolean populateImpact,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData) {
         final List<MoveChange> moveInfo = new ArrayList<>();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(recommendation)) {
             final MoveChange moveChange = new MoveChange();
-            moveChange.setFrom(getActionEntityWithType(change.getSource(), topologyGraph));
-            moveChange.setTo(getActionEntityWithType(change.getDestination(), topologyGraph));
+            moveChange.setFrom(buildImpactedEntity(change.getSource(), populateImpact, topologyGraph, actionCommodityData));
+            moveChange.setTo(buildImpactedEntity(change.getDestination(), populateImpact, topologyGraph, actionCommodityData));
             // resource (like volume of a VM)
             if (!change.getResourceList().isEmpty()) {
                 moveChange.setResource(change.getResourceList().stream()
@@ -239,12 +259,12 @@ public class ActionAttributeExtractor {
      * Get the commodity change for the given resize action.
      *
      * @param resize action from AO
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
+     * @param actionCommodityData Used to look up percentile changes for the resized commodities.
      * @return commodity change
      */
     @Nonnull
     private CommodityChange getNormalResizeChange(Resize resize,
-            @Nonnull final ActionPercentileData actionPercentileData) {
+            @Nonnull final ActionCommodityData actionCommodityData) {
         final int commodityTypeInt = resize.getCommodityType().getType();
         final CommodityChange commodityChange = new CommodityChange();
         commodityChange.setFrom(resize.getOldCapacity());
@@ -253,7 +273,7 @@ public class ActionAttributeExtractor {
             commodityChange.setAttribute(resize.getCommodityAttribute().name());
         }
         commodityChange.setPercentileChange(
-                actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
+                actionCommodityData.getPercentileChange(resize.getTarget().getId(), resize.getCommodityType()));
         CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt, null)
                 .ifPresent(commodityChange::setUnit);
         commodityChange.setCommodityType(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt));
@@ -265,13 +285,13 @@ public class ActionAttributeExtractor {
      *
      * @param atomicResize action from AO
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
+     * @param actionCommodityData Used to look up percentile changes for the resized commodities.
      * @return list of commodity changes
      */
     @Nonnull
     private List<CommodityChange> getAtomicResizeChanges(AtomicResize atomicResize,
             TopologyGraph<SupplyChainEntity> topologyGraph,
-            ActionPercentileData actionPercentileData) {
+            ActionCommodityData actionCommodityData) {
         final List<CommodityChange> resizeInfo = new ArrayList<>();
         for (ResizeInfo resize : atomicResize.getResizesList()) {
             final CommodityChange commodityChange = new CommodityChange();
@@ -290,7 +310,7 @@ public class ActionAttributeExtractor {
                 commodityChange.setTarget(getActionEntityWithType(resize.getTarget(), topologyGraph));
             }
             commodityChange.setPercentileChange(
-                    actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
+                    actionCommodityData.getPercentileChange(resize.getTarget().getId(), resize.getCommodityType()));
             commodityChange.setCommodityType(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt));
             resizeInfo.add(commodityChange);
         }

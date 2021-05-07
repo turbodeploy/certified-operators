@@ -42,14 +42,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
@@ -62,6 +63,7 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.schema.json.export.Target;
@@ -81,6 +83,16 @@ public class ActionConverterTest {
     private final double savings = 8;
     private final long actionOid = 870;
 
+    private final ActionInfo scaleActionInfo = ActionInfo.newBuilder().setScale(
+            Scale.newBuilder().addCommodityResizes(ResizeInfo.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder().setType(0).build())
+                    .setNewCapacity(20)
+                    .setOldCapacity(10)
+                    .build()).setTarget(ActionEntity.newBuilder()
+                    .setId(123)
+                    .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .build()).build()).build();
+
     private final ActionSpec actionSpec = ActionSpec.newBuilder()
             .setRecommendationId(7L)
             .setRecommendationTime(1_000_000)
@@ -90,21 +102,10 @@ public class ActionConverterTest {
                     .setSavingsPerHour(CurrencyAmount.newBuilder()
                             .setAmount(savings))
                     .setExplanation(Explanation.newBuilder()
-                            .setMove(MoveExplanation.newBuilder()
+                            .setScale(ScaleExplanation.newBuilder()
                                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                             .setCompliance(Compliance.getDefaultInstance()))))
-                    .setInfo(ActionInfo.newBuilder()
-                            .setMove(Move.newBuilder()
-                                    .addChanges(ChangeProvider.newBuilder()
-                                            .setSource(ActionEntity.newBuilder()
-                                                    .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                                    .setId(234))
-                                            .setDestination(ActionEntity.newBuilder()
-                                                    .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                                    .setId(345)))
-                                    .setTarget(ActionEntity.newBuilder()
-                                            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                            .setId(123)))))
+                    .setInfo(scaleActionInfo))
             .setDescription(description)
             .setSeverity(ActionDTO.Severity.CRITICAL)
             .setCategory(ActionDTO.ActionCategory.COMPLIANCE)
@@ -195,7 +196,7 @@ public class ActionConverterTest {
         Record record = actionConverter.makePendingActionRecords(Collections.singletonList(actionSpec)).get(0);
         assertThat(record.get(PendingAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
-        assertThat(record.get(ActionModel.PendingAction.TYPE), is(ActionType.MOVE));
+        assertThat(record.get(ActionModel.PendingAction.TYPE), is(ActionType.SCALE));
         assertThat(record.get(ActionModel.PendingAction.CATEGORY), is(ActionCategory.COMPLIANCE));
         assertThat(record.get(ActionModel.PendingAction.SEVERITY), is(Severity.CRITICAL));
         assertThat(record.get(ActionModel.PendingAction.TARGET_ENTITY), is(123L));
@@ -203,7 +204,7 @@ public class ActionConverterTest {
         for (long l : record.get(ActionModel.PendingAction.INVOLVED_ENTITIES)) {
             s.add(l);
         }
-        assertThat(s, containsInAnyOrder(123L, 234L, 345L));
+        assertThat(s, containsInAnyOrder(123L));
         assertThat(record.get(ActionModel.PendingAction.DESCRIPTION), is(description));
         assertThat(record.get(ActionModel.PendingAction.SAVINGS), is(savings));
         assertThat(record.get(PendingAction.ACTION_OID), is(actionOid));
@@ -217,7 +218,7 @@ public class ActionConverterTest {
      */
     @Test
     public void testExecutedSucceededActionRecord() throws Exception {
-        when(actionAttributeExtractor.extractReportingAttributes(Collections.singletonList(succeededActionSpec), topologyGraph))
+        when(actionAttributeExtractor.extractReportingAttributes(Collections.singletonList(succeededActionSpec),  topologyGraph))
                 .thenReturn(Long2ObjectMaps.singleton(actionOid, attrs));
         when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
         Record record = actionConverter.makeExecutedActionSpec(
@@ -225,7 +226,7 @@ public class ActionConverterTest {
             .get(0);
         assertThat(record.get(CompletedAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
-        assertThat(record.get(CompletedAction.TYPE), is(ActionType.MOVE));
+        assertThat(record.get(CompletedAction.TYPE), is(ActionType.SCALE));
         assertThat(record.get(CompletedAction.CATEGORY), is(ActionCategory.COMPLIANCE));
         assertThat(record.get(CompletedAction.SEVERITY), is(Severity.CRITICAL));
         assertThat(record.get(CompletedAction.TARGET_ENTITY), is(123L));
@@ -233,7 +234,7 @@ public class ActionConverterTest {
         for (long l : record.get(CompletedAction.INVOLVED_ENTITIES)) {
             s.add(l);
         }
-        assertThat(s, containsInAnyOrder(123L, 234L, 345L));
+        assertThat(s, containsInAnyOrder(123L));
         assertThat(record.get(CompletedAction.DESCRIPTION), is(description));
         assertThat(record.get(CompletedAction.SAVINGS), is(savings));
         assertThat(record.get(CompletedAction.ACTION_OID), is(actionOid));
@@ -264,11 +265,16 @@ public class ActionConverterTest {
      */
     @Test
     public void testMakeExportedAction() {
-        final MoveChange moveInfo = new MoveChange();
+        final MoveChange scaleInfo = new MoveChange();
+        final ActionImpactedEntity targetEntity = new ActionImpactedEntity();
+        targetEntity.setOid(123L);
+        targetEntity.setName("123");
+        targetEntity.setType(ExportUtils.getEntityTypeJsonKey(scaleActionInfo.getScale().getTarget().getType()));
         final List<ActionSpec> actionSpecs = Collections.singletonList(actionSpec);
         Mockito.doAnswer(invocation -> {
             Long2ObjectMap<com.vmturbo.extractor.schema.json.export.Action> actionMap = invocation.getArgumentAt(2, Long2ObjectMap.class);
-            actionMap.get(actionOid).setMoveInfo(moveInfo);
+            actionMap.get(actionOid).setScaleInfo(scaleInfo);
+            actionMap.get(actionOid).setTarget(targetEntity);
             return new ArrayList<>(actionMap.values());
         }).when(actionAttributeExtractor).populateExporterAttributes(eq(actionSpecs), eq(topologyGraph), any());
         com.vmturbo.extractor.schema.json.export.Action action =
@@ -297,7 +303,7 @@ public class ActionConverterTest {
         Assert.assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getOid(), is(456L));
 
         // attributes
-        Assert.assertThat(action.getMoveInfo(), is(moveInfo));
+        Assert.assertThat(action.getScaleInfo(), is(scaleInfo));
     }
 
     /**

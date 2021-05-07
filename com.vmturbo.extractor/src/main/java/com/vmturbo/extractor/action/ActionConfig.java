@@ -91,7 +91,7 @@ public class ActionConfig {
      */
     @Bean
     public ActionAttributeExtractor actionAttributeExtractor() {
-        return new ActionAttributeExtractor(topologyListenerConfig.percentileActionDecorator());
+        return new ActionAttributeExtractor(topologyListenerConfig.actionCommodityDataRetriever());
     }
 
     /**

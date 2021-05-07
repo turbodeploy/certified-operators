@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
@@ -15,19 +15,19 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.extractor.action.percentile.TopologyPercentileData.CommType;
+import com.vmturbo.extractor.action.commodity.TopologyActionCommodityData.CommType;
 
 /**
- * Unit tests for {@link TopologyPercentileData}.
+ * Unit tests for {@link TopologyActionCommodityData}.
  */
-public class TopologyPercentileDataTest {
+public class TopologyActionCommodityDataTest {
 
     /**
      * Test putting percentiles and retrieving them.
      */
     @Test
     public void testPutAndGet() {
-        TopologyPercentileData percentileData = new TopologyPercentileData();
+        TopologyActionCommodityData percentileData = new TopologyActionCommodityData();
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, null), 1);
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, "foo"), .2);
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, "foooo"), .2);
@@ -48,7 +48,7 @@ public class TopologyPercentileDataTest {
      */
     @Test
     public void testToString() {
-        TopologyPercentileData percentileData = new TopologyPercentileData();
+        TopologyActionCommodityData percentileData = new TopologyActionCommodityData();
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, null), 1);
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, "foo"), .2);
         percentileData.putSoldPercentile(1L, comm(UICommodityType.MEM, "foooo"), .2);

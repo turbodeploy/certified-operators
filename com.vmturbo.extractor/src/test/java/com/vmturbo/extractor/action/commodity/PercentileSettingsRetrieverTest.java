@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.action.percentile;
+package com.vmturbo.extractor.action.commodity;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -31,8 +31,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.PercentileSettingSpecs;
-import com.vmturbo.extractor.action.percentile.PercentileSettingsRetriever.PercentileSettings;
-import com.vmturbo.extractor.action.percentile.PercentileSettingsRetriever.PercentileSettings.PercentileSetting;
+import com.vmturbo.extractor.action.commodity.PercentileSettingsRetriever.PercentileSettings;
+import com.vmturbo.extractor.action.commodity.PercentileSettingsRetriever.PercentileSettings.PercentileSetting;
 
 /**
  * Unit tests for {@link PercentileSettingsRetriever}.
