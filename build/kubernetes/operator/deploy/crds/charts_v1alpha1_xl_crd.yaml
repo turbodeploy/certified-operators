@@ -65,9 +65,6 @@ spec:
                 tag:
                   description: Global container tag
                   type: string
-                serviceAccountName:
-                  description: Global serviceAccountName
-                  type: string
                 pullPolicy:
                   description: Global image pull policy
                   type: string
@@ -136,6 +133,9 @@ spec:
                 logtostdout:
                   description: Send logs to stdout of each microservices globally
                   type: boolean
+                serviceAccountName:
+                  description: Global serviceAccountName
+                  type: string
                 storageAnnotations:
                   description: Global pvc annotations list
                   type: object
@@ -260,9 +260,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -287,6 +284,9 @@ spec:
                           type: object
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             kubeturbo:
               properties:
@@ -322,9 +322,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -342,6 +339,9 @@ spec:
                       description: arangodb dump persistent volume size
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             consul:
               properties:
@@ -357,13 +357,13 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             db:
               properties:
@@ -379,9 +379,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -393,6 +390,9 @@ spec:
                       description: MariaDB persistent volume size
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             extractor:
               properties:
@@ -429,13 +429,13 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             influxdb:
               properties:
@@ -451,9 +451,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -465,6 +462,9 @@ spec:
                       description: influxdb persistent volume size
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             kafka:
               properties:
@@ -479,9 +479,6 @@ spec:
                       type: string
                     tag:
                       description: component container tag
-                      type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -501,6 +498,9 @@ spec:
                       description: kafka persistent volume size
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             nginx:
               properties:
@@ -516,9 +516,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -530,6 +527,9 @@ spec:
                   type: array
                 externalTrafficPolicy:
                   description: define the external traffic policy for the nginx service, the default is Local
+                  type: string
+                serviceAccountName:
+                  description: component serviceAccountName
                   type: string
               type: object
             rsyslog:
@@ -545,9 +545,6 @@ spec:
                       type: string
                     tag:
                       description: component container tag
-                      type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -568,6 +565,9 @@ spec:
                       description: influxdb audit persistent volume size
                       type: string
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             zookeeper:
               properties:
@@ -582,9 +582,6 @@ spec:
                       type: string
                     tag:
                       description: component container tag
-                      type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -601,6 +598,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             # Enable opensource observability
             loki:
@@ -1024,9 +1024,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1048,6 +1045,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             ui:
               properties:
@@ -1096,9 +1096,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1120,6 +1117,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             auth:
               properties:
@@ -1135,9 +1135,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1159,6 +1156,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             clustermgr:
               properties:
@@ -1174,9 +1174,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1198,6 +1195,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             cost:
               properties:
@@ -1213,9 +1213,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1237,6 +1234,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             group:
               properties:
@@ -1252,9 +1252,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1276,6 +1273,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             history:
               properties:
@@ -1291,9 +1291,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1315,6 +1312,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             market:
               properties:
@@ -1330,9 +1330,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1354,6 +1351,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             plan-orchestrator:
               properties:
@@ -1369,9 +1369,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1393,6 +1390,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             repository:
               properties:
@@ -1408,9 +1408,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1432,6 +1429,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             topology-processor:
               properties:
@@ -1447,9 +1447,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1471,6 +1468,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
 
             # Resources limits - Probes
@@ -1488,9 +1488,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1512,6 +1509,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-actionstream-kafka:
               properties:
@@ -1527,9 +1527,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1551,6 +1548,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-aix:
               properties:
@@ -1566,9 +1566,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1590,6 +1587,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-acims:
               properties:
@@ -1605,9 +1605,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1629,6 +1626,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-apic:
               properties:
@@ -1644,9 +1644,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1668,6 +1665,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-appdynamics:
               properties:
@@ -1683,9 +1683,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1707,6 +1704,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-appinsights:
               properties:
@@ -1722,9 +1722,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1746,6 +1743,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-aws:
               properties:
@@ -1761,9 +1761,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1785,6 +1782,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-awsbilling:
               properties:
@@ -1800,9 +1800,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1824,6 +1821,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-awscost:
               properties:
@@ -1839,9 +1839,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1863,6 +1860,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-awslambda:
               properties:
@@ -1878,9 +1878,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1902,6 +1899,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-azure:
               properties:
@@ -1917,9 +1917,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1941,6 +1938,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-azurecost:
               properties:
@@ -1956,9 +1956,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1980,6 +1977,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-azureea:
               properties:
@@ -1995,9 +1995,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2019,6 +2016,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-azuresp:
               properties:
@@ -2034,9 +2034,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2058,6 +2055,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-azurevolumes:
               properties:
@@ -2073,9 +2073,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2097,6 +2094,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-baremetal:
               properties:
@@ -2112,9 +2112,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2136,6 +2133,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-cloudfoundry:
               properties:
@@ -2151,9 +2151,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2175,6 +2172,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-compellent:
               properties:
@@ -2190,9 +2190,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2214,6 +2211,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-datadog:
               properties:
@@ -2229,9 +2229,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2253,6 +2250,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-dynatrace:
               properties:
@@ -2268,9 +2268,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2292,6 +2289,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-gcp:
               properties:
@@ -2307,9 +2307,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2331,6 +2328,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-gcpcost:
               properties:
@@ -2346,9 +2346,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2370,6 +2367,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-hds:
               properties:
@@ -2385,9 +2385,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2409,6 +2406,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-horizon:
               properties:
@@ -2424,9 +2424,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2448,6 +2445,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-hpe3par:
               properties:
@@ -2463,9 +2463,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2487,6 +2484,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-hyperflex:
               properties:
@@ -2502,9 +2502,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2526,6 +2523,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-hyperv:
               properties:
@@ -2541,9 +2541,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2565,6 +2562,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-intersight:
               properties:
@@ -2580,9 +2580,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2604,6 +2601,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-intersighthyperflex:
               properties:
@@ -2619,9 +2619,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2643,6 +2640,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-intersightucs:
               properties:
@@ -2658,9 +2658,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2682,6 +2679,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-instana:
               properties:
@@ -2697,9 +2697,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2721,6 +2718,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-istio:
               properties:
@@ -2736,9 +2736,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2760,6 +2757,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-jvm:
               properties:
@@ -2775,9 +2775,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2799,6 +2796,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-mssql:
               properties:
@@ -2814,9 +2814,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2838,6 +2835,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-mysql:
               properties:
@@ -2853,9 +2853,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2877,6 +2874,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-netapp:
               properties:
@@ -2892,9 +2892,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2916,6 +2913,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-netflow:
               properties:
@@ -2931,9 +2931,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2955,6 +2952,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-newrelic:
               properties:
@@ -2970,9 +2970,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2994,6 +2991,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-nutanix:
               properties:
@@ -3009,9 +3009,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3033,6 +3030,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-oneview:
               properties:
@@ -3048,9 +3048,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3072,6 +3069,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-openstack:
               properties:
@@ -3087,9 +3087,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3111,6 +3108,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-oracle:
               properties:
@@ -3126,9 +3126,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3150,6 +3147,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-pivotal:
               properties:
@@ -3165,9 +3165,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3189,6 +3186,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-pure:
               properties:
@@ -3204,9 +3204,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3228,6 +3225,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-rhv:
               properties:
@@ -3243,9 +3243,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3267,6 +3264,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-scaleio:
               properties:
@@ -3282,9 +3282,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3306,6 +3303,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-snmp:
               properties:
@@ -3321,9 +3321,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3345,6 +3342,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-terraform:
               properties:
@@ -3360,9 +3360,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3384,6 +3381,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-tetration:
               properties:
@@ -3399,9 +3399,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3423,6 +3420,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-tomcat:
               properties:
@@ -3438,9 +3438,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3462,6 +3459,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-ucs:
               properties:
@@ -3477,9 +3477,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3501,6 +3498,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-ucsdirector:
               properties:
@@ -3516,9 +3516,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3540,6 +3537,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vcd:
               properties:
@@ -3555,9 +3555,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3579,6 +3576,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vcenter:
               properties:
@@ -3594,9 +3594,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3618,6 +3615,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vcenterbrowsing:
               properties:
@@ -3633,9 +3633,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3657,6 +3654,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vmax:
               properties:
@@ -3672,9 +3672,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3696,6 +3693,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vmm:
               properties:
@@ -3711,9 +3711,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3735,6 +3732,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-vplex:
               properties:
@@ -3750,9 +3750,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3774,6 +3771,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-wmi:
               properties:
@@ -3789,9 +3789,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3813,6 +3810,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-xtremio:
               properties:
@@ -3828,9 +3828,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3852,6 +3849,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
             mediation-xen:
               properties:
@@ -3867,9 +3867,6 @@ spec:
                     tag:
                       description: component container tag
                       type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3891,6 +3888,9 @@ spec:
                           type: string
                       type: object
                   type: object
+                serviceAccountName:
+                  description: component serviceAccountName
+                  type: string
               type: object
 
             # Custom properties for component configuration
