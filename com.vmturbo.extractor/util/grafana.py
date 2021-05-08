@@ -629,7 +629,7 @@ def main():
     parser = argparse.ArgumentParser(
         description='Grafana Utilities', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    subparsers = parser.add_subparsers(dest='command', required=True)
+    subparsers = parser.add_subparsers(dest='command')
     load_parser = subparsers.add_parser(
         Command.load.name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.disk_directory, Arg.disk_format,
