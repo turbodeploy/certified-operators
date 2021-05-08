@@ -21,6 +21,7 @@ import com.google.protobuf.Message;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
@@ -83,9 +84,12 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
             @Nonnull final Stream<StitchingEntity> entities,
             @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         EntityScopeFilters.sharedEntitiesByOid(entities).forEach(sharedEntities -> {
-            // Merge into the most recently updated entity.
+            // Merge into the most recently updated non-proxy entity.
             sharedEntities.stream()
-                    .max(Comparator.comparing(StitchingEntity::getLastUpdatedTime))
+                    .max(Comparator
+                            // Prefer "real" entities over proxy and replaceable entities.
+                            .comparing(SharedEntityDefaultPreStitchingOperation::isRealEntity)
+                            .thenComparing(StitchingEntity::getLastUpdatedTime))
                     .ifPresent(entityToKeep -> {
                         final List<StitchingEntity> duplicateEntities = sharedEntities.stream()
                                 .filter(duplicateEntity -> duplicateEntity != entityToKeep)
@@ -179,5 +183,9 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
             logger.trace("Destination message after merge field {}: {}",
                     fieldDescriptor::getFullName, destination::toString);
         });
+    }
+
+    private static boolean isRealEntity(final StitchingEntity entity) {
+        return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED;
     }
 }
