@@ -799,6 +799,36 @@ public class LiveActionsTest {
         assertFalse(liveActions.getAction(action1.getId() + 100).isPresent());
     }
 
+    /**
+     * Test that {@link LiveActions#get(ActionQueryFilter)}
+     */
+    @Test
+    public void testGetByFilterWithExpandedInvolvedEntitiesWithScopedUser() {
+        final Action move02Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 0, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 1, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move02Action, move13Action));
+
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L, 3L, 2L)), null));
+        final QueryFilter queryFilter = mock(QueryFilter.class);
+        when(queryFilter.test(any())).thenReturn(true);
+        final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                        .addOids(0L).addOids(1L).addOids(3L).build())
+                .build();
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
+
+        Set<ActionView> results = liveActions.get(actionQueryFilter).collect(Collectors.toSet());
+        assertTrue(results.contains(move13Action));
+        assertFalse(results.contains(move02Action));
+    }
+
     @Test
     public void getActionWithScopedUser() {
         final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
