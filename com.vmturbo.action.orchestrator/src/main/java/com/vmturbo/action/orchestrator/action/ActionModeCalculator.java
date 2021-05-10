@@ -295,6 +295,11 @@ public class ActionModeCalculator {
             }
         }
 
+        // If action is not executable, its action mode shouldn't be MANUAL or AUTOMATIC.
+        if (result.getMode().compareTo(ActionMode.MANUAL) >= 0 && !action.determineExecutability()) {
+            result = ModeAndSchedule.of(ActionMode.RECOMMEND);
+        }
+
         return result;
     }
 

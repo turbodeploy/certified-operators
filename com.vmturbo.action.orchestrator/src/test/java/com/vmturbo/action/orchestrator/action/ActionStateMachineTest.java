@@ -65,6 +65,7 @@ public class ActionStateMachineTest {
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
         .setExplanation(Explanation.newBuilder().build())
+        .setExecutable(true)
         .build();
 
     private final long actionPlanId = 4;

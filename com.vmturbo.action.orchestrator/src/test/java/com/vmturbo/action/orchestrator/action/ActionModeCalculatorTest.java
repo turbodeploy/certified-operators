@@ -210,6 +210,7 @@ public class ActionModeCalculatorTest {
                                         .setId(77L)
                                         // Associated storage move
                                         .setType(EntityType.STORAGE_VALUE)))))
+                .setExecutable(true)
                 .build();
         // Different values for Move and StorageMove setting for this entity.
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
@@ -283,6 +284,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         final String settingName = CloudComputeScale.getSettingName();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
@@ -326,6 +328,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Resize.getSettingName(),
@@ -351,6 +354,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator, 44L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -373,6 +377,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))
                         .setIsProvider(false)))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Reconfigure.getSettingName(),
@@ -419,6 +424,7 @@ public class ActionModeCalculatorTest {
                         .setEntityToClone(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Provision.getSettingName(),
@@ -444,6 +450,7 @@ public class ActionModeCalculatorTest {
                         .setEntityToClone(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -465,6 +472,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Activate.getSettingName(),
@@ -490,6 +498,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -511,6 +520,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(1))))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Suspend.getSettingName(),
@@ -537,6 +547,7 @@ public class ActionModeCalculatorTest {
                 .setTarget(ActionEntity.newBuilder()
                     .setId(7L)
                     .setType(1))))
+            .setExecutable(true)
             .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -574,6 +585,7 @@ public class ActionModeCalculatorTest {
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
                                 .setType(entityType.getNumber()))))
+                .setExecutable(true)
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(setting.getSettingName(),
@@ -754,13 +766,18 @@ public class ActionModeCalculatorTest {
     public void testResizeUpWithHotAddAndNonDisruptiveEnabled() {
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = true;
-        Action resizeDownAction = getResizeUpAction(VM_ID);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.MANUAL)));
+
+        // Not executable, action mode is RECOMMEND.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -780,6 +797,11 @@ public class ActionModeCalculatorTest {
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
+
+        // Not executable, action mode is RECOMMEND.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
@@ -803,6 +825,11 @@ public class ActionModeCalculatorTest {
 
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.EXTERNAL_APPROVAL)));
+
+        // Not executable, action mode is EXTERNAL_APPROVAL.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.EXTERNAL_APPROVAL)));
     }
 
     /**
@@ -824,6 +851,11 @@ public class ActionModeCalculatorTest {
 
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.MANUAL)));
+
+        // Not executable, action mode is RECOMMEND.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -845,6 +877,11 @@ public class ActionModeCalculatorTest {
 
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.MANUAL)));
+
+        // Not executable, action mode is RECOMMEND.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -866,6 +903,11 @@ public class ActionModeCalculatorTest {
 
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.DISABLED)));
+
+        // Not executable, action mode is DISABLED.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
 
     /**
@@ -885,6 +927,11 @@ public class ActionModeCalculatorTest {
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
+
+        // Not executable, action mode is DISABLED.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
@@ -989,7 +1036,7 @@ public class ActionModeCalculatorTest {
 
     @Nonnull
     private ActionDTO.Action createMoveAction(int businessUserValue, int desktopPoolValue) {
-        return actionBuilder.setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
+        return actionBuilder.setExecutable(true).setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
                         .setTarget(ActionEntity.newBuilder().setId(7L).setType(businessUserValue))
                         .addChanges(ChangeProvider.newBuilder()
                                         .setDestination(ActionEntity.newBuilder().setId(77L)
@@ -1248,6 +1295,7 @@ public class ActionModeCalculatorTest {
                 .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
                 .setOldCapacity(4)
                 .setNewCapacity(2)))
+            .setExecutable(true)
             .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -1258,7 +1306,15 @@ public class ActionModeCalculatorTest {
         return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED);
     }
 
+    private Action getResizeUpAction(long vmId, boolean executable) {
+        return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED, executable);
+    }
+
     private Action getResizeUpAction(long vmId, SupportLevel supportLevel) {
+        return this.getResizeUpAction(vmId, supportLevel, true);
+    }
+
+    private Action getResizeUpAction(long vmId, SupportLevel supportLevel, boolean executable) {
         final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
             .setId(ACTION_OID)
             .setSupportingLevel(supportLevel)
@@ -1278,6 +1334,7 @@ public class ActionModeCalculatorTest {
                     .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
                     .setOldCapacity(2)
                     .setNewCapacity(4)))
+                .setExecutable(executable)
                 .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
@@ -1939,11 +1996,11 @@ public class ActionModeCalculatorTest {
     }
 
     @Nonnull
-    private Setting createWorkflowSetting(long workflowId) {
+    private Setting createWorkflowSetting(long workflowId, ActionSettingType actionSettingType) {
         final String vCpuUpInBetweenThresholdsWorkflowSettingName =
                 ActionSettingSpecs.getSubSettingFromActionModeSetting(
                         ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
-                        ActionSettingType.PRE);
+                        actionSettingType);
         final Setting vCpuUpInBetweenThresholdsWorkflowSetting = Setting.newBuilder()
                 .setSettingSpecName(vCpuUpInBetweenThresholdsWorkflowSettingName)
                 .setStringSettingValue(SettingProto.StringSettingValue.newBuilder()
@@ -2002,6 +2059,7 @@ public class ActionModeCalculatorTest {
 
     /**
      * Test that ModeAndSchedule calculates correctly for workflow action with execution schedule.
+     * If there exists a replace workflow, action mode won't be affected by executability of an action.
      */
     @Test
     public void testExecutionScheduleForWorkflowAction() {
@@ -2009,9 +2067,9 @@ public class ActionModeCalculatorTest {
         final Map<String, Setting> settingsForEntity =
                 getSettingsForVM(false, com.vmturbo.api.enums.ActionMode.MANUAL);
         settingsForEntity.putAll(createScheduleSettings(Collections.singletonList(SCHEDULE_ID)));
-        final Setting workflowSetting = createWorkflowSetting(1124142L);
+        final Setting workflowSetting = createWorkflowSetting(1124142L, ActionSettingType.PRE);
         settingsForEntity.put(workflowSetting.getSettingSpecName(), workflowSetting);
-        final Action resizeUpAction = getResizeUpAction(VM_ID);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(
@@ -2042,6 +2100,33 @@ public class ActionModeCalculatorTest {
         ModeAndSchedule modeAndSchedule =
                 actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction,
                         entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertNotNull(modeAndSchedule.getSchedule());
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+
+        // create replace workflow setting
+        final Setting replaceWorkflowSetting = createWorkflowSetting(11241433L, ActionSettingType.REPLACE);
+        settingsForEntity.put(replaceWorkflowSetting.getSettingSpecName(), replaceWorkflowSetting);
+
+        // ACT
+        modeAndSchedule =
+            actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction,
+                entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertNotNull(modeAndSchedule.getSchedule());
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+
+        // Not executable, action mode is still MANUAL if replace workflow exists.
+        resizeUpAction = getResizeUpAction(VM_ID, false);
+
+        // ACT
+        modeAndSchedule =
+            actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction,
+                entitiesCache);
 
         // ASSERT
         assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));

@@ -280,6 +280,7 @@ public class RangeAwareResizeParameterizedTests {
                 .setExplanation(Explanation.getDefaultInstance())
                 .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder
+            .setExecutable(true)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setInfo(ActionInfo.newBuilder()
                 .setResize(Resize.newBuilder()
