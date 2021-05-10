@@ -95,7 +95,10 @@ public class AnalysisRICoverageListener implements CostNotificationListener {
             @Nonnull final CostNotification costNotification) {
         notificationLock.lock();
         try {
-            this.costNotification = costNotification;
+            if (costNotification != null && costNotification.hasStatusUpdate()
+                    && costNotification.getStatusUpdate().getType() == SOURCE_RI_COVERAGE_UPDATE) {
+                this.costNotification = costNotification;
+            }
             received.signalAll();
         } finally {
             notificationLock.unlock();
