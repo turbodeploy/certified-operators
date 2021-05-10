@@ -675,6 +675,11 @@ class LiveActions implements QueryableActionViews {
             InvolvedEntitiesFilter filter =
                 involvedEntitiesExpander.expandInvolvedEntitiesFilter(oidsList);
             entitiesRestriction = filter.getEntities();
+            // If the user is scoped user, only retain the entities user has access to.
+            // Otherwise, the result set will contain entities that the user cannot see, causing the entire request to fail with AuthorizationException$UserAccessScopeException.
+            if (entitiesRestriction != null && userSessionContext.isUserScoped()) {
+                entitiesRestriction.retainAll(userSessionContext.getUserAccessScope().accessibleOids().toSet());
+            }
             involvedEntityCalculation = filter.getCalculationType();
         } else if (userSessionContext.isUserScoped()) {
             entitiesRestriction = userSessionContext.getUserAccessScope().accessibleOids().toSet();
