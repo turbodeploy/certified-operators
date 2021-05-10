@@ -377,6 +377,12 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>action-orchestrator-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson-core.version}</version>
+        </dependency>
+
     </dependencies>
 
 </project>
