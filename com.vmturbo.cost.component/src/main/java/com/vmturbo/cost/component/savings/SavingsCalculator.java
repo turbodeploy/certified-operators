@@ -319,13 +319,7 @@ class SavingsCalculator {
     private SavingsEvent handleExecutionSuccess(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle ExecutionSuccess for {} at {}", entityId, timestamp);
-        if (!savingsEvent.hasEntityPriceChange()) {
-            logger.warn("Cannot track action execution for {} at {} - missing price data",
-                    entityId, timestamp);
-            return null;
-        }
         return commonResizeHandler(states, timestamp, entityId,
-                savingsEvent.getEntityPriceChange().get(),
                 savingsEvent.getActionEvent().get().getEventType(),
                 savingsEvent.getActionEvent().get().getExpirationTime());
     }
@@ -454,7 +448,6 @@ class SavingsCalculator {
                         .toEpochMilli();
         if (event.getEntityPriceChange().isPresent()) {
             return commonResizeHandler(states, timestamp, entityId,
-                                       event.getEntityPriceChange().get(),
                                        ActionEventType.SCALE_EXECUTION_SUCCESS,
                                        Optional.of(expirationTime));
         } else {
@@ -471,15 +464,13 @@ class SavingsCalculator {
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param change price change information
      * @param actionEventType Triggering action type (resize success or volume delete success)
      * @param expirationTimestamp Time in milliseconds after execution when the action will expire.
      * @return if non-null, the expiration event for this resize that must be processed this period.
      */
     @Nullable
     private SavingsEvent commonResizeHandler(@Nonnull Map<Long, Algorithm> states, long timestamp,
-                                             long entityId, EntityPriceChange change,
-                                             ActionEventType actionEventType,
+                                             long entityId, ActionEventType actionEventType,
                                              final Optional<Long> expirationTimestamp) {
         // If this is an action execution, it's okay that we haven't seen this entity yet.
         // Create state for it and continue.
@@ -493,8 +484,7 @@ class SavingsCalculator {
         EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
         if (currentRecommendation == null) {
             // No active resize action, so ignore this.
-            logger.warn("Not processing resize of {} tp {} for {} - no matching recommendation",
-                    change.getSourceOid(), change.getDestinationOid(), entityId);
+            logger.warn("Not processing resize for {} - no matching recommendation", entityId);
             return null;
         }
         algorithmState.endSegment(timestamp);
@@ -508,7 +498,7 @@ class SavingsCalculator {
         // If this action will expire in this same period, insert its expiration event now.
         return expirationTimestamp.get() < periodEndtime
                         ? createActionExpiredEvent(entityId, expirationTimestamp.get(),
-                                                   change.getDelta())
+                                                   currentRecommendation.getDelta())
                         : null;
     }
 }
