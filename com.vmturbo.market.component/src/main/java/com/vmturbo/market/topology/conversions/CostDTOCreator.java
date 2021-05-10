@@ -1,7 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,8 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -30,13 +30,13 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice.DbsStorageOption;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
@@ -54,8 +54,6 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
@@ -221,7 +219,7 @@ public class CostDTOCreator {
     private DependentResourceOption convertStorageOptionToResourceOption(
             @Nonnull final DbsStorageOption storageOption) {
         return DependentResourceOption.newBuilder()
-                .setPercentageIncrement(storageOption.getPercentIncrement())
+                .setAbsoluteIncrement(storageOption.getAbsoluteIncrement())
                 .setEndRange(storageOption.getEndRange())
                 .setPrice(storageOption.getPrice())
                 .build();
@@ -383,6 +381,14 @@ public class CostDTOCreator {
                         dependentResourceOptions.add(
                                 convertStorageOptionToResourceOption(storageOption));
                     });
+                    dependentCostTuples.add(DependentCostTuple.newBuilder()
+                            .setDependentResourceType(commodityConverter.commoditySpecification(
+                                    CommodityType.newBuilder()
+                                            .setType(
+                                                    CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                            .build()).getType())
+                            .addAllDependentResourceOptions(dependentResourceOptions)
+                            .build());
                     CommoditySpecificationTO spec =
                             commodityConverter.commoditySpecification(licenseCommodity);
                     dbTierDTOBuilder.addCostTupleList(

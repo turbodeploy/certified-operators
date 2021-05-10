@@ -68,6 +68,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.CloudCommitmentIn
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerPlatformClusterInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DatabaseInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
@@ -101,8 +102,8 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.APPLICATION, new ApplicationInfoMapper())
                     .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
                     // Databases get their type-specific info sent via application data
-                    .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
-                    .put(EntityType.DATABASE, new ApplicationInfoMapper())
+                    .put(EntityType.DATABASE_SERVER, new DatabaseInfoMapper())
+                    .put(EntityType.DATABASE, new DatabaseInfoMapper())
                     .put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountInfoMapper())
                     .put(EntityType.REGION, new RegionInfoMapper())
                     .put(EntityType.COMPUTE_TIER, new ComputeTierInfoMapper())

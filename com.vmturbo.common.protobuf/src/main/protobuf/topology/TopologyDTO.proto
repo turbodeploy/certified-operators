@@ -291,6 +291,9 @@ message TypeSpecificInfo {
 
         // Raw DB edition
         optional string rawEdition = 6;
+
+        // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
+        repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
     }
 
     // specific data for virtual volume

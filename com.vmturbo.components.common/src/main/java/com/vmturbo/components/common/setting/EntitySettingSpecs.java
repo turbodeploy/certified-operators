@@ -214,6 +214,8 @@ public enum EntitySettingSpecs {
             numeric(0f, 100f, 90f),
             true),
 
+
+
     /**
      * Storage provisioned utilization threshold.
      */
@@ -240,6 +242,15 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DATABASE),
             numeric(0f, 100f, 70.0f), true),
+
+    /**
+     * Storage amount utilization scaling constriants. Used for cloud entities only.
+     */
+    ResizeTargetUtilizationStorageAmount("resizeTargetUtilizationStorageAmount", "Scaling target Storage Amount Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0f, 100f, 90f),
+            true),
 
     /**
      * IOPS utilization threshold.

@@ -1671,6 +1671,8 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.VCPURequestUtilization);
         testUtilizationSettings(EntityType.DATABASE, CommodityType.DTU,
                 EntitySettingSpecs.DTUUtilization);
+        testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_AMOUNT,
+                EntitySettingSpecs.ResizeTargetUtilizationStorageAmount);
 
     }
 

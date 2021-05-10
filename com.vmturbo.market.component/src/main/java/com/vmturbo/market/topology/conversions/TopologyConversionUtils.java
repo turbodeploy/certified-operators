@@ -1,5 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -228,7 +230,7 @@ public class TopologyConversionUtils {
         if (actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE
                 && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return Units.KBYTE;
-        } else if (actionTargetEntityType == EntityType.DATABASE_VALUE && commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+        } else if (ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(actionTargetEntityType) && commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
             return Units.KBYTE;
         }
         return 1.0f;
