@@ -226,6 +226,7 @@
         "resizeVStorage",
         "preferSavingsOverReversibility",
         "dtuUtilization",
+        "resizeTargetUtilizationStorageAmount",
         "allowUnlimitedHostOverprovisioning",
         "onPremVolumeAnalysis",
         "minReplicas",

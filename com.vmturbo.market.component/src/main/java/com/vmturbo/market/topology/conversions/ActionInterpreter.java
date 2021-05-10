@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 import static com.vmturbo.trax.Trax.trax;
 
@@ -42,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
@@ -61,9 +61,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -131,8 +129,7 @@ public class ActionInterpreter {
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private static final Set<Integer> TRANSLATE_MOVE_TO_SCALE_PROVIDER_TYPE =
             ImmutableSet.of(EntityType.STORAGE_TIER_VALUE,
-                    EntityType.DATABASE_TIER_VALUE,
-                    EntityType.DATABASE_SERVER_TIER_VALUE);
+                    EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
     private boolean enableContainerClusterScalingCost;
@@ -649,7 +646,7 @@ public class ActionInterpreter {
             }
 
             // TODO Roop: remove this condition. OM-61424.
-            TraxNumber dbStorageCost = cloudEntityMoving.getEntityType() == EntityType.DATABASE_VALUE ?
+            TraxNumber dbStorageCost = ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(cloudEntityMoving.getEntityType()) ?
                     journal.getHourlyCostFilterEntries(
                             CostCategory.STORAGE,
                             CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER) : Trax.trax(0.0);

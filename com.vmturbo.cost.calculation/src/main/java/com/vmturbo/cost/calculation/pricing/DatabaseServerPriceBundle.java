@@ -107,7 +107,7 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          */
         public static class DbsStorageOption extends GenericDbPriceBundle.GenericStorageOption {
             // This is the possible increment in GB in this option (ex. 250GB).
-            final long percentIncrement;
+            final long absoluteIncrement;
 
             /**
              * Defines the number of percents we use to calculate new commodity value:
@@ -117,8 +117,8 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
              *
              * @return commodity minimum increase in percentage
              */
-            public long getPercentIncrement() {
-                return percentIncrement;
+            public long getAbsoluteIncrement() {
+                return absoluteIncrement;
             }
 
             /**
@@ -130,7 +130,7 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
              */
             public DbsStorageOption(long increment, long endRange, double price) {
                 super(endRange, price);
-                this.percentIncrement = increment;
+                this.absoluteIncrement = increment;
             }
         }
     }

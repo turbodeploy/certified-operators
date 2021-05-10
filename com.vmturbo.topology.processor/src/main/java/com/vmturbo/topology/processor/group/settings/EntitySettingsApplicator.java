@@ -34,10 +34,10 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
@@ -219,6 +219,8 @@ public class EntitySettingsApplicator {
                         CommodityType.POOL_STORAGE),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.DBMemUtilization,
                         CommodityType.DB_MEM),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
+                        CommodityType.STORAGE_AMOUNT),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -328,6 +330,10 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
                         CommodityType.IO_THROUGHPUT),
+                // Applies to cloud entities only.
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
+                        CommodityType.STORAGE_AMOUNT),
                 new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),

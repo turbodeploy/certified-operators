@@ -462,40 +462,40 @@ public class SdkToTopologyEntityConverterTest {
     @Test
     public void testHotResizeInfo() {
         final EntityDTO entity = EntityDTO.newBuilder()
-            .setId("1")
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .addCommoditiesSold(CommodityDTO.newBuilder()
-                .setCapacity(10000)
-                .setCommodityType(CommodityType.VMEM)
-                .setVmemData(VMemData.newBuilder()
-                    .setHotAddSupported(true)
-                    .setHotRemoveSupported(false)
-                    .build())
-                .build())
-            .addCommoditiesSold(CommodityDTO.newBuilder()
-                .setCapacity(10000)
-                .setCommodityType(CommodityType.VCPU)
-                .setVcpuData(VCpuData.newBuilder()
-                    .setHotAddSupported(false)
-                    .setHotRemoveSupported(true)
-                    .build())
-                .build())
-            .build();
+                .setId("1")
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .addCommoditiesSold(CommodityDTO.newBuilder()
+                        .setCapacity(10000)
+                        .setCommodityType(CommodityType.VMEM)
+                        .setVmemData(VMemData.newBuilder()
+                                .setHotAddSupported(true)
+                                .setHotRemoveSupported(false)
+                                .build())
+                        .build())
+                .addCommoditiesSold(CommodityDTO.newBuilder()
+                        .setCapacity(10000)
+                        .setCommodityType(CommodityType.VCPU)
+                        .setVcpuData(VCpuData.newBuilder()
+                                .setHotAddSupported(false)
+                                .setHotRemoveSupported(true)
+                                .build())
+                        .build())
+                .build();
         final TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
-            StitchingEntityData.newBuilder(entity.toBuilder())
-                .build());
+                StitchingEntityData.newBuilder(entity.toBuilder())
+                        .build());
         entity.getCommoditiesSoldList().forEach(commodity -> stitchingEntity
-            .addCommoditySold(commodity.toBuilder(), Optional.empty()));
+                .addCommoditySold(commodity.toBuilder(), Optional.empty()));
 
         final TopologyEntityDTO.Builder topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity,
-                resoldCommodityCache);
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity,
+                        resoldCommodityCache);
         final List<CommoditySoldDTO> commoditySoldDTOS =
-            topologyEntityDTO.getCommoditySoldListList();
+                topologyEntityDTO.getCommoditySoldListList();
         assertEquals(2, commoditySoldDTOS.size());
         final List<CommoditySoldDTO> vCpuCommList = commoditySoldDTOS.stream().filter(commSold ->
-            CommodityType.VCPU_VALUE == commSold.getCommodityType().getType())
-            .collect(Collectors.toList());
+                CommodityType.VCPU_VALUE == commSold.getCommodityType().getType())
+                .collect(Collectors.toList());
         assertEquals(1, vCpuCommList.size());
         final CommoditySoldDTO vCpuComm = vCpuCommList.get(0);
         assertTrue(vCpuComm.hasHotResizeInfo());
@@ -504,8 +504,8 @@ public class SdkToTopologyEntityConverterTest {
         assertTrue(vCpuComm.getHotResizeInfo().getHotRemoveSupported());
 
         final List<CommoditySoldDTO> vMemCommList = commoditySoldDTOS.stream().filter(commSold ->
-            CommodityType.VMEM_VALUE == commSold.getCommodityType().getType())
-            .collect(Collectors.toList());
+                CommodityType.VMEM_VALUE == commSold.getCommodityType().getType())
+                .collect(Collectors.toList());
         assertEquals(1, vMemCommList.size());
         final CommoditySoldDTO vMemComm = vMemCommList.get(0);
         assertTrue(vMemComm.hasHotResizeInfo());

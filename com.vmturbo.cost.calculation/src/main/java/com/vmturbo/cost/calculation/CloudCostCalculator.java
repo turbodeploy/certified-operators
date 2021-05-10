@@ -6,7 +6,6 @@ import static com.vmturbo.trax.Trax.trax;
 import static com.vmturbo.trax.Trax.traxConstant;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +19,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -29,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
@@ -875,8 +871,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     @Nonnull
     private Price calculateRDBStorageCost(@Nonnull final List<Price> dependentPricesList,
                                           @Nonnull final ENTITY_CLASS entity) {
-        final int entityType = entityInfoExtractor.getEntityType(entity);
-        final String entityTypeName = EntityType.forNumber(entityType).name();
+        final String entityTypeName = EntityType.forNumber(entityInfoExtractor.getEntityType(entity)).name();
         final float storageAmount;
         final float storageAmountInMB;
         final Optional<Float> dbStorageCapacity = entityInfoExtractor.getRDBStorageCapacity(entity);
@@ -927,8 +922,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 break;
             }
         }
-        //TODO: suppress this message for RDS until OM-68021 will be implemented
-        if (currentSize < storageAmount && entityType != EntityType.DATABASE_SERVER_VALUE) {
+        if (currentSize < storageAmount) {
             logger.error("The storage tier was unable to satisfy {}: {} storage requirement."
                     + "This will lead to incorrect cost calculation.", entityTypeName, entityInfoExtractor.getName(entity));
         }
