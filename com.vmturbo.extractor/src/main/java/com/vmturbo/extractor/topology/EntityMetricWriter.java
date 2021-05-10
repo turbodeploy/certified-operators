@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -131,6 +132,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final PrimitiveFieldsOnTEDPatcher tedPatcher;
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher;
     private final DataPack<Long> oidPack;
+    private final DataExtractionFactory dataExtractionFactory;
     private final ScopeManager scopeManager;
     private DSLContext dsl;
 
@@ -150,6 +152,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         this.entityHashManager = entityHashManager;
         this.scopeManager = scopeManager;
         this.oidPack = oidPack;
+        this.dataExtractionFactory = dataExtractionFactory;
         TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
         this.tedPatcher = new PrimitiveFieldsOnTEDPatcher(PatchCase.REPORTING, targetsExtractor);
         this.groupPatcher = new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.REPORTING, targetsExtractor);
@@ -503,8 +506,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private void updateScopes(DataProvider dataProvider)
             throws UnsupportedDialectException, InterruptedException, SQLException {
+        final Optional<RelatedEntitiesExtractor> extractorOptional =
+                dataExtractionFactory.newRelatedEntitiesExtractor();
+        if (!extractorOptional.isPresent()) {
+            // this should not happen
+            logger.error("Topology graph or supply chain is not ready, skipping updating scopes");
+            return;
+        }
+        final RelatedEntitiesExtractor relatedEntitiesExtractor = extractorOptional.get();
+
         scopeManager.startTopology(topologyInfo);
-        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), dataProvider));
+        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), relatedEntitiesExtractor));
 
         // Scope manager needs to know the types of all entities and groups appearing in
         // current topology, so we construct the needed map here.
@@ -609,17 +621,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
         return r;
     }
 
-    private void updateScope(long oid, DataProvider dataProvider) {
+    private void updateScope(long oid, RelatedEntitiesExtractor relatedEntitiesExtractor) {
         // first collect oids for entities related to this one via supply chain
-        final LongSet entitiesInScope = dataProvider.getRelatedEntities(oid);
+        final LongSet entitiesInScope = relatedEntitiesExtractor.getRelatedEntitiesByType(oid).values().stream()
+                .flatMap(Collection::stream)
+                .mapToLong(Long::longValue)
+                .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
         logger.debug("Adding entities to scope for entity {}: {}", () -> oid, () -> entitiesInScope);
         scopeManager.addInCurrentScope(oid, entitiesInScope.toLongArray());
         // then we collect all the groups that any of our related entities belong to...
-        LongSet groupsInScope = entitiesInScope.stream()
-                .map(dataProvider::getGroupsForEntity)
-                .flatMap(Collection::stream)
+        LongSet groupsInScope = relatedEntitiesExtractor.getRelatedGroups(entitiesInScope.stream())
                 .mapToLong(Grouping::getId)
-                .distinct()
                 .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
         logger.debug("Adding groups to scope for entity {}: {}", () -> oid, () -> groupsInScope);
         // groups are added symmetrically to the entity scope
