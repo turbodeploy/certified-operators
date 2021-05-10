@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -110,6 +111,7 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
@@ -199,6 +201,11 @@ public class EntityMetricWriterTest {
         entityHashManager.injectPriorTopology();
         this.scopeManager = mock(ScopeManager.class);
         this.dataExtractionFactory = mock(DataExtractionFactory.class);
+        RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
+        doReturn(Collections.emptyMap()).when(relatedEntitiesExtractor).getRelatedEntitiesByType(anyLong());
+        doAnswer(i -> Stream.empty()).when(relatedEntitiesExtractor).getRelatedGroups(anyObject());
+        doReturn(Optional.of(relatedEntitiesExtractor)).when(dataExtractionFactory).newRelatedEntitiesExtractor();
+
         this.writer = spy(new EntityMetricWriter(endpoint,
                 entityHashManager,
                 scopeManager, oidPack,
