@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.reflect.TypeToken;
-
 import org.jooq.DSLContext;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -32,7 +30,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.ClusterToHeadroomTemplateId;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -352,5 +349,16 @@ public class TemplatesDaoImplTest {
 
         assertTrue(retrievedTemplate.isPresent());
         assertEquals(template2, retrievedTemplate.get());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testValidateTemplate() throws DuplicateTemplateException {
+        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+                .setName("template-instance-template-instance-template-instance-template-instance-template-instance-" +
+                        "template-instance-template-instance-template-instance-template-instance-template-instance-" +
+                        "template-instance-template-instance-template-instance-template-instance-template-instance")
+                .build();
+        Template result = templatesDao.createTemplate(templateInfo);
+        assertEquals(result.getTemplateInfo(), templateInfo);
     }
 }
