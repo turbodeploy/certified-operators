@@ -106,20 +106,18 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          * Class representing a storage option.
          */
         public static class DbsStorageOption extends GenericDbPriceBundle.GenericStorageOption {
-            // This is the possible increment in GB in this option (ex. 250GB).
-            final long absoluteIncrement;
+
+            final int commodityType;
 
             /**
-             * Defines the number of percents we use to calculate new commodity value:
-             * new value should be N% greater than previous.
-             * E.g. if this number is 10%, and we resize 500GB storage, miniumum new value
-             * is 500 + (500 * 10%) = 550GB.
+             * Get commodity type.
              *
-             * @return commodity minimum increase in percentage
+             * @return commodity type
              */
-            public long getAbsoluteIncrement() {
-                return absoluteIncrement;
+            public int getCommodityType() {
+                return commodityType;
             }
+
 
             /**
              * Constructor for the storage option.
@@ -127,10 +125,11 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
              * @param increment the increment.
              * @param endRange The end range.
              * @param price The price.
+             * @param commodityType commodity type for which price is applied.
              */
-            public DbsStorageOption(long increment, long endRange, double price) {
-                super(endRange, price);
-                this.absoluteIncrement = increment;
+            public DbsStorageOption(long increment, long endRange, double price, int commodityType) {
+                super(increment, endRange, price);
+                this.commodityType = commodityType;
             }
         }
     }

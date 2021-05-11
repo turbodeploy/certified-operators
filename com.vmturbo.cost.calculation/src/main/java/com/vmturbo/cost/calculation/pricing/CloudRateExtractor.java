@@ -359,12 +359,14 @@ public class CloudRateExtractor {
                     case GB_MONTH:
                         storageOptions.add(new DbsStorageOption(dependentPrice.getIncrementInterval(),
                                 dependentPrice.getEndRangeInUnits(),
-                                CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
+                                CostProtoUtil.getHourlyPriceAmount(dependentPrice), CommodityType.STORAGE_AMOUNT_VALUE));
                         break;
                     case MILLION_IOPS:
+                        storageOptions.add(new DbsStorageOption(dependentPrice.getIncrementInterval(),
+                                dependentPrice.getEndRangeInUnits(),
+                                CostProtoUtil.getHourlyPriceAmount(dependentPrice), CommodityType.STORAGE_ACCESS_VALUE));
                     default:
-                        // not yet supported.
-                        // TODO: PaaS team: for database server IOPS prices coming soon.
+                        // other not yet supported.
                 }
             });
 

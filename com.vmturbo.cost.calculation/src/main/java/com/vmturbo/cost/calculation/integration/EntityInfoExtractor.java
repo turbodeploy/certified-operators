@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
@@ -120,7 +121,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      * @return An Optional StorageAmount in float.
      */
     @Nonnull
-    Optional<Float> getRDBStorageCapacity(@Nonnull ENTITY_CLASS entity);
+    Optional<Float> getRDBCommodityCapacity(@Nonnull ENTITY_CLASS entity, CommodityType commodityType);
 
     /*
      * Get the compute tier configuration of a particular entity.

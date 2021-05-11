@@ -106,16 +106,6 @@ public class DatabasePriceBundle extends GenericDbPriceBundle<DatabasePrice> {
          * Class representing a storage option.
          */
         public static class StorageOption extends GenericDbPriceBundle.GenericStorageOption {
-            final long increment;
-
-            /**
-             * Possible increment in GB in this option (ex. 250GB).
-             *
-             * @return possible increment in GB in this option
-             */
-            public long getIncrement() {
-                return increment;
-            }
 
             /**
              * Constructor for the storage option.
@@ -125,8 +115,7 @@ public class DatabasePriceBundle extends GenericDbPriceBundle<DatabasePrice> {
              * @param price The price.
              */
             public StorageOption(long increment, long endRange, double price) {
-                super(endRange, price);
-                this.increment = increment;
+                super(increment, endRange, price);
             }
         }
     }
