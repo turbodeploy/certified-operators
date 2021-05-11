@@ -16,11 +16,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
@@ -29,7 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -46,7 +40,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
@@ -61,6 +54,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfi
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -87,7 +81,6 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
-import com.vmturbo.trax.TraxNumber;
 
 /**
  * Unit tests for {@link CloudCostCalculator}.
@@ -169,6 +162,10 @@ public class CloudCostCalculatorTest {
     private static final long VOLUME_ID = 7;
     private static final long DEFAULT_VM_ID = 7;
     private static final long DEFAULT_SERVICE_ID = 0;
+    private static final int MIN_RDS_STORAGE = 20;
+    private static final int MAX_RDS_STORAGE = 1000;
+    private static final int MIN_RDS_IOPS = 100;
+    private static final int MAX_RDS_IOPS = 1000;
 
     private static final TestEntityClass region = TestEntityClass.newBuilder(REGION_ID)
                     .build(infoExtractor);
@@ -744,7 +741,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
-        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of((float)STORAGE_RANGE));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
             ACCOUNT_PRICING_DATA_OID, 15L, 20L);
@@ -792,7 +789,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
         // 21 GB.
-        when(infoExtractor.getRDBStorageCapacity(any()))
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT)))
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
@@ -828,6 +825,8 @@ public class CloudCostCalculatorTest {
     public void testCalculateOnDemandCostForDatabaseServer() {
         // arrange
         final long dbId = 9;
+        final float storageAmount = 1024f;
+        final float iopsAmount = 100f;
 
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
             .setType(EntityType.DATABASE_SERVER_VALUE)
@@ -835,7 +834,8 @@ public class CloudCostCalculatorTest {
                 DatabaseEdition.ENTERPRISE,
                 DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
             .build(infoExtractor);
-        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of(10f));
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of(storageAmount));
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_ACCESS))).thenReturn(Optional.of(iopsAmount));
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
@@ -851,12 +851,15 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
         // assert
-        assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
+        final double expectedStorageCode =
+                (Math.max(storageAmount / 1024, MIN_RDS_STORAGE) * STORAGE_PRICE + Math.max(iopsAmount, MIN_RDS_IOPS) * IOPS_PRICE)
+                        / CostProtoUtil.HOURS_IN_MONTH;
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(expectedStorageCode));
 
         // Once for the compute, once for storage,  no license cost
-        verify(discountApplicator, times(2)).getDiscountPercentage(databaseServerTier);
+        verify(discountApplicator, times(3)).getDiscountPercentage(databaseServerTier);
     }
 
     /**
@@ -1010,7 +1013,8 @@ public class CloudCostCalculatorTest {
     }
 
     private static PriceTable thePriceTable() {
-
+        CurrencyAmount storagePrice = CurrencyAmount.newBuilder().setAmount(STORAGE_PRICE).build();
+        CurrencyAmount iopsPrice = CurrencyAmount.newBuilder().setAmount(IOPS_PRICE).build();
         DatabaseServerTierPriceList dbsPriceList = DatabaseServerTierPriceList.newBuilder()
                 .addConfigPrices(DatabaseServerTierConfigPrice.newBuilder()
                         .setDatabaseTierConfigPrice(DatabaseTierConfigPrice.newBuilder()
@@ -1029,6 +1033,10 @@ public class CloudCostCalculatorTest {
                                 .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
                                 .addPrices(price(Unit.HOURS, BASE_PRICE + MYSQL_ADJUSTMENT))
                                 .build())
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.GB_MONTH).setEndRangeInUnits(MIN_RDS_STORAGE).setIncrementInterval(MIN_RDS_STORAGE).setPriceAmount(storagePrice))
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.GB_MONTH).setEndRangeInUnits(MAX_RDS_STORAGE).setIncrementInterval(1).setPriceAmount(storagePrice))
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.MILLION_IOPS).setEndRangeInUnits(MIN_RDS_IOPS).setIncrementInterval(MIN_RDS_IOPS).setPriceAmount(iopsPrice))
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.MILLION_IOPS).setEndRangeInUnits(MAX_RDS_IOPS).setIncrementInterval(1).setPriceAmount(iopsPrice))
                         .build()).build();
 
 

@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -219,7 +221,7 @@ public class CostDTOCreator {
     private DependentResourceOption convertStorageOptionToResourceOption(
             @Nonnull final DbsStorageOption storageOption) {
         return DependentResourceOption.newBuilder()
-                .setAbsoluteIncrement(storageOption.getAbsoluteIncrement())
+                .setAbsoluteIncrement(storageOption.getIncrement())
                 .setEndRange(storageOption.getEndRange())
                 .setPrice(storageOption.getPrice())
                 .build();
@@ -373,22 +375,23 @@ public class CostDTOCreator {
                         }
                     }
 
-                    //TODO: PaaS implement depended storarge cost here
-                    // for DB server we have IOPS and Storage Amount dependent cost
-                    List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
-                    List<DependentCostTuple.DependentResourceOption> dependentResourceOptions = new ArrayList<>();
-                    storageOptions.forEach(storageOption -> {
-                        dependentResourceOptions.add(
-                                convertStorageOptionToResourceOption(storageOption));
-                    });
-                    dependentCostTuples.add(DependentCostTuple.newBuilder()
-                            .setDependentResourceType(commodityConverter.commoditySpecification(
-                                    CommodityType.newBuilder()
-                                            .setType(
-                                                    CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
-                                            .build()).getType())
-                            .addAllDependentResourceOptions(dependentResourceOptions)
-                            .build());
+                    final Multimap<Integer, DependentResourceOption> storageOptionMap = ArrayListMultimap.create();
+                    for (DbsStorageOption storageOption : storageOptions) {
+                        storageOptionMap.put(storageOption.getCommodityType(), convertStorageOptionToResourceOption(storageOption));
+                    }
+                    final List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
+                    for (Integer commodityType : storageOptionMap.keySet()) {
+                        final Collection<DependentResourceOption> dependentResourceOptions =
+                                storageOptionMap.get(commodityType);
+                        final int dependentResourceType = commodityConverter.commoditySpecification(
+                                CommodityType.newBuilder().setType(commodityType).build())
+                                .getType();
+                        dependentCostTuples.add(
+                                DependentCostTuple.newBuilder()
+                                        .setDependentResourceType(dependentResourceType)
+                                        .addAllDependentResourceOptions(dependentResourceOptions)
+                                        .build());
+                    }
                     CommoditySpecificationTO spec =
                             commodityConverter.commoditySpecification(licenseCommodity);
                     dbTierDTOBuilder.addCostTupleList(

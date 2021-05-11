@@ -188,6 +188,17 @@ public class GenericDbPriceBundle<T extends GenericPrice> {
 
         private final long endRange;
         private final double price;
+        private final long increment;
+
+        /**
+         * Possible increment in GB in this option (ex. 250GB).
+         *
+         * @return possible increment in GB in this option
+         */
+        public long getIncrement() {
+            return increment;
+        }
+
 
         /**
          * The end range of the commodity in commodity units.
@@ -212,10 +223,12 @@ public class GenericDbPriceBundle<T extends GenericPrice> {
         /**
          * Constructor for the storage option.
          *
+         * @param increment the increment.
          * @param endRange The end range.
          * @param price The price.
          */
-        public GenericStorageOption(long endRange, double price) {
+        public GenericStorageOption(long increment, long endRange, double price) {
+            this.increment = increment;
             this.endRange = endRange;
             this.price = price;
         }
