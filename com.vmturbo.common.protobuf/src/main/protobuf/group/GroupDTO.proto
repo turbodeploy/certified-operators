@@ -155,6 +155,13 @@ message Origin {
         // This is also used to join together groups across targets, and to distinguish between
         // re-discovered groups and newly discovered groups.
         optional string source_identifier = 2;
+
+        // If true, the group identity will not be qualified by the target ID. Any overlapping
+        // uploaded groups will be merged, resulting in a union of the static members. The stitching
+        // logic does not handle conflicts in the group definition. It will only merge the static
+        // members of each group, choosing the first group definition processed. IF this is true
+        // source information will not be set in the corresponding GroupApiDTO.
+        optional bool stitch_across_targets = 3 [default = false];
     }
 
     // The group was created internally by the system.
@@ -450,6 +457,9 @@ message DiscoveredGroupsPoliciesSettings {
         optional string source_identifier = 1;
         // the definition of the group after interpretation in TP
         optional GroupDefinition definition = 2;
+
+        // the stitch across targets flag coming from the probe
+        optional bool stitch_across_targets = 3 [default = false];
     }
 }
 

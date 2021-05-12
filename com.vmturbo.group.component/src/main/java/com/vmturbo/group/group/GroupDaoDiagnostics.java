@@ -187,8 +187,8 @@ public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
                 final Origin.Discovered origin = group.getOrigin().getDiscovered();
                 final DiscoveredGroup discoveredGroup =
                         new DiscoveredGroup(group.getId(), group.getDefinition(), origin.getSourceIdentifier(),
-                                new HashSet<>(origin.getDiscoveringTargetIdList()), group.getExpectedTypesList(),
-                                group.getSupportsMemberReverseLookup());
+                                origin.getStitchAcrossTargets(), new HashSet<>(origin.getDiscoveringTargetIdList()),
+                                group.getExpectedTypesList(), group.getSupportsMemberReverseLookup());
                 discoveredGroupsConverted.add(discoveredGroup);
             } else {
                 nonDiscoveredGroups.add(group);

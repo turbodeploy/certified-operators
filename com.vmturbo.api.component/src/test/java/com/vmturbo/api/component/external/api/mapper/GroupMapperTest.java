@@ -1927,7 +1927,8 @@ public class GroupMapperTest {
                 masterAccountDevelopment, productTrustSubAccount));
 
         Grouping group = Grouping.newBuilder().setId(8L)
-            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder()
+                    .addDiscoveringTargetId(123)))
             .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY)
                 .setDisplayName("Development"))
             .build();
@@ -1946,6 +1947,7 @@ public class GroupMapperTest {
         Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
         BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
         Assert.assertNull(billingFamilyApiDTO.getCostPrice());
+        Assert.assertNull(mappedDto.getSource());
     }
 
     /**

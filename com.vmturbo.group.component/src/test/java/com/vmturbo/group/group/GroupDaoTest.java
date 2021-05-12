@@ -194,7 +194,7 @@ public class GroupDaoTest {
         final GroupDefinition groupDefinition = createGroupDefinition()
             .toBuilder().setDisplayName(displayName).build();
         final DiscoveredGroup group1 = new DiscoveredGroup(OID1, groupDefinition, "grp1",
-            Collections.singleton(100L),
+            false, Collections.singleton(100L),
             Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
         groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
             Collections.emptySet());

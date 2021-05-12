@@ -290,6 +290,7 @@ public interface IGroupStore {
         private final long oid;
         private final GroupDefinition groupDefinition;
         private final String sourceIdentifier;
+        private final boolean stitchAcrossTargets;
         private final Set<Long> targetIds;
         private final Collection<MemberType> expectedMembers;
         private final boolean isReverseLookupSupported;
@@ -300,13 +301,15 @@ public interface IGroupStore {
          * @param oid oid for the group
          * @param groupDefinition group definition
          * @param sourceIdentifier source id from the probe
+         * @param stitchAcrossTargets The stitch across targets flag from the probe.
          * @param targetIds all targets which discovers this group
          * @param expectedMembers expected member types of the group
          * @param isReverseLookupSupported whether reverse lookup is supported for this group
          */
         public DiscoveredGroup(long oid, @Nonnull GroupDefinition groupDefinition,
-                @Nonnull String sourceIdentifier, @Nonnull Set<Long> targetIds,
-                @Nonnull Collection<MemberType> expectedMembers, boolean isReverseLookupSupported) {
+                               @Nonnull String sourceIdentifier, boolean stitchAcrossTargets,
+                               @Nonnull Set<Long> targetIds, @Nonnull Collection<MemberType> expectedMembers,
+                               boolean isReverseLookupSupported) {
             this.targetIds = Objects.requireNonNull(targetIds);
             if (targetIds.isEmpty()) {
                 throw new IllegalArgumentException(
@@ -315,6 +318,7 @@ public interface IGroupStore {
             }
             this.groupDefinition = Objects.requireNonNull(groupDefinition);
             this.sourceIdentifier = Objects.requireNonNull(sourceIdentifier);
+            this.stitchAcrossTargets = stitchAcrossTargets;
             this.expectedMembers = Objects.requireNonNull(expectedMembers);
             this.isReverseLookupSupported = isReverseLookupSupported;
             this.oid = oid;
@@ -344,6 +348,10 @@ public interface IGroupStore {
 
         public long getOid() {
             return oid;
+        }
+
+        public boolean stitchAcrossTargets() {
+            return stitchAcrossTargets;
         }
 
         @Override

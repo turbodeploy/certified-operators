@@ -100,7 +100,8 @@ public class GroupStitchingManager {
             for (UploadedGroup group : targetsToGroups.get(targetId)) {
                 final GroupIdProvider idProvider =
                         (group.getDefinition().getType() == GroupType.RESOURCE
-                                || group.getDefinition().getType() == GroupType.BILLING_FAMILY)
+                                || group.getDefinition().getType() == GroupType.BILLING_FAMILY
+                                || group.getStitchAcrossTargets())
                                 ? crossTargetIdProvider : targetLocalIdProvider;
                 final String groupSourceIdentifier =
                     Truncator.truncateGroupSourceIdentifier(group.getSourceIdentifier(), false);
@@ -124,7 +125,8 @@ public class GroupStitchingManager {
                                 group::getDefinition);
                     }
                     final StitchingGroup stitchingGroup = new StitchingGroup(oid,
-                            group.getDefinition(), group.getSourceIdentifier(), targetId,
+                            group.getDefinition(), group.getSourceIdentifier(),
+                            group.getStitchAcrossTargets(), targetId,
                             !existingOid.isPresent(),
                             existingOid.map(DiscoveredObjectVersionIdentity::getHash).orElse(null));
                     stitchingGroups.put(stitchKey, stitchingGroup);

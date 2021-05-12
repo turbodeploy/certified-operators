@@ -50,6 +50,22 @@ public class GroupTestUtils {
     }
 
     /**
+     * Create an {@link UploadedGroup}, with {@link UploadedGroup#getStitchAcrossTargets()} set to true.
+     *
+     * @param groupType type of the group
+     * @param groupSourceId source id of the group
+     * @param membersByType members of the group
+     * @return {@link UploadedGroup}
+     */
+    public static UploadedGroup createUploadedGlobalGroup(@Nonnull GroupType groupType,
+                                                          @Nonnull String groupSourceId,
+                                                          @Nonnull Map<Integer, Set<Long>> membersByType) {
+        return createUploadedGroup(groupType, groupSourceId, membersByType).toBuilder()
+                .setStitchAcrossTargets(true)
+                .build();
+    }
+
+    /**
      * Create an {@link UploadedGroup}.
      *
      * @param groupType type of the group

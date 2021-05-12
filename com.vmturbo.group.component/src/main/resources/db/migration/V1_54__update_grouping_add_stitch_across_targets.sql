@@ -1,0 +1,1 @@
+ALTER TABLE grouping ADD COLUMN stitch_across_targets BOOLEAN DEFAULT FALSE;
