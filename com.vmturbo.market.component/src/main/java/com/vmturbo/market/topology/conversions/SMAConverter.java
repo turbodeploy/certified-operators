@@ -229,13 +229,6 @@ public class SMAConverter {
                 ShoppingListTO sl =
                         projectedVmTraderTO.getShoppingListsList()
                                 .get(indexOfComputeShoppingList);
-
-                // If the shopping list is not part of CloudVmComputeShoppingListIDs because
-                // the vm is uncontrollable dont generate any action for it.
-                if (!converter.getCloudVmComputeShoppingListIDs().contains(sl.getOid())) {
-                    continue;
-                }
-
                 MinimalOriginalTrader sourceTraderTO = originalTraderTOMap.get(sourceOnDemandMarketTierOid);
 
                 // Compare the comm sold by the current supplier and comm bought by the VM and
