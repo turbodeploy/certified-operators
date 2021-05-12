@@ -1428,7 +1428,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
         final String truncatedSourceIdentifier =
             Truncator.truncateGroupSourceIdentifier(src.getSourceId(), true);
-        return new DiscoveredGroup(src.getOid(), groupDefinition, truncatedSourceIdentifier,
+        return new DiscoveredGroup(src.getOid(), groupDefinition,
+                truncatedSourceIdentifier, src.stitchAcrossTargets(),
                 src.getTargetIds(), expectedMembers,
                 determineMemberReverseLookupSupported(groupDefinition));
     }

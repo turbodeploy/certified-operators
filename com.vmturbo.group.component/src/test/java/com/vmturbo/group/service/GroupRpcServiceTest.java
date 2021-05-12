@@ -1624,7 +1624,8 @@ public class GroupRpcServiceTest {
         final long oid1 = 100001L;
         final long oid2 = 100002L;
         final DiscoveredGroup discoveredGroup2 = new DiscoveredGroup(oid2, group2.getDefinition(),
-                group2.getSourceIdentifier(), Collections.singleton(TARGET1), Collections.singleton(
+                group2.getSourceIdentifier(), group2.getStitchAcrossTargets(),
+                Collections.singleton(TARGET1), Collections.singleton(
                 MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()), true);
         final byte[] hash = DiscoveredGroupHash.hash(discoveredGroup2);
         Mockito.when(

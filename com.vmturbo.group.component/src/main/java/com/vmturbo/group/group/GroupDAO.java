@@ -927,7 +927,8 @@ public class GroupDAO implements IGroupStore {
                 origin = Origin.newBuilder()
                         .setDiscovered(Origin.Discovered.newBuilder()
                                 .addAllDiscoveringTargetId(targets)
-                                .setSourceIdentifier(group.getOriginDiscoveredSrcId()))
+                                .setSourceIdentifier(group.getOriginDiscoveredSrcId())
+                                .setStitchAcrossTargets(group.getStitchAcrossTargets()))
                         .build();
             } else {
                 throw new RuntimeException("Unknown origin for the group " + group.getId());
@@ -1849,6 +1850,7 @@ public class GroupDAO implements IGroupStore {
             groupPojo.setId(effectiveId);
             groupPojo.setSupportsMemberReverseLookup(group.isReverseLookupSupported());
             groupPojo.setOriginDiscoveredSrcId(sourceIdentifier);
+            groupPojo.setStitchAcrossTargets(group.stitchAcrossTargets());
             groupPojo.setHash(DiscoveredGroupHash.hash(group));
             queriesToAppend.add(createFunction.apply(groupPojo));
             insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
@@ -1935,6 +1937,7 @@ public class GroupDAO implements IGroupStore {
                 .set(GROUPING.DISPLAY_NAME, groupPojo.getDisplayName())
                 .set(GROUPING.IS_HIDDEN, groupPojo.getIsHidden())
                 .set(GROUPING.OWNER_ID, groupPojo.getOwnerId())
+                .set(GROUPING.STITCH_ACROSS_TARGETS, groupPojo.getStitchAcrossTargets())
                 .set(GROUPING.SUPPORTS_MEMBER_REVERSE_LOOKUP,
                         groupPojo.getSupportsMemberReverseLookup())
                 .set(GROUPING.ORIGIN_DISCOVERED_SRC_ID, groupPojo.getOriginDiscoveredSrcId())

@@ -862,7 +862,7 @@ public class GroupMapper {
          if (group.hasOrigin()) {
 
              outputDTO.setGroupOrigin(GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN.get(group.getOrigin().getCreationOriginCase()));
-             if (group.getOrigin().hasDiscovered()) {
+             if (group.getOrigin().hasDiscovered() && !group.getOrigin().getDiscovered().getStitchAcrossTargets()) {
                  ThinTargetInfo source = null;
                  for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
                      Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);

@@ -31,6 +31,7 @@ public class StitchingGroup {
     private final long oid;
     private final GroupDefinition.Builder groupDefinition;
     private final String sourceId;
+    private final boolean stitchAcrossTargets;
     private final Set<Long> targets;
     private final boolean newGroup;
     private final byte[] existingHash;
@@ -42,6 +43,7 @@ public class StitchingGroup {
      * @param oid OID of the group
      * @param groupDefinition the group definition
      * @param sourceId source identifier
+     * @param stitchAcrossTargets The stitch across targets flag.
      * @param targetId id of the target which discovers this group
      * @param existingHash has of the matched existing group. If this is a new group, this
      *         value will be {@code null}. It still may be {@code null} for existing groups
@@ -49,10 +51,12 @@ public class StitchingGroup {
      *         the existing group (otherwise)
      */
     StitchingGroup(final long oid, final GroupDefinition groupDefinition, final String sourceId,
-            final long targetId, boolean newGroup, final @Nullable byte[] existingHash) {
+                   boolean stitchAcrossTargets, final long targetId,
+                   boolean newGroup, final @Nullable byte[] existingHash) {
         this.oid = oid;
         this.groupDefinition = GroupDefinition.newBuilder(Objects.requireNonNull(groupDefinition));
         this.sourceId = Objects.requireNonNull(sourceId);
+        this.stitchAcrossTargets = stitchAcrossTargets;
         this.targets = new HashSet<>();
         this.newGroup = newGroup;
         this.existingHash = existingHash;
@@ -106,6 +110,14 @@ public class StitchingGroup {
      */
     public String getSourceId() {
         return sourceId;
+    }
+
+    /**
+     * Get the stitch across targets flag for this group from the probe.
+     * @return The stitch across targets flag.
+     */
+    public boolean stitchAcrossTargets() {
+        return stitchAcrossTargets;
     }
 
     /**

@@ -139,6 +139,7 @@ public class InterpretedGroup {
         groupDefinition.ifPresent(group ->
                 builder.setUploadedGroup(UploadedGroup.newBuilder()
                         .setSourceIdentifier(GroupProtoUtil.extractId(sdkDTO))
+                        .setStitchAcrossTargets(sdkDTO.getStitchAcrossTargets())
                         .setDefinition(group)));
         return builder.build();
     }
