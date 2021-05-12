@@ -73,7 +73,8 @@ global:
     fsGroup: 2000
   certmanager:
     enabled: false
-    certissuer: letsencrypt-prod
+    issuer: letsencrypt
+    kind: ClusterIssuer
   ingress:
     # domain: *.turbonomic.com
     secrets:
