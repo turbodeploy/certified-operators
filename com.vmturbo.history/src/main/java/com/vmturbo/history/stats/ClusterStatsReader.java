@@ -349,14 +349,15 @@ public class ClusterStatsReader {
 
         // extract requested fields (stats)
         final Set<String> requestedStats = StatsUtils.collectCommodityNames(augmentedFilter);
+        final boolean allStatsAreRequested = requestedStats.isEmpty();
         final Map<Boolean, Set<String>> splitRequestedStats =
             requestedStats.stream()
                 .collect(Collectors.partitioningBy(STATS_STORED_DAILY::contains, Collectors.toSet()));
-        final Set<String> requestedDailyStats = splitRequestedStats.get(true);
+        final Set<String> requestedDailyStats = allStatsAreRequested
+            ? STATS_STORED_DAILY : splitRequestedStats.get(true);
         final Set<String> requestedNonDailyStats = splitRequestedStats.get(false);
 
         // set some flags related to the request
-        final boolean allStatsAreRequested = requestedStats.isEmpty();
         final boolean dailyStatsAreRequested = allStatsAreRequested || !requestedDailyStats.isEmpty();
         final boolean nonDailyStatsAreRequested = allStatsAreRequested || !requestedNonDailyStats.isEmpty();
         final boolean projectedStatsAreIncludedInTheRequest =
