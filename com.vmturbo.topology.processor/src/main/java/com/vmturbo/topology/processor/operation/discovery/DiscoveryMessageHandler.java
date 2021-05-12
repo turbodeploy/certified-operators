@@ -58,6 +58,8 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery, 
                             DiscoveryResponse.Builder::setNoChange)
                         .addRepeatedField(DiscoveryResponse::getFlowDTOList,
                                 DiscoveryResponse.Builder::addAllFlowDTO)
+                        .addRepeatedField(DiscoveryResponse::getStagesDetailList,
+                            DiscoveryResponse.Builder::addAllStagesDetail)
                         .build();
     }
 
