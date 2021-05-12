@@ -281,7 +281,7 @@ public class PipelineTest {
     public void testMissingRequirement() {
         expectedException.expect(PipelineContextMemberException.class);
         expectedException.expectMessage("No earlier stage provides required pipeline "
-            + "dependencies (baz[List]) without default for stage TestPassthroughStage.");
+            + "context member (baz[List]) without default for stage TestPassthroughStage.");
 
         final TestPassthroughStage stage1 = new TestPassthroughStage();
         final TestPassthroughStage stage2 = new TestPassthroughStage();
@@ -424,13 +424,13 @@ public class PipelineTest {
         assertThat(status.getMessageWithSummary(), either(
             is("My message\n"
                 + "PIPELINE_CONTEXT_MEMBERS:\n"
-                + "\tPROVIDED=(baz[size=2])\n"
-                + "\tREQUIRED=(quux[one object])\n"
-                + "\tDROPPED=(quux, baz)\n")).or(
+                + "    PROVIDED=(baz[size=2])\n"
+                + "    REQUIRED=(quux[one object])\n"
+                + "    DROPPED=(quux, baz)\n")).or(
             is("My message\n"
                 + "PIPELINE_CONTEXT_MEMBERS:\n"
-                + "\tPROVIDED=(baz[size=2])\n"
-                + "\tREQUIRED=(quux[one object])\n"
-                + "\tDROPPED=(baz, quux)\n")));
+                + "    PROVIDED=(baz[size=2])\n"
+                + "    REQUIRED=(quux[one object])\n"
+                + "    DROPPED=(baz, quux)\n")));
     }
 }

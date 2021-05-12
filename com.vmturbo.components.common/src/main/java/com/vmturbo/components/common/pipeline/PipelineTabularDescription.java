@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,6 +20,7 @@ import de.vandermeer.asciitable.CWC_LongestLine;
 import de.vandermeer.asciithemes.a7.A7_Grids;
 import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -101,13 +103,18 @@ public class PipelineTabularDescription {
                     .map(supplier -> supplier.getMemberDefinition())
                     .collect(Collectors.toList());
                 tableRow(table, Pipeline.INITIAL_STAGE_NAME, "", "", defs.iterator(),
-                    Collections.emptyIterator(), Collections.emptyIterator(), seenDefinitions);
+                    Collections.emptyIterator(), Collections.emptyIterator(), seenDefinitions, 0);
             }
 
             // Add entries for each stage.
+            int segmentDepth = 0;
             pipeline.getStages().forEach(stage -> {
                 table.addRule();
-                addStageRow(table, stage, seenDefinitions);
+                if (stage instanceof SegmentStage) {
+                    addSegmentRows(table, (SegmentStage<?, ?, ?, ?, ?>)stage, seenDefinitions, segmentDepth);
+                } else {
+                    addStageRow(table, stage, seenDefinitions, segmentDepth);
+                }
             });
             table.addRule();
 
@@ -121,15 +128,62 @@ public class PipelineTabularDescription {
     }
 
     private static void addStageRow(@Nonnull final AsciiTable table, @Nonnull final Stage<?, ?, ?> stage,
-                                    @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions) {
+                                    @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions,
+                                    final int segmentDepth) {
         try {
-            final ParameterizedType type = getStageParameterizedType(stage.getClass());
-            String inputName = "";
-            String outputName = "";
+            final InputOutputNames inputOutputNames = getStageInputOutputClassNames(stage);
+            final Iterator<PipelineContextMemberDefinition<?>> provides = stage.getProvidedContextMembers().iterator();
+            final Iterator<PipelineContextMemberDefinition<?>> requires = stage.getContextMemberRequirements().iterator();
+            final Iterator<PipelineContextMemberDefinition<?>> toDrop = stage.getContextMembersToDrop().iterator();
+
+            tableRow(table, stage.getName(), inputOutputNames.stageInputClassName, inputOutputNames.stageOutputClassName,
+                provides, requires, toDrop, seenDefinitions, segmentDepth);
+        } catch (RuntimeException e) {
+            logger.error("Error: ", e);
+        }
+    }
+
+    private static void addSegmentRows(@Nonnull final AsciiTable table, @Nonnull final SegmentStage<?, ?, ?, ?, ?> stage,
+                                       @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions,
+                                       final int segmentDepth) {
+        try {
 
             final Iterator<PipelineContextMemberDefinition<?>> provides = stage.getProvidedContextMembers().iterator();
             final Iterator<PipelineContextMemberDefinition<?>> requires = stage.getContextMemberRequirements().iterator();
             final Iterator<PipelineContextMemberDefinition<?>> toDrop = stage.getContextMembersToDrop().iterator();
+            final InputOutputNames segmentInputOutputs = getSegmentInputOutputs(stage);
+
+            tableRow(table, "Start " + stage.getName(),
+                segmentInputOutputs.stageInputClassName, segmentInputOutputs.segmentInputClassName,
+                Collections.emptyListIterator(), requires, Collections.emptyListIterator(),
+                seenDefinitions, segmentDepth);
+            stage.getInteriorStages().forEach(segmentStage -> {
+                table.addRule();
+                if (segmentStage instanceof SegmentStage) {
+                    addSegmentRows(table, (SegmentStage<?, ?, ?, ?, ?>)segmentStage, seenDefinitions, segmentDepth + 1);
+                } else {
+                    addStageRow(table, segmentStage, seenDefinitions, segmentDepth + 1);
+                }
+            });
+            table.addRule();
+
+            tableRow(table, "Finish " + stage.getName(),
+                segmentInputOutputs.segmentOutputClassName, segmentInputOutputs.stageOutputClassName,
+                provides, Collections.emptyListIterator(), toDrop,
+                seenDefinitions, segmentDepth);
+        } catch (RuntimeException e) {
+            logger.error("Error: ", e);
+        }
+    }
+
+    private static InputOutputNames getStageInputOutputClassNames(@Nonnull final Stage<?, ?, ?> stage) {
+        try {
+            if (stage instanceof SegmentStage) {
+                return getSegmentInputOutputs((SegmentStage<?, ?, ?, ?, ?>)stage);
+            }
+            final ParameterizedType type = getStageParameterizedType(stage.getClass());
+            String inputName = "";
+            String outputName = "";
 
             if (type != null) {
                 final Type[] actualTypeArguments = type.getActualTypeArguments();
@@ -147,11 +201,49 @@ public class PipelineTabularDescription {
                 }
             }
 
-            tableRow(table, stage.getName(), inputName, outputName, provides,
-                requires, toDrop, seenDefinitions);
+            return new InputOutputNames(inputName, outputName);
         } catch (RuntimeException e) {
             logger.error("Error: ", e);
+            return new InputOutputNames("", "");
         }
+    }
+
+    private static InputOutputNames getSegmentInputOutputs(@Nonnull final SegmentStage<?, ?, ?, ?, ?> stage) {
+        final ParameterizedType type = getStageParameterizedType(stage.getClass());
+        String stageInput = "";
+        String segmentInput = "";
+        String segmentOutput = "";
+        String stageOutput = "";
+
+        if (type != null && !stage.isAnonymousClass()) {
+            final Type[] actualTypeArguments = type.getActualTypeArguments();
+
+            if (actualTypeArguments != null && actualTypeArguments.length >= 4) {
+                // Indicates this is a passthrough stage
+                stageInput = getParameterizedTypeName(actualTypeArguments[0]);
+                segmentInput = getParameterizedTypeName(actualTypeArguments[1]);
+                segmentOutput = getParameterizedTypeName(actualTypeArguments[2]);
+                stageOutput = getParameterizedTypeName(actualTypeArguments[3]);
+            }
+        }
+
+        if (stage.isAnonymousClass()) {
+            // Anonymous stages are generally built with {@link SegmentDefinition#asStage(String)} which
+            // forces segment and stage inputs and outputs to match. When a stage is anonymous the parameterized
+            // types are elided in a way that we can't access them at runtime to print the relevant debugging info
+            // so we have to get them this way.
+            if (stageInput.isEmpty() && stage.getInteriorStages().size() > 0) {
+                final InputOutputNames inputOutputNames = getStageInputOutputClassNames(stage.getInteriorStages().get(0));
+                stageInput = segmentInput = inputOutputNames.stageInputClassName;
+            }
+            if (stageOutput.isEmpty() && stage.getInteriorStages().size() > 0) {
+                final InputOutputNames inputOutputNames = getStageInputOutputClassNames(
+                    stage.getInteriorStages().get(stage.getInteriorStages().size() - 1));
+                stageOutput = segmentOutput = inputOutputNames.stageOutputClassName;
+            }
+        }
+
+        return new InputOutputNames(stageInput, stageOutput, segmentInput, segmentOutput);
     }
 
     private static void tableRow(@Nonnull final AsciiTable table, @Nonnull final String stageName,
@@ -159,8 +251,10 @@ public class PipelineTabularDescription {
                                  @Nonnull final Iterator<PipelineContextMemberDefinition<?>> provides,
                                  @Nonnull final Iterator<PipelineContextMemberDefinition<?>> requires,
                                  @Nonnull final Iterator<PipelineContextMemberDefinition<?>> toDrop,
-                                 @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions) {
-        table.addRow(stageName, inputName, outputName,
+                                 @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions,
+                                 final int segmentDepth) {
+        final String fullStageText = segmentPrefix(segmentDepth) + stageName;
+        table.addRow(fullStageText, inputName, outputName,
             nextProvides(provides, seenDefinitions),
             nextRequired(requires, seenDefinitions),
             toDrop.hasNext() ? toDrop.next().getName() : "");
@@ -187,6 +281,13 @@ public class PipelineTabularDescription {
         }
     }
 
+    private static String segmentPrefix(final int segmentDepth) {
+        if (segmentDepth == 0) {
+            return "";
+        }
+        return StringUtils.repeat("-", 2 * segmentDepth - 1) + ">";
+    }
+
     private static String nextProvides(@Nonnull final Iterator<PipelineContextMemberDefinition<?>> provides,
                                        @Nonnull final Set<PipelineContextMemberDefinition<?>> seenDefinitions) {
         if (provides.hasNext()) {
@@ -201,12 +302,15 @@ public class PipelineTabularDescription {
     private static String getParameterizedTypeName(@Nonnull final Type type) {
         if (type instanceof Class) {
             return ((Class<?>)type).getSimpleName();
-        } else {
+        } else if (type instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType)type;
             final String rawClass = ((Class<?>)pt.getRawType()).getSimpleName();
             return rawClass + Stream.of(((ParameterizedType)type).getActualTypeArguments())
                 .map(PipelineTabularDescription::getParameterizedTypeName)
                 .collect(Collectors.joining(", ", "<", ">"));
+        } else {
+            // We're unable to get the parameterized type. Just return an empty string.
+            return "";
         }
     }
 
@@ -224,15 +328,51 @@ public class PipelineTabularDescription {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private static ParameterizedType getStageParameterizedType(@Nonnull Class stageClass) {
         while (stageClass != null && !(stageClass.getGenericSuperclass() instanceof ParameterizedType)) {
             stageClass = stageClass.getSuperclass();
         }
 
-        if (stageClass != null && stageClass.getGenericSuperclass() instanceof ParameterizedType) {
+        if (stageClass != null) {
             return (ParameterizedType)stageClass.getGenericSuperclass();
         }
         return null;
+    }
+
+    /**
+     * Helper class that wraps up the stage input and output names.
+     */
+    private static class InputOutputNames {
+        @Nonnull
+        private final String stageInputClassName;
+
+        @Nonnull
+        private final String stageOutputClassName;
+
+        @Nonnull
+        private final String segmentInputClassName;
+
+        @Nonnull
+        private final String segmentOutputClassName;
+
+        private InputOutputNames(@Nonnull final String stageInputClassName,
+                                 @Nonnull final String stageOutputClassName) {
+            this.stageInputClassName = Objects.requireNonNull(stageInputClassName);
+            this.stageOutputClassName = Objects.requireNonNull(stageOutputClassName);
+            segmentInputClassName = "";
+            segmentOutputClassName = "";
+        }
+
+        private InputOutputNames(@Nonnull final String stageInputClassName,
+                                 @Nonnull final String stageOutputClassName,
+                                 @Nonnull final String segmentInputClassName,
+                                 @Nonnull final String segmentOutputClassName) {
+            this.stageInputClassName = Objects.requireNonNull(stageInputClassName);
+            this.stageOutputClassName = Objects.requireNonNull(stageOutputClassName);
+            this.segmentInputClassName = Objects.requireNonNull(segmentInputClassName);
+            this.segmentOutputClassName = Objects.requireNonNull(segmentOutputClassName);
+        }
     }
 
     /**

@@ -20,22 +20,11 @@ public class GroupInfoUpdatePipeline extends
         Pipeline<GroupInfoUpdatePipelineInput, LongSet, GroupInfoUpdatePipelineContext,
             GroupInfoUpdatePipelineSummary> {
 
-    private static final String PIPELINE_STAGE_LABEL = "stage";
-
     private static final DataMetricSummary GROUP_INFO_UPDATE_SUMMARY = DataMetricSummary.builder()
             .withName("group_info_update_duration_seconds")
             .withHelp("Duration of group information update (membership cache + database storage.")
             .build()
             .register();
-
-    private static final DataMetricSummary GROUP_INFO_UPDATE_STAGE_SUMMARY =
-            DataMetricSummary.builder()
-                    .withName("group_info_update_pipeline_duration_seconds")
-                    .withHelp("Duration of the individual stages that update information for"
-                            + " groups.")
-                    .withLabelNames(PIPELINE_STAGE_LABEL)
-                    .build()
-                    .register();
 
     protected GroupInfoUpdatePipeline(
             @Nonnull PipelineDefinition<GroupInfoUpdatePipelineInput, LongSet,
@@ -50,19 +39,9 @@ public class GroupInfoUpdatePipeline extends
     }
 
     @Override
-    protected DataMetricTimer startStageTimer(String stageName) {
-        return GROUP_INFO_UPDATE_STAGE_SUMMARY.labels(PIPELINE_STAGE_LABEL).startTimer();
-    }
-
-    @Override
     protected TracingScope startPipelineTrace() {
         return Tracing.trace("Group info update")
                 .tag("topology_id", getContext().getTopologyId())
                 .baggageItem(Tracing.DISABLE_DB_TRACES_BAGGAGE_KEY, "");
-    }
-
-    @Override
-    protected TracingScope startStageTrace(String stageName) {
-        return Tracing.trace(stageName);
     }
 }

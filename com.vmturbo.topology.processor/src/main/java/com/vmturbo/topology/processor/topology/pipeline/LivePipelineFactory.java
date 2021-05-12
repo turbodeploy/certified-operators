@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
+import com.vmturbo.components.common.pipeline.SegmentStage.SegmentDefinition;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -341,11 +342,13 @@ public class LivePipelineFactory {
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
-                .addStage(new PolicyStage(policyManager))
-                .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
-                .addStage(SettingsResolutionStage.live(entitySettingsResolver, consistentScalingConfig))
-                .addStage(new SettingsUploadStage(entitySettingsResolver))
-                .addStage(new SettingsApplicationStage(settingsApplicator))
+                .addStage(SegmentDefinition
+                    .addStage(new PolicyStage(policyManager))
+                    .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
+                    .addStage(SettingsResolutionStage.live(entitySettingsResolver, consistentScalingConfig))
+                    .addStage(new SettingsUploadStage(entitySettingsResolver))
+                    .finalStage(new SettingsApplicationStage(settingsApplicator))
+                    .asStage("SettingsAndPoliciesSegment"))
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator, false))
