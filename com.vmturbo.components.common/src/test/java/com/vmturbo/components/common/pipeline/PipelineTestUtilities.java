@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.reflect.TypeToken;
 
@@ -52,6 +53,35 @@ public class PipelineTestUtilities {
     }
 
     /**
+     * A passthrough stage for the {@link TestPipeline} that allows overriding the name for the stage.
+     */
+    public static class NamedTestPassthroughStage extends PassthroughStage<Long, TestPipelineContext> {
+        private final String name;
+
+        /**
+         * Create a NamedTestPassthroughStage.
+         *
+         * @param stageName The name of the stage.
+         */
+        public NamedTestPassthroughStage(@Nonnull final String stageName) {
+            this.name = stageName;
+        }
+
+        @Nonnull
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @NotNull
+        @Override
+        public Status passthrough(final Long input) throws PipelineStageException {
+            // Don't do anything.
+            return Status.success();
+        }
+    }
+
+    /**
      * The {@link PipelineContext} for the {@link TestPipeline}.
      */
     public static class TestPipelineContext extends PipelineContext {
@@ -60,6 +90,18 @@ public class PipelineTestUtilities {
         @Override
         public String getPipelineName() {
             return "test-pipeline";
+        }
+
+        @Nullable
+        @Override
+        public DataMetricTimer startStageTimer(String stageName) {
+            return null;
+        }
+
+        @Nullable
+        @Override
+        public TracingScope startStageTrace(String stageName) {
+            return null;
         }
     }
 
@@ -129,17 +171,7 @@ public class PipelineTestUtilities {
         }
 
         @Override
-        protected DataMetricTimer startStageTimer(String stageName) {
-            return null;
-        }
-
-        @Override
         protected TracingScope startPipelineTrace() {
-            return null;
-        }
-
-        @Override
-        protected TracingScope startStageTrace(String stageName) {
             return null;
         }
     }

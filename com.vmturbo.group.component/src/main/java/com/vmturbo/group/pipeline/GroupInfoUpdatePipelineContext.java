@@ -2,7 +2,11 @@ package com.vmturbo.group.pipeline;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.PipelineContext;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * {@link PipelineContext} implementation for {@link GroupInfoUpdatePipeline}, containing
@@ -10,6 +14,17 @@ import com.vmturbo.components.common.pipeline.PipelineContext;
  * topology that this pipeline processes.
  */
 public class GroupInfoUpdatePipelineContext extends PipelineContext {
+
+    private static final String PIPELINE_STAGE_LABEL = "stage";
+
+    private static final DataMetricSummary GROUP_INFO_UPDATE_STAGE_SUMMARY =
+        DataMetricSummary.builder()
+            .withName("group_info_update_pipeline_duration_seconds")
+            .withHelp("Duration of the individual stages that update information for"
+                + " groups.")
+            .withLabelNames(PIPELINE_STAGE_LABEL)
+            .build()
+            .register();
 
     private final long topologyId;
 
@@ -40,5 +55,15 @@ public class GroupInfoUpdatePipelineContext extends PipelineContext {
     @Override
     public String getPipelineName() {
         return "Group Information Update Pipeline";
+    }
+
+    @Override
+    public DataMetricTimer startStageTimer(String stageName) {
+        return GROUP_INFO_UPDATE_STAGE_SUMMARY.labels(PIPELINE_STAGE_LABEL).startTimer();
+    }
+
+    @Override
+    public TracingScope startStageTrace(String stageName) {
+        return Tracing.trace(stageName);
     }
 }

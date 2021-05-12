@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.time.Clock;
-import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -12,7 +11,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline;
-import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -27,8 +25,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * the input to the next {@link Stage}. State can be shared between stages by attaching
  * and dropping members on the {@link TopologyPipelineContext}. Context state sharing is configured
  * when defining the "providesToContext" and "requiresFromContext" of individual stages in the pipeline (see
- * {@link Stage#requiresFromContext(PipelineContextMemberDefinition)} and
- * {@link Stage#providesToContext(PipelineContextMemberDefinition, Supplier)}.
+ * {@code Stage#requiresFromContext(PipelineContextMemberDefinition)} and
+ * {@code Stage#providesToContext(PipelineContextMemberDefinition, Supplier)}.
  * The stages are executed one at a time. In the future we can add parallel execution of certain subsets of
  * the pipeline, but that's not necessary.
  *
@@ -40,9 +38,10 @@ public class TopologyPipeline<I, O> extends
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String TOPOLOGY_TYPE_LABEL = "topology_type";
-
-    private static final String PIPELINE_STAGE_LABEL = "stage";
+    /**
+     * Label for topology type.
+     */
+    public static final String TOPOLOGY_TYPE_LABEL = "topology_type";
 
     /**
      * This metric tracks the total duration of a topology broadcast (i.e. all the stages
@@ -52,13 +51,6 @@ public class TopologyPipeline<I, O> extends
             .withName("tp_broadcast_duration_seconds")
             .withHelp("Duration of a topology broadcast.")
             .withLabelNames(TOPOLOGY_TYPE_LABEL)
-            .build()
-            .register();
-
-    private static final DataMetricSummary TOPOLOGY_STAGE_SUMMARY = DataMetricSummary.builder()
-            .withName("tp_broadcast_pipeline_duration_seconds")
-            .withHelp("Duration of the individual stages in a topology broadcast.")
-            .withLabelNames(TOPOLOGY_TYPE_LABEL, PIPELINE_STAGE_LABEL)
             .build()
             .register();
 
@@ -91,21 +83,11 @@ public class TopologyPipeline<I, O> extends
     }
 
     @Override
-    protected DataMetricTimer startStageTimer(String stageName) {
-        return TOPOLOGY_STAGE_SUMMARY.labels(getContext().getTopologyTypeName(),
-                stageName).startTimer();
-    }
-
-    @Override
     protected TracingScope startPipelineTrace() {
         return Tracing.trace(getContext().getTopologyTypeName() + " Broadcast", TracingManager.alwaysOnTracer()).tag("context_id",
                 getContext().getTopologyInfo().getTopologyContextId()).tag("topology_id",
                 getContext().getTopologyInfo().getTopologyContextId())
             .baggageItem(Tracing.DISABLE_DB_TRACES_BAGGAGE_KEY, "");
-    }
-
-    protected TracingScope startStageTrace(String stageName) {
-        return Tracing.trace(stageName);
     }
 
     /**

@@ -29,26 +29,26 @@ public class ActionPipelineFactoryTest {
         .build();
 
     /**
-     * Ensure that live actions pipeline dependencies are set up properly.
+     * Ensure that live actions pipeline context members are set up properly.
      */
     @Test
     public void testLiveActionsPipeline() {
         final LiveActionPipelineFactory factory = new LiveActionPipelineFactory(storehouse,
             automationManager);
 
-        // If there is an issue with pipeline dependencies, attempting to create a pipeline
+        // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
         factory.actionPipeline(actionPlan);
     }
 
     /**
-     * Ensure that plan actions pipeline dependencies are set up properly.
+     * Ensure that plan actions pipeline context members are set up properly.
      */
     @Test
     public void testPlanActionsPipeline() {
         final PlanActionPipelineFactory factory = new PlanActionPipelineFactory(storehouse);
 
-        // If there is an issue with pipeline dependencies, attempting to create a pipeline
+        // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
         factory.actionPipeline(actionPlan);
     }
