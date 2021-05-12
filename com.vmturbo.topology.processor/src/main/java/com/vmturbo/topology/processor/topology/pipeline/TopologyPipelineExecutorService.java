@@ -51,8 +51,6 @@ import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 @ThreadSafe
 public class TopologyPipelineExecutorService implements AutoCloseable {
 
-    private static final Logger logger = LogManager.getLogger();
-
     private final ExecutorService planExecutorService;
 
     private final ExecutorService realtimeExecutorService;
@@ -628,8 +626,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                 } catch (InterruptedException e) {
                     logger.error("Pipeline worker interrupted! Exiting.", e);
                     return;
-                } catch (RuntimeException e) {
-                    logger.error("Pipeline worker hit runtime exception. Continuing.", e);
+                } catch (Exception e) {
+                    logger.error("Pipeline worker hit unexpected exception. Continuing.", e);
                 } catch (OutOfMemoryError oome) {
                     // we aren't looking to handle this error, just log it.
                     logger.error("Pipeline worker {} received OutOfMemoryError. This pipeline runner task will terminate.",
