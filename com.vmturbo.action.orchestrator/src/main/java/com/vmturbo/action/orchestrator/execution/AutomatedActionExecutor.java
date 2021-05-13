@@ -306,13 +306,13 @@ public class AutomatedActionExecutor {
          */
         @Override
         public int compareTo(ConditionalTask o) {
-            Long targetId1 = getMoveActionTargetId();
+            Long targetId1 = getMoveOrResizeActionTargetId();
             if (targetId1 == null) {
                 return 1;
             }
 
             AutomatedActionTask otherTask = (AutomatedActionTask)o;
-            Long targetId2 = otherTask.getMoveActionTargetId();
+            Long targetId2 = otherTask.getMoveOrResizeActionTargetId();
             if (targetId2 == null) {
                 return 1;
             }
@@ -387,7 +387,7 @@ public class AutomatedActionExecutor {
         }
 
         @Nullable
-        private Long getMoveActionTargetId() {
+        private Long getMoveOrResizeActionTargetId() {
             ActionDTO.Action actionDto = getAction().getTranslationResultOrOriginal();
 
             if (actionDto == null) {
@@ -402,11 +402,15 @@ public class AutomatedActionExecutor {
                 return null;
             }
 
-            if (!info.hasMove()) {
-                return null;
+            if (info.hasMove()) {
+                return info.getMove().getTarget().getId();
             }
 
-            return info.getMove().getTarget().getId();
+            if (info.hasResize()) {
+                return info.getResize().getTarget().getId();
+            }
+
+            return null;
         }
 
         @Override

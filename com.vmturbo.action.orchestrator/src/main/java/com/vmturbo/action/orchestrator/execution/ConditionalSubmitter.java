@@ -95,10 +95,10 @@ public class ConditionalSubmitter implements Executor, Closeable {
         ConditionalFuture future = (ConditionalFuture)command;
 
         if (!findFuture(runningFutures, future).isPresent()) {
-            logger.info("Submitting without queuing {}", future);
+            logger.info("Submitting without queuing {}", future.getOriginalTask());
             submitInternal(future);
         } else {
-            logger.info("Queueing {}", future);
+            logger.info("Queueing {}", future.getOriginalTask());
 
             if (queuedFutures.size() >= MAX_QUEUE_SIZE) {
                 logger.error("Queue reached the maximum size {}. Cannot add more futures.",
