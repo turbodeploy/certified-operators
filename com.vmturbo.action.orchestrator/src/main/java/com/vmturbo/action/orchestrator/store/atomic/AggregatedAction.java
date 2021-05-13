@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.store;
+package com.vmturbo.action.orchestrator.store.atomic;
 
 import java.util.ArrayList;
 import java.util.HashMap;
