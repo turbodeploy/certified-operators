@@ -40,6 +40,7 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -1017,6 +1018,16 @@ public class UuidMapper implements RepositoryListener {
 
         public boolean isGroup() {
             return getCachedGroupInfo().isPresent();
+        }
+
+        /**
+         * Check if this is cluster.
+         *
+         * @return true if this is cluster
+         */
+        public boolean isCluster() {
+            return isGroup() && getGroupType().isPresent() &&
+                GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(getGroupType().get());
         }
 
         /**

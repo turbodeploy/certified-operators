@@ -40,6 +40,7 @@ import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -709,6 +710,46 @@ public class UuidMapperTest {
         assertFalse(apiId3.isHybridGroup());
         assertFalse(apiId3.isCloudGroup());
         assertFalse(apiId3.isCloud());
+    }
+
+    @Test
+    public void testIsCluster() throws OperationFailedException, InterruptedException, ConversionException {
+        final MultiEntityRequest req0 = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req0);
+
+        final Grouping clusterGrouping = Grouping.newBuilder()
+            .setId(123)
+         .setDefinition(GroupDefinition.newBuilder()
+            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+            .setDisplayName("foo")
+        ).build();
+        when(groupRetriever.getGroupsWithMembers(any()))
+            .thenReturn(Collections.singletonList(ImmutableGroupAndMembers.builder()
+                .group(clusterGrouping)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build()));
+
+        final ApiId clusterId = uuidMapper.fromUuid("123");
+        assertTrue(clusterId.isGroup());
+        assertTrue(clusterId.isCluster());
+
+        final Grouping nonClusterGrouping = Grouping.newBuilder()
+            .setId(456)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setDisplayName("bar")
+            ).build();
+        when(groupRetriever.getGroupsWithMembers(any()))
+            .thenReturn(Collections.singletonList(ImmutableGroupAndMembers.builder()
+                .group(nonClusterGrouping)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build()));
+
+        final ApiId nonClusterId = uuidMapper.fromUuid("456");
+        assertTrue(nonClusterId.isGroup());
+        assertFalse(nonClusterId.isCluster());
     }
 
     @Test
