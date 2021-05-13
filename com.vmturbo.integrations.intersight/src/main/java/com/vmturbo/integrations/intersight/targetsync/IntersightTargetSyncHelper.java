@@ -5,6 +5,7 @@ import static com.vmturbo.integrations.intersight.targetsync.IntersightTargetCon
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -89,16 +90,21 @@ public class IntersightTargetSyncHelper {
         final Set<ProbeInfo> probeInfos = topologyProcessor.getAllProbes();
         probesByType = probeInfos.stream().collect(Collectors.toMap(ProbeInfo::getType,
                 Function.identity(), (p1, p2) -> p1));
-        final Set<Long> cloudNativeProbeIds = probeInfos.stream()
+        // Leave alone all Cloud Native probes except for the up-to-date Kubernetes probe with
+        // "Kubernetes" as the probe type; old Kubernetes probes with a Kubernetes-xxx as the
+        // probe type will be excluded.
+        final Set<Long> leaveAloneProbeIds = probeInfos.stream()
                 .filter(probe -> Objects.equals(ProbeCategory.CLOUD_NATIVE.getCategory(),
                         probe.getCategory()))
+                .filter(probe -> !Objects.equals(SDKProbeType.KUBERNETES.getProbeType(),
+                        probe.getType()))
                 .map(ProbeInfo::getId)
                 .collect(Collectors.toSet());
         final Set<TargetInfo> targets = topologyProcessor.getAllTargets()
                 .stream()
                 .filter(t -> !t.isHidden())
                 .filter(t -> !t.isReadOnly())
-                .filter(t -> !cloudNativeProbeIds.contains(t.getProbeId()))
+                .filter(t -> !leaveAloneProbeIds.contains(t.getProbeId()))
                 .collect(Collectors.toSet());
         staleTargets = new HashSet<>(targets);
         targetsByProbeId = targets.stream().collect(Collectors.groupingBy(TargetInfo::getProbeId));
@@ -225,14 +231,16 @@ public class IntersightTargetSyncHelper {
      */
     protected void syncAssetTargets(final long noUpdateOnChangePeriodSeconds,
             final boolean injectAssistId) throws InterruptedException, IOException, ApiException {
-        // Technically we only need Moid, TargetType, Assist and Parent.  We are getting CreateTime
-        // and ModTime too to carve out appropriate actions correspondingly to achieve better user
-        // experience.  We are also getting "Services" and "Status" because:
+        // Technically we only need Moid, TargetType, Assist, Parent and TargetId.  The latter
+        // three are used to support multiple assists and Kubernetes targets.
+        // We are getting CreateTime and ModTime too to carve out appropriate actions
+        // correspondingly to achieve better user experience.
+        // We are also getting "Services" and "Status" because:
         // "Services": updating status requires passing back the entire Services portion;
         //             get it and retain the other parts unchanged
         // "Status": this is a top-level status field and is an enum and read-only;
         //           To ensure accepted by the server, this has to be passed back unchanged.
-        final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime,Assist,Parent";
+        final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime,Assist,Parent,TargetId";
         final List<AssetTarget> assetTargets =
                 new IntersightAssetTargetQuery(select).getAllQueryInstancesOrElseThrow(intersightConnection);
         final Map<String, Optional<String>> assistToDeviceMap = getAssistToDeviceMap(assetTargets);
@@ -247,6 +255,15 @@ public class IntersightTargetSyncHelper {
                     continue;
                 }
                 try {
+                    if (SDKProbeType.KUBERNETES.getProbeType().equals(probeInfo.getType())) {
+                        final TargetInfo targetInfo = findKubernetesTargetInfo(assetTarget, probeInfo);
+                        if (targetInfo != null) {
+                            staleTargets.remove(targetInfo);
+                            targetStatusUpdater.update(assetTarget, targetInfo);
+                        }
+                        continue;
+                    }
+                    // Non-Kubernetes probes
                     TargetInfo targetInfo = findTargetInfo(assetTarget, probeInfo);
                     final Optional<String> assistId = injectAssistId
                             ? getAssistDeviceMoid(assetTarget, assistToDeviceMap) : Optional.empty();
@@ -318,7 +335,8 @@ public class IntersightTargetSyncHelper {
     @Nullable
     private TargetInfo findTargetInfo(@Nonnull final AssetTarget assetTarget,
             @Nonnull final ProbeInfo probeInfo) {
-        final List<String> targetIdFields = probeInfo.getIdentifyingFields();
+        Objects.requireNonNull(assetTarget);
+        final List<String> targetIdFields = Objects.requireNonNull(probeInfo).getIdentifyingFields();
         final long probeId = probeInfo.getId();
         final List<TargetInfo> targets = targetsByProbeId.get(probeId);
         if (targets == null) {
@@ -332,6 +350,45 @@ public class IntersightTargetSyncHelper {
             }
         }
         return null;
+    }
+
+    /**
+     * Find the Kubernetes {@link TargetInfo} for the given {@link AssetTarget} from Intersight.
+     *
+     * @param assetTarget the input asset target from Intersight for which the corresponding
+     *                    target info to be found
+     * @param probeInfo   the probe info associated with the target
+     * @return the found {@link TargetInfo} or null if not found
+     */
+    @Nullable
+    private TargetInfo findKubernetesTargetInfo(@Nullable final AssetTarget assetTarget,
+            @Nonnull final ProbeInfo probeInfo) {
+        final long probeId = Objects.requireNonNull(probeInfo).getId();
+        final List<TargetInfo> targets = targetsByProbeId.get(probeId);
+        if (targets == null) {
+            return null;
+        }
+        for (final TargetInfo target : targets) {
+            if (matchKubernetesTarget(assetTarget, target)) {
+                return target;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Return true if the two represent the same Kubernetes target.
+     * @param assetTarget the {@link AssetTarget} from Intersight
+     * @param targetInfo the {@link TargetInfo} from topology processor
+     * @return true if the two represent the same target, or false otherwise.
+     */
+    private boolean matchKubernetesTarget(@Nullable final AssetTarget assetTarget,
+            @Nonnull final TargetInfo targetInfo) {
+        final Collection<String> targetIds = Optional.ofNullable(assetTarget)
+                .map(AssetTarget::getTargetId)
+                .orElse(Collections.emptyList());
+        return Objects.requireNonNull(targetInfo).getCommunicationBindingChannel()
+                .filter(targetIds::contains).isPresent();
     }
 
     /**

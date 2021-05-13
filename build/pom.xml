@@ -559,6 +559,7 @@
         <profile>
             <id>integration-intersight</id>
             <modules>
+                <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.integrations.intersight</module>
             </modules>
         </profile>
