@@ -194,6 +194,8 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.APPINSIGHTS);
             case OPENSTACK:
                 return Collections.singleton(SDKProbeType.OPENSTACK);
+            case KUBERNETES:
+                return Collections.singleton(SDKProbeType.KUBERNETES);
             default:
                 logger.debug("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());
