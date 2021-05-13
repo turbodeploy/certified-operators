@@ -1,8 +1,8 @@
-package com.vmturbo.action.orchestrator.store;
+package com.vmturbo.action.orchestrator.store.atomic;
 
 import java.util.Optional;
 
-import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 
 /**

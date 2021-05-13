@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.store;
+package com.vmturbo.action.orchestrator.store.atomic;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -17,8 +17,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
-import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -37,8 +36,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
-//import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 
 /**
  * Unit tests for {@link AtomicActionFactory}.

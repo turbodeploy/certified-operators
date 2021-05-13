@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.store;
+package com.vmturbo.action.orchestrator.store.atomic;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -112,20 +112,30 @@ public class AtomicActionFactory {
      * Result of the action merge process.
      */
     @Value.Immutable
-    interface AtomicActionResult {
-        // The new primary ActionDTO for the action that will execute
-        // the aggregated and de-duplicated market actions
-        // Aggregated atomic action will not be created
-        // if the original actions are in RECOMMEND mode
+    public interface AtomicActionResult {
+        /**
+         * The new primary ActionDTO for the action that will execute the aggregated and de-duplicated
+         * market actions. Aggregated atomic action will not be created if the original actions are
+         * in RECOMMEND mode.
+         *
+         * @return The new primary ActionDTO for the action.
+         */
         Optional<ActionDTO.Action> atomicAction();
 
-        // Map of the non-executable atomic action that de-duplicated actions for entities
-        // in the scaling/deployment group to the list of original actions
-        // Atomic actions for de-duplicated targets will be created
-        // even if the original actions are in RECOMMEND mode
+        /**
+         * Map of the non-executable atomic action that de-duplicated actions for entities in the
+         * scaling/deployment group to the list of original actions. Atomic actions for de-duplicated
+         * targets will be created even if the original actions are in RECOMMEND mode.
+         *
+         * @return Map of the non-executable atomic actions.
+         */
         Map<ActionDTO.Action, List<ActionDTO.Action>> deDuplicatedActions();
 
-        // List of actions that were merged without de-duplication
+        /**
+         * Get the list of actions that were merged without de-duplication.
+         *
+         * @return List of actions that were merged without de-duplication
+         */
         List<ActionDTO.Action> mergedActions();
     }
 

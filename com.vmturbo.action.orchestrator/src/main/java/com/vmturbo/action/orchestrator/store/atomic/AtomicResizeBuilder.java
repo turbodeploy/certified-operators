@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.store;
+package com.vmturbo.action.orchestrator.store.atomic;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,8 +21,8 @@ import org.immutables.value.Value;
 
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.store.AggregatedAction.DeDupedActions;
-import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
+import com.vmturbo.action.orchestrator.store.atomic.AggregatedAction.DeDupedActions;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
