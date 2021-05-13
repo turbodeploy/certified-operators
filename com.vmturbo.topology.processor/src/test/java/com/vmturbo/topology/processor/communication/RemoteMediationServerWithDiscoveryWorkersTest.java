@@ -14,8 +14,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -355,7 +353,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
                 .when(transport1).addEventHandler(any());
         remoteMediationServer.registerTransport(containerInfo, transport1);
         // sleep to let the transport worker thread start
-        Thread.sleep(100L);
+        Thread.sleep(500L);
 
         // By now, the registration of transport should have occurred, causing the processing of
         // the closed transport and shutting down the worker thread. So if we queue a discovery,
@@ -364,26 +362,16 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
                 DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
 
         // Sleep to let any workers that do exist process the queued discovery.
-        Thread.sleep(100L);
+        Thread.sleep(500L);
 
         // Check that the discovery we queued is still there.
         final SetOnce<Optional<IDiscoveryQueueElement>> takenDiscovery = new SetOnce<>();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        // Execute queue.takeNextQueuedDiscovery() on a different thread since it may block forever.
-        executor.execute(() -> {
-            try {
-                takenDiscovery.trySetValue(queue.takeNextQueuedDiscovery(transport1,
-                        Collections.singletonList(probeIdVc), DiscoveryType.FULL, discoveryWorkerPollingTimeoutSecs));
-            } catch (InterruptedException e) {
-                takenDiscovery.trySetValue(Optional.empty());
-            }
-        });
-        // Sleep to give thread chance to take discovery
-        Thread.sleep(100L);
+        // this should timeout after 3 seconds
+        takenDiscovery.trySetValue(queue.takeNextQueuedDiscovery(transport1,
+            Collections.singletonList(probeIdVc), DiscoveryType.FULL, discoveryWorkerPollingTimeoutSecs));
         assertTrue(takenDiscovery.getValue().isPresent());
         assertTrue(takenDiscovery.getValue().get().isPresent());
         assertEquals(queuedDiscovery, takenDiscovery.getValue().get().get());
-        executor.shutdownNow();
     }
 
     /**
