@@ -91,9 +91,14 @@ public class Grafanon implements RequiresDataInitialization {
         this.dbEndpoint = dbEndpoint;
         this.licenseCheckClient = licenseCheckClient;
         licenseCheckClient.getUpdateEventStream().subscribe(licenseSummary -> {
-            RefreshSummary refreshSummary = new RefreshSummary();
-            refreshTurboEditors(refreshSummary, licenseSummary);
-            logger.info("Turbo editor refresh result: {}", refreshSummary);
+            // Any exception must be caught to prevent the subscription from terminating
+            try {
+                RefreshSummary refreshSummary = new RefreshSummary();
+                refreshTurboEditors(refreshSummary, licenseSummary);
+                logger.info("Turbo editor refresh result: {}", refreshSummary);
+            } catch (Exception e) {
+                logger.error("Unable to update turbo editors", e);
+            }
         });
     }
 
