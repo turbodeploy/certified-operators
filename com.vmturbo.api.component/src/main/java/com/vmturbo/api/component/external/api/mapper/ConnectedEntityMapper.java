@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
@@ -110,9 +111,13 @@ public class ConnectedEntityMapper {
                                     .filter(s -> s.getEntityType() == connectedEntityProperty.entityType().getNumber())
                                     .findFirst();
                     if (!repositoryRetrievedEntity.isPresent()) {
-                        logger.error(
-                                "Connected entity {} not found in connected entities list of the cloud commitment {}",
-                                connectedEntityProperty.entityType(), entity.getOid());
+                        Level level = Level.DEBUG;
+                        if (connectedEntityProperty.required()) {
+                            level = Level.ERROR;
+                        }
+                        logger.log( level,
+                                    "Connected entity {} not found in connected entities list of the cloud commitment {}",
+                                    connectedEntityProperty.entityType(), entity.getOid());
                     } else {
                         Optional<MinimalEntity> regionEntity = getEntity(
                                 repositoryRetrievedEntity.get().getOid());
