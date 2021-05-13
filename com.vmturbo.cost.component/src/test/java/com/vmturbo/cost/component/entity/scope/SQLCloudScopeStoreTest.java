@@ -4,6 +4,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +21,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -28,6 +33,7 @@ import org.junit.Test;
 import org.springframework.scheduling.TaskScheduler;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -43,12 +49,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntityState;
 import com.vmturbo.cost.component.savings.EntityStateStore;
 import com.vmturbo.cost.component.savings.SqlEntityStateStore;
 import com.vmturbo.cost.component.savings.SqlEntityStateStoreTest;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.sql.utils.DbCleanupRule;
@@ -88,6 +97,32 @@ public class SQLCloudScopeStoreTest {
             new SQLComputeTierAllocationStore(dsl, mockTopologyTracker, MoreExecutors.newDirectExecutorService(),
                     1000, 1000, 1000);
 
+    private final long vmOid1 = 101L;
+    private final long vmOid2 = 102L;
+
+    /**
+     * Format of diagnostic dump files for pre-8.1.6 DB schema, with only 6 columns.
+     */
+    private final List<String> pre816SchemaLines = ImmutableList.of(
+            String.format("[%d,73745724692990,73745724691229,73745724691226,73745724692991,\"2020-12-04T11:43:11\"]",
+                    vmOid1),
+            String.format("[%d,73745724692990,73745724691442,73745724691441,73745724692991,\"2020-12-04T11:43:12\"]",
+                    vmOid2)
+    );
+
+    private final long vmOid3 = 201L;
+    private final long volOid1 = 202L;
+    private final long resourceGroupOid1 = 301L;
+
+    /**
+     * Format of diagnostic dump files for post-8.1.6 DB schema, with 8 columns.
+     */
+    private final List<String> post816SchemaLines = ImmutableList.of(
+            String.format("[%d,10,73745724692990,73745724691229,73745724691226,73745724692991,null,\"2021-05-11T21:28:26\"]",
+                    vmOid3),
+            String.format("[%d,60,73953217476424,73953220080519,73953220080518,73953217476422,%d,\"2021-05-03T15:15:03\"]",
+                    volOid1, resourceGroupOid1)
+    );
 
 
     @Test
@@ -327,5 +362,68 @@ public class SQLCloudScopeStoreTest {
                 .build();
 
 
+    }
+
+    /**
+     * Tests restoration of DB records from pre-8.1.6 schema with only 6 DB columns.
+     */
+    @Test
+    public void restorePre816Diagnostics() {
+        assertEquals(2, pre816SchemaLines.size());
+        final List<EntityCloudScopeRecord> entriesBefore = getScopeRecords();
+        assertTrue(entriesBefore.isEmpty());
+
+        cloudScopeStore.restoreDiags(pre816SchemaLines, null);
+
+        final List<EntityCloudScopeRecord> entriesAfter = getScopeRecords();
+        assertEquals(2, entriesAfter.size());
+
+        final EntityCloudScopeRecord scope1 = entriesAfter.get(0);
+        assertEquals(vmOid1, scope1.getEntityOid().longValue());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, scope1.getEntityType().intValue());
+        assertNull(scope1.getResourceGroupOid());
+
+        final EntityCloudScopeRecord scope2 = entriesAfter.get(1);
+        assertEquals(vmOid2, scope2.getEntityOid().longValue());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, scope2.getEntityType().intValue());
+        assertNull(scope2.getResourceGroupOid());
+    }
+
+    /**
+     * Tests post-8.1.6 DB record restoration to make sure that still works.
+     */
+    @Test
+    public void restorePost816Diagnostics() {
+        assertEquals(2, post816SchemaLines.size());
+        final List<EntityCloudScopeRecord> entriesBefore = getScopeRecords();
+        assertTrue(entriesBefore.isEmpty());
+
+        cloudScopeStore.restoreDiags(post816SchemaLines, null);
+
+        final List<EntityCloudScopeRecord> entriesAfter = getScopeRecords();
+        assertEquals(2, entriesAfter.size());
+
+        final EntityCloudScopeRecord scope1 = entriesAfter.get(0);
+        assertEquals(vmOid3, scope1.getEntityOid().longValue());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, scope1.getEntityType().intValue());
+        assertNull(scope1.getResourceGroupOid());
+
+        final EntityCloudScopeRecord scope2 = entriesAfter.get(1);
+        assertEquals(volOid1, scope2.getEntityOid().longValue());
+        assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, scope2.getEntityType().intValue());
+        assertEquals(resourceGroupOid1, scope2.getResourceGroupOid().longValue());
+    }
+
+    /**
+     * Convenience method to query scope DB records, to help with test verification.
+     *
+     * @return Scope DB records in asc order of entity OIDs.
+     */
+    @Nonnull
+    private List<EntityCloudScopeRecord> getScopeRecords() {
+        return dsl.selectFrom(Tables.ENTITY_CLOUD_SCOPE)
+                .orderBy(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID)
+                .stream()
+                .collect(Collectors.toList());
     }
 }
