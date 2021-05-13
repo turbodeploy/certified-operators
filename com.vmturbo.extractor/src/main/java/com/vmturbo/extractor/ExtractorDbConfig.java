@@ -78,9 +78,10 @@ public class ExtractorDbConfig {
     @Bean
     public DbEndpoint grafanaWriterEndpoint() {
         return dbConfig.dbEndpoint("dbs.grafana", SQLDialect.POSTGRES)
+                .withSchemaName("grafana_writer")
                 .withAccess(DbEndpointAccess.ALL)
-                .withNoMigrations()
                 .withShouldProvision(true)
+                .withMigrationLocations("db.migration.grafana")
                 .withRootAccessEnabled(true)
                 .withEndpointEnabled(r ->
                         r.apply("dbs.grafana.databaseName") != null

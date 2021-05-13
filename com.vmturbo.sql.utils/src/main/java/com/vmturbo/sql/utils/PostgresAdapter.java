@@ -147,6 +147,21 @@ public class PostgresAdapter extends DbAdapter {
         }
     }
 
+    /**
+     * We want the db-provisioning endpoint user to be the owner of the database and schema created
+     * for the endpoint. This method should only be invoked when the current endpoint has
+     * db-provisioning responsibility.
+     */
+    @Override
+    protected void provisionForMigrations() throws SQLException, UnsupportedDialectException {
+        try (Connection conn = getRootConnection()) {
+            execute(conn, String.format("ALTER DATABASE \"%s\" OWNER TO \"%s\"",
+                    config.getDatabaseName(), config.getUserName()));
+            execute(conn, String.format(String.format("ALTER SCHEMA \"%s\" OWNER TO \"%s\"",
+                    config.getSchemaName(), config.getUserName())));
+        }
+    }
+
     private void performAllGrants() throws UnsupportedDialectException, SQLException {
         try (Connection conn = getRootConnection()) {
             execute(conn, String.format("GRANT ALL PRIVILEGES ON SCHEMA \"%s\" TO \"%s\"",
