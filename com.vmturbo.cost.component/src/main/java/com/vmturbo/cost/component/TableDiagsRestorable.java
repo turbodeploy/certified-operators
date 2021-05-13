@@ -107,6 +107,7 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
     default S jsonToRecord(String json, final Field<?>[] fields, final ObjectMapper mapper) throws JsonProcessingException, ParseException {
         List<Object> data = mapper.readValue(json, List.class);
 
+        preProcessJsonData(data, fields);
         for (int i = 0; i < fields.length; i++) {
             //if field type is blob - that is protobuf and we should parse protobuf string
             final DataType<?> fieldDataType = fields[i].getDataType();
@@ -122,6 +123,16 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
         final S rec = getTable().newRecord();
         rec.from(data, fields);
         return rec;
+    }
+
+    /**
+     * Performs any optional pre-processing of data row read from diagnostic dump file, before it is
+     * converted to a DB record.
+     *
+     * @param data Input data line (in JSON format) fields, could get updated.
+     * @param fields DB fields for the table to which record is to be inserted.
+     */
+    default void preProcessJsonData(@Nonnull List<Object> data, @Nonnull final Field<?>[] fields) {
     }
 
     /**
