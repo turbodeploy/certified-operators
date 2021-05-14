@@ -251,7 +251,8 @@ public class AbstractCachingHistoricalEditorTest {
         }
 
         @Override
-        public boolean isCommodityApplicable(TopologyEntity entity, CommoditySoldDTO.Builder commSold) {
+        public boolean isCommodityApplicable(TopologyEntity entity, CommoditySoldDTO.Builder commSold,
+                TopologyInfo topoInfo) {
             return true;
         }
 

@@ -211,7 +211,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
 
         @Override
         public boolean isCommodityApplicable(TopologyEntity entity,
-                                             TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                                             TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                             TopologyInfo topoInfo) {
             return applicableCommTypes.contains(commSold.getCommodityType());
         }
 

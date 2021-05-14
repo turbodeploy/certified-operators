@@ -227,13 +227,18 @@ public class PercentileEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                         @Nullable TopologyInfo topoInfo) {
         if (commSold.hasUtilizationData()) {
             return true;
         }
         // sold commodities from cloud environments that need percentile calculation have
         // utilizationData set and don't rely on REQUIRED_SOLD_COMMODITY_TYPES map
-        if (entity.getEnvironmentType() == EnvironmentType.CLOUD) {
+        // MCP wil require the storage access to use percentile data. As the on prem volume migrating
+        // to cloud are considered as EnvironmentType.CLOUD, we have to return true here to allow the
+        // commodity included.
+        if (entity.getEnvironmentType() == EnvironmentType.CLOUD
+                && !TopologyDTOUtil.isCloudMigrationPlan(topoInfo)) {
             return false;
         }
         Set<EntityType> allowedTypes = REQUIRED_SOLD_COMMODITY_TYPES
