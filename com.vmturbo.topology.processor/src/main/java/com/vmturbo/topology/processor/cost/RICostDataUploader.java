@@ -559,8 +559,9 @@ public class RICostDataUploader {
 
                 if (riSupportInPartialCloudEnvironment && accountOid == null) {
                     logger.warn(
-                            "Account oid not found for non market entity {}, account level coverage by reserved instances will not be uploaded.",
-                            nme.getId());
+                            "Account oid not found for non market entity {} with account id {},"
+                                    + " account level coverage by reserved instances will not be uploaded.",
+                            nme.getId(), csd.hasAccountId() ? csd.getAccountId() : null);
                 }
                 final Map<String, Double> accountCoverageByRIs = new HashMap<>();
                 final List<EntityRICoverageUpload.Builder> entityRICoverages = new ArrayList<>();
