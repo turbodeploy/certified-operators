@@ -328,25 +328,34 @@ public class PercentileEditorTest extends PercentileBaseTest {
         // Don't set percentile for commodity sold without utilization data or required type
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
             TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
-            TopologyDTO.CommoditySoldDTO.newBuilder()));
+            TopologyDTO.CommoditySoldDTO.newBuilder(), topologyInfo));
         // Set percentile for commodity sold with utilization data and without required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
             TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
             TopologyDTO.CommoditySoldDTO.newBuilder()
-                .setUtilizationData(UtilizationData.getDefaultInstance())));
+                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
         // Set percentile for commodity sold without utilization data and with required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
             TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.VCPU_VALUE))));
+                    .setType(CommodityType.VCPU_VALUE)), topologyInfo));
         // Set percentile for commodity sold with utilization data and required type
         Assert.assertTrue(percentileEditor.isCommodityApplicable(
             TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setUtilizationData(UtilizationData.getDefaultInstance())
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.VCPU_VALUE))));
+                    .setType(CommodityType.VCPU_VALUE)), topologyInfo));
+        // Set percentile for Storage Access commodity sold in MCP.
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(TopologyEntity
+                .newBuilder(TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)).build(),
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.STORAGE_ACCESS_VALUE)),
+                TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())).build()));
 
         // Don't set percentile for commodity bought without utilization data
         Assert.assertFalse(percentileEditor.isCommodityApplicable(
@@ -406,7 +415,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 .build(),
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                .setType(CommodityType.VMEM_VALUE))));
+                .setType(CommodityType.VMEM_VALUE)), topologyInfo));
     }
 
     /**
@@ -422,7 +431,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                     .setType(CommodityType.VMEM_VALUE))
-                .setUtilizationData(UtilizationData.getDefaultInstance())));
+                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
     }
 
     /**
@@ -436,7 +445,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 .build(),
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.VMEM_VALUE))));
+                    .setType(CommodityType.VMEM_VALUE)), topologyInfo));
     }
 
     /**
@@ -451,7 +460,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                     .setType(CommodityType.VMEM_VALUE))
-                .setUtilizationData(UtilizationData.getDefaultInstance())));
+                .setUtilizationData(UtilizationData.getDefaultInstance()), topologyInfo));
     }
 
     /**

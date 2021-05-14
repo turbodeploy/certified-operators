@@ -30,9 +30,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.utils.ThrowingConsumer;
 import com.vmturbo.components.common.utils.TriFunction;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -42,6 +45,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.IHistoricalEditor;
+import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 
 /**
  * A pipeline stage to calculate historical values for commodities.
@@ -116,7 +120,7 @@ public class HistoryAggregator {
         try {
             final Stopwatch stopwatch = Stopwatch.createStarted();
             Map<IHistoricalEditor<?>, List<EntityCommodityReference>> commsToUpdate =
-                            gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
+                            gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun, topologyInfo);
             // store reference to the current settings for policies access
             // set up commodity builders lazy/fast access
             HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
@@ -285,7 +289,8 @@ public class HistoryAggregator {
     @Nonnull
     private static Map<IHistoricalEditor<?>, List<EntityCommodityReference>>
             gatherEligibleCommodities(@Nonnull TopologyGraph<TopologyEntity> graph,
-                                      @Nonnull Set<IHistoricalEditor<?>> editorsToRun) {
+                                      @Nonnull Set<IHistoricalEditor<?>> editorsToRun,
+                                      @Nonnull TopologyInfo topoInfo) {
         Map<IHistoricalEditor<?>, List<EntityCommodityReference>> commoditiesToEdit = new HashMap<>();
         for (IHistoricalEditor<?> editor : editorsToRun) {
             List<EntityCommodityReference> editorComms = commoditiesToEdit
@@ -297,7 +302,7 @@ public class HistoryAggregator {
                     // gather sold
                     for (CommoditySoldDTO.Builder commSold : entityBuilder
                                     .getCommoditySoldListBuilderList()) {
-                        if (editor.isCommodityApplicable(entity, commSold)) {
+                        if (editor.isCommodityApplicable(entity, commSold, topoInfo)) {
                             editorComms.add(new EntityCommodityReference(entity.getOid(),
                                                                          commSold.getCommodityType(),
                                                                          null));

@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 
@@ -47,10 +48,12 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      *
      * @param entity topology entity
      * @param commSold sold commodity
+     * @param topoInfo topologyInfo
      * @return true when commodity has to be updated
      */
     boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                  @Nonnull CommoditySoldDTO.Builder commSold);
+                                  @Nonnull CommoditySoldDTO.Builder commSold,
+                                  @Nullable TopologyInfo topoInfo);
 
     /**
      * Whether the bought commodity applies to history calculation.
