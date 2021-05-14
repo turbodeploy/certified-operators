@@ -10,7 +10,7 @@ import org.junit.Test;
 import com.vmturbo.sql.utils.TestDBMigrationChecksums;
 
 /**
- * Validates the checksums for the DB migration files in this project against
+ * Validates the checksums for the DB migration files in this project's extractor DB endpoint against
  * those recorded in the checksum properties file.
  *
  * <p><strong>Note</strong>: Unless there is a very very good reason, SQL migration
@@ -18,7 +18,7 @@ import com.vmturbo.sql.utils.TestDBMigrationChecksums;
  * You should always create a new migration file to adjust the final state of the
  * database. There can be exception to this rule, but never without a very compelling reason.</p>
  */
-public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
+public class ExtractorDBMigrationScriptsTest extends TestDBMigrationChecksums {
 
     /**
      * Compares the files in this project with their recorded checksums.
@@ -32,7 +32,7 @@ public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
         Assert.assertTrue("Migration directory must exist and must be a directory.",
                           migrationDir.exists() && migrationDir.isDirectory());
 
-        final File checksumFile = new File("src/test/resources/db-migration-checksums.properties");
+        final File checksumFile = new File("src/test/resources/extractor-db-migration-checksums.properties");
         assertTrue("Checksum record file must be available",
                    checksumFile.exists() && checksumFile.isFile());
 

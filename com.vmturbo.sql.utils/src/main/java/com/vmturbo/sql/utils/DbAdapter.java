@@ -125,6 +125,11 @@ public abstract class DbAdapter {
             if (config.getShouldProvisionUser()) {
                 createNonRootUser();
                 performNonRootGrants();
+                if (config.getShouldProvisionDatabase()
+                        && config.getAccess() == DbEndpointAccess.ALL) {
+                    provisionForMigrations();
+                }
+
             }
             // check to make sure that the endpoint user can now connect to the database
             try {
@@ -320,6 +325,16 @@ public abstract class DbAdapter {
      * @throws UnsupportedDialectException for an unsupported dialect
      */
     protected abstract void performNonRootGrants() throws SQLException, UnsupportedDialectException;
+
+    /**
+     * Perform any additional operations required to ensure that the endpoint user has all
+     * privileges required for executing migrations.
+     *
+     * @throws SQLException if any of the required operations fail
+     * @throws UnsupportedDialectException for an unsupported dialect
+     */
+    protected void provisionForMigrations() throws SQLException, UnsupportedDialectException {
+    }
 
     /**
      * Create a readers group for this endpoint's schema, if needed for read-level grants.

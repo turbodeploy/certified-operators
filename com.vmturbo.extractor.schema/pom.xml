@@ -54,7 +54,7 @@
                     <user>${postgresUserName}</user>
                     <password>${postgresPassword}</password>
                     <locations>
-                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                        <location>filesystem:${basedir}/src/main/resources/db/migration/extractor</location>
                     </locations>
                     <schemas>
                         <schema>${postgresSchemaName}</schema>
