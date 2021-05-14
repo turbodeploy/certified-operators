@@ -206,6 +206,20 @@ public class SettingPoliciesServiceTest {
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
     }
 
+    /**
+     * Test the use case of getting a global policy.
+     */
+    @Test
+    public void testGetGlobalPolicy() throws Exception {
+        final SettingPolicy globalPolicy = settingsPoliciesService.createGlobalSettingPolicy();
+
+        SettingsPolicyApiDTO ret =
+                settingsPoliciesService.getSettingsPolicyByUuid(String.valueOf(SettingsMapper.GLOBAL_SETTING_POLICY_ID));
+
+        // Verify settings mapper is called with the global policy
+        verify(settingsMapper).convertSettingPolicy(globalPolicy);
+    }
+
     @Test
     public void testCreatePolicy() throws Exception {
         when(settingsMapper.convertNewInputPolicy(eq(inputPolicy)))

@@ -1,0 +1,20 @@
+{
+  "managersByUuid" : {
+    "automationmanager": {
+      "displayName": "Action Mode Settings",
+      "defaultCategory": "Automation",
+      "settings": [
+        "disableAllActions"
+      ]
+    },
+    "marketsettingsmanager": {
+      "displayName": "Operational Constraints",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "maxVMGrowthObservationPeriod",
+        "allowUnlimitedHostOverprovisioning",
+        "onPremVolumeAnalysis"
+      ]
+    }
+  }
+}
