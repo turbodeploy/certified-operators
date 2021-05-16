@@ -1371,6 +1371,49 @@
                 <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
+        <!-- Release profile for cwom. Builds api related components. -->
+        <profile>
+            <id>cwom-release</id>
+            <modules>
+                <module>../versioning</module>
+                <module>../com.vmturbo.components.baseimage</module>
+                <module>../protoc-plugin-common</module>
+                <module>../protoc-spring-rest</module>
+                <module>../protoc-grpc-moles</module>
+                <module>../com.vmturbo.api.conversion</module>
+                <module>../com.vmturbo.licensing</module>
+                <module>../com.vmturbo.auth.api</module>
+                <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
+                <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.clustermgr.api</module>
+                <module>../com.vmturbo.components</module>
+                <module>../com.vmturbo.components.common</module>
+                <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
+                <module>../com.vmturbo.components.api.root</module>
+                <module>../com.vmturbo.components.api</module>
+                <module>../com.vmturbo.components.api.test</module>
+                <module>../com.vmturbo.action.orchestrator.api</module>
+                <module>../com.vmturbo.group.api</module>
+                <module>../com.vmturbo.group.component</module>
+                <module>../com.vmturbo.kvstore</module>
+                <module>../com.vmturbo.repository.api</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.topology.processor.api</module>
+                <module>../com.vmturbo.history.schema</module>
+                <module>../com.vmturbo.history.component.api</module>
+                <module>../com.vmturbo.identity</module>
+                <module>../com.vmturbo.plan.orchestrator.api</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.cost.component.api</module>
+                <module>../com.vmturbo.component.status.api</module>
+                <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.system.notification.receiver</module>
+            </modules>
+        </profile>
         <profile>
             <id>base-components</id>
             <modules>
