@@ -2,6 +2,8 @@ package com.vmturbo.cost.component;
 
 import java.time.temporal.Temporal;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -9,6 +11,8 @@ import javax.annotation.Nonnull;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
@@ -18,6 +22,7 @@ import org.jooq.DSLContext;
 import org.jooq.DataType;
 import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.Table;
 import org.jooq.impl.DSL;
 import org.jooq.impl.SQLDataType;
 import org.jooq.impl.TableImpl;
@@ -41,6 +46,8 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
      */
     Logger logger = LogManager.getLogger();
 
+    int DEFAULT_RESTORE_BATCH_SIZE = 1000;
+
     /**
      * Get DSL Context.
      *
@@ -55,6 +62,14 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
      */
     TableImpl<S> getTable();
 
+    /**
+     * Get the size of batches of records to restore.
+     * @return The batch of records to restore.
+     */
+    default int getBatchRestoreSize() {
+        return DEFAULT_RESTORE_BATCH_SIZE;
+    }
+
     @Override
     default void restoreDiags(@Nonnull List<String> collectedDiags, T context) {
         final Field<?>[] fields = getTable().fields();
@@ -65,10 +80,29 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
             logger.info("Disabling foreign key constraint checks while loading diags for '{}'", getTable());
             JooqUtil.disableForeignKeyConstraints(transaction);
 
-            for (String line : collectedDiags) {
-                S rec = jsonToRecord(line, fields, mapper);
-                transaction.insertInto(getTable()).set(rec).onDuplicateKeyIgnore().execute();
-            }
+
+            Iterables.partition(collectedDiags, getBatchRestoreSize()).forEach(batchLines -> {
+
+                final List<S> batchRecords = batchLines.stream()
+                        .map(line -> {
+                            try {
+                                return jsonToRecord(line, fields, mapper);
+                            } catch (Exception e) {
+                                logger.error("Error parsing line: {}", line, e);
+                                return null;
+                            }
+                        }).filter(Objects::nonNull)
+                        .collect(ImmutableList.toImmutableList());
+
+                final Table<S> table = getTable();
+                transaction.batch(
+                        batchRecords.stream()
+                                .map(record -> transaction.insertInto(table)
+                                        .set(record)
+                                        .onDuplicateKeyUpdate()
+                                        .set(record))
+                                .collect(ImmutableList.toImmutableList())).execute();
+            });
 
             // If an exception occurs will loading the diags, constraint checks are disabled
             // only for the session. Re-enabling constraint checks is done for completeness,
