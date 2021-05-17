@@ -31,6 +31,7 @@
              writing (November 2016) so this is ok. -->
         <aggregate.adoc.dir>../com.vmturbo.components.common/src/main/resources</aggregate.adoc.dir>
         <!-- END properties for static swagger documentation generation -->
+        <jackson.version>2.11.4</jackson.version>
     </properties>
 
     <build>
@@ -200,6 +201,16 @@
             </build>
         </profile>
     </profiles>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
