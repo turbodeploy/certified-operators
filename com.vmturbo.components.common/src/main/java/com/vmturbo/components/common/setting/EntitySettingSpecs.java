@@ -244,7 +244,7 @@ public enum EntitySettingSpecs {
             numeric(0f, 100f, 70.0f), true),
 
     /**
-     * Storage amount utilization scaling constriants. Used for cloud entities only.
+     * Storage amount utilization scaling constraints. Used for cloud entities only.
      */
     ResizeTargetUtilizationStorageAmount("resizeTargetUtilizationStorageAmount", "Scaling target Storage Amount Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -532,6 +532,17 @@ public enum EntitySettingSpecs {
         Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.VIRTUAL_MACHINE),
         numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+
+    /**
+     * IOPS utilization scaling constraints. Used for cloud entities only.
+     * This setting will be applied only to Database Server sold commodity, we do not reuse
+     * {@link ResizeTargetUtilizationIops} because we do not need to apply to VM commodity sold.
+     */
+    ResizeTargetDBSUtilizationIOPS("resizeTargetDBSUtilizationIOPS", "Scaling Target IOPS Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0f, 100f, 70f),
+            true),
 
     /**
      * IOPS capacity to set on the entity.

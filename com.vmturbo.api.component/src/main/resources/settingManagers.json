@@ -227,6 +227,7 @@
         "preferSavingsOverReversibility",
         "dtuUtilization",
         "resizeTargetUtilizationStorageAmount",
+        "resizeTargetDBSUtilizationIOPS",
         "allowUnlimitedHostOverprovisioning",
         "onPremVolumeAnalysis",
         "minReplicas",
