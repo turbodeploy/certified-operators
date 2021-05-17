@@ -1586,7 +1586,7 @@ public class TopologyConverter {
                 // i.e. For cloud volumes, connect projected cloud volumes with the same AZ/Region
                 // as the projected VM that the volumes are attached to.
                 createConnectedAzOrRegion(projectedEntityForConsumerOfCollapsedEntity)
-                    .ifPresent(projectedEntity::addConnectedEntityList);
+                        .ifPresent(projectedEntity::addConnectedEntityList);
                 result.add(projectedEntity.build());
             }
         }

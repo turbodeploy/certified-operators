@@ -444,7 +444,9 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -489,7 +491,9 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -556,7 +560,9 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -818,9 +824,9 @@ public class CloudMigrationPlanHelperTest {
         verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, true);
 
         cloudMigrationPlanHelper.prepareBoughtCommodities(host1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
+                Collections.emptyMap(), true, false, mock(TopologyGraph.class));
         cloudMigrationPlanHelper.prepareBoughtCommodities(storage1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
+                Collections.emptyMap(), true, false, mock(TopologyGraph.class));
 
         verifyMovableScalable(host1OnPrem, storageProviderOfHost, false);
         verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, false);
@@ -1090,6 +1096,86 @@ public class CloudMigrationPlanHelperTest {
                         dtoBuilder, Collections.emptyMap(), true, true);
         // There should not be any instance store commodities after the skip.
         assertEquals(0, remainingBoughtStorage.size());
+    }
+
+    /**
+     * Test skip a configuration volume that associates with an on prem VM.
+     * The configuration volume's CommmoditiesBoughtFromProvider list will be cleared. The VM to
+     * configuration volume's CommmoditiesBoughtFromProvider will be skipped as well.
+     */
+    @Test
+    public void skipConfigurationVolumeOnMigration() {
+
+        long configVolumeProviderId = 101L;
+        TopologyEntityDTO.Builder configVVBuilder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(configVolumeProviderId)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_PROVISIONED.getNumber())));
+        long diskVolumeProviderId = 102L;
+        TopologyEntityDTO.Builder diskVVBuilder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(diskVolumeProviderId)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_ACCESS.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_LATENCY.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_PROVISIONED.getNumber())));
+        long vmId = 1234567L;
+        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEntityType(VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(diskVolumeProviderId).setMovable(true)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_ACCESS.getNumber())))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_LATENCY.getNumber())).build())
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_PROVISIONED.getNumber())).build()))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(configVolumeProviderId)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_AMOUNT.getNumber())
+                                                .build()))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_PROVISIONED.getNumber()))
+                                .build()));
+
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap() {{
+            put(vmId, TopologyEntity.newBuilder(vmBuilder));
+            put(configVolumeProviderId, TopologyEntity.newBuilder(configVVBuilder));
+            put(diskVolumeProviderId, TopologyEntity.newBuilder(diskVVBuilder));
+        }});
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vmBuilder, consumptionTopologyInfo,
+                new HashMap<>(), false, true, graph);
+        // Verify that the vmBuilder has no CommoditiesBoughtFromProviders to config volume
+        assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .noneMatch(c -> c.getProviderId() == configVolumeProviderId));
+        assertEquals(1, vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        cloudMigrationPlanHelper.prepareBoughtCommodities(configVVBuilder, consumptionTopologyInfo,
+                new HashMap<>(), false, false, graph);
+        // Verify that the configVVBuilder has no CommoditiesBoughtFromProviders
+        assertEquals(0, configVVBuilder.getCommoditiesBoughtFromProvidersCount());
     }
 
     /**

@@ -200,7 +200,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getConnectedRegion(entityId);
             final Optional<ENTITY_CLASS> businessAccountOpt = cloudTopology.getOwner(entityId);
 
-            if (!businessAccountOpt.isPresent()) {
+            if (!businessAccountOpt.isPresent() && isProjectedTopology) {
                 logger.warn("Unable to find business account for entity {}. Returning empty cost.", entityId);
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
@@ -214,7 +214,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
             AccountPricingData<ENTITY_CLASS> accountPricingData = accountPricingDataOpt.get();
-            if (!regionOpt.isPresent()) {
+            if (!regionOpt.isPresent() && isProjectedTopology) {
                 logger.warn("Unable to find region for entity {}. Returning empty cost.", entityId);
                 return CostJournal.empty(entity, entityInfoExtractor);
             }
