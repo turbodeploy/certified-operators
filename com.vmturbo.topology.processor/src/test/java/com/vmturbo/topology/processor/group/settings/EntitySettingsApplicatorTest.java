@@ -1673,7 +1673,8 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.DTUUtilization);
         testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_AMOUNT,
                 EntitySettingSpecs.ResizeTargetUtilizationStorageAmount);
-
+        testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_ACCESS,
+                EntitySettingSpecs.ResizeTargetDBSUtilizationIOPS);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
