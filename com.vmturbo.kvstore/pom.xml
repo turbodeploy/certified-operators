@@ -27,7 +27,7 @@
         <dependency>
             <groupId>com.ecwid.consul</groupId>
             <artifactId>consul-api</artifactId>
-            <version>1.2.2</version>
+            <version>1.4.5</version>
             <exclusions>
                 <exclusion>
                     <groupId>log4j</groupId>
@@ -43,6 +43,10 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
         </dependency>
         <!-- For Spring utility classes -->
         <dependency>
