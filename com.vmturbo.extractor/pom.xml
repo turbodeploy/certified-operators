@@ -23,6 +23,7 @@
         -->
         <postgresUserName>postgres</postgresUserName>
         <postgresPassword>vmturbo</postgresPassword>
+        <jackson.dataformat.version>2.10.5</jackson.dataformat.version>
     </properties>
     <build>
         <plugins>
@@ -329,6 +330,15 @@
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
+        </dependency>
+        <!-- All components make use of the build pom.xml jackson
+             version which is 2.11.4. However this version contains
+             a slight defect with how json is converted to yaml.
+             To fix this, an older version of jackson is used. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+            <version>${jackson.dataformat.version}</version>
         </dependency>
     </dependencies>
 </project>
