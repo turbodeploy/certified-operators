@@ -529,10 +529,17 @@ public class CloudTopologyConverter {
      */
     private Set<TopologyEntityDTO> getTopologyEntityDTODirectProvidersOfType(@Nonnull Set<TopologyEntityDTO> entities,
                                                                              int providerType) {
+        // MCP could have a different provider type for workloads before and after migration.
+        Set<Integer> possibleTypes = new HashSet();
+        possibleTypes.add(providerType);
+        if (TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
+            possibleTypes.add(EntityType.PHYSICAL_MACHINE_VALUE);
+            possibleTypes.add(EntityType.STORAGE_VALUE);
+        }
         return entities.stream()
                 .flatMap(e -> e.getCommoditiesBoughtFromProvidersList().stream())
                 .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == providerType)
+                .filter(commBought -> possibleTypes.contains(commBought.getProviderEntityType()))
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .map(topology::get)
                 .filter(Objects::nonNull)
