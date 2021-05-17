@@ -3,10 +3,7 @@ package com.vmturbo.cost.component.entity.cost;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
@@ -43,6 +40,8 @@ import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.trax.Trax;
+import static com.vmturbo.trax.Trax.trax;
+
 
 public class SqlEntityCostStoreTest {
     /**
@@ -441,10 +440,18 @@ public class SqlEntityCostStoreTest {
 
     @Test
     public void testStoreCostJournal() throws DbException {
+        ImmutableMap<CostSource, Double> computeSourceCostMap = ImmutableMap.of(
+                CostSource.ON_DEMAND_RATE, 10.0,
+                CostSource.BUY_RI_DISCOUNT, -3.0);
+        ImmutableMap<CostSource, Double> licenseSourceCostMap = ImmutableMap.of(
+                CostSource.ON_DEMAND_RATE, 10.0,
+                CostSource.BUY_RI_DISCOUNT, -5.0);
+        ImmutableMap<CostCategory, Map<CostSource, Double>> categorySourceCostMap = ImmutableMap.of(
+                CostCategory.ON_DEMAND_COMPUTE, computeSourceCostMap,
+                CostCategory.ON_DEMAND_LICENSE, licenseSourceCostMap);
         final CostJournal<TopologyEntityDTO> journal1 =
-                mockCostJournal(ID1, ASSOCIATED_ENTITY_TYPE1,
-                        ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0,
-                                CostCategory.ON_DEMAND_LICENSE, 3.0));
+                mockCostJournalWithCostSources(ID1, ASSOCIATED_ENTITY_TYPE1,
+                        categorySourceCostMap);
         final CloudTopology<TopologyEntityDTO> topology = Mockito.mock(CloudTopology.class);
         Mockito.when(topology.getOwner(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
@@ -465,21 +472,38 @@ public class SqlEntityCostStoreTest {
         MatcherAssert.assertThat(entityCost.getAssociatedEntityType(),
                 CoreMatchers.is(ASSOCIATED_ENTITY_TYPE1));
         MatcherAssert.assertThat(entityCost.getAssociatedEntityId(), CoreMatchers.is(ID1));
-        MatcherAssert.assertThat(entityCost.getComponentCostCount(), CoreMatchers.is(2));
+        MatcherAssert.assertThat(entityCost.getComponentCostCount(), CoreMatchers.is(4));
         MatcherAssert.assertThat(entityCost.getComponentCostList(), Matchers.containsInAnyOrder(
                 ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                                .setAmount(7.0))
-                        .build(), ComponentCost.newBuilder()
+                                .setAmount(10.0))
+                        .build(),
+                ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(-3.0))
+                        .build(),
+                ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_LICENSE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                                .setAmount(3.0))
-                        .build()));
+                                .setAmount(10.0))
+                        .build(),
+                ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                        .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(-5.0))
+                        .build()
+
+        ));
     }
 
     /**
@@ -572,29 +596,40 @@ public class SqlEntityCostStoreTest {
         store.cleanEntityCosts(LocalDateTime.now(clock));
     }
 
-    private CostJournal<TopologyEntityDTO> mockCostJournal(final long entityId,
-            final int entityType, final Map<CostCategory, Double> costsByCategory) {
+    private CostJournal<TopologyEntityDTO> mockCostJournalWithCostSources(
+            final long entityId, final int entityType,
+            final Map<CostCategory, Map<CostSource, Double>> costsByCategoryAndSource) {
+        
         final TopologyEntityDTO entity =
                 TopologyEntityDTO.newBuilder().setOid(entityId).setEntityType(entityType).build();
         final CostJournal<TopologyEntityDTO> journal = Mockito.mock(CostJournal.class);
         Mockito.when(journal.getEntity()).thenReturn(entity);
-        Mockito.when(journal.getCategories()).thenReturn(costsByCategory.keySet());
-        for (final CostCategory category : CostCategory.values()) {
-            Mockito.when(
-                    journal.getHourlyCostBySourceAndCategory(category, CostSource.ON_DEMAND_RATE))
-                    .thenReturn(Trax.trax(costsByCategory.getOrDefault(category, 0.0)));
-            Mockito.when(journal.getHourlyCostForCategory(category))
-                    .thenReturn(Trax.trax(costsByCategory.getOrDefault(category, 0.0)));
+        Mockito.when(journal.getCategories()).thenReturn(costsByCategoryAndSource.keySet());
+
+        for (final Map.Entry<CostCategory, Map<CostSource, Double>> entry : costsByCategoryAndSource.entrySet()) {
+            CostCategory category = entry.getKey();
+            Map<CostSource, Double> costsBySource = entry.getValue();
+            Mockito.when(journal.getFilteredCategoryCostsBySource(category, CostJournal.CostSourceFilter.EXCLUDE_UPTIME))
+                    .thenReturn(costsBySource.entrySet().stream().collect(
+                            Collectors.toMap(Map.Entry::getKey, e -> trax(e.getValue()))));
+
         }
         return journal;
     }
 
+
     private CostJournal<TopologyEntityDTO> mockCostJournal(final EntityCost entityCost) {
-        return mockCostJournal(entityCost.getAssociatedEntityId(),
-                entityCost.getAssociatedEntityType(), entityCost.getComponentCostList()
-                        .stream()
-                        .collect(Collectors.toMap(ComponentCost::getCategory,
-                                c -> c.getAmount().getAmount())));
+        Map<CostCategory, Map<CostSource, Double>> costCategorySourceMap = entityCost.getComponentCostList()
+                .stream()
+                .collect(Collectors.toMap(ComponentCost::getCategory,
+                        c -> new HashMap<CostSource, Double>() {{
+                            put(c.getCostSourceLink().getCostSource(), c.getAmount().getAmount());
+                        }}
+
+                ));
+        return mockCostJournalWithCostSources(entityCost.getAssociatedEntityId(),
+                entityCost.getAssociatedEntityType(),
+                costCategorySourceMap);
     }
 
     private void validateResults(final Map<Long, Map<Long, EntityCost>> map,

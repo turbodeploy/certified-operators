@@ -6,6 +6,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import org.hamcrest.Matchers;
@@ -306,8 +307,8 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
         assertThat(ans.getValue(), Matchers.is(100.0));
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
-                        CostSource.RI_INVENTORY_DISCOUNT).getValue(), Matchers.is(-25.0));
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL)
+                        .get(CostSource.RI_INVENTORY_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
         System.out.println(ans);
     }
@@ -386,8 +387,8 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
         assertThat(ans.getValue(), Matchers.is(100.0));
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
-                        CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(-25.0));
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL)
+                        .get(CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
         System.out.println(ans);
     }
@@ -422,9 +423,10 @@ public class CostJournalTest {
                         .recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
                                 riBoughtPercentage, price, true)
                         .build();
+        Map<CostSource, TraxNumber> filteredCategoryCostsBySource = journal.getFilteredCategoryCostsBySource(CostCategory.RESERVED_LICENSE, CostSourceFilter.INCLUDE_ALL);
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.RESERVED_LICENSE,
-                        CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
+                filteredCategoryCostsBySource
+                        .get(CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
         System.out.println(journal);
     }
 
@@ -495,13 +497,26 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(
                         CostCategory.ON_DEMAND_COMPUTE,
                         CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+        final TraxNumber uptimeDiscount = journal.getFilteredCategoryCostsBySource(
+                CostCategory.ON_DEMAND_COMPUTE,
+                CostSourceFilter.INCLUDE_ALL).get(CostSource.ENTITY_UPTIME_DISCOUNT);
+        final TraxNumber onDemandRateExcludingUptime = journal.getFilteredCategoryCostsBySource(
+                CostCategory.ON_DEMAND_COMPUTE,
+                CostSourceFilter.EXCLUDE_UPTIME).get(CostSource.ON_DEMAND_RATE);
         final TraxNumber buyRIDiscount =
-                journal.getHourlyCostBySourceAndCategory(
+                journal.getFilteredCategoryCostsBySource(
                         CostCategory.ON_DEMAND_COMPUTE,
-                        CostSource.BUY_RI_DISCOUNT);
+                        CostSourceFilter.INCLUDE_ALL).get(CostSource.BUY_RI_DISCOUNT);
+        final TraxNumber buyRIDiscountExcludingUptime =
+                journal.getFilteredCategoryCostsBySource(
+                        CostCategory.ON_DEMAND_COMPUTE,
+                        CostSourceFilter.EXCLUDE_UPTIME).get(CostSource.BUY_RI_DISCOUNT);
 
+        assertThat(onDemandRateExcludingUptime.getValue(), closeTo(TOTAL_PRICE, VALID_DELTA));
+        assertThat(uptimeDiscount.getValue(), closeTo(TOTAL_PRICE * -0.25, VALID_DELTA));
         assertThat(computeCostMinusBuyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75, VALID_DELTA));
         assertThat(buyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75 * -.5, VALID_DELTA));
+        assertThat(buyRIDiscountExcludingUptime.getValue(), closeTo(TOTAL_PRICE * -.5, VALID_DELTA));
     }
 
     /**
@@ -535,9 +550,15 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(
                         CostCategory.RESERVED_LICENSE,
                         CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+        final TraxNumber licenseCostMinusUptime = journal.getFilteredCategoryCostsBySource(
+                CostCategory.RESERVED_LICENSE,
+                CostSourceFilter.EXCLUDE_UPTIME
+        ).get(CostSource.BUY_RI_DISCOUNT);
 
         // $2 with a 25% discount = $1.5
         assertThat(licenseCost.getValue(), closeTo(1.5, VALID_DELTA));
+        // ignoring uptime, should be discounted for the full price
+        assertThat(licenseCostMinusUptime.getValue(), closeTo(2.0, VALID_DELTA));
         // ignoring the buy RI discount, the license cost should be 0
         assertThat(licenseCostMinusBuyRI.getValue(), closeTo(0, VALID_DELTA));
     }
