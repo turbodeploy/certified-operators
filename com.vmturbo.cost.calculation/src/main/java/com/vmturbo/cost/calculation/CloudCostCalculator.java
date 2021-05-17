@@ -904,31 +904,31 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         float currentSize = 0f;
         final ArrayList<Price> sortedDependentPrices = new ArrayList<>(dependentPricesList);
         sortedDependentPrices.sort(Comparator.comparingLong(Price::getEndRangeInUnits));
-
-        for (Price storagePrice : sortedDependentPrices) {
-            if (storagePrice.getIncrementInterval() == 0) {
-                logger.error("Invalid increment interval for DB : {}. Can not calculate DB storage cost",
-                        entityInfoExtractor.getName(entity));
-                return defaultPrice;
-            }
-            while (currentSize < storagePrice.getEndRangeInUnits()) {
-                currentSize += storagePrice.getIncrementInterval();
-                String traxDescription = String.format("Storage %s price for incrementInterval %s is %s",
-                        commodityType, storagePrice.getIncrementInterval(), storagePrice.getPriceAmount().getAmount());
-                TraxNumber addedStoragePrice = trax(storagePrice.getIncrementInterval() * storagePrice.getPriceAmount().getAmount(),
-                        traxDescription);
-                totalCost = totalCost.plus(addedStoragePrice).compute();
-                if (currentSize >= commodityCapacity) {
-                    // We have reached storage requirements.
-                    logger.trace("Reached expected storage {} with {}. Required was {}.", commodityType, currentSize, commodityCapacity);
-                    break;
-                }
-            }
-            if (currentSize >= commodityCapacity) {
-                // We have reached storage requirements.
-                logger.trace("Reached expected storage {} with {}. Required was {}.", commodityType, currentSize, commodityCapacity);
-                break;
-            }
+       for (Price storagePrice : sortedDependentPrices) {
+           if (storagePrice.getIncrementInterval() <= 0) {
+               return handleNoIncrementStoragePriceOption(entity, storageUnit, commodityCapacity,
+                       totalCost, currentSize, storagePrice);
+           } else {
+               while (currentSize < storagePrice.getEndRangeInUnits()) {
+                   currentSize += storagePrice.getIncrementInterval();
+                   String traxDescription = String.format("Storage %s price for incrementInterval %s is %s",
+                           commodityType, storagePrice.getIncrementInterval(), storagePrice.getPriceAmount().getAmount());
+                   TraxNumber addedStoragePrice = trax(storagePrice.getIncrementInterval() * storagePrice.getPriceAmount().getAmount(),
+                           traxDescription);
+                   totalCost = totalCost.plus(addedStoragePrice).compute();
+                   if (currentSize >= commodityCapacity) {
+                       // We have reached storage requirements.
+                       logger.trace("Reached expected storage {} with {}. Required was {}.",
+                               commodityType, currentSize, commodityCapacity);
+                       break;
+                   }
+               }
+           }
+           if (currentSize >= commodityCapacity) {
+               // We have reached storage requirements.
+               logger.trace("Reached expected storage {} with {}. Required was {}.", commodityType, currentSize, commodityCapacity);
+               break;
+           }
         }
         if (currentSize < commodityCapacity) {
             logger.error("The storage tier was unable to satisfy {}: {}, {} storage requirement."
@@ -939,6 +939,33 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 .newBuilder().setAmount(totalCost.getValue()).build())
                 .setEndRangeInUnits((long)currentSize)
                 .setUnit(storageUnit).build();
+    }
+
+    private Price handleNoIncrementStoragePriceOption(final @Nonnull ENTITY_CLASS entity,
+                                                      @Nonnull final Unit storageUnit,
+                                                      final float commodityCapacity,
+                                                      @Nonnull TraxNumber totalCost,
+                                                      float currentSize,
+                                                      @Nonnull final Price storagePrice) {
+        if (currentSize < storagePrice.getEndRangeInUnits()) {
+            // increment interval was not set. this means we can extract pricing by
+            // directly multiplying current size and unit price.
+            currentSize = commodityCapacity;
+            String traxDescription = String.format("Setting prices directly as no incrementInterval was set. " +
+                            "Current size is %s. Price per %s is %s",
+                    currentSize, storagePrice.getUnit(), storagePrice.getPriceAmount().getAmount());
+            totalCost = totalCost.plus(storagePrice.getPriceAmount().getAmount()
+                    * currentSize, traxDescription).compute();
+            // final calculated storage price.
+            return Price.newBuilder().setPriceAmount(CurrencyAmount
+                    .newBuilder().setAmount(totalCost.getValue()).build())
+                    .setEndRangeInUnits((long)currentSize)
+                    .setUnit(storageUnit).build();
+        } else {
+            logger.error("Invalid increment interval for DB : {}. Can not calculate DB storage cost",
+                    entityInfoExtractor.getName(entity));
+            return Price.getDefaultInstance();
+        }
     }
 
     /**

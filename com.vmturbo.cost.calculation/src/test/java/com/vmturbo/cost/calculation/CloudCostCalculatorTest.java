@@ -829,21 +829,16 @@ public class CloudCostCalculatorTest {
         final float iopsAmount = 100f;
 
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
-            .setType(EntityType.DATABASE_SERVER_VALUE)
-            .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
-                DatabaseEdition.ENTERPRISE,
-                DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
-            .build(infoExtractor);
-        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of(storageAmount));
-        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_ACCESS))).thenReturn(Optional.of(iopsAmount));
-        when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
-        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
-        when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
-        when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
+                .setType(EntityType.DATABASE_SERVER_VALUE)
+                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                        DatabaseEdition.ENTERPRISE,
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
+                .build(infoExtractor);
+        mockDBSEntityCall(dbId, storageAmount, iopsAmount);
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
-            ACCOUNT_PRICING_DATA_OID,15L, 20L);
+                ACCOUNT_PRICING_DATA_OID,15L, 20L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -853,11 +848,43 @@ public class CloudCostCalculatorTest {
         // assert
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
-        final double expectedStorageCode =
+        final double expectedStorageCost =
                 (Math.max(storageAmount / 1024, MIN_RDS_STORAGE) * STORAGE_PRICE + Math.max(iopsAmount, MIN_RDS_IOPS) * IOPS_PRICE)
                         / CostProtoUtil.HOURS_IN_MONTH;
-        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(expectedStorageCode));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(expectedStorageCost));
 
+        // Once for the compute, once for storage,  no license cost
+        verify(discountApplicator, times(3)).getDiscountPercentage(databaseServerTier);
+    }
+
+    /**
+     * Test a on-demand calculation (no discount) for a Database Server.
+     */
+    @Test
+    public void testCalculateOnDemandCostForDatabaseServerWithNoIncrement() {
+        // arrange
+        final long dbId = 10;
+        final float storageAmount = 2f;
+        final float iopsAmount = 1000f;
+        final TestEntityClass db = TestEntityClass.newBuilder(dbId)
+                .setType(EntityType.DATABASE_SERVER_VALUE)
+                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                        DatabaseEdition.NONE,
+                        DatabaseEngine.POSTGRESQL, LicenseModel.NO_LICENSE_REQUIRED, DeploymentType.SINGLE_AZ))
+                .build(infoExtractor);
+        mockDBSEntityCall(dbId, storageAmount, iopsAmount);
+
+        final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
+                ACCOUNT_PRICING_DATA_OID,15L, 20L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        // act
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
+        final double expectedStorageCost =
+                (storageAmount / 1024 * STORAGE_PRICE + Math.max(iopsAmount, MIN_RDS_IOPS) * IOPS_PRICE)
+                        / CostProtoUtil.HOURS_IN_MONTH;
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(expectedStorageCost));
         // Once for the compute, once for storage,  no license cost
         verify(discountApplicator, times(3)).getDiscountPercentage(databaseServerTier);
     }
@@ -1027,6 +1054,18 @@ public class CloudCostCalculatorTest {
                         .build())
                 .addConfigPrices(DatabaseServerTierConfigPrice.newBuilder()
                         .setDatabaseTierConfigPrice(DatabaseTierConfigPrice.newBuilder()
+                                .setDbEdition(DatabaseEdition.NONE)
+                                .setDbEngine(DatabaseEngine.POSTGRESQL)
+                                .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                                .setDbLicenseModel(LicenseModel.NO_LICENSE_REQUIRED)
+                                .addPrices(price(Unit.HOURS, BASE_PRICE))
+                                .build())
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.GB_MONTH).setEndRangeInUnits(MIN_RDS_STORAGE).setPriceAmount(storagePrice))
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.MILLION_IOPS).setEndRangeInUnits(MIN_RDS_IOPS).setIncrementInterval(MIN_RDS_IOPS).setPriceAmount(iopsPrice))
+                        .addDependentPrices(Price.newBuilder().setUnit(Unit.MILLION_IOPS).setEndRangeInUnits(MAX_RDS_IOPS).setIncrementInterval(1).setPriceAmount(iopsPrice))
+                        .build())
+                .addConfigPrices(DatabaseServerTierConfigPrice.newBuilder()
+                        .setDatabaseTierConfigPrice(DatabaseTierConfigPrice.newBuilder()
                                 .setDbEdition(DatabaseEdition.ENTERPRISE)
                                 .setDbEngine(DatabaseEngine.MYSQL)
                                 .setDbDeploymentType(DeploymentType.SINGLE_AZ)
@@ -1165,6 +1204,15 @@ public class CloudCostCalculatorTest {
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
         return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty());
+    }
+
+    private void mockDBSEntityCall(final long dbId, final float storageAmount, final float iopsAmount) {
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_AMOUNT))).thenReturn(Optional.of(storageAmount));
+        when(infoExtractor.getRDBCommodityCapacity(any(), eq(CommodityType.STORAGE_ACCESS))).thenReturn(Optional.of(iopsAmount));
+        when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
+        when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
+        when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
     }
 
     private static TestEntityClass createStorageTier(final long storageTierId) {

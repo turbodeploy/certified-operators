@@ -273,7 +273,8 @@ public class TopologyConverter {
                 put(EntityType.DATABASE_VALUE,
                         ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
                 put(EntityType.DATABASE_SERVER_VALUE,
-                        ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
+                        ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+                                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
             }};
 
     private static final double MINIMUM_ACHIEVABLE_IOPS_PERCENTAGE = 0.05;
