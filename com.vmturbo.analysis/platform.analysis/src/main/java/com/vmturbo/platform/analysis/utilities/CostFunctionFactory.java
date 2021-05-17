@@ -680,8 +680,8 @@ public class CostFunctionFactory {
             @Nonnull  Trader seller,
             @Nonnull  ShoppingList sl) {
         double cost = 0;
-        long prevEndRange = 0;
-        long endRange = 0;
+        double prevEndRange = 0;
+        double endRange = 0;
         long increment = 0;
         double price = 0;
         if (dependentResourceQuantity == null) {
@@ -697,9 +697,8 @@ public class CostFunctionFactory {
             increment = dependentResourceOption.getAbsoluteIncrement();
             price = dependentResourceOption.getPrice();
             if (increment <= 0) {
-                logger.debug("Seller ID: {}, increment range for dependentResourceOption can never" +
-                        "be less than equal to 0. {}", seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-                return new SelectedStorageAndCost(endRange, Double.POSITIVE_INFINITY);
+                return handleNoIncrementDependentResourceOption(
+                        dependentResourceQuantity, seller, sl, endRange, price);
             }
             if (dependentResourceQuantity <= endRange) {
                 break;
@@ -712,7 +711,7 @@ public class CostFunctionFactory {
         insufficientCommodityWithinSellerCapacityQuote takes care of checking
         for bought quantity less than the sold commodity max.
          */
-        long selectedAmount = prevEndRange;
+        double selectedAmount = prevEndRange;
         if (dependentResourceQuantity > endRange) {
             logger.debug("dependentResourceQuantity : {} for buyer: {}  was not met by seller {}. Returning infinite"
                             + " cost for this seller.",
@@ -728,7 +727,26 @@ public class CostFunctionFactory {
         return new SelectedStorageAndCost(selectedAmount, cost);
     }
 
-
+    private static SelectedStorageAndCost handleNoIncrementDependentResourceOption(
+            final Double dependentResourceQuantity,
+            final Trader seller,
+            final ShoppingList sl,
+            final double endRange,
+            final double price) {
+        if (dependentResourceQuantity <= endRange) {
+            logger.debug("Seller: {} dependentResourceOptions has 0 incrementIntervals," +
+                            "Calculating cost by multiplying capacity {} directly by unit cost.",
+                    seller.getDebugInfoNeverUseInCode(), dependentResourceQuantity);
+            double cost = dependentResourceQuantity * price;
+            return new SelectedStorageAndCost(dependentResourceQuantity, cost);
+        } else {
+            logger.debug("Seller ID: {}, increment range for dependentResourceOption is 0 " +
+                            "and current demand is not satisfied by endRange." +
+                            "Returning infinite cost for seller. {}",
+                    seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
+            return new SelectedStorageAndCost(endRange, Double.POSITIVE_INFINITY);
+        }
+    }
 
     /**
      * Creates {@link CostFunction} for a given seller.

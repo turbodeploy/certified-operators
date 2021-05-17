@@ -848,15 +848,15 @@ public class CostFunctionFactoryHelper {
      * used while calculating dependentPricing.
      */
     static class SelectedStorageAndCost {
-        private final long selectedAmount;
+        private final Double selectedAmount;
         private final Double cost;
 
-        SelectedStorageAndCost(long selectedAmount, Double cost) {
+        SelectedStorageAndCost(Double selectedAmount, Double cost) {
             this.selectedAmount = selectedAmount;
             this.cost = cost;
         }
 
-        long getSelectedAmount() {
+        Double getSelectedAmount() {
             return selectedAmount;
         }
 
