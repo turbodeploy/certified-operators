@@ -495,10 +495,11 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 // Bind values to the batch insert statement. Each "bind" should have values for
                 // all fields set during batch initialization.
                 costJournals.forEach(journal -> journal.getCategories().forEach(costType -> {
-                    for (final CostSource costSource : CostSource.values()) {
-                        final TraxNumber categoryCost =
-                                journal.getHourlyCostBySourceAndCategory(costType,
-                                        costSource);
+                    Map<CostSource, TraxNumber> categoryCostsBySourceExcludingUptime = journal
+                            .getFilteredCategoryCostsBySource(
+                                    costType,
+                                    CostJournal.CostSourceFilter.EXCLUDE_UPTIME);
+                    categoryCostsBySourceExcludingUptime.forEach((costSource, categoryCost) -> {
                         if (categoryCost != null && !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d)) {
                             final long entityOid = journal.getEntity().getOid();
                             if (planId.isPresent()) {
@@ -537,7 +538,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                 );
                             }
                         }
-                    }
+                    });
                 }));
 
                 if (batch.size() > 0) {

@@ -2,20 +2,8 @@ package com.vmturbo.cost.calculation.journal;
 
 import static com.vmturbo.trax.Trax.trax;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -34,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
 
+import com.google.protobuf.MapEntry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.stringtemplate.v4.ST;
@@ -224,6 +213,8 @@ public class CostJournal<ENTITY_CLASS> {
 
         CostSourceFilter INCLUDE_ALL = (cs) -> true;
 
+        CostSourceFilter EXCLUDE_UPTIME = (cs) -> cs != CostSource.ENTITY_UPTIME_DISCOUNT;
+
         /**
          * filter by cost source.
          *
@@ -360,21 +351,25 @@ public class CostJournal<ENTITY_CLASS> {
     }
 
     /**
-     * Given a cost category and cost source, get the final hourly cost.
+     * Given a cost category and cost source filter, a map of hourly cost for each cost source.
      *
-     * @param category The cost category.
-     * @param source The cost source.
+     * @param costCategory The cost category.
+     * @param costSourceFilter The cost source filter.
      *
-     * @return A trax number representing the final cost for a given category and source.
+     * @return A mapping from cost source to a trax number representing the final cost.
      */
-    public TraxNumber getHourlyCostBySourceAndCategory(final CostCategory category,
-            final CostSource source) {
+    public Map<CostSource, TraxNumber> getFilteredCategoryCostsBySource(CostCategory costCategory,
+                                                                        CostSourceFilter costSourceFilter) {
         calculateCosts();
-        return finalCostsByCategoryAndSource.row(category).entrySet()
+
+        Collection<CostItem> filteredCostItemsForCategory = getFilteredCostItemsForCategory(costCategory, costSourceFilter);
+        Map<CostSource, TraxNumber> costsByCostSource = filteredCostItemsForCategory
                 .stream()
-                .filter(costEntry -> costEntry.getKey().costSource() == source)
-                .map(Entry::getValue)
-                .collect(TraxCollectors.sum());
+                .collect(Collectors.groupingBy(
+                        costItem -> costItem.costSourceLink().costSource(),
+                        Collectors.mapping(CostItem::cost, TraxCollectors.sum())
+                ));
+        return costsByCostSource;
     }
 
 
