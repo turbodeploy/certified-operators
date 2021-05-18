@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -21,8 +22,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -46,11 +47,11 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
- * Unit tests for {@link ProjectedEntityCostStore}.
+ * Unit tests for {@link InMemoryEntityCostStore}.
  */
 public class ProjectedEntityCostStoreTest {
 
-    private ProjectedEntityCostStore store;
+    private InMemoryEntityCostStore store;
 
     private static final long VM1_OID = 7L;
     private static final long VM2_OID = 8L;
@@ -133,28 +134,28 @@ public class ProjectedEntityCostStoreTest {
         repositoryClient = mock(RepositoryClient.class);
         when(repositoryClient.getEntitiesByTypePerScope(any(), any())).thenCallRealMethod();
         when(repositoryClient.parseSupplyChainResponseToEntityOidsMap(any())).thenCallRealMethod();
-        store = new ProjectedEntityCostStore(repositoryClient, serviceBlockingStub,
+        store = new InMemoryEntityCostStore(repositoryClient, serviceBlockingStub,
                 realTimeContextId);
     }
 
     @Test
     public void testUpdateAndGet() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST));
         final Map<Long, EntityCost> retCostMap =
-                store.getProjectedEntityCosts(Collections.singleton(VM1_COST.getAssociatedEntityId()));
+                store.getEntityCosts(Collections.singleton(VM1_COST.getAssociatedEntityId()));
         assertThat(retCostMap, is(ImmutableMap.of(VM1_COST.getAssociatedEntityId(), VM1_COST)));
     }
 
     @Test
     public void testGetEmpty() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST));
-        assertThat(store.getProjectedEntityCosts(Collections.emptySet()), is(Collections.emptyMap()));
+        store.updateEntityCosts(Arrays.asList(VM1_COST));
+        assertThat(store.getEntityCosts(Collections.emptySet()), is(Collections.emptyMap()));
     }
 
     @Test
     public void testGetMissing() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST));
-        assertThat(store.getProjectedEntityCosts(Collections.singleton(1 + VM1_COST.getAssociatedEntityId())),
+        store.updateEntityCosts(Arrays.asList(VM1_COST));
+        assertThat(store.getEntityCosts(Collections.singleton(1 + VM1_COST.getAssociatedEntityId())),
                 is(Collections.emptyMap()));
     }
 
@@ -163,8 +164,8 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilter() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId).build());
         assertThat(costs.keySet(), containsInAnyOrder(VM1_OID, VM2_OID, DB1_OID));
         assertThat(costs.get(VM1_OID), is(VM1_COST));
@@ -177,7 +178,7 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnEntities() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         final List<Long> vmOids = Collections.singletonList(VM1_OID);
         final List<Long> dbOids = Collections.singletonList(DB1_OID);
         final List<SupplyChainNode> supplyChainNodes = Arrays.asList(
@@ -186,7 +187,7 @@ public class ProjectedEntityCostStoreTest {
         final GetMultiSupplyChainsResponse response = createResponse(supplyChainNodes);
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
                 .thenReturn(Collections.singletonList(response));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .entityIds(ImmutableSet.of(VM1_OID, DB1_OID))
                 .build());
@@ -200,8 +201,8 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnEntitiesTypes() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .entityTypes(ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build());
@@ -215,8 +216,8 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnCategory() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
             .newBuilder(TimeFrame.LATEST, realTimeContextId)
             .costCategoryFilter(CostCategoryFilter.newBuilder()
                     .setExclusionFilter(false)
@@ -254,8 +255,8 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnCostSourceInclusion() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .costSources(false, ImmutableSet.of(CostSource.ON_DEMAND_RATE))
                 .build());
@@ -272,8 +273,8 @@ public class ProjectedEntityCostStoreTest {
      */
     @Test
     public void testGetProjectedEntityCostsWithCostFilterOnCostSourceExclusion() {
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
-        Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
+        Map<Long, EntityCost> costs = store.getEntityCosts(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .costSources(true, ImmutableSet.of(CostSource.BUY_RI_DISCOUNT))
                 .build());
@@ -294,7 +295,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsRegionalAndAccountFilter() {
         final long regionId = 11111L;
         final long accountId = 22222L;
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
         final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .regionIds(Collections.singleton(regionId))
@@ -312,7 +313,7 @@ public class ProjectedEntityCostStoreTest {
                 supplyChainNodesAccount);
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
                 .thenReturn(Arrays.asList(regionResponse, accountResponse));
-        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        final Map<Long, EntityCost> costMap = store.getEntityCosts(costFilterWithRegion);
         Assert.assertEquals(1, costMap.size());
         Assert.assertEquals(VM2_COST, costMap.get(VM2_OID));
     }
@@ -325,7 +326,7 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsEmptyAccountFilter() {
         final long regionId = 11111L;
         final long accountId = 22222L;
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
         final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .regionIds(Collections.singleton(regionId))
@@ -339,7 +340,7 @@ public class ProjectedEntityCostStoreTest {
                 createResponse(Collections.emptyList());
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
                 .thenReturn(Arrays.asList(regionResponse, accountResponse));
-        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        final Map<Long, EntityCost> costMap = store.getEntityCosts(costFilterWithRegion);
         Assert.assertTrue(costMap.isEmpty());
     }
 
@@ -349,7 +350,7 @@ public class ProjectedEntityCostStoreTest {
     @Test
     public void testGetProjectedEntityCostsRegionalFilter() {
         final long regionId = 11111L;
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
         final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, realTimeContextId)
                 .regionIds(Collections.singleton(regionId))
@@ -360,18 +361,18 @@ public class ProjectedEntityCostStoreTest {
         final GetMultiSupplyChainsResponse regionResponse = createResponse(supplyChainNodesRegion);
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
                 .thenReturn(Collections.singletonList(regionResponse));
-        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        final Map<Long, EntityCost> costMap = store.getEntityCosts(costFilterWithRegion);
         Assert.assertEquals(1, costMap.size());
         Assert.assertEquals(VM1_COST, costMap.get(VM1_OID));
     }
 
     /**
-     * Tests if storeReady flag gets set after updateProjectedEntityCosts is called.
+     * Tests if storeReady flag gets set after updateEntityCosts is called.
      */
     @Test
     public void testReadinessOfStore() {
         assertThat(store.isStoreReady(), is(false));
-        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
         assertThat(store.isStoreReady(), is(true));
     }
 

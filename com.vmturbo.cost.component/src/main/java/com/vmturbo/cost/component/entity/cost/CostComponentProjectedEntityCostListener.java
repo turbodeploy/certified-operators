@@ -33,14 +33,14 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
 
     private final CostNotificationSender costNotificationSender;
 
     CostComponentProjectedEntityCostListener(
-            @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+            @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
             @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
             @Nonnull final CostNotificationSender costNotificationSender) {
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
@@ -80,7 +80,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                 planProjectedEntityCostStore.insertPlanProjectedEntityCostsTableForPlan(
                         originalTopologyInfo, costList);
             } else {
-                projectedEntityCostStore.updateProjectedEntityCosts(costList);
+                projectedEntityCostStore.updateEntityCosts(costList);
             }
             // Send the projected cost status notification.
             sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,

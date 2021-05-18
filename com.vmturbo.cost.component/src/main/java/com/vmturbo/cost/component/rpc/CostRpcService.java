@@ -17,7 +17,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 
 import javax.annotation.Nonnull;
@@ -76,8 +75,8 @@ import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.savings.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
@@ -122,7 +121,7 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntityCostStore entityCostStore;
 
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
 
@@ -156,7 +155,7 @@ public class CostRpcService extends CostServiceImplBase {
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
-                          @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+                          @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
                           @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper,
@@ -236,7 +235,7 @@ public class CostRpcService extends CostServiceImplBase {
                         .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId());
             } else {
                 final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
-                afterEntityCostbyOid = projectedEntityCostStore.getProjectedEntityCosts(filterBuilder.build());
+                afterEntityCostbyOid = projectedEntityCostStore.getEntityCosts(filterBuilder.build());
             }
             Map<Long, CurrencyAmount> beforeCurrencyAmountByOid = new HashMap<>();
             Map<Long, CurrencyAmount> afterCurrencyAmountByOid = new HashMap<>();
@@ -660,8 +659,8 @@ public class CostRpcService extends CostServiceImplBase {
                                         request.getTopologyContextId());
                     } else if (projectCostStoreReady ) {
                         projectedStatRecords = request.getGroupByList().isEmpty()
-                                ? projectedEntityCostStore.getProjectedStatRecords(entityCostFilter)
-                                : projectedEntityCostStore.getProjectedStatRecordsByGroup(request.getGroupByList(),
+                                ? projectedEntityCostStore.getEntityCostStatRecords(entityCostFilter)
+                                : projectedEntityCostStore.getEntityCostStatRecordsByGroup(request.getGroupByList(),
                                 entityCostFilter);
                     }
                     if (projectCostStoreReady || isPlanRequest) {

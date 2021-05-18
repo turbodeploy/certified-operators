@@ -58,8 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
-import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
@@ -125,7 +124,7 @@ public class ActionListener implements ActionsListener {
     /**
      * The projected entity costs store.
      */
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     /**
      * Map of entity type to a set of cost categories for which costs need to be queried for.
@@ -191,7 +190,7 @@ public class ActionListener implements ActionsListener {
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                     @Nonnull final EntityCostStore costStoreHouse,
-                    @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+                    @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
@@ -584,7 +583,7 @@ public class ActionListener implements ActionsListener {
             Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
             queryResult.values().forEach(beforeEntityCostbyOid::putAll);
 
-            final Map<Long, EntityCost> afterEntityCostByOid = projectedEntityCostStore.getProjectedEntityCosts(filterBuilder);
+            final Map<Long, EntityCost> afterEntityCostByOid = projectedEntityCostStore.getEntityCosts(filterBuilder);
 
             // Populate before costs for entity.
             populateCostsForEntity(beforeEntityCostbyOid, entityIdToActionInfoMap, true);
