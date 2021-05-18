@@ -677,8 +677,12 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final SpotPricesForTier spotPricesForTier = spotPriceTable.get()
                 .getSpotPricesByTierOidMap().get(computeTierOid);
         if (spotPricesForTier == null) {
-            logger.error("Cannot find Spot prices for zone/region {}, compute tier {}",
-                    context.getRegionid(), computeTierOid);
+            final String vmName = entityInfoExtractor.getName(context.getEntity());
+            final long vmOid = entityInfoExtractor.getId(context.getEntity());
+            final String computeTierName = entityInfoExtractor.getName(computeTier);
+            logger.debug("Cannot calculate price for Spot instance \"{}\" (OID: {}) due to " +
+                            "missing Spot prices for zone/region {}, compute tier {} ({})",
+                    vmName, vmOid, context.getRegionid(), computeTierOid, computeTierName);
             return;
         }
         final ENTITY_CLASS entity = context.getEntity();
