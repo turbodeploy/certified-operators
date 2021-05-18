@@ -519,7 +519,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .get(entityInfoExtractor.getId(computeTier));
                     LicensePriceTuple licensePrice = null;
                     final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(computeTier);
-                    if (computePriceList != null && isBillable(entity)
+                    if (computePriceList != null
                             && (isProjectedTopology || computeConfig.getBillingType() != VMBillingType.BIDDING)
                             // The compute tier should always be present, if we made is this far, given the
                             // cloudTopology.getComputeTier() call above has already checked that the computeTier
@@ -530,11 +530,12 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 computeTierConfig.get(), computeConfig.getOs(), computePriceList);
                         final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
                         // For compute tiers, we're working with "hourly" costs, and the amount
-                        // of "compute" bought from the tier is 1 unit. Note: This cost is purely
+                        // of "compute" bought from the tier is 1 unit, if the VM is powered on. If
+                        // powered off, the bought amount is 0. Note: This cost is purely
                         // on demand and does not include any RI related costs.
-                        TraxNumber traxNumber = trax(1, "full on demand");
-                        recordOnDemandVmCost(journal, traxNumber, basePrice, computeTier);
-                        recordOnDemandVMLicenseCost(journal, computeTier, computeConfig, traxNumber, licensePrice);
+                        final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
+                        recordOnDemandVmCost(journal, computeBillableAmount, basePrice, computeTier);
+                        recordOnDemandVMLicenseCost(journal, computeTier, computeConfig, computeBillableAmount, licensePrice);
                     } else if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
                         recordVMSpotInstanceCost(computeTier, journal, context);
                     }
@@ -702,12 +703,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private void calculateDatabaseCost(CostCalculationContext<ENTITY_CLASS> context) {
         final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
-        logger.trace("Starting entity cost calculation for db {}", entityId);
-        if (!isBillable(entity)) {
-            logger.trace("Skipping DB cost calculation for {} because it is not in" +
-                            " billable state", entityId);
-            return;
-        }
+        logger.trace("Starting entity cost calculation for db {} (billable={})", entityId, isBillable(entity));
+
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
             final Optional<ENTITY_CLASS> tier = cloudTopology.getDatabaseTier(entityId);
@@ -731,12 +728,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private void calculateDatabaseServerCost(CostCalculationContext<ENTITY_CLASS> context) {
         final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
-        logger.trace("Starting entity cost calculation for dbs {}", entityId);
-        if (!isBillable(entity)) {
-            logger.trace("Skipping DBServer cost calculation for {} because it is not in" +
-                    " billable state", entityId);
-            return;
-        }
+
+        logger.trace("Starting entity cost calculation for dbs {} (isBillable={})", entityId, isBillable(entity));
+
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
             final Optional<ENTITY_CLASS> tier  = cloudTopology.getDatabaseServerTier(entityId);
@@ -811,15 +805,18 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                     final ENTITY_CLASS entity) {
         final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
         List<Price> storagePrices = dbPriceList.getDependentPricesList();
+
+        final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
+
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
-                basePrice.getPricesList().get(0), FULL);
+                basePrice.getPricesList().get(0), computeBillableAmount);
         dbPriceList.getConfigurationPriceAdjustmentsList().stream()
                 .filter(databaseConfig::matchesPriceTableConfig)
                 .findAny()
                 .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
                         CostCategory.ON_DEMAND_LICENSE,
                         databaseTier,
-                        priceAdjustmentConfig.getPricesList().get(0), FULL));
+                        priceAdjustmentConfig.getPricesList().get(0), computeBillableAmount));
         if (!dbPriceList.getDependentPricesList().isEmpty()) {
             //add storage price
             journal.recordOnDemandCost(CostCategory.STORAGE, databaseTier,
@@ -841,12 +838,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             Builder<ENTITY_CLASS> journal, ENTITY_CLASS dbsTier, DatabaseConfig databaseConfig,
             final ENTITY_CLASS entity) {
 
+        final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
+
         for (DatabaseServerTierConfigPrice serverConfigPrice : dbsPriceList.getConfigPricesList()) {
             final DatabaseTierConfigPrice configPrice =
                     serverConfigPrice.getDatabaseTierConfigPrice();
             if (databaseConfig.matchesPriceTableConfig(configPrice)) {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
-                        configPrice.getPricesList().get(0), FULL);
+                        configPrice.getPricesList().get(0), computeBillableAmount);
                 final Multimap<CommodityType, Price> storagePrices = ArrayListMultimap.create();
                 //we support only Storage Amount and IOPS cost, other will be ignored
                 for (Price price : serverConfigPrice.getDependentPricesList()) {
