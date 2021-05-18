@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -25,35 +24,32 @@ public class MockExecutorService implements ExecutorService {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    private final ExecutorService threadPool = Executors.newFixedThreadPool(5);
     private final Collection<Callable<?>> callableTasks = new CopyOnWriteArrayList<>();
     private final Collection<Runnable> runnableTasks = new CopyOnWriteArrayList<>();
 
     @Override
     public void shutdown() {
-        threadPool.shutdown();
     }
 
     @Nonnull
     @Override
     public List<Runnable> shutdownNow() {
-        return threadPool.shutdownNow();
+        return Collections.emptyList();
     }
 
     @Override
     public boolean isShutdown() {
-        return threadPool.isShutdown();
+        return false;
     }
 
     @Override
     public boolean isTerminated() {
-        return threadPool.isTerminated();
+        return false;
     }
 
     @Override
-    public boolean awaitTermination(long timeout, @NotNull TimeUnit unit)
-            throws InterruptedException {
-        return threadPool.awaitTermination(timeout, unit);
+    public boolean awaitTermination(long timeout, @NotNull TimeUnit unit) {
+        return false;
     }
 
     @Nonnull

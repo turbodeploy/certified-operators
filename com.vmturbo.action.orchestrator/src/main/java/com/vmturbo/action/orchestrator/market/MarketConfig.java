@@ -86,7 +86,8 @@ public class MarketConfig {
 
     @Bean
     public MarketActionListener marketActionListener() {
-        return new MarketActionListener(orchestrator(), actionPlanAssessor());
+        return new MarketActionListener(orchestrator(), actionPlanAssessor(),
+                topologyProcessorConfig.realtimeTopologyContextId());
     }
 
     @Bean
