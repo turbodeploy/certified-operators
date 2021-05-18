@@ -4,8 +4,14 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.opentracing.SpanContext;
 
@@ -13,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -23,7 +30,7 @@ import com.vmturbo.market.component.api.AnalysisSummaryListener;
 /**
  * Listens to action recommendations from the market.
  */
-public class MarketActionListener implements ActionsListener, AnalysisSummaryListener {
+public class MarketActionListener implements ActionsListener, AnalysisSummaryListener, AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -38,16 +45,47 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
      */
     private long latestMarketActionPlanId = -1;
 
+    private final ExecutorService planActionsExecutorService;
+    private final ExecutorService realtimeActionsExecutorService;
+    private final long realtimeTopologyContextId;
+
     /**
      * Constructs new instance of {@code MarketActionListener}.
      *
-     * @param actionOrchestrator The orchestrator that handles the processing of a new action plan.
+     * @param actionOrchestrator The orchestrator that handles the processing of a new
+     *         action plan.
      * @param actionPlanAssessor Action plan assessor.
+     * @param realtimeTopologyContextId The ID of the realtime topology context.
      */
     public MarketActionListener(@Nonnull final ActionOrchestrator actionOrchestrator,
-                                @Nonnull final ActionPlanAssessor actionPlanAssessor) {
+            @Nonnull final ActionPlanAssessor actionPlanAssessor, long realtimeTopologyContextId) {
+        this(actionOrchestrator, actionPlanAssessor,
+                createSingleThreadExecutor("processing-plan-actions-%d"),
+                createSingleThreadExecutor("processing-realtime-actions-%d"),
+                realtimeTopologyContextId);
+    }
+
+    /**
+     * Constructs new instance of {@code MarketActionListener}.
+     *
+     * @param actionOrchestrator The orchestrator that handles the processing of a new
+     *         action plan.
+     * @param actionPlanAssessor Action plan assessor.
+     * @param planActionsExecutorService Thread pool for processing plan actions
+     * @param realtimeActionsExecutorService Thread pool for processing realtime actions
+     * @param realtimeTopologyContextId The ID of the realtime topology context.
+     */
+    @VisibleForTesting
+    public MarketActionListener(@Nonnull final ActionOrchestrator actionOrchestrator,
+            @Nonnull final ActionPlanAssessor actionPlanAssessor,
+            @Nonnull ExecutorService planActionsExecutorService,
+            @Nonnull ExecutorService realtimeActionsExecutorService,
+            long realtimeTopologyContextId) {
         this.orchestrator = Objects.requireNonNull(actionOrchestrator);
         this.actionPlanAssessor = Objects.requireNonNull(actionPlanAssessor);
+        this.planActionsExecutorService = Objects.requireNonNull(planActionsExecutorService);
+        this.realtimeActionsExecutorService = Objects.requireNonNull(realtimeActionsExecutorService);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -107,7 +145,26 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
         } else {
             // Populate the store with the new recommendations and refresh the cache.
             try (TracingScope tracingScope = Tracing.trace("on_actions_received", tracingContext)) {
-                orchestrator.processActions(orderedActions, analysisStart, analysisEnd);
+                // process actions for realtime and plan action plans in separate threads
+                // in order not to block receiving new action plans
+                final Runnable processActionPlan = () -> {
+                    if (!shouldSkip(orderedActions)) {
+                        orchestrator.processActions(orderedActions, analysisStart, analysisEnd);
+                    } else {
+                        logger.warn("Dropping action plan {} (info: {}) " +
+                                        "with {} actions (analysis start [{}] completion [{}])",
+                                orderedActions.getId(),
+                                orderedActions.getInfo(),
+                                orderedActions.getActionCount(),
+                                analysisStart,
+                                analysisEnd);
+                    }
+                };
+                if (ActionDTOUtil.getActionPlanContextId(orderedActions.getInfo()) == realtimeTopologyContextId) {
+                    realtimeActionsExecutorService.execute(processActionPlan);
+                } else {
+                    planActionsExecutorService.execute(processActionPlan);
+                }
             }
         }
     }
@@ -125,5 +182,17 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
     private boolean isLiveMktActionPlan(@Nonnull final ActionPlan orderedActions) {
         return orderedActions.getInfo().hasMarket() &&
             orderedActions.getInfo().getMarket().getSourceTopologyInfo().getTopologyType() == TopologyType.REALTIME;
+    }
+
+    private static ExecutorService createSingleThreadExecutor(@Nonnull String threadNameFormat) {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
+                threadNameFormat).build();
+        return Executors.newSingleThreadExecutor(threadFactory);
+    }
+
+    @Override
+    public void close() {
+        planActionsExecutorService.shutdownNow();
+        realtimeActionsExecutorService.shutdownNow();
     }
 }
