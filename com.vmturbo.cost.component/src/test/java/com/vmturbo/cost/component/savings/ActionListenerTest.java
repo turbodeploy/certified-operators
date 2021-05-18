@@ -61,7 +61,7 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
@@ -85,7 +85,7 @@ public class ActionListenerTest {
     private final CostServiceMole costServiceRpc = Mockito.spy(new CostServiceMole());
     private ActionsServiceBlockingStub actionsService;
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
-    private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
+    private InMemoryEntityCostStore projectedEntityCostStore = mock(InMemoryEntityCostStore.class);
     private static final double EPSILON_PRECISION = 0.0000001d;
 
     private static final long ASSOCIATED_SERVICE_ID = 4L;
@@ -298,7 +298,7 @@ public class ActionListenerTest {
         afterEntityCostbyOid.put(volumeIdScale2, entityCost2);
         afterEntityCostbyOid.put(vmIdAllocate, entityCost3);
 
-        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class)))
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
@@ -329,7 +329,7 @@ public class ActionListenerTest {
         beforeEntityCostbyOid.remove(vmIdAllocate);
         afterEntityCostbyOid.remove(vmIdAllocate);
 
-        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class)))
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
@@ -365,7 +365,7 @@ public class ActionListenerTest {
         // the store size will be 1.
         afterEntityCostbyOid.put(volumeIdDelete, entityCost5);  //used to be entityCost4
         // Make fake cost response
-        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
 
@@ -588,7 +588,7 @@ public class ActionListenerTest {
         afterEntityCostbyOid.put(vmId1, entityCost2);
         afterEntityCostbyOid.put(vmId2, entityCost1);
 
-        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class)))
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));

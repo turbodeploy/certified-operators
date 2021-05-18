@@ -33,26 +33,25 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
- * Storage for projected per-entity costs.
- *
+ * Storage for in-memory per-entity costs.
  * For now we store them in a simple map, because we only need the most recent snapshot and don't
  * need aggregation for it.
  */
 @ThreadSafe
-public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
+public class InMemoryEntityCostStore extends AbstractProjectedEntityCostStore {
 
     /**
-     * A map of (oid) -> (most projected entity cost for the oid).
-     *
+     * A map of (oid) -> (entity cost for the oid).
      * This map should be updated atomically. All interactions with it should by synchronized
      * on the lock.
      */
     @GuardedBy("entityCostMapLock")
-    private Map<Long, EntityCost> projectedEntityCostByEntity = Collections.emptyMap();
+    private Map<Long, EntityCost> entityCostByEntity = Collections.emptyMap();
 
     private final Object entityCostMapLock = new Object();
 
     private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
+
 
     private final long realTimeTopologyContextId;
 
@@ -60,9 +59,16 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
 
     private boolean storeReady = false;
 
-    public ProjectedEntityCostStore(@Nonnull RepositoryClient repositoryClient, @Nonnull
+    /**
+     * Constructor.
+     *
+     * @param repositoryClient the repository client
+     * @param supplyChainServiceBlockingStub supply chai service client
+     * @param realTimeTopologyContextId real time context id
+     */
+    public InMemoryEntityCostStore(@Nonnull RepositoryClient repositoryClient, @Nonnull
             SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-                             long realTimeTopologyContextId) {
+                                   long realTimeTopologyContextId) {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.supplyChainServiceBlockingStub =
                 Objects.requireNonNull(supplyChainServiceBlockingStub);
@@ -71,62 +77,73 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
 
 
     /**
-     * Update the projected entity costs in the store.
+     * Update the entity costs in the store.
      *
      * @param entityCosts A list of the new {@link EntityCost}. These will completely replace
      *                    the existing entity costs.
      */
-    public void updateProjectedEntityCosts(@Nonnull final List<EntityCost> entityCosts) {
+    public void updateEntityCosts(@Nonnull final List<EntityCost> entityCosts) {
         final Map<Long, EntityCost> newCostsByEntity =
             entityCosts.stream().collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
         synchronized (entityCostMapLock) {
-            projectedEntityCostByEntity = Collections.unmodifiableMap(newCostsByEntity);
+            entityCostByEntity = Collections.unmodifiableMap(newCostsByEntity);
         }
         storeReady = true;
     }
 
+    /**
+     * Return the cached entity costs.
+     *
+     * @return entity costs.
+     */
     @Nonnull
-    public Map<Long, EntityCost> getAllProjectedEntitiesCosts() {
-        return projectedEntityCostByEntity;
-    }
-
-    @Nonnull
-    public Collection<StatRecord> getProjectedStatRecords(@Nonnull final EntityCostFilter filter) {
-        return EntityCostToStatRecordConverter.convertEntityToStatRecord(getProjectedEntityCosts(filter).values());
+    public Map<Long, EntityCost> getEntitiesCosts() {
+        return entityCostByEntity;
     }
 
     /**
-     * Get the projected entity costs for a set of entities.
+     * Return entity cost stat records for a given cost filter.
      *
-     * @param entityIds The entities to retrieve the costs for. An empty set will get no results.
-     * @return A map of (id) -> (projected entity cost). Entities in the input that do not have an
-     * associated projected costs will not have an entry in the map.
+     * @param filter entity cst filter.
+     * @return entity  stat records.
      */
     @Nonnull
-    public Map<Long, EntityCost> getProjectedEntityCosts(@Nonnull final Set<Long> entityIds) {
+    public Collection<StatRecord> getEntityCostStatRecords(@Nonnull final EntityCostFilter filter) {
+        return EntityCostToStatRecordConverter.convertEntityToStatRecord(getEntityCosts(filter).values());
+    }
+
+    /**
+     * Get the cached entity costs for a set of entities.
+     *
+     * @param entityIds The entities to retrieve the costs for. An empty set will get no results.
+     * @return A map of (id) -> (entity cost). Entities in the input that do not have an
+     * associated costs will not have an entry in the map.
+     */
+    @Nonnull
+    public Map<Long, EntityCost> getEntityCosts(@Nonnull final Set<Long> entityIds) {
         if (entityIds.isEmpty()) {
             return Collections.emptyMap();
         }
         final Map<Long, EntityCost> costSnapshot;
         synchronized (entityCostMapLock) {
-            costSnapshot = projectedEntityCostByEntity;
+            costSnapshot = entityCostByEntity;
         }
 
-        return getProjectedEntityCostsByEntityId(costSnapshot, entityIds);
+        return getInMemoryEntityCostsByEntityId(costSnapshot, entityIds);
     }
 
     /**
-     * Gets the projected cost for entities based on the input filter.
+     * Gets the cached entity costs for entities based on the input filter.
      *
      * @param filter the input filter.
-     * @return A map of (id) -> (projected entity cost). Entities in the input that do not have an
-     *         associated projected costs after filters will not have an entry in the map.
+     * @return A map of (id) -> (entity cost). Entities in the input that do not have an
+     *         associated costs after filters will not have an entry in the map.
      */
     @Nonnull
     @VisibleForTesting
-    public Map<Long, EntityCost> getProjectedEntityCosts(@Nonnull final EntityCostFilter filter) {
+    public Map<Long, EntityCost> getEntityCosts(@Nonnull final EntityCostFilter filter) {
         if (filter.isGlobalScope()) {
-            return getAllProjectedEntitiesCosts();
+            return getEntitiesCosts();
         } else {
             final Collection<List<Long>> startingOidsPerScope = Stream.of(filter.getEntityFilters(),
                     filter.getRegionIds(), filter.getAvailabilityZoneIds(), filter.getAccountIds())
@@ -138,7 +155,7 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
             final Set<Long> entitiesInScope;
 
             if (startingOidsPerScope.stream().allMatch(CollectionUtils::isEmpty)) {
-                entitiesInScope = getAllStoredProjectedEntityOids();
+                entitiesInScope = getAllStoredInMemoryCostEntityOids();
             } else {
                 final Stream<Set<Long>> entitiesPerScope =
                         repositoryClient.getEntitiesByTypePerScope(startingOidsPerScope,
@@ -150,14 +167,14 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
                         .reduce(Sets::intersection)
                         .map(Collection::stream)
                         .map(oids -> oids.collect(Collectors.toSet()))
-                        .orElse(getAllStoredProjectedEntityOids());
+                        .orElse(getAllStoredInMemoryCostEntityOids());
 
             }
-            getLogger().trace("Entities in scope for projected entities costs: {}",
+            getLogger().trace("Entities in scope for cached entities costs: {}",
                     () -> entitiesInScope);
             // apply the filters and return
             return entitiesInScope.stream()
-                .map(projectedEntityCostByEntity::get)
+                .map(entityCostByEntity::get)
                 .filter(Objects::nonNull)
                 .map(entityCost -> applyFilter(entityCost, filter))
                 .filter(Optional::isPresent)
@@ -166,15 +183,15 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
         }
     }
 
-    private Set<Long> getAllStoredProjectedEntityOids() {
+    private Set<Long> getAllStoredInMemoryCostEntityOids() {
         final Set<Long> entityOids;
         synchronized (entityCostMapLock) {
-            entityOids = new HashSet<>(projectedEntityCostByEntity.keySet());
+            entityOids = new HashSet<>(entityCostByEntity.keySet());
         }
         return entityOids;
     }
 
-    private Map<Long, EntityCost> getProjectedEntityCostsByEntityId(final Map<Long, EntityCost> costSnapshot,
+    private Map<Long, EntityCost> getInMemoryEntityCostsByEntityId(final Map<Long, EntityCost> costSnapshot,
                                                                    @Nonnull final Set<Long> entityIds) {
         if (entityIds.isEmpty()) {
             return costSnapshot;
@@ -197,11 +214,11 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
      */
     @Nonnull
     @VisibleForTesting
-    public Collection<StatRecord> getProjectedStatRecordsByGroup(@Nonnull final List<GroupBy> groupByList,
-                                                                 @Nonnull final EntityCostFilter entityCostFilter) {
-        Preconditions.checkArgument(entityCostFilter.getCostGroupBy() != null &&
-                !entityCostFilter.getCostGroupBy().getGroupByFields().isEmpty(), "GroupBy list should not be empty.");
-        Map<Long, EntityCost> costSnapshot = getProjectedEntityCosts(entityCostFilter);
+    public Collection<StatRecord> getEntityCostStatRecordsByGroup(@Nonnull final List<GroupBy> groupByList,
+                                                                  @Nonnull final EntityCostFilter entityCostFilter) {
+        Preconditions.checkArgument(entityCostFilter.getCostGroupBy() != null
+                && !entityCostFilter.getCostGroupBy().getGroupByFields().isEmpty(), "GroupBy list should not be empty.");
+        Map<Long, EntityCost> costSnapshot = getEntityCosts(entityCostFilter);
         Collection<StatRecord>  result = Lists.newArrayList();
         if (groupByList.size() > 2 ) {
             // because groupBy > 2 is actually all the rows.
@@ -216,11 +233,15 @@ public class ProjectedEntityCostStore extends AbstractProjectedEntityCostStore {
     }
 
     /**
-     * Returns when we see an update to {@link #projectedEntityCostByEntity}.
+     * Returns when we see an update to {@link #entityCostByEntity}.
      *
      * @return true if store ready.
      */
     public boolean isStoreReady() {
         return storeReady;
+    }
+
+    public long getRealTimeTopologyContextId() {
+        return realTimeTopologyContextId;
     }
 }

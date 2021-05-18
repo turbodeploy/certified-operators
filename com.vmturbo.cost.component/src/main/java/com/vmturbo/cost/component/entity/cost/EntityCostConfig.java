@@ -77,14 +77,22 @@ public class EntityCostConfig {
                 databaseConfig.dsl(),
                 Clock.systemUTC(),
                 bulkEntityCostExecutorService(),
-                persistEntityCostChunkSize);
+                persistEntityCostChunkSize,
+                latestEntityCostStore());
     }
 
     @Bean
-    public ProjectedEntityCostStore projectedEntityCostStore() {
-        return new ProjectedEntityCostStore(repositoryClientConfig.repositoryClient(),
+    public InMemoryEntityCostStore projectedEntityCostStore() {
+        return new InMemoryEntityCostStore(repositoryClientConfig.repositoryClient(),
                 supplyChainServiceConfig.supplyChainRpcService(), realtimeTopologyContextId);
     }
+
+    @Bean
+    public InMemoryEntityCostStore latestEntityCostStore() {
+        return new InMemoryEntityCostStore(repositoryClientConfig.repositoryClient(),
+                supplyChainServiceConfig.supplyChainRpcService(), realtimeTopologyContextId);
+    }
+
 
     @Bean
     public PlanProjectedEntityCostStore planProjectedEntityCostStore() {
