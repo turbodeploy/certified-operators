@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -16,6 +18,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -50,6 +54,7 @@ import com.vmturbo.extractor.schema.json.export.CostAmount;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -114,6 +119,26 @@ public class ActionConverter {
                     .put(ActionDTO.ActionCategory.PREVENTION, ActionCategory.PREVENTION)
                     .put(ActionDTO.ActionCategory.COMPLIANCE, ActionCategory.COMPLIANCE)
                     .build();
+
+    /**
+     * Related entities to include for storage as target entity in action.
+     */
+    private static final Set<Integer> RELATED_ENTITY_TYPES_FOR_STORAGE = ImmutableSet.of(
+            EntityDTO.EntityType.STORAGE_VALUE,
+            EntityDTO.EntityType.DISK_ARRAY_VALUE,
+            EntityDTO.EntityType.LOGICAL_POOL_VALUE,
+            EntityDTO.EntityType.STORAGE_CONTROLLER_VALUE,
+            EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE,
+            EntityDTO.EntityType.DATACENTER_VALUE
+    );
+
+    /**
+     * Related entities filter for different type of target entity in action.
+     */
+    public static final Map<Integer, Predicate<Integer>> RELATED_ENTITY_FILTER_FOR_ACTION_TARGET_ENTITY =
+            ImmutableMap.of(
+                    EntityDTO.EntityType.STORAGE_VALUE, RELATED_ENTITY_TYPES_FOR_STORAGE::contains
+            );
 
     private final ActionAttributeExtractor actionAttributeExtractor;
 
@@ -339,8 +364,11 @@ public class ActionConverter {
             // set related entities
             try {
                 ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
-                relatedEntitiesExtractor.ifPresent(extractor ->
-                        action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
+                relatedEntitiesExtractor.ifPresent(extractor -> {
+                    final Predicate<Integer> relatedEntityFilter = RELATED_ENTITY_FILTER_FOR_ACTION_TARGET_ENTITY.getOrDefault(
+                            primaryEntity.getType(), RelatedEntitiesExtractor.INCLUDE_ALL_RELATED_ENTITY_TYPES);
+                    action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId(), relatedEntityFilter));
+                });
             } catch (UnsupportedActionException e) {
                 // this should not happen
                 logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);

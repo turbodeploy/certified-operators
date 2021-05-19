@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -32,6 +33,11 @@ public class RelatedEntitiesExtractor {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Include all types of related entities.
+     */
+    public static final Predicate<Integer> INCLUDE_ALL_RELATED_ENTITY_TYPES = relatedEntityType -> true;
+
     private final TopologyGraph<SupplyChainEntity> graph;
     private final SupplyChain supplyChain;
     private final GroupData groupData;
@@ -55,12 +61,15 @@ public class RelatedEntitiesExtractor {
      * Extract related entities and groups for given entity.
      *
      * @param entityOid oid of the entity to get related entities for
+     * @param relatedEntityTypeFilter filter for evaluating which type of related entity to include
      * @return mapping from related entity/group type to list of related entities/groups
      */
     @Nullable
-    public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid) {
+    public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid,
+            Predicate<Integer> relatedEntityTypeFilter) {
         final Map<String, List<RelatedEntity>> relatedEntities = new HashMap<>();
-        final Map<Integer, Set<Long>> relatedEntitiesByType = getRelatedEntitiesByType(entityOid);
+        final Map<Integer, Set<Long>> relatedEntitiesByType = getRelatedEntitiesByType(entityOid,
+                relatedEntityTypeFilter);
         // related entities
         relatedEntitiesByType.forEach((relatedEntityType, relatedEntityIds) -> {
             final List<RelatedEntity> relatedEntityList = relatedEntityIds.stream()
@@ -98,14 +107,26 @@ public class RelatedEntitiesExtractor {
     }
 
     /**
+     * Extract all related entities and groups for given entity.
+     *
+     * @param entityOid oid of the entity to get related entities for
+     * @return mapping from related entity/group type to list of related entities/groups
+     */
+    public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid) {
+        return extractRelatedEntities(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
+    }
+
+    /**
      * Get the related entities for given entity, grouped by entity type.
      *
      * @param entityOid oid of the entity to get related entities for
+     * @param relatedEntityTypeFilter filter for evaluating which type of related entity to include
      * @return related entities grouped by type
      */
     @Nonnull
-    public Map<Integer, Set<Long>> getRelatedEntitiesByType(long entityOid) {
+    public Map<Integer, Set<Long>> getRelatedEntitiesByType(long entityOid, Predicate<Integer> relatedEntityTypeFilter) {
         return supplyChain.getRelatedEntities(entityOid).entrySet().stream()
+                .filter(entry -> relatedEntityTypeFilter.test(entry.getKey()))
                 .collect(Collectors.toMap(Entry::getKey, entry -> {
                     final Integer relatedEntityType = entry.getKey();
                     Set<Long> relatedEntityIds = entry.getValue();
@@ -121,6 +142,16 @@ public class RelatedEntitiesExtractor {
                     }
                     return relatedEntityIds;
                 }));
+    }
+
+    /**
+     * Get all related entities for given entity, grouped by entity type.
+     *
+     * @param entityOid oid of the entity to get related entities for
+     * @return related entities grouped by type
+     */
+    public Map<Integer, Set<Long>> getRelatedEntitiesByType(long entityOid) {
+        return getRelatedEntitiesByType(entityOid, INCLUDE_ALL_RELATED_ENTITY_TYPES);
     }
 
     /**

@@ -173,7 +173,7 @@ public class ActionConverterTest {
         doReturn(ImmutableMap.of(
                 PHYSICAL_MACHINE.getLiteral(), Lists.newArrayList(relatedEntity1),
                 STORAGE.getLiteral(), Lists.newArrayList(relatedEntity2)
-        )).when(relatedEntitiesExtractor).extractRelatedEntities(123);
+        )).when(relatedEntitiesExtractor).extractRelatedEntities(123, RelatedEntitiesExtractor.INCLUDE_ALL_RELATED_ENTITY_TYPES);
 
         // mock targets
         TargetsExtractor targetsExtractor = mock(TargetsExtractor.class);
