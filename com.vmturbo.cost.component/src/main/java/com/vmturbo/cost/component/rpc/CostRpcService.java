@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -642,8 +643,8 @@ public class CostRpcService extends CostServiceImplBase {
                 final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
                 final EntityCostFilter entityCostFilter = filterBuilder.build();
 
-                Map<Long, Collection<StatRecord>> snapshotToEntityCostMap = entityCostStore
-                        .getEntityCostStats(entityCostFilter);
+                Map<Long, Collection<StatRecord>> snapshotToEntityCostMap = new HashMap<>();
+                snapshotToEntityCostMap.putAll(entityCostStore.getEntityCostStats(entityCostFilter));
 
                 Long projectedStatTime = null;
                 if (request.getRequestProjected()) {
