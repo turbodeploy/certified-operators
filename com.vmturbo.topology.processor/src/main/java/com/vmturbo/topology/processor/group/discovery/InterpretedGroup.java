@@ -151,10 +151,18 @@ public class InterpretedGroup {
      * @return optional of UploadedGroup
      */
     public Optional<UploadedGroup> convertToUploadedGroup() {
-        return groupDefinition.map(group -> UploadedGroup.newBuilder()
-                .setSourceIdentifier(getSourceId())
-                .setDefinition(group)
-                .build());
+
+        final Optional<UploadedGroup.Builder> uploadGroup =
+                groupDefinition.map(group -> UploadedGroup.newBuilder()
+                        .setSourceIdentifier(getSourceId())
+                        .setDefinition(group));
+
+        if (sdkDTO.hasStitchAcrossTargets()) {
+            uploadGroup.ifPresent(builder ->
+                    builder.setStitchAcrossTargets(sdkDTO.getStitchAcrossTargets()));
+        }
+
+        return uploadGroup.map(UploadedGroup.Builder::build);
     }
 
     /**
