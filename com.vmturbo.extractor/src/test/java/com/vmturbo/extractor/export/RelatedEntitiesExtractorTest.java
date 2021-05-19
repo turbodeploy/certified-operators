@@ -4,6 +4,8 @@ import static com.vmturbo.extractor.schema.enums.EntityType.BILLING_FAMILY;
 import static com.vmturbo.extractor.schema.enums.EntityType.BUSINESS_ACCOUNT;
 import static com.vmturbo.extractor.schema.enums.EntityType.COMPUTE_CLUSTER;
 import static com.vmturbo.extractor.schema.enums.EntityType.DATABASE;
+import static com.vmturbo.extractor.schema.enums.EntityType.DATACENTER;
+import static com.vmturbo.extractor.schema.enums.EntityType.DISK_ARRAY;
 import static com.vmturbo.extractor.schema.enums.EntityType.GROUP;
 import static com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.extractor.schema.enums.EntityType.RESOURCE_GROUP;
@@ -32,6 +34,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
+import com.vmturbo.extractor.action.ActionConverter;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -55,6 +58,8 @@ public class RelatedEntitiesExtractorTest {
     private static final long accountId1 = 521;
     // sub account
     private static final long accountId2 = 522;
+    private static final long dcId = 621;
+    private static final long daId = 721;
     private static final Grouping CLUSTER_1 = Grouping.newBuilder()
             .setId(1234)
             .setDefinition(GroupDefinition.newBuilder()
@@ -100,6 +105,8 @@ public class RelatedEntitiesExtractorTest {
     private final SupplyChainEntity pmEntity = mockEntity(pmId, EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE);
     private final SupplyChainEntity account1 = mockEntity(accountId1, EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
     private final SupplyChainEntity account2 = mockEntity(accountId2, EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
+    private final SupplyChainEntity dcEntity = mockEntity(dcId, EntityDTO.EntityType.DATACENTER_VALUE);
+    private final SupplyChainEntity daEntity = mockEntity(daId, EntityDTO.EntityType.DISK_ARRAY_VALUE);
 
     /**
      * Setup before each test.
@@ -185,6 +192,38 @@ public class RelatedEntitiesExtractorTest {
                 BUSINESS_ACCOUNT.getLiteral(), BILLING_FAMILY.getLiteral(), GROUP.getLiteral()));
         assertThat(getRelatedEntityIds(relatedEntities, BUSINESS_ACCOUNT), containsInAnyOrder(accountId1));
         assertThat(getRelatedEntityIds(relatedEntities, BILLING_FAMILY), containsInAnyOrder(BILLING_FAMILY_1.getId()));
+    }
+
+    /**
+     * Test that related entities are filtered correctly.
+     */
+    @Test
+    public void testRelatedEntitiesWithFilter() {
+        // mock supply chain
+        doReturn(ImmutableMap.of(
+                EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vmId),
+                EntityDTO.EntityType.STORAGE.getNumber(), ImmutableSet.of(stId1),
+                EntityDTO.EntityType.DISK_ARRAY.getNumber(), ImmutableSet.of(daId),
+                EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pmId),
+                EntityDTO.EntityType.DATACENTER.getNumber(), ImmutableSet.of(dcId))
+        ).when(supplyChain).getRelatedEntities(stId1);
+
+        final Map<String, List<RelatedEntity>> relatedEntities =
+                relatedEntitiesExtractor.extractRelatedEntities(stId1,
+                        ActionConverter.RELATED_ENTITY_FILTER_FOR_ACTION_TARGET_ENTITY.get(
+                                EntityDTO.EntityType.STORAGE_VALUE));
+        // verify
+        assertThat(relatedEntities.size(), is(5));
+        assertThat(relatedEntities.keySet(), containsInAnyOrder(DISK_ARRAY.getLiteral(),
+                DATACENTER.getLiteral(), PHYSICAL_MACHINE.getLiteral(),
+                STORAGE_CLUSTER.getLiteral(), COMPUTE_CLUSTER.getLiteral()));
+        // related entity
+        assertThat(getRelatedEntityIds(relatedEntities, DISK_ARRAY), containsInAnyOrder(daId));
+        assertThat(getRelatedEntityIds(relatedEntities, DATACENTER), containsInAnyOrder(dcId));
+        assertThat(getRelatedEntityIds(relatedEntities, PHYSICAL_MACHINE), containsInAnyOrder(pmId));
+        // related group
+        assertThat(getRelatedEntityIds(relatedEntities, STORAGE_CLUSTER), containsInAnyOrder(STORAGE_CLUSTER_1.getId()));
+        assertThat(getRelatedEntityIds(relatedEntities, COMPUTE_CLUSTER), containsInAnyOrder(CLUSTER_1.getId()));
     }
 
     /**
