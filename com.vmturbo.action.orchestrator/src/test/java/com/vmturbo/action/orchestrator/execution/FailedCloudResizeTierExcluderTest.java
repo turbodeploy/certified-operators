@@ -229,29 +229,6 @@ public class FailedCloudResizeTierExcluderTest {
     }
 
     /**
-     * Ensure that the services have been invoked the required number of times.
-     * @param repositoryCount number of times the repository service should be called
-     * @param groupSearchCount number of times the group service should be called to Search
-     * @param groupCreateCount number of times the group service should be called to Create
-     * @param groupDeleteCount number of times the group service should be called to Delete
-     * @param policySearchCount number of times the policy service should be called to Search
-     * @param policyCreateCount number of times the policy service should be called to Create
-     */
-    private void verifyServiceAccesses(int repositoryCount,
-                                      int groupSearchCount,
-                                      int groupCreateCount,
-                                      int groupDeleteCount,
-                                      int policySearchCount,
-                                      int policyCreateCount) {
-        verify(testRepositoryService, times(repositoryCount)).retrieveTopologyEntities(any());
-        verify(testGroupService, times(groupSearchCount)).getGroups(any());
-        verify(testGroupService, times(groupCreateCount)).createGroup(any());
-        verify(testGroupService, times(groupDeleteCount)).deleteGroup(any());
-        verify(testSettingPolicyService, times(policySearchCount)).getSettingPolicy(any());
-        verify(testSettingPolicyService, times(policyCreateCount)).createSettingPolicy(any());
-    }
-
-    /**
      * Verify that the test output contains a string.  If the string doesn't exist, then an
      * assertion error will be generated.
      * @param strings patterns to locate in the test output.  If multiple patterns are supplied, they
@@ -301,8 +278,6 @@ public class FailedCloudResizeTierExcluderTest {
         // Null action
         Action action = createAction(101L, GOOD_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, null);
-        // If the action is invalid, we will not access any services
-        verifyServiceAccesses(0, 0, 0, 0, 0, 0);
         verifyOutput("Not creating tier exclusion policy for action 1");
     }
 
@@ -328,8 +303,6 @@ public class FailedCloudResizeTierExcluderTest {
                 .setErrorDescription("Action succeeded")
                 .setActionId(100L).build();
         failedCloudVMGroupProcessor.handleActionFailure(action, actionFailure);
-        // If the action is successful, we will not access any services
-        verifyServiceAccesses(0, 0, 0, 0, 0, 0);
         verifyOutput("Not creating tier exclusion policy for action 101: Action is successful");
     }
 
@@ -351,7 +324,6 @@ public class FailedCloudResizeTierExcluderTest {
         // VM doesn't exist
         Action action = createAction(101L, MISSING_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(1, 0, 0, 0, 0, 0);
         verifyOutput("Cannot find VM with OID");
     }
 
@@ -364,7 +336,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, DUPLICATE_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
         verifyOutput("Multiple entities with OID");
-        verifyServiceAccesses(1, 0, 0, 0, 0, 0);
     }
 
     /**
@@ -375,7 +346,10 @@ public class FailedCloudResizeTierExcluderTest {
         // The VM is malformed, so handleActionFailure will return before accessing any services
         Action action = createAction(102L, MISSING_ORIGIN_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(2, 0, 0, 0, 0, 0);
+        verifyOutput(
+                "Cannot determine region for VM no-origin - skipping creating family exclusion policy",
+                "Not creating tier exclusion policy for action 102: Cannot find region"
+        );
     }
 
     /**
@@ -386,7 +360,6 @@ public class FailedCloudResizeTierExcluderTest {
         // The VM is malformed, so handleActionFailure will return before accessing any services
         Action action = createAction(102L, MISSING_ACCOUNT_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(2, 0, 0, 0, 0, 0);
         verifyOutput("Not creating tier exclusion policy for action 102: Cannot find account ID");
     }
 
@@ -398,9 +371,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, 1L, EntityType.REGION, 2L);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
 
-        // No policy or group should have been created for this.
-        // No group or policy queries or creates or deletes.
-        verifyServiceAccesses(1, 0, 0, 0, 0, 0);
         verifyOutput(
                 "Cannot create template exclusion: missing destination compute tier in action",
                 "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
@@ -416,9 +386,6 @@ public class FailedCloudResizeTierExcluderTest {
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
 
-        // No policy or group should have been created for this.
-        // No group or policy queries or creates or deletes.
-        verifyServiceAccesses(3, 0, 0, 0, 0, 0);
         verifyOutput(
                 "Cannot determine region name for VM bad-region - skipping creating family exclusion policy",
                 "Not creating tier exclusion policy for action 101: Cannot find region"
@@ -434,9 +401,6 @@ public class FailedCloudResizeTierExcluderTest {
                 unknownTierId);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
 
-        // No policy or group should have been created for this.
-        // No group or policy queries or creates or deletes.
-        verifyServiceAccesses(2, 0, 0, 0, 0, 0);
         verifyOutput(
                 "Cannot find tier family for tier ID 506",
                 "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
@@ -452,9 +416,6 @@ public class FailedCloudResizeTierExcluderTest {
                 unknownTierId);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
 
-        // No policy or group should have been created for this.
-        // No group or policy queries or creates or deletes.
-        verifyServiceAccesses(2, 0, 0, 0, 0, 0);
         verifyOutput(
                 "Cannot find tier family for tier ID 506",
                 "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
@@ -473,7 +434,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 1, 1, 1);
         verifyOutput(
                 "Created group vm-in-no-group-2",
                 "Creating new family exclusion policy for VM vm-in-no-group-2",
@@ -490,7 +450,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, VM_NO_GROUP_1_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 0, 0, 0);
         verifyOutput(
                 "Could not create tier family exclusion group 'vm-in-no-group-1"
         );
@@ -504,7 +463,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, OTHER_VM_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 0, 0, 0);
         verifyOutput(
                 "Could not create tier family exclusion group 'other-vm/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)': UNKNOWN"
         );
@@ -518,7 +476,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, GOOD_VM_B_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 0, 0, 1, 1);
         verifyOutput(
                 "Creating new family exclusion policy for VM good-vm-region-b with name 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'",
                 "Could not create or update tier exclusion policy 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)': UNKNOWN",
@@ -534,7 +491,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, AZ_QF_VM_ID, EntityType.COMPUTE_TIER,
                 TIER_AZ2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 0, 0, 0);
         verifyOutput(
                 "Peer tiers in 505 = [Tier-Azure-1, Tier-Azure-2]"
         );
@@ -548,7 +504,6 @@ public class FailedCloudResizeTierExcluderTest {
         Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 0, 1, 1);
         verifyOutput(
                 "Created group vm-in-no-group-2",
                 "vm-in-no-group-2 with name 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'",
@@ -574,7 +529,6 @@ public class FailedCloudResizeTierExcluderTest {
     public void testAZNewGroupNewPolicy() {
         Action action = createAction(101L, AZ_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyServiceAccesses(3, 1, 1, 0, 1, 1);
         verifyOutput(
                 "Created group vm-in-az",
                 "Creating new family exclusion policy for VM vm-in-az with name 'Availability Zone AvailabilityZone-A",
