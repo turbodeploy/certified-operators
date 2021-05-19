@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import static org.mockito.Mockito.verify;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -11,20 +12,27 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ProviderInfo;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -49,6 +57,7 @@ import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
  */
 public class ChangeProviderContextTest {
 
+    private static final String VV_VENDOR_ID = "vvVendorId";
     private final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
 
     private final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
@@ -788,6 +797,76 @@ public class ChangeProviderContextTest {
                 actionExecutionContextFactory.getActionExecutionContext(request);
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
         Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
+        Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
+        Assert.assertEquals(actionId, actionExecutionContext.getActionId());
+        Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
+    }
+
+    /**
+     * Checks that volume information passed to {@link ActionItemDTO} as {@link ProviderInfo} for
+     * volume move.
+     *
+     * @throws EntityRetrievalException in case entity cannot be retrieved
+     * @throws ContextCreationException in case action items cannot be created
+     */
+    @Test
+    public void testMoveContextOnPremVolumeMove()
+                    throws EntityRetrievalException, ContextCreationException {
+
+        final long entityId = 1;
+        final int actionId = 3;
+        final int sourceEntityId = 4;
+        final int destinationEntityId = 5;
+        final int vvId = 6;
+
+        mockEntity(entityId, EntityType.VIRTUAL_MACHINE, targetId);
+        mockEntity(sourceEntityId, EntityType.STORAGE_TIER, targetId);
+        mockEntity(destinationEntityId, EntityType.STORAGE_TIER, targetId);
+        mockEntity(vvId, EntityType.VIRTUAL_VOLUME, targetId);
+        final PerTargetEntityInformation perTargetEntityInfo =
+                        PerTargetEntityInformation.newBuilder().setVendorId(VV_VENDOR_ID).build();
+        final DiscoveryOrigin discoveryOrigin = DiscoveryOrigin.newBuilder()
+                        .putDiscoveredTargetData(targetId, perTargetEntityInfo).build();
+        final TopologyEntityDTO vvTeDto = TopologyEntityDTO.newBuilder().setOid(vvId)
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(discoveryOrigin)).build();
+        Mockito.when(entityRetrieverMock.retrieveTopologyEntity(vvId))
+                        .thenReturn(Optional.of(vvTeDto));
+        final ActionEntity relatedVirtualVolume = ActionEntity.newBuilder().setId(vvId)
+                        .setType(EntityType.VIRTUAL_VOLUME_VALUE).build();
+        final ActionInfo move = ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                        .setTarget(ActionExecutionTestUtils.createActionEntity(
+                                                        entityId, EntityType.VIRTUAL_VOLUME))
+                                        .addChanges(ChangeProvider.newBuilder()
+                                                        .setSource(ActionExecutionTestUtils
+                                                                        .createActionEntity(sourceEntityId, EntityType.STORAGE_TIER))
+                                                        .setDestination(ActionExecutionTestUtils
+                                                                        .createActionEntity(destinationEntityId, EntityType.STORAGE_TIER))
+                                                        .addResource(relatedVirtualVolume)
+                                        )
+                        ).build();
+
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+                        .setActionId(actionId)
+                        .setTargetId(targetId)
+                        .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                                        .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                                        .setDeprecatedImportance(0)
+                                                        .setInfo(move))
+                                        .setActionState(ActionState.IN_PROGRESS).build())
+                        .setActionType(ActionDTO.ActionType.MOVE)
+                        .build();
+
+        final ActionExecutionContext actionExecutionContext =
+                        actionExecutionContextFactory.getActionExecutionContext(request);
+
+        Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
+        final ActionItemDTO actionItem = actionExecutionContext.getActionItems().iterator().next();
+        final Collection<ProviderInfo> providers = actionItem.getProvidersList();
+        Assert.assertThat(providers.stream().flatMap(p -> p.getIdsList().stream())
+                        .collect(Collectors.toSet()), Matchers.contains(VV_VENDOR_ID));
         Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
