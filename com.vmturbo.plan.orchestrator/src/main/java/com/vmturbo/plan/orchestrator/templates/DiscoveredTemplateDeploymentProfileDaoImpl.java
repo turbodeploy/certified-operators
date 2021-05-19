@@ -35,7 +35,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.plan.orchestrator.db.tables.records.DeploymentProfileRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
-import com.vmturbo.plan.orchestrator.reservation.ReservationStatusConverter;
 
 /**
  * Store discovered templates and deployment profiles into database. And right now,

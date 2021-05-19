@@ -31,8 +31,11 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationGrouping;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationMode;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -116,6 +119,8 @@ public class ReservationDaoImplTest {
                                 .setConstraintId(100)
                                 .setType(Type.DATA_CENTER)))
             .setDeployed(false)
+            .setReservationMode(ReservationDTO.ReservationMode.NO_GROUPING)
+            .setReservationGrouping(ReservationDTO.ReservationGrouping.NONE)
             .build();
 
     private Reservation testSecondReservation = Reservation.newBuilder()
@@ -137,6 +142,8 @@ public class ReservationDaoImplTest {
                             .setConstraintId(100)
                             .setType(Type.DATA_CENTER)))
             .setDeployed(false)
+            .setReservationMode(ReservationDTO.ReservationMode.NO_GROUPING)
+            .setReservationGrouping(ReservationDTO.ReservationGrouping.NONE)
             .build();
 
     @Before
@@ -169,6 +176,21 @@ public class ReservationDaoImplTest {
         assertTrue(retrievedReservation.get()
                 .getConstraintInfoCollection()
                 .getReservationConstraintInfoCount() == 0);
+    }
+
+    @Test
+    public void testCreateReservationWithCustomModeGrouping() throws DuplicateTemplateException {
+        Reservation reservation = testFirstReservation.toBuilder()
+                .setReservationMode(ReservationMode.AFFINITY)
+                .setReservationGrouping(ReservationGrouping.CLUSTER)
+                .build();
+        Reservation reservationWithTemplate = createReservationWithTemplate(reservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
+        Optional<Reservation> retrievedReservation =
+                reservationDao.getReservationById(createdReservation.getId());
+        assertTrue(retrievedReservation.isPresent());
+        assertTrue(retrievedReservation.get().getReservationMode() == ReservationMode.AFFINITY);
+        assertTrue(retrievedReservation.get().getReservationGrouping() == ReservationGrouping.CLUSTER);
     }
 
     @Test
@@ -347,7 +369,8 @@ public class ReservationDaoImplTest {
             reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
 
         final List<String> diags = Arrays.asList(
-            "{\"id\":\"3143031140272\",\"name\":\"Test-first-reservation\",\"deployed\":\"false\",\"startDate\":"
+            "{\"id\":\"3143031140272\",\"name\":\"Test-first-reservation\",\"reservationMode\":\"NO_GROUPING\","
+                    + "\"reservationGrouping\":\"NONE\",\"deployed\":\"false\",\"startDate\":"
                     + "\"1547251200000\",\"expirationDate\":\"1547510400000\",\"status\":\"INITIAL\""
                     + ",\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\","
                     + "\"templateId\":\"3143031138320\",\"reservationInstance\":[{\"entityId\":\"456\","
@@ -357,7 +380,8 @@ public class ReservationDaoImplTest {
                     + ",\"constraintInfoCollection\":"
                     + "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":"
                     + "\"DATA_CENTER\"}]}}",
-            "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"deployed\":\"false\",\"startDate\":" +
+            "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"reservationMode\":\"NO_GROUPING\"," +
+                "\"reservationGrouping\":\"NONE\",\"deployed\":\"false\",\"startDate\":" +
                 "\"1574398800000\",\"expirationDate\":\"1577595600000\",\"status\":\"RESERVED\"," +
                 "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +
                 "\"templateId\":\"1997938755584\",\"reservationInstance\":[{\"entityId\":\"456\"," +

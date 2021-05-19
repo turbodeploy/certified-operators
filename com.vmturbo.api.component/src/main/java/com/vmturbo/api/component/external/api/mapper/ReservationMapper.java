@@ -45,6 +45,8 @@ import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.enums.ReservationGrouping;
+import com.vmturbo.api.enums.ReservationMode;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -55,6 +57,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
@@ -71,6 +74,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.plan.orchestrator.api.NoSuchValueException;
+import com.vmturbo.plan.orchestrator.api.ReservationFieldsConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -149,10 +154,11 @@ public class ReservationMapper {
      * @return a {@link Reservation}
      * @throws InvalidOperationException if input parameter are not correct.
      * @throws UnknownObjectException if there are any unknown objects.
+     * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public Reservation convertToReservation(
             @Nonnull final DemandReservationApiInputDTO demandApiInputDTO)
-            throws InvalidOperationException, UnknownObjectException {
+            throws InvalidOperationException, UnknownObjectException, NoSuchValueException {
         final Reservation.Builder reservationBuilder = Reservation.newBuilder();
         reservationBuilder.setName(demandApiInputDTO.getDemandName());
         convertReservationDateStatus(demandApiInputDTO.getReserveDateTime(),
@@ -180,6 +186,14 @@ public class ReservationMapper {
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
                 .build());
+        if (demandApiInputDTO.getMode() != null) {
+            reservationBuilder.setReservationMode(ReservationFieldsConverter
+                .modeFromApi(demandApiInputDTO.getMode()));
+        }
+        if (demandApiInputDTO.getGrouping() != null) {
+            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
+                .groupingFromApi(demandApiInputDTO.getGrouping()));
+        }
         return reservationBuilder.build();
     }
 
@@ -192,10 +206,11 @@ public class ReservationMapper {
      * @throws UnknownObjectException if there are any unknown objects.
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public DemandReservationApiDTO convertReservationToApiDTO(
             @Nonnull final Reservation reservation)
-            throws UnknownObjectException, ConversionException, InterruptedException {
+            throws UnknownObjectException, ConversionException, InterruptedException, NoSuchValueException {
         final DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
         reservationApiDTO.setUuid(String.valueOf(reservation.getId()));
         reservationApiDTO.setDisplayName(reservation.getName());
@@ -225,6 +240,14 @@ public class ReservationMapper {
                         reservationApiDTO);
         }
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
+        if (reservation.hasReservationMode()) {
+            reservationApiDTO.setMode(ReservationFieldsConverter.modeToApi(reservation
+                .getReservationMode()));
+        }
+        if (reservation.hasReservationGrouping()) {
+            reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(reservation
+                .getReservationGrouping()));
+        }
         return reservationApiDTO;
     }
 

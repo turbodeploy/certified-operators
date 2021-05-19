@@ -37,6 +37,13 @@ message Reservation {
 
     // reservation set for delayed deletion. if true keep reservation in historical cache.
     optional bool deployed = 8  [default = false];
+
+    // Specification to determine what the type of behavior Placement entities should take.
+    optional ReservationMode reservation_mode = 9;
+
+    // Specification to determine what group type entities should be placed on corresponding to
+    // the Mode of the reservation.
+    optional ReservationGrouping reservation_grouping = 10;
 }
 
 // ReservationChange describes a reservation whose status has changed.
@@ -76,6 +83,37 @@ enum ReservationStatus {
     PLACEMENT_FAILED = 6;
     // initial state of reservation
     INITIAL = 7;
+}
+
+// Reservation Mode specification to determine what the type of behavior Placement entities should
+// take.
+enum ReservationMode {
+
+    // Entities of the same reservation may be placed across multiple ReservationGroupings.
+    NO_GROUPING = 1;
+
+    // Entities of the same reservation will be placed within the same ReservationGrouping.
+    AFFINITY = 2;
+
+    // Entities of the same reservation will be placed on different ReservationGroupings.
+    ANTI_AFFINITY = 3;
+}
+
+// Reservation Grouping specification to determine what group type entities should be placed on
+// corresponding to the Mode of the reservation.
+enum ReservationGrouping {
+
+    // Do not restrict ReservationMode behavior on a specific grouping level.
+    NONE = 1;
+
+    // Restrict ReservationMode behavior on a Cluster level.
+    CLUSTER = 2;
+
+    // Restrict ReservationMode behavior on a Datacenter level.
+    DATACENTER = 3;
+
+    // Restrict ReservationMode behavior on a Storage Cluster level.
+    STORAGE_CLUSTER = 4;
 }
 
 message ReservationTemplateCollection {
