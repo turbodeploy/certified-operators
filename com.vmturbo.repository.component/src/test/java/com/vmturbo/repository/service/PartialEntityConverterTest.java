@@ -247,16 +247,6 @@ public class PartialEntityConverterTest {
     }
 
     @Test
-    public void testGraphEntityToAction() {
-        final ActionPartialEntity actionEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.ACTION).findFirst().get().getAction();
-        assertThat(actionEntity.getOid(), is(graphEntity.getOid()));
-        assertThat(actionEntity.getDisplayName(), is(graphEntity.getDisplayName()));
-        assertThat(actionEntity.getEntityType(), is(graphEntity.getEntityType()));
-        assertThat(actionEntity.getEntityType(), is(graphEntity.getEntityType()));
-        assertThat(actionEntity.getCommTypesWithHotReplaceList(), contains(UICommodityType.VMEM.typeNumber()));
-    }
-
-    @Test
     public void testGraphEntityToApi() {
         final DefaultTagIndex tagIndex = mock(DefaultTagIndex.class);
         final Long2ObjectMap<Map<String, Set<String>>> map = new Long2ObjectOpenHashMap<>();
@@ -328,22 +318,5 @@ public class PartialEntityConverterTest {
     public void testGraphEntityToFull() {
         final TopologyEntityDTO fullEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.FULL).findFirst().get().getFullEntity();
         assertThat(fullEntity, is(ENTITY));
-    }
-
-    /**
-     * Test conversion of a host with a vSAN among its consumers.
-     */
-    @Test
-    public void testHostForVSANToAction()   {
-        final ActionPartialEntity actionEntity = converter.createPartialEntities(
-                        Stream.of(hostForVSANEntity), Type.ACTION).findFirst().get().getAction();
-        assertEquals(hostForVSANEntity.getOid(), actionEntity.getOid());
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, actionEntity.getEntityType());
-        assertEquals(1, actionEntity.getConnectedEntitiesCount());
-
-        ConnectedEntity connected = actionEntity.getConnectedEntitiesList().get(0);
-        assertTrue(connected.hasConnectedEntityId() && connected.hasConnectedEntityType());
-        assertEquals(VSAN.getOid(), connected.getConnectedEntityId());
-        assertEquals(EntityType.STORAGE_VALUE, connected.getConnectedEntityType());
     }
 }

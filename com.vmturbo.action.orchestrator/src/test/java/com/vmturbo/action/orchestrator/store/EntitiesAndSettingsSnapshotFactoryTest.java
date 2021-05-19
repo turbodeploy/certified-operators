@@ -1,13 +1,16 @@
 package com.vmturbo.action.orchestrator.store;
 
-import java.util.Arrays;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 
@@ -20,17 +23,13 @@ import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.store.EntitiesSnapshotFactory.EntitiesSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -42,15 +41,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.repository.api.TopologyAvailabilityTracker;
-import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequest;
+import com.vmturbo.topology.graph.OwnershipGraph;
 
 /**
  * Unit tests for {@link EntitiesAndSettingsSnapshotFactory}.
@@ -66,10 +61,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final String SCHEDULE_DISPLAY_NAME = "TestSchedule";
 
     private SettingPolicyServiceMole spServiceSpy = Mockito.spy(new SettingPolicyServiceMole());
-    private RepositoryServiceMole repoServiceSpy = Mockito.spy(new RepositoryServiceMole());
     private GroupServiceMole groupServiceSpy = Mockito.spy(new GroupServiceMole());
-    private SupplyChainServiceMole supplyChainServiceSpy =
-            Mockito.spy(new SupplyChainServiceMole());
     private ScheduleServiceMole scheduleServiceSpy = Mockito.spy(new ScheduleServiceMole());
 
     /**
@@ -77,29 +69,37 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
      */
     @Rule
     public GrpcTestServer grpcTestServer =
-            GrpcTestServer.newServer(spServiceSpy, repoServiceSpy, groupServiceSpy,
-                    supplyChainServiceSpy, scheduleServiceSpy);
+            GrpcTestServer.newServer(spServiceSpy, groupServiceSpy, scheduleServiceSpy);
 
     private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
-    private final QueuedTopologyRequest topologyRequest = Mockito.mock(QueuedTopologyRequest.class);
-    private TopologyAvailabilityTracker topologyAvailabilityTracker =
-            Mockito.mock(TopologyAvailabilityTracker.class);
-    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
 
-    private static final long MIN_TO_WAIT = 1;
+    private final EntitiesSnapshotFactory entitiesSnapshotFactory = mock(EntitiesSnapshotFactory.class);
 
+    private final Map<Long, ActionPartialEntity> entitySnapshotEntities = ImmutableMap.of(1L,
+        ActionPartialEntity.newBuilder()
+            .setOid(1L)
+            .build());
+
+    private final OwnershipGraph<EntityWithConnections> ownershipGraph = OwnershipGraph.newBuilder(EntityWithConnections::getOid)
+            .build();
+
+    /**
+     * Common setup before every test.
+     */
     @Before
     public void setup() {
         entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
-            grpcTestServer.getChannel(),
             REALTIME_TOPOLOGY_CONTEXT_ID,
-            topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES, acceptedActionsStore,
+            acceptedActionsStore,
+            entitiesSnapshotFactory,
             false);
 
-        Mockito.when(topologyAvailabilityTracker.queueTopologyRequest(Mockito.anyLong(),
-                Mockito.anyLong()))
-            .thenReturn(topologyRequest);
+        EntitiesSnapshot entitiesSnapshot = new EntitiesSnapshot(entitySnapshotEntities,
+                ownershipGraph, TopologyType.SOURCE);
+        when(entitiesSnapshotFactory.getEntitiesSnapshot(any(), any(), anyLong(), anyLong()))
+                .thenReturn(entitiesSnapshot);
     }
 
     /**
@@ -109,9 +109,9 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     @Test
     public void testSnapshotStrictMatchEnabled() {
         EntitiesAndSettingsSnapshotFactory newFact = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
-                grpcTestServer.getChannel(),
                 REALTIME_TOPOLOGY_CONTEXT_ID,
-                topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES, acceptedActionsStore,
+                acceptedActionsStore,
+                entitiesSnapshotFactory,
                 // The important change.
                 true);
 
@@ -148,7 +148,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         entityDto.setUuid(Long.toString(ENTITY_ID));
         entityDto.setClassName(VM_CLASSIC_ENTITY_TYPE);
 
-        Mockito.when(spServiceSpy.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+        when(spServiceSpy.getEntitySettings(GetEntitySettingsRequest.newBuilder()
                 .setTopologySelection(TopologySelection.newBuilder()
                         .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID))
                 .setSettingFilter(EntitySettingFilter.newBuilder()
@@ -163,7 +163,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                                 .build())
                         .addEntityOids(ENTITY_ID))
                 .build()));
-        Mockito.when(groupServiceSpy.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+        when(groupServiceSpy.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
                 .addEntityId(ENTITY_ID)
                 .addGroupType(GroupType.RESOURCE)
                 .build())).thenReturn(GetGroupsForEntitiesResponse.newBuilder()
@@ -171,7 +171,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         Groupings.newBuilder().addGroupId(ASSOCIATED_RESOURCE_GROUP_ID).build())
                 .build());
 
-        Mockito.when(scheduleServiceSpy.getSchedules(ScheduleProto.GetSchedulesRequest.newBuilder().build()))
+        when(scheduleServiceSpy.getSchedules(ScheduleProto.GetSchedulesRequest.newBuilder().build()))
             .thenReturn(Collections.singletonList(ScheduleProto.Schedule.newBuilder().setId(SCHEDULE_ID)
                 .setDisplayName(SCHEDULE_DISPLAY_NAME).build()));
 
@@ -194,10 +194,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         .iterator()
                         .next()
                         .longValue());
-
-        Mockito.verify(topologyAvailabilityTracker).queueTopologyRequest(REALTIME_TOPOLOGY_CONTEXT_ID,
-                TOPOLOGY_ID);
-        Mockito.verify(topologyRequest).waitForTopology(MIN_TO_WAIT, TimeUnit.MINUTES);
     }
 
     /**
@@ -207,63 +203,14 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
      */
     @Test
     public void testNewSnapshotError() {
-        Mockito.when(spServiceSpy.getEntitySettingsError(Mockito.any()))
+        when(spServiceSpy.getEntitySettingsError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
-        Mockito.when(groupServiceSpy.getGroupsForEntities(Mockito.any())).thenReturn(
+        when(groupServiceSpy.getGroupsForEntities(any())).thenReturn(
                 GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
                 Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         Assert.assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
-    }
-
-    /**
-     * Test creating ownerShip graph and check that there is OWNS connection between entity and
-     * associated business account.
-     */
-    @Test
-    public void testOwnershipGraph() {
-        final long businessAccountId = 12L;
-        final String businessAccountName = "Test Business Account";
-        final long appServerId = 123L;
-        final long appServerIdNotRelatedToBA = 1234L;
-
-        final EntityWithConnections businessAccountEntity = EntityWithConnections.newBuilder()
-                .setDisplayName(businessAccountName)
-                .setOid(businessAccountId)
-                .build();
-
-        final GetMultiSupplyChainsResponse supplyChainsResponse =
-                GetMultiSupplyChainsResponse.newBuilder()
-                        .setSeedOid(businessAccountId)
-                        .setSupplyChain(SupplyChain.newBuilder()
-                                .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                        .setEntityType(ApiEntityType.APPLICATION_COMPONENT.typeNumber())
-                                        .putMembersByState(EntityState.POWERED_ON.getNumber(),
-                                                MemberList.newBuilder()
-                                                        .addMemberOids(appServerId)
-                                                        .build())
-                                        .build())
-                                .build())
-                        .build();
-
-        Mockito.when(repoServiceSpy.retrieveTopologyEntities(Mockito.any())).thenReturn(
-                Collections.singletonList(PartialEntityBatch.newBuilder()
-                        .addEntities(PartialEntity.newBuilder()
-                                .setWithConnections(businessAccountEntity)
-                                .build())
-                        .build()));
-
-        Mockito.when(supplyChainServiceSpy.getMultiSupplyChains(Mockito.any())).thenReturn(
-                Collections.singletonList(supplyChainsResponse));
-
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-                Sets.newHashSet(Arrays.asList(appServerId, appServerIdNotRelatedToBA)),
-                Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
-
-        Assert.assertEquals(snapshot.getOwnerAccountOfEntity(appServerId).get(),
-                businessAccountEntity);
-        Assert.assertFalse(snapshot.getOwnerAccountOfEntity(appServerIdNotRelatedToBA).isPresent());
     }
 }

@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -22,14 +21,10 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.api.CompressedProtobuf;
 import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.topology.graph.SearchableProps;
@@ -54,16 +49,10 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
 
     private final CompressedProtobuf<TopologyEntityDTO, TopologyEntityDTO.Builder> entity;
 
-    private final ActionEntityTypeSpecificInfo actionEntityInfo;
-
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
             @Nonnull final DefaultTagIndex tags,
             @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         super(src);
-
-        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src)
-                .map(ActionEntityTypeSpecificInfo.Builder::build)
-                .orElse(null);
 
         final List<CommoditySoldDTO> commsToPersist = src.getCommoditySoldListList().stream()
             .filter(commSold -> {
@@ -83,11 +72,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
         entity = CompressedProtobuf.compress(src.toBuilder()
             .build(), sharedCompressionBuffer);
         this.searchableProps = ThinSearchableProps.newProps(tags, this, src);
-    }
-
-    @Nullable
-    public ActionEntityTypeSpecificInfo getActionTypeSpecificInfo() {
-        return actionEntityInfo;
     }
 
     /**
@@ -210,51 +194,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
         }
 
         return builder.build();
-    }
-
-    /**
-     * Returns the list of connections that are broadcast by the topology processor
-     * for this entity.  The list includes the following:
-     * <ul>
-     *     <li>Normal outbound connections of the current entity</li>
-     *     <li>Entities owned by the current entity</li>
-     *     <li>Entities that aggregate the current entity</li>
-     *     <li>Entities that are controlled by the current entity</li>
-     * </ul>
-     *
-     * <p>Note that the list does not include the reverse of the above connections.
-     * For example, the list does not contain the owner of the current entity.
-     * </p>
-     *
-     * @return the list of connections as they are broadcast by the topology processor
-     */
-    public List<ConnectedEntity> getBroadcastConnections() {
-        final ArrayList<ConnectedEntity> result = new ArrayList<>();
-        getOutboundAssociatedEntities()
-            .forEach(e -> result.add(ConnectedEntity.newBuilder()
-                                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
-                                        .setConnectedEntityType(e.getEntityType())
-                                        .setConnectedEntityId(e.getOid())
-                                        .build()));
-        getOwnedEntities()
-            .forEach(e -> result.add(ConnectedEntity.newBuilder()
-                                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                                        .setConnectedEntityType(e.getEntityType())
-                                        .setConnectedEntityId(e.getOid())
-                                        .build()));
-        getAggregators()
-                .forEach(e -> result.add(ConnectedEntity.newBuilder()
-                                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
-                                        .setConnectedEntityType(e.getEntityType())
-                                        .setConnectedEntityId(e.getOid())
-                                        .build()));
-        getControllers()
-                .forEach(e -> result.add(ConnectedEntity.newBuilder()
-                                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
-                                        .setConnectedEntityType(e.getEntityType())
-                                        .setConnectedEntityId(e.getOid())
-                                        .build()));
-        return result;
     }
 
     /**

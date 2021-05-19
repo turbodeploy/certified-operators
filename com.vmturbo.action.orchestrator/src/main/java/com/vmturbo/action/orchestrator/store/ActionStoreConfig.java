@@ -53,6 +53,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
  * Configuration for the ActionStore package.
@@ -208,12 +209,20 @@ public class ActionStoreConfig {
     public EntitiesAndSettingsSnapshotFactory entitySettingsCache() {
         return new EntitiesAndSettingsSnapshotFactory(
             groupClientConfig.groupChannel(),
-            repositoryClientConfig.repositoryChannel(),
             tpConfig.realtimeTopologyContextId(),
-            repositoryClientConfig.topologyAvailabilityTracker(),
-            minsToWaitForTopology,
-            TimeUnit.MINUTES, acceptedActionsStore(),
+            acceptedActionsStore(),
+            entitiesSnapshotFactory(),
             actionSettingsStrictTopologyIdMatch);
+    }
+
+    @Bean
+    public EntitiesSnapshotFactory entitiesSnapshotFactory() {
+        return new EntitiesSnapshotFactory(tpConfig.actionTopologyStore(),
+                tpConfig.realtimeTopologyContextId(),
+                minsToWaitForTopology, TimeUnit.MINUTES,
+                repositoryClientConfig.repositoryChannel(),
+                repositoryClientConfig.topologyAvailabilityTracker(),
+                new SupplyChainCalculator());
     }
 
     @Bean

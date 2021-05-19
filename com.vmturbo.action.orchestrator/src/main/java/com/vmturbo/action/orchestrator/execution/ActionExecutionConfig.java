@@ -109,7 +109,6 @@ public class ActionExecutionConfig {
     public ActionTargetSelector actionTargetSelector() {
         return new ActionTargetSelector(targetCapabilityCache(),
                 actionConstraintStoreFactory(),
-                globalConfig.repositoryProcessorChannel(),
-                tpConfig.realtimeTopologyContextId());
+                tpConfig.actionTopologyStore());
     }
 }
