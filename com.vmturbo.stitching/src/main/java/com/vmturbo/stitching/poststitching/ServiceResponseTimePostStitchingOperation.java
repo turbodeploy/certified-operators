@@ -19,15 +19,25 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.serviceslo.ServiceSLOStitchingOperation;
 
 /**
  * Set response time of Service entities by averaging the value across number of replicas.
  *
- * <p>For now, we only perform the operation on Service entities coming from kubeturbo.
- * During stitching, response time of each service replica coming from APM or Custom probes gets
- * patched and aggregated onto the real service discovered by kuberturbo. This post stitching
+ * <p>For now, we only perform the operation on Service entities coming from Custom probes, for
+ * example, Prometurbo and DIF.
+ * During stitching, response time of each service replica coming from Custom probes gets
+ * patched and aggregated onto the real service discovered by kuberturbo in the
+ * {@link ServiceSLOStitchingOperation} custom stitching operation. This post stitching
  * operation divides the aggregated response time value by the number of service replicas to
  * calculate the average response time of a service.
+ *
+ * <p>TODO: The simple averaging of total response time by number of service replicas is flawed.
+ *     We should use weighted average to calculate the response time of a service with multiple
+ *     replicas, but Platform does not have enough information to carry out this computation. We
+ *     have decided that the proper fix is to make sure that any APM or Custom probe should properly
+ *     aggregate the response time and transaction metrics and only send in one proxy service with
+ *     aggregated metrics. See https://vmturbo.atlassian.net/browse/OM-70870 for more details.
  *
  * <p>This operation must be performed before {@link SetAutoSetCommodityCapacityPostStitchingOperation}.
  */
@@ -38,7 +48,7 @@ public class ServiceResponseTimePostStitchingOperation implements PostStitchingO
     @Override
     public StitchingScope<TopologyEntity> getScope(@Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
         return stitchingScopeFactory.probeCategoryEntityTypeScope(
-                ProbeCategory.CLOUD_NATIVE, EntityType.SERVICE);
+                ProbeCategory.CUSTOM, EntityType.SERVICE);
     }
 
     @Nonnull
