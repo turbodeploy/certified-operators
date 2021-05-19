@@ -20,7 +20,6 @@ import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.history.stats.PropertySubType;
 
 /**
  * {@link StatsRecordsAggregator} aggregates records from stats tables, basing on API request
@@ -45,17 +44,9 @@ public class StatsRecordsAggregator extends AbstractRecordsAggregator<Record> {
     public void aggregate(@Nonnull Record record,
                     @Nonnull Collection<CommodityRequest> commodityRequests,
                     @Nonnull Map<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity) {
-        // organize the statRecords by SNAPSHOT_TIME and then by PROPERTY_TYPE + PROPERTY_SUBTYPE
+        // Filter out the utilization as we are interested in the used values
         if (excludingRecordTypes.stream().anyMatch(type -> type.isInstance(record))) {
             return;
-        }
-        // Filter out the utilization as we are interested in the used values
-        final String dbPropertySubType =
-                        record.getValue(StringConstants.PROPERTY_SUBTYPE, String.class);
-        final PropertySubType propertySubType = PropertySubType.fromApiParameter(dbPropertySubType);
-        if (propertySubType == null) {
-            LOGGER.warn("Cannot find appropriate '{}' value for '{}' property subtype from DB record {}.",
-                            PropertySubType.class.getSimpleName(), dbPropertySubType, record);
         }
         final Timestamp snapshotTime =
                         record.getValue(StringConstants.SNAPSHOT_TIME, Timestamp.class);

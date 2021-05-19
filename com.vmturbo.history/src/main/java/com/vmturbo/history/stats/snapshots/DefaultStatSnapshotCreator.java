@@ -60,14 +60,14 @@ public class DefaultStatSnapshotCreator implements StatSnapshotCreator {
     }
 
     /**
-     * Process a list of DB stats reecords and organize into a {@link TreeMap} ordered by Timestamp
-     * and then commodity.
+     * Process a list of DB stats records and organize into a {@link TreeMap} ordered by Timestamp
+     * and then a commodity key.
      *
-     * <p>Note that properties bought and sold may have the same name, so we need to distinguish
-     * those by appending PROPERTY_TYPE with PROPERTY_SUBTYPE for the key for the commodity map.
-     * Similarly, a single commodity may be sold by more than one entity type, and so the
-     * entity_type field must also be included in the commodity map key. Note that this only applies
-     * to market_stats_xxx rows, not individual entity stats rows.
+     * <p>Note that properties bought and sold may have the same name, and a single commodity may be
+     * sold by more than one entity type. The key to the stats record map must include attributes
+     * to uniquely identify the record. See logic in {@link AbstractRecordsAggregator#createRecordKey}
+     * for the logic that generates the key.
+     * Note that this only applies to market_stats_xxx rows, not individual entity stats rows.
      *
      * @param statDBRecords the list of DB stats records to organize
      * @param commodityRequests a list of {@link CommodityRequest} being satisfied
