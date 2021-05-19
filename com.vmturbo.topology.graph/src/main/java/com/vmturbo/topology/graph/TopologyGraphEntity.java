@@ -1,5 +1,6 @@
 package com.vmturbo.topology.graph;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -12,11 +13,14 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 
 /**
@@ -267,6 +271,47 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
                          getInboundAssociatedEntities(), getOutboundAssociatedEntities(), getControllers(), getControlledEntities())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
+
+    }
+
+    /**
+     * Returns the list of connections that are broadcast by the topology processor
+     * for this entity. This is a utility method to reconstruct the {@link ConnectedEntity}s in
+     * the input to the graph builder from the topology graph itself. The list includes the following:
+     * <ul>
+     *     <li>Normal outbound connections of the current entity</li>
+     *     <li>Entities owned by the current entity</li>
+     *     <li>Entities that aggregate the current entity</li>
+     *     <li>Entities that are controlled by the current entity</li>
+     * </ul>
+     *
+     * <p>Note that the list does not include the reverse of the above connections.
+     * For example, the list does not contain the owner of the current entity.
+     * </p>
+     *
+     * @return the list of connections as they are broadcast by the topology processor
+     */
+    default List<ConnectedEntity> getBroadcastConnections() {
+        final ArrayList<ConnectedEntity> result = new ArrayList<>();
+        getOutboundAssociatedEntities().forEach(e -> result.add(
+                RepositoryDTOUtil.connectedEntity(e.getOid(), e.getEntityType(), ConnectionType.NORMAL_CONNECTION)));
+        getOwnedEntities().forEach(e -> result.add(
+                RepositoryDTOUtil.connectedEntity(e.getOid(), e.getEntityType(), ConnectionType.OWNS_CONNECTION)));
+        getAggregators().forEach(e -> result.add(
+                RepositoryDTOUtil.connectedEntity(e.getOid(), e.getEntityType(), ConnectionType.AGGREGATED_BY_CONNECTION)));
+        getControllers().forEach(e -> result.add(
+                RepositoryDTOUtil.connectedEntity(e.getOid(), e.getEntityType(), ConnectionType.CONTROLLED_BY_CONNECTION)));
+        return result;
+    }
+
+    default EntityWithConnections asEntityWithConnections() {
+        final EntityWithConnections.Builder withConnectionsBuilder =
+                EntityWithConnections.newBuilder()
+                        .setOid(getOid())
+                        .setEntityType(getEntityType())
+                        .setDisplayName(getDisplayName());
+        withConnectionsBuilder.addAllConnectedEntities(getBroadcastConnections());
+        return withConnectionsBuilder.build();
     }
 
     /**
