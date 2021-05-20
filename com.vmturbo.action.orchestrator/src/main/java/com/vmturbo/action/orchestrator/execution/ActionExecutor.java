@@ -35,6 +35,9 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -44,6 +47,13 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
  * and sending them to the {@link TopologyProcessor}.
  */
 public class ActionExecutor implements ActionExecutionListener {
+
+    /**
+     * The parameter name of the property that contains the string value of the action details
+     * applied to the customer's template.
+     */
+    public static final String TEMPLATED_ACTION_BODY_PARAM_NAME = "TEMPLATED_ACTION_BODY";
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -152,7 +162,8 @@ public class ActionExecutor implements ActionExecutionListener {
     @Nonnull
     public static ExecuteActionRequest createRequest(final long targetId,
             @Nonnull final ActionDTO.ActionSpec action,
-            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt, @Nullable String explanation,
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+            @Nullable String explanation,
             final long actionId) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
@@ -172,7 +183,7 @@ public class ActionExecutor implements ActionExecutionListener {
             // from which the original Target Entity was discovered
             final WorkflowDTO.WorkflowInfo workflowInfo = workflowOpt.get().getWorkflowInfo();
             executionRequestBuilder.setTargetId(workflowInfo.getTargetId());
-            executionRequestBuilder.setWorkflowInfo(workflowInfo);
+            executionRequestBuilder.setWorkflowInfo(fillInProperties(action, workflowInfo));
         } else {
             // Typically, the target to execute the action is the target from which the
             // Target Entity was discovered
@@ -180,6 +191,25 @@ public class ActionExecutor implements ActionExecutionListener {
         }
 
         return executionRequestBuilder.build();
+    }
+
+    private static WorkflowInfo fillInProperties(
+        @Nonnull final ActionDTO.ActionSpec action,
+        @Nonnull final WorkflowInfo workflowInfo) {
+        if (workflowInfo.getWorkflowParamList().stream()
+            .map(WorkflowParameter::getName)
+            .anyMatch(paramName -> TEMPLATED_ACTION_BODY_PARAM_NAME.equals(paramName))
+        ) {
+            return workflowInfo.toBuilder()
+                .addWorkflowProperty(WorkflowProperty.newBuilder()
+                    .setName(TEMPLATED_ACTION_BODY_PARAM_NAME)
+                    // TODO(OM-70050): Fill this in with the webhook template applied to the action.
+                    .setValue("This is where the filled in template would go, applied to action with oid: " + action.getRecommendation().getId())
+                    .build())
+                .build();
+        }
+
+        return workflowInfo;
     }
 
     /**
