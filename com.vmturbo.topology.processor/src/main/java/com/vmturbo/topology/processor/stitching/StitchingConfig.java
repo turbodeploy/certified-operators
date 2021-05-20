@@ -102,6 +102,12 @@ public class StitchingConfig {
     @Value("${enableConsistentScalingOnHeterogeneousProviders:true}")
     private boolean enableConsistentScalingOnHeterogeneousProviders;
 
+    /**
+     * Feature flag for caching stitching operations for kubernetes probes
+     */
+    @Value("${stitchingMergeKuberenetesProbeTypes:false}")
+    private boolean stitchingMergeKuberenetesProbeTypes;
+
     @Autowired
     private ClockConfig clockConfig;
 
@@ -124,7 +130,7 @@ public class StitchingConfig {
 
     @Bean
     public StitchingOperationStore stitchingOperationStore() {
-        return new StitchingOperationStore(stitchingOperationLibrary());
+        return new StitchingOperationStore(stitchingOperationLibrary(), stitchingMergeKuberenetesProbeTypes);
     }
 
     @Bean

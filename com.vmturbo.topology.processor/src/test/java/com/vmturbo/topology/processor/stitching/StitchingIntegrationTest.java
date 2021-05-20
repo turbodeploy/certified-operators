@@ -64,7 +64,7 @@ public abstract class StitchingIntegrationTest {
 
     protected final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     protected final StitchingOperationStore stitchingOperationStore =
-            new StitchingOperationStore(stitchingOperationLibrary);
+            new StitchingOperationStore(stitchingOperationLibrary, false);
     protected final PreStitchingOperationLibrary preStitchingOperationLibrary =
             new PreStitchingOperationLibrary();
     protected PostStitchingOperationLibrary postStitchingOperationLibrary;
