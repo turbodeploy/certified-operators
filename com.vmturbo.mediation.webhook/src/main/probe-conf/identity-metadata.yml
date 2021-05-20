@@ -1,0 +1,7 @@
+#
+# TODO: This probe does not discover any ServiceEntities, but the current Probe framework requires
+# that this file not be empty. That will likely be fixed by the in-progress probe refactoring.
+# At that time, this identity-metadata.yml file can be removed.
+APPLICATION:
+  nonVolatileProperties:
+  - id

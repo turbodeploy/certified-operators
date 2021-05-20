@@ -417,6 +417,9 @@ dependencies:
     repository: file://../probes/mediation-vplex
     version: 0.1.0
     condition: vplex.enabled
+  - name: mediation-webhook
+    repository: file://../probes/mediation-webhook
+    version: 0.1.0
   - name: mediation-wmi
     repository: file://../probes/mediation-wmi
     version: 0.1.0
