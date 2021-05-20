@@ -141,7 +141,7 @@ public class GroupConfig {
 
     @Bean
     public EntitySettingsApplicator entitySettingsApplicator() {
-        return new EntitySettingsApplicator(settingServiceClient());
+        return new EntitySettingsApplicator();
     }
 
     @Bean
