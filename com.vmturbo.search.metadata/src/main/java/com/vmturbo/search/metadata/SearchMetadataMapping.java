@@ -30,7 +30,6 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -124,11 +123,6 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GUEST_OS_NAME("attrs", "guest_os_name", Type.TEXT, null,
             entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().hasGuestOsName(),
                     entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsName())),
-
-    PRIMITIVE_IP_ADDRESSES("attrs", "ip_addresses", Type.TEXT, null,
-            entity -> conditionallySet(!entity.getTypeSpecificInfo().getVirtualMachine().getIpAddressesList().isEmpty(),
-                    entity.getTypeSpecificInfo().getVirtualMachine().getIpAddressesList().stream()
-                          .map(IpAddress::getIpAddress).collect(Collectors.toList()))),
 
     PRIMITIVE_IS_LOCAL("attrs", "is_local", Type.BOOLEAN, null,
         entity -> conditionallySet(entity.getTypeSpecificInfo().getStorage().hasIsLocal(),

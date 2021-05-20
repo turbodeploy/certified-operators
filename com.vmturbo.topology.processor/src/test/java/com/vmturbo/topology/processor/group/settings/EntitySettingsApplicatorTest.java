@@ -51,6 +51,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -518,13 +521,15 @@ public class EntitySettingsApplicatorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
-    private final CpuCapacityServiceMole cpuCapacityServiceMole =  spy(new CpuCapacityServiceMole());
+    private final CpuCapacityServiceMole cpuCapacityServiceMole = spy(new CpuCapacityServiceMole());
+    private final SettingServiceMole settingServiceMole = Mockito.spy(new SettingServiceMole());
 
     /**
      * Must be public, otherwise when unit test starts up, JUnit throws ValidationError.
      */
     @Rule
-    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(cpuCapacityServiceMole);
+    public final GrpcTestServer grpcServer =
+                    GrpcTestServer.newServer(cpuCapacityServiceMole, settingServiceMole);
 
     /**
      * Cannot be initialized in the field, otherwise a IllegalStateException: GrpcTestServer has not
@@ -532,12 +537,15 @@ public class EntitySettingsApplicatorTest {
      */
     private CpuCapacityServiceBlockingStub cpuCapacityService;
 
+    private SettingServiceBlockingStub settingsService;
+
     /**
      * Setup the mocked services that cannot be initialized as fields.
      */
     @Before
     public void init() {
-        applicator = new EntitySettingsApplicator();
+        settingsService = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        applicator = new EntitySettingsApplicator(settingsService);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 

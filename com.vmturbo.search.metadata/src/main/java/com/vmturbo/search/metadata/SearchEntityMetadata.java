@@ -69,7 +69,6 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENTITY
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENVIRONMENT_TYPE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_GUEST_OS_NAME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IP_ADDRESSES;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_ENCRYPTED_VOLUME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_EPHEMERAL_VOLUME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_LOCAL;
@@ -206,7 +205,6 @@ public enum SearchEntityMetadata {
             .putAll(Constants.ENTITY_COMMON_FIELDS)
             // type specific fields
             .put(primitive("connectedNetworks"), PRIMITIVE_CONNECTED_NETWORKS)
-            .put(primitive("ipAddresses"), PRIMITIVE_IP_ADDRESSES)
             .put(primitive("guestOsType"), PRIMITIVE_GUEST_OS_TYPE)
             .put(primitive("guestOsName"), PRIMITIVE_GUEST_OS_NAME)
             .put(primitive("numCpus"), PRIMITIVE_VM_NUM_CPUS)
