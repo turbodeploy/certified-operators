@@ -3,10 +3,12 @@ package com.vmturbo.cost.component.savings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -14,7 +16,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -23,6 +27,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,11 +63,19 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -84,6 +97,8 @@ public class ActionListenerTest {
     private final ActionsServiceMole actionsServiceRpc = Mockito.spy(new ActionsServiceMole());
     private final CostServiceMole costServiceRpc = Mockito.spy(new CostServiceMole());
     private ActionsServiceBlockingStub actionsService;
+    private final SettingServiceMole settingServiceRpc = Mockito.spy(new SettingServiceMole());
+    private SettingServiceBlockingStub settingsService;
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
     private InMemoryEntityCostStore projectedEntityCostStore = mock(InMemoryEntityCostStore.class);
     private static final double EPSILON_PRECISION = 0.0000001d;
@@ -135,7 +150,8 @@ public class ActionListenerTest {
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc,
+            settingServiceRpc);
 
     /**
      * Setup before each test.
@@ -147,12 +163,14 @@ public class ActionListenerTest {
         MockitoAnnotations.initMocks(this);
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
         actionsService = ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        settingsService = SettingServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        EntitySavingsRetentionConfig config = new EntitySavingsRetentionConfig(settingsService);
         // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService,
                                             entityCostStore, projectedEntityCostStore,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L);
+                EntitySavingsConfig.getSupportedActionTypes(), config);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()
@@ -170,8 +188,26 @@ public class ActionListenerTest {
                          .build())
                         .when(costServiceRpc)
                         .getTierPriceForEntities(any(GetTierPriceForEntitiesRequest.class));
+        setActionExpiration(1f);
     }
 
+    /**
+     * Set the action expiration for both actions and volume deletes to the specified value.
+     *
+     * @param valueInMonths action duration in months.
+     */
+    private void setActionExpiration(float valueInMonths) {
+        when(settingServiceRpc.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
+                .thenReturn(GetGlobalSettingResponse.newBuilder()
+                        .setSetting(Setting.newBuilder()
+                                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                        .setValue(valueInMonths)))
+                        .build());
+    }
+
+    /**
+     * Test cleanup.
+     */
     @After
     public void cleanup() {
         grpcTestServer.getChannel().shutdownNow();
@@ -222,21 +258,48 @@ public class ActionListenerTest {
                         .setActionSpec(actionSpec2)
                         .build();
 
+        // The first action has an expiration of one month.
+        setActionExpiration(1f);
         actionListener.onActionSuccess(actionSuccess1);
         assertEquals(1, store.size());
-        actionListener.onActionSuccess(actionSuccess2);
-        assertEquals(2, store.size());
+        List<SavingsEvent> savingsEvents = store.removeAllEvents();
+        SavingsEvent savingsEvent1 = savingsEvents.get(0);
+        validateActionEvent("savingsEvent1", savingsEvent1, 1L);
+
+        // The next action has an expiration of two months.
+        setActionExpiration(2f);
 
         // If a succeeded message were to be received more than once
         // an additional entry should not be created.
         actionListener.onActionSuccess(actionSuccess2);
-        assertEquals(2, store.size());
+        assertEquals(1, store.size());
 
-        List<SavingsEvent> savingsEvents = store.removeAllEvents();
-        savingsEvents.stream().forEach(se -> {
+        actionListener.onActionSuccess(actionSuccess2);
+        assertEquals(1, store.size());
+        savingsEvents = store.removeAllEvents();
+        SavingsEvent savingsEvent2 = savingsEvents.get(0);
+        validateActionEvent("savingsEvent2", savingsEvent2, 2L);
+
+        // Put the actions back
+        store.addEvent(savingsEvent1);
+        store.addEvent(savingsEvent2);
+        store.removeAllEvents().stream().forEach(se -> {
             assertEquals(se.getActionEvent().get().getEventType(),
                          ActionEventType.SCALE_EXECUTION_SUCCESS);
         });
+    }
+
+    private void validateActionEvent(String message, SavingsEvent savingsEvent,
+            long expectedExpiration) {
+        assertTrue(message, savingsEvent.hasActionEvent());
+        Optional<ActionEvent> optActionEvent = savingsEvent.getActionEvent();
+        assertTrue(message, optActionEvent.isPresent());
+        ActionEvent actionEvent = optActionEvent.get();
+        assertTrue(message, actionEvent.getExpirationTime().isPresent());
+
+        Long expirationTime = actionEvent.getExpirationTime().get(); // milliseconds
+        Assert.assertEquals("Validating expiration",
+                (long)TimeUnit.HOURS.toMillis(expectedExpiration * 730), (long)expirationTime);
     }
 
     /**

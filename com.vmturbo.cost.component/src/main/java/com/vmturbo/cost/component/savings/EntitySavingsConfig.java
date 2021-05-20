@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
@@ -96,15 +97,6 @@ public class EntitySavingsConfig {
     private Long entitySavingsEventLogRetentionHours;
 
     /**
-     * Action expiration durations in hours.  These must be integral values.
-     */
-    @Value("${deleteVolumeActionLifetimeHours:8760}") // Default is 365 days (approximately 1 year)
-    private Long deleteVolumeActionLifetimeHours;
-
-    @Value("${defaultActionLifetimeHours:17520}")     // Default is 730 days (approximately 2 years)
-    private Long actionLifetimeHours;
-
-    /**
      * Real-Time Context Id.
      */
     @Value("${realtimeTopologyContextId}")
@@ -146,37 +138,23 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Return how long to retain events in the internal event log.  As external action and topology
-     * events are handled, they are added to the internal event log.  After the events are
-     * processed, they are retained for a configurable number of minutes.  The events are no longer
-     * needed after they are processed, and a configured retention amount of 0 will cause them to be
-     * purged immediately after they are processed.
+     * Gets Settings Service Client.
      *
-     * @return Amount of time in minutes to retain internal events.
+     * @return Settings Service Client.
      */
-    public Long getEntitySavingsEventLogRetentionMinutes() {
-        return this.entitySavingsEventLogRetentionHours;
+    @Bean
+    public SettingServiceGrpc.SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**
-     * Get the configured action lifetime in milliseconds. All active actions except for volume
-     * delete actions will remain active until it is reversed by a subsequent action or the
-     * configured interval passes, whichever comes first.
+     * Get savings retention configuration.
      *
-     * @return maximum number of milliseconds that an action can stay active.
+     * @return Action executed lifetime configuration information.
      */
-    public Long getActionLifetimeMs() {
-        return TimeUnit.HOURS.toMillis(this.actionLifetimeHours);
-    }
-
-    /**
-     * Get the configured volume delete action lifetime in milliseconds.  The volume delete action
-     * will remain active until the configured interval passes.
-     *
-     * @return maximum number of milliseconds that delete volume action can stay active.
-     */
-    public Long getDeleteVolumeActionLifetimeMs() {
-        return TimeUnit.HOURS.toMillis(this.deleteVolumeActionLifetimeHours);
+    @Bean
+    public EntitySavingsRetentionConfig getEntitySavingsRetentionConfig() {
+        return new EntitySavingsRetentionConfig(settingServiceClient());
     }
 
     /**
@@ -212,8 +190,7 @@ public class EntitySavingsConfig {
                                                      entityCostConfig.projectedEntityCostStore(),
                                                      realtimeTopologyContextId,
                                                      supportedEntityTypes, supportedActionTypes,
-                                                     getActionLifetimeMs(),
-                                                     getDeleteVolumeActionLifetimeMs());
+                                                     getEntitySavingsRetentionConfig());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -232,7 +209,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
-                entityEventsJournal(), getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+                entityEventsJournal(), getEntitySavingsRetentionConfig());
     }
 
     /**
@@ -326,7 +303,7 @@ public class EntitySavingsConfig {
     @Bean
     public EventInjector eventInjector() {
         EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal(),
-                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+                getEntitySavingsRetentionConfig());
         injector.start();
         return injector;
     }

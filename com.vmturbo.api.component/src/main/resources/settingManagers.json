@@ -327,6 +327,14 @@
         "cca.include.terminated.entities"
       ]
     },
+    "cloudsavingsmanager": {
+      "displayName": "",
+      "defaultCategory": "Cloud Savings",
+      "settings": [
+          "expire.action",
+          "expire.deleteVolume"
+      ]
+    },
     "osmigrationmanager": {
       "displayName": "OS Migration Manager",
       "settings": [
