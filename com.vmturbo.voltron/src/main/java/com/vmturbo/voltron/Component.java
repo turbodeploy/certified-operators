@@ -445,6 +445,11 @@ public enum Component {
     MEDIATION_VPLEX("vplex", "com.vmturbo.mediation.vplex.component"),
 
     /**
+     * Webhook.
+     */
+    MEDIATION_WEBHOOK("webhook", "com.vmturbo.mediation.webhook.component"),
+
+    /**
      * XTremio.
      */
     MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),

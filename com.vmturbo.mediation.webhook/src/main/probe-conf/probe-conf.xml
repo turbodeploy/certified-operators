@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.webhook.WebhookProbe</full-class-name>
+    <type>Webhook</type>
+    <category>Orchestrator</category>
+    <ui-category>Orchestrator</ui-category>
+    <version>1.0.0</version>
+    <creation-mode>INTERNAL</creation-mode>
+</probe>

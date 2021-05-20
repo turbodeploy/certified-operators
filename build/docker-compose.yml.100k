@@ -563,3 +563,10 @@ services:
       service: mediation-actionscript-prod
     mem_limit: 4096M
     depends_on: *clustermgrdep
+
+#  mediation-webhook:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-webhook-prod
+#    mem_limit: 4096M
+#    depends_on: *clustermgrdep

@@ -230,6 +230,8 @@ netflow:
   enabled: false
 newrelic:
   enabled: false
+webhook:
+  enabled: false
 weblogic:
   enabled: false
 websphere:
