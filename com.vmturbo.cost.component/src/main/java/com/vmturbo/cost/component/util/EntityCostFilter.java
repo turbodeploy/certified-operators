@@ -31,6 +31,7 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -63,6 +64,12 @@ public class EntityCostFilter extends CostFilter {
     @Nullable
     private final CostGroupBy costGroupBy;
 
+
+    /**
+     * Preserve the group by enums received in the RPC request.
+     */
+    private final List<GroupBy> requestedGroupByEnums;
+
     EntityCostFilter(@Nullable final Set<Long> entityFilters,
                      @Nullable final Set<Integer> entityTypeFilters,
                      @Nullable final Long startDateMillis,
@@ -77,7 +84,8 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final Set<Long> regionIds,
                      final boolean latestTimeStampRequested,
                      @Nullable final Long topologyContextId,
-                     long realtimeTopologyContextId) {
+                     long realtimeTopologyContextId,
+                     final List<GroupBy> requestedGroupByEnums) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
             CREATED_TIME, latestTimeStampRequested, topologyContextId, realtimeTopologyContextId);
         this.excludeCostSources = excludeCostSources;
@@ -88,6 +96,61 @@ public class EntityCostFilter extends CostFilter {
         this.regionIds = regionIds;
         this.costGroupBy = createGroupByFieldString(groupByFields);
         this.conditions = generateConditions();
+        this.requestedGroupByEnums = requestedGroupByEnums;
+    }
+
+    /**
+     * Creates a mew builder initialized with the filter fields.
+     * @return a new EntityCostFilterBuilder
+     */
+    @Nonnull
+    public  EntityCostFilterBuilder toNewBuilder() {
+        EntityCostFilterBuilder builder =
+                new EntityCostFilterBuilder(timeFrame, realtimeTopologyContextId);
+        if (costSources != null) {
+            builder.costSources(excludeCostSources, costSources);
+        }
+        if (costCategoryFilter != null) {
+            builder.costCategoryFilter(costCategoryFilter);
+        }
+        if (entityTypeFilters != null) {
+            builder.entityTypes(entityTypeFilters);
+        }
+        if (costGroupBy != null && costGroupBy.getReceivedGroupByFields() != null) {
+            builder.groupByFields(costGroupBy.getReceivedGroupByFields());
+        }
+        if (requestedGroupByEnums != null) {
+            builder.requestedGroupBy = requestedGroupByEnums;
+        }
+        if (regionIds != null) {
+            builder.regionIds(regionIds);
+        }
+        if (accountIds != null) {
+            builder.accountIds(accountIds);
+        }
+        if (availabilityZoneIds != null) {
+            builder.availabilityZoneIds(availabilityZoneIds);
+        }
+        if (entityFilters != null) {
+            builder.entityIds(entityFilters);
+        }
+        if (startDateMillis != null) {
+            builder.startDateMillis = startDateMillis;
+        }
+        if (endDateMillis != null) {
+            builder.endDateMillis = endDateMillis;
+        }
+        builder.latestTimestampRequested(latestTimeStampRequested);
+
+        return builder;
+    }
+
+    /**
+     * Preserve the group by enums received in the RPC request.
+     * @return the original group by enums
+     */
+    public List<GroupBy> getRequestedGroupBy() {
+        return requestedGroupByEnums;
     }
 
     @Nullable
@@ -366,6 +429,7 @@ public class EntityCostFilter extends CostFilter {
         private Set<Long> availabilityZoneIds = null;
         private Set<Long> regionIds = null;
         private Long topologyContextId = null;
+        private List<GroupBy> requestedGroupBy = null;
 
         private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame,
                 long realtimeTopologyContextId) {
@@ -385,13 +449,15 @@ public class EntityCostFilter extends CostFilter {
             return new EntityCostFilterBuilder(timeFrame, realtimeTopologyContextId);
         }
 
+
+
         @Override
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
                     endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
                     accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
-                    topologyContextId, realtimeTopologyContextId);
+                    topologyContextId, realtimeTopologyContextId, requestedGroupBy);
         }
 
         /**
@@ -430,6 +496,17 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilterBuilder accountIds(
             @Nonnull Collection<Long> accountIds) {
             this.accountIds = new HashSet<>(accountIds);
+            return this;
+        }
+
+        /**
+         * Return the original group by enums from the request.
+         * @param requestedGroupBy requested group by enum.
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder requestedGroupByEnums(@Nonnull List<GroupBy> requestedGroupBy) {
+            this.requestedGroupBy = new ArrayList<>(requestedGroupBy);
             return this;
         }
 

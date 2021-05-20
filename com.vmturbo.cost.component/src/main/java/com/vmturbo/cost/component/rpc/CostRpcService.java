@@ -816,6 +816,10 @@ public class CostRpcService extends CostServiceImplBase {
             filterBuilder.regionIds(request.getRegionFilter().getRegionIdList());
         }
 
+        if (!request.getGroupByList().isEmpty()) {
+            filterBuilder.requestedGroupByEnums(request.getGroupByList());
+        }
+
         return filterBuilder;
     }
 

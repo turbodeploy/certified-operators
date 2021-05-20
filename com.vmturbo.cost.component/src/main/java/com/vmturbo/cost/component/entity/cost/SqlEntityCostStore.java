@@ -35,7 +35,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -267,8 +266,15 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 logger.debug("Current entity costs requetsed. All Account, Region, Zone filters will be transformed" +
                         " to entity Id filters and duration filters ignored.");
                 EntityCostFilter entityFilter = transformFiltersToEntityIds((EntityCostFilter)entityCostFilter);
-                return ImmutableMap.of(System.currentTimeMillis(),
-                        latestEntityCostStore.getEntityCostStatRecords(entityFilter));
+                if (entityCostFilter.getCostGroupBy() != null && entityFilter.getRequestedGroupBy() != null) {
+                    return ImmutableMap.of(System.currentTimeMillis(),
+                            latestEntityCostStore.getEntityCostStatRecordsByGroup(entityFilter.getRequestedGroupBy(),
+                                    entityFilter));
+                } else {
+                    return ImmutableMap.of(System.currentTimeMillis(),
+                            latestEntityCostStore.getEntityCostStatRecords(entityFilter));
+
+                }
             }
             if (entityCostFilter.getCostGroupBy() != null) {
                 // Queries based on filter and groupBy. Returns only fields used for grouping.
@@ -285,17 +291,8 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     private EntityCostFilter transformFiltersToEntityIds(final EntityCostFilter entityCostFilter) {
 
         EntityCostFilter.EntityCostFilterBuilder filterBuilder =
-                EntityCostFilter.EntityCostFilterBuilder.newBuilder(entityCostFilter.getTimeFrame(),
-                        entityCostFilter.getRealtimeTopologyContextId());
-        if (entityCostFilter.getCostSources().isPresent()) {
-            filterBuilder.costSources(false, entityCostFilter.getCostSources().get());
-        }
-        if (entityCostFilter.getCostCategoryFilter().isPresent()) {
-            filterBuilder.costCategoryFilter(entityCostFilter.getCostCategoryFilter().get());
-        }
-        if (entityCostFilter.getEntityTypeFilters().isPresent()) {
-            filterBuilder.entityTypes(entityCostFilter.getEntityTypeFilters().get());
-        }
+                entityCostFilter.toNewBuilder();
+
         /**
          * If the entity cost filter has either the region, account or zone filters,
          * fetch entity ids for the entity costs recorded for these filters and
@@ -316,15 +313,10 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                     .map(r -> new RecordWrapper((r)))
                     .map(r -> r.getAssociatedEntityId())
                     .collect(Collectors.toSet());
-
             filterBuilder.entityIds(entityIds);
-            return filterBuilder.build();
-        } else {
-            if (entityCostFilter.getEntityFilters().isPresent()) {
-                filterBuilder.entityIds(entityCostFilter.getEntityFilters().get());
-            }
-            return filterBuilder.build();
+            // clear out the account Ids, availability zone ids and regions
         }
+        return filterBuilder.build();
 
     }
 
