@@ -321,7 +321,16 @@ public enum GlobalSettingSpecs {
      */
     FailedDiscoveryCount("failedDiscoveryCount", "Number of successive failed discoveries after which we report the target as unhealthy",
                            numeric(1, 100, 3),
-                           Collections.emptyList());
+                           Collections.emptyList()),
+
+    /**
+     * Cloud savings action execution retention durations
+     */
+    CloudSavingsDeleteVolumeRetention("expire.deleteVolume", "Delete volume execution retention",
+            numeric(1f, 99999f, 12f), Collections.emptyList()),
+
+    CloudSavingsActionRetention("expire.action", "Default action execution retention",
+            numeric(1f, 99999f, 24f), Collections.emptyList());
 
     /**
      * A list of global settings that are visible to the UI.

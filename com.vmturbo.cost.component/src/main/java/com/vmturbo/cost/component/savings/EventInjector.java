@@ -16,7 +16,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -68,8 +67,7 @@ public class EventInjector implements Runnable {
     /**
      * Action lifetimes.
      */
-    private final Long actionLifetimeMs;
-    private final Long deleteVolumeActionLifetimeMs;
+    private final EntitySavingsRetentionConfig entitySavingsRetentionConfig;
 
     /**
      * Event format passed between the data generator and the event injector.
@@ -98,17 +96,14 @@ public class EventInjector implements Runnable {
      *
      * @param entitySavingsTracker entity savings tracker to inject actions into.
      * @param entityEventsJournal events journal to populate.
-     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
-     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
+     * @param entitySavingsRetentionConfig savings action retention configuration.
      */
     EventInjector(EntitySavingsTracker entitySavingsTracker,
                   EntityEventsJournal entityEventsJournal,
-            @Nonnull final Long actionLifetimeMs,
-            @Nonnull final Long deleteVolumeActionLifetimeMs) {
+            @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
         this.entitySavingsTracker = entitySavingsTracker;
         this.entityEventsJournal = entityEventsJournal;
-        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
-        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
+        this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
     }
 
 
@@ -117,7 +112,7 @@ public class EventInjector implements Runnable {
      */
     public void start() {
         (new Thread(new EventInjector(entitySavingsTracker, entityEventsJournal,
-                actionLifetimeMs, deleteVolumeActionLifetimeMs))).start();
+                entitySavingsRetentionConfig))).start();
     }
 
     /**

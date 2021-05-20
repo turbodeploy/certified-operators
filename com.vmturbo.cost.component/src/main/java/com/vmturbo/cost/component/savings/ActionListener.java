@@ -65,7 +65,6 @@ import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -164,15 +163,9 @@ public class ActionListener implements ActionsListener {
     }
 
     /**
-     * Convenience to represent 0 costs, to avoid recreating it each time.
-     */
-    private final CurrencyAmount zeroCosts = CurrencyAmount.newBuilder().setAmount(0d).build();
-
-    /**
      * Action lifetimes.
      */
-    private final Long actionLifetimeMs;
-    private final Long deleteVolumeActionLifetimeMs;
+    private final EntitySavingsRetentionConfig retentionConfig;
 
     /**
      * Constructor.
@@ -184,8 +177,7 @@ public class ActionListener implements ActionsListener {
      * @param realTimeContextId The real-time topology context id.
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
-     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
-     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
+     * @param retentionConfig savings action retention configuration.
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
@@ -194,8 +186,7 @@ public class ActionListener implements ActionsListener {
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
-                    @Nonnull final Long actionLifetimeMs,
-                    @Nonnull final Long deleteVolumeActionLifetimeMs) {
+                    @Nonnull EntitySavingsRetentionConfig retentionConfig) {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -205,8 +196,7 @@ public class ActionListener implements ActionsListener {
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
         this.pendingActionTypes = supportedActionTypes;
-        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
-        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
+        this.retentionConfig = retentionConfig;
     }
 
     /**
@@ -221,6 +211,8 @@ public class ActionListener implements ActionsListener {
      */
     @Override
     public void onActionSuccess(@Nonnull ActionSuccess actionSuccess) {
+        // Refresh action expiration settings
+        retentionConfig.updateValues();
         // Locate the target entity in the internal entity state.  If not present, create an
         //  - entry for it.
         final Long actionId = actionSuccess.getActionId();
@@ -242,8 +234,8 @@ public class ActionListener implements ActionsListener {
                 long expirationTime = completionTime
                         + (ActionEventType.DELETE_EXECUTION_SUCCESS
                                 .equals(entityActionInfo.getActionEventType())
-                                        ? deleteVolumeActionLifetimeMs
-                                        : actionLifetimeMs);
+                                        ? retentionConfig.getVolumeDeleteRetentionMs()
+                                        : retentionConfig.getActionRetentionMs());
                 final SavingsEvent successEvent = createActionEvent(entity.getId(),
                         completionTime,
                         entityActionInfo.getActionEventType(),
