@@ -122,7 +122,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public StitchingOperationStore stitchingOperationStore() {
-        return new StitchingOperationStore(new StitchingOperationLibrary());
+        return new StitchingOperationStore(new StitchingOperationLibrary(), false);
     }
 
     /**

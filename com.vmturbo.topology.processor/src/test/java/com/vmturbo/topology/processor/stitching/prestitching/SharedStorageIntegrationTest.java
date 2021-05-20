@@ -78,7 +78,7 @@ public class SharedStorageIntegrationTest {
     private StatsHistoryServiceBlockingStub statsServiceClient;
     private final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     private final StitchingOperationStore stitchingOperationStore =
-        new StitchingOperationStore(stitchingOperationLibrary);
+        new StitchingOperationStore(stitchingOperationLibrary, false);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary =
         new PreStitchingOperationLibrary();
     private PostStitchingOperationLibrary postStitchingOperationLibrary;
