@@ -37,6 +37,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -66,6 +68,7 @@ import static com.vmturbo.trax.Trax.trax;
 
 
 public class SqlEntityCostStoreTest {
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -681,6 +684,42 @@ public class SqlEntityCostStoreTest {
         MatcherAssert.assertThat(entityMap.keySet().iterator().next(), CoreMatchers.is(ID1));
         MatcherAssert.assertThat(entityMap.get(ID1),
                 CoreMatchers.is(entityCost.toBuilder().build()));
+
+        store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
+    /**
+     * Test the case when we retrieve entity cost stats with a group by.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetLatestCostStatsWithGroupBy() throws Exception {
+        // ARRANGE
+        final EntityCostFilter entityCostFilter =
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
+                        .entityIds(Collections.singleton(ID1))
+                        .requestedGroupByEnums(Collections.singletonList(GroupBy.COST_CATEGORY))
+                        .build();
+
+        // insert
+        saveCosts();
+
+        // ACT
+        final Map<Long, Collection<StatRecord>> results = store.getEntityCostStats(entityCostFilter);
+
+        //ASSERT
+        MatcherAssert.assertThat(results.size(), CoreMatchers.is(1));
+        final Collection<StatRecord> statRecords = results.values().iterator().next();
+        MatcherAssert.assertThat(statRecords.size(), CoreMatchers.is(2));
+        entityCost.getComponentCostList().stream().forEach(componentCost -> {
+            statRecords.stream()
+                    .filter(statRecord -> statRecord.getCategory() == componentCost.getCategory())
+                    .forEach(statRecord ->
+                            Assert.assertEquals(statRecord.getValues().getTotal(),
+                                    componentCost.getAmount().getAmount(), 0.001));
+
+        });
 
         store.cleanEntityCosts(LocalDateTime.now(clock));
     }
