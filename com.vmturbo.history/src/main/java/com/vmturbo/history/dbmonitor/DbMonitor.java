@@ -135,7 +135,7 @@ public class DbMonitor {
                 final long id = process.getId();
                 final String info = process.getInfo();
                 currentLongRunning.put(id, info);
-                if (priorLongRunning.containsKey(id) && priorLongRunning.get(id).equals(info)) {
+                if (priorLongRunning.containsKey(id) && Objects.equals(priorLongRunning.get(id), info)) {
                     logLongRunner(process);
                 }
             }
