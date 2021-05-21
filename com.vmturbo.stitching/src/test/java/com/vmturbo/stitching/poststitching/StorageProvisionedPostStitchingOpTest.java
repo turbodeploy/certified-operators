@@ -21,14 +21,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -382,6 +382,34 @@ public class StorageProvisionedPostStitchingOpTest {
         // no change for StorageProvisioned sold capacity, or StorageProvisioned bought used
         // since StorageAmount is not sold
         assertEquals(0, result.getChanges().size());
+    }
+
+    /**
+     * Test that storage provisioned bought used value is not being updated for virtual volumes,
+     * we should be using value passed from the probe.
+     */
+    @Test
+    public void testSetVirtualVolumeStorageProvisionedBoughtUsed() {
+
+        final CommoditySoldDTO soldStorageAmount = makeCommoditySold(CommodityType.STORAGE_AMOUNT, 3000);
+
+        final CommodityBoughtDTO boughtStorageProvisioned = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.STORAGE_PROVISIONED_VALUE).build())
+            .setUsed(1500).build();
+
+        final TopologyEntity virtualVolume = makeTopologyEntity(EntityType.VIRTUAL_VOLUME_VALUE,
+            Lists.newArrayList(soldStorageAmount),
+            Lists.newArrayList(boughtStorageProvisioned),
+            Collections.emptyList());
+
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(
+            Stream.of(virtualVolume), settingsMock, resultBuilder);
+        if (operation instanceof StorageEntityStorageProvisionedPostStitchingOperation) {
+            // For virtual volumes we do  not expect storage provisioned bought used value to be
+            // updated by post-stitching operation
+            assertEquals(0, result.getChanges().size());
+        }
     }
 }
 

@@ -3,10 +3,13 @@ package com.vmturbo.stitching.poststitching;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,6 +31,10 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 
 public abstract class StorageProvisionedPostStitchingOperation extends OverprovisionCapacityPostStitchingOperation {
+
+    // Entity types whose storage provisioned bought used value should not be updated
+    private static final Set<Integer> EXCLUDED_FROM_BOUGHT_USED_UPDATE =
+        ImmutableSet.of(EntityType.VIRTUAL_VOLUME_VALUE);
 
     public StorageProvisionedPostStitchingOperation() {
         super(EntitySettingSpecs.StorageOverprovisionedPercentage, CommodityType.STORAGE_AMOUNT,
@@ -77,7 +84,10 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             super.performOperation(list.stream(), settingsCollection, resultBuilder);
             // set bought StorageProvisioned used value to be the same of its sold StorageAmount capacity
             list.forEach(entity -> {
-                TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+                final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+                if (EXCLUDED_FROM_BOUGHT_USED_UPDATE.contains(entityBuilder.getEntityType())) {
+                    return;
+                }
                 if (HCIUtils.isVSAN(entityBuilder)) {
                     //For now we consider here only vSAN, but this may be a scheme correct for all HCI.
                     setUsedBasedOnBoughtAmount(entityBuilder, entity,
