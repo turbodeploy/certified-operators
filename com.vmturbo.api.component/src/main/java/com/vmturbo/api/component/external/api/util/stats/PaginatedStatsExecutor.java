@@ -378,6 +378,26 @@ public class PaginatedStatsExecutor {
                     constructEntityStatsApiDTOFromHistoricalResults(sortedList, minimalEntityMap,
                             costStatsResponse, historyEntityStatResponse);
 
+            if (this.containsEntityGroupScope()) {
+                // When using entity group scopes, we may include counting stats (e.g., 'numVMs'). However, these
+                // stats are only supported for very specific combinations of entity types. In unsupported combinations,
+                // an (often incorrect) zero response will be returned. We need to remove those spurious zero responses
+                // for unsupported combinations.
+                for (EntityStatsApiDTO entityStat : combinedResultsInOrder) {
+                    String uuid = entityStat.getUuid();
+                    final ApiId apiId = uuidMapper.fromUuid(uuid);
+                    // return one aggregated stats for the group, since relatedType is not set
+                    if (apiId.isGroup()) {
+                        return;
+                    }
+                    for (StatSnapshotApiDTO statSnapshot : entityStat.getStats()) {
+                        for (StatApiDTO stat : statSnapshot.getStatistics()) {
+                            stat.getName();
+                        }
+                    }
+                }
+            }
+
             //5. Construct paginated response
             final EntityStatsPaginationResponse entityStatsPaginationResponse =
                     constructPaginatedResponse(historyEntityStatResponse.getPaginationResponse(),
@@ -599,17 +619,22 @@ public class PaginatedStatsExecutor {
             final String relatedType = inputDto.getRelatedType();
             for (Long seedEntity : seedEntities) {
                 final Set<Long> derivedEntities;
+                final Set<Integer> derivedTypes = new HashSet<Integer>();
                 if (relatedType != null && statsMapper.shouldNormalize(relatedType)) {
                     // expand seedEntity to 'member' entities, like: from DC to PMs
-                    derivedEntities = supplyChainFetcherFactory.expandScope(Sets.newHashSet(seedEntity),
-                            Lists.newArrayList(statsMapper.normalizeRelatedType(relatedType)));
+                    ArrayList<String> relatedEntityTypes = Lists.newArrayList(statsMapper.normalizeRelatedType(relatedType));
+                    derivedEntities = supplyChainFetcherFactory.expandScope(Sets.newHashSet(seedEntity), relatedEntityTypes);
+                    derivedTypes.addAll(relatedEntityTypes.stream().map(ApiEntityType::fromStringToSdkType).collect(Collectors.toList()));
                 } else {
                     // try to expand grouping entity, since seedEntity can be DataCenter
-                    derivedEntities = supplyChainFetcherFactory.expandAggregatedEntities(Collections.singleton(seedEntity));
+                    SupplyChainFetcherFactory.ScopeExpansionResult expansionResult = supplyChainFetcherFactory.expandAggregatedEntitiesWithTypes(Collections.singleton(seedEntity));
+                    derivedEntities = expansionResult.getExpandedScope();
+                    derivedTypes.addAll(expansionResult.getDerivedTypes());
                 }
                 entityGroups.add(EntityGroup.newBuilder()
                         .setSeedEntity(seedEntity)
                         .addAllEntities(derivedEntities)
+                        .addAllDerivedEntityTypes(derivedTypes)
                         .build());
             }
 

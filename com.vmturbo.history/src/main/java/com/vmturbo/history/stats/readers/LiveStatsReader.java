@@ -272,6 +272,34 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             @Nonnull final Set<String> entityIds,
             @Nonnull final StatsFilter statsFilter)
             throws VmtDbException {
+        return getRecords(entityIds, statsFilter, Collections.emptyList());
+    }
+
+    /**
+     * Fetch rows from the stats tables based on the date range, and looking in the appropriate table
+     * for each entity.
+     *
+     * <p>This method returns individual records. It is the caller's responsibility
+     * to accumulate them.</p>
+     *
+     * <p>This requires looking up the entity type for each entity id in the list, and and then iterating
+     * over the time-based tables for that entity type.<p/>
+     *
+     * <p>The time interval is widened to ensure we capture past stats when startTime == endTime.</p>
+     *
+     * @param entityIds   a list of primary-level entities to gather stats from; groups have been
+     *                    expanded before we get here
+     * @param statsFilter stats filter constructed for the query
+     * @param derivedEntityTypes related entity types for which scope expansion was attempted.
+     * @return a list of records records, one for each stats information row retrieved
+     * @throws VmtDbException if a DB error occurs
+     */
+    @Nonnull
+    public List<Record> getRecords(
+            @Nonnull final Set<String> entityIds,
+            @Nonnull final StatsFilter statsFilter,
+            @Nonnull final List<Integer> derivedEntityTypes)
+            throws VmtDbException {
 
         final DataMetricTimer timer = GET_STATS_RECORDS_DURATION_SUMMARY.startTimer();
 
@@ -360,13 +388,17 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                     .map(CommodityRequest::getCommodityName)
                     .map(PropertyType::named)
                     .collect(Collectors.toList());
-            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(), entityTypeToIdsMap,
-                    requestedProperties.isEmpty() ? PropertyType.getMetricPropertyTypes().stream()
-                            : requestedProperties.stream().filter(PropertyType::isCountMetric)));
+            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
+                    entityTypeToIdsMap,
+                    requestedProperties.isEmpty()
+                            ? PropertyType.getMetricPropertyTypes().stream()
+                            : requestedProperties.stream().filter(PropertyType::isCountMetric),
+                    derivedEntityTypes));
 
             answer.addAll(getComputedStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
-                    entityTypeToIdsMap, requestedProperties.stream()
-                            .filter(PropertyType::isComputed)));
+                    entityTypeToIdsMap,
+                    requestedProperties.stream().filter(PropertyType::isComputed),
+                    derivedEntityTypes));
         }
 
         answer.addAll(histUtilizationReader.getRecords(entityIds, statsFilter));
@@ -498,28 +530,33 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
      * @param snapshotTimestamp  the time of the current snapshot
      * @param entityTypeToIdsMap multimap relating entity types to entity OIDs
      * @param requestedMetrics   metric property type that needs to be computed
+     * @param derivedEntityTypes related entity types for which scope expansion was attempted.
      * @return records with the needed metrics
      */
     private List<Record> getCountStats(@Nonnull final Timestamp snapshotTimestamp,
             final @Nonnull ListMultimap<EntityType, String> entityTypeToIdsMap,
-            final @Nullable Stream<PropertyType> requestedMetrics) {
+            final @Nullable Stream<PropertyType> requestedMetrics,
+            final @Nonnull List<Integer> derivedEntityTypes) {
 
         List<Record> metricRecords = new ArrayList<>();
         requestedMetrics.forEach(metric -> {
             final EntityType entityType = metric.getCountedEntityType();
-            StatsRecordsProcessor recordsProcessor =
-                    new StatsRecordsProcessor(entityType.getLatestTable().get());
-            metricRecords.add(recordsProcessor.createRecord(snapshotTimestamp, metric,
-                    entityTypeToIdsMap.containsKey(entityType)
-                            ? entityTypeToIdsMap.get(entityType).size()
-                            : 0));
+            if (canCountEntityType(entityType, entityTypeToIdsMap, derivedEntityTypes)) {
+                StatsRecordsProcessor recordsProcessor =
+                        new StatsRecordsProcessor(entityType.getLatestTable().get());
+                metricRecords.add(recordsProcessor.createRecord(snapshotTimestamp, metric,
+                        entityTypeToIdsMap.containsKey(entityType)
+                                ? entityTypeToIdsMap.get(entityType).size()
+                                : 0));
+            }
         });
         return metricRecords;
     }
 
     private List<Record> getComputedStats(final Timestamp snapshotTimestamp,
             final @Nonnull ListMultimap<EntityType, String> entityTypeToIdsMap,
-            final @Nonnull Stream<PropertyType> computedProperties) {
+            final @Nonnull Stream<PropertyType> computedProperties,
+            final @Nonnull List<Integer> derivedEntityTypes) {
         List<Record> computedRecords = new ArrayList<>();
         computedProperties.forEach(computed -> {
             // we don't really know what record type we're dealing with here, but it's some sort of
@@ -528,13 +565,18 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             final List<Double> values = computed.getOperands().stream()
                     .map(prereq -> {
                         EntityType type = prereq.getCountedEntityType();
-                        return type != null && entityTypeToIdsMap.containsKey(type)
+                        if (type == null || !canCountEntityType(type, entityTypeToIdsMap, derivedEntityTypes)) {
+                            return null;
+                        }
+                        return entityTypeToIdsMap.containsKey(type)
                                 ? entityTypeToIdsMap.get(type).size()
                                 : 0.0;
                     })
                     .collect(Collectors.toList());
-            computedRecords.add(recordProcessor.createRecord(
-                    snapshotTimestamp, computed, computed.compute(values)));
+            if (!values.contains(null)) {
+                computedRecords.add(recordProcessor.createRecord(
+                        snapshotTimestamp, computed, computed.compute(values)));
+            }
         });
         return computedRecords;
     }
@@ -552,6 +594,26 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
     @Nullable
     public String getEntityDisplayNameForId(@Nullable Long entityOID) {
         return entityOID != null ? historydbIO.getEntityDisplayNameForId(entityOID) : null;
+    }
+
+    /**
+     * Determines whether the given entity type can be counted in the current context.
+     *
+     * <p>We need to check whether it makes sense to count this entity type given the current scope
+     * It makes sense to count this entity type if at least one of the following criteria is met:
+     *    - The entity type is present in the current scope
+     *    - Scope expansion for the given entity type has been attempted as part of this request
+     * In the latter case, the entity type is not present in the current scope despite having expanded the scope
+     * to potentially include this entity type. Therefore, we can count a zero in this case.</p>
+     *
+     * @param entityType the type to check for countability
+     * @param entityTypeToIdsMap multimap relating entity types to entity OIDs
+     * @param derivedEntityTypes related entity types for which scope expansion was attempted.
+     * @return true, if the given entity type can be counted in the current context.
+     */
+    private boolean canCountEntityType(EntityType entityType, ListMultimap<EntityType, String> entityTypeToIdsMap, List<Integer> derivedEntityTypes) {
+        return entityTypeToIdsMap.containsKey(entityType) ||
+                derivedEntityTypes.contains(entityType.getSdkEntityType().get().getNumber());
     }
 
 }

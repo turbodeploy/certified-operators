@@ -31,6 +31,11 @@ message GetAveragedEntityStatsRequest {
     // The global filter to apply to all commodities in the request.
     // This is only relevant when the input is the entire market.
     optional GlobalFilter global_filter = 3;
+
+    // Related entity types for which scope expansion was attempted.
+    // Used when computing counting stats to disambiguate valid zero counts from cases where the type was omitted
+    // from scope expansion. This is also the only case where this list cannot be inferred.
+    repeated int32 derived_entity_types = 4;
 }
 
 // The scope for an entity stats query.
@@ -66,6 +71,15 @@ message EntityStatsScope {
         // member entities derived from seed entity, if set it will aggregate stats on members;
         // if empty, it will get stat for seed entity.
         repeated int64 entities = 2;
+
+        // Related entity types for which scope expansion was attempted.
+        // Used when computing counting stats to disambiguate valid zero counts from cases where the type was omitted
+        // from scope expansion. This is also the only case where this list cannot be inferred.
+        // For example, if the seed_entity is a host and there are no VMs in the entities list,
+        // this could either mean that the host has no VMs or that we haven't made a supply
+        // chains call to fetch the associated VMs. If derived_entity_types contains
+        // 'VirtualMachine', then we know it is the former case. Otherwise, it is the latter.
+        repeated int32 derived_entity_types = 3;
     }
 }
 

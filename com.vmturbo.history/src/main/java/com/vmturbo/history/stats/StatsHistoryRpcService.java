@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -316,7 +315,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         filter.getCommodityRequestsList(), request.getGlobalFilter());
             } else {
                 // read from live topologies
-                getLiveMarketStats(filter, entitiesList, request.getGlobalFilter())
+                getLiveMarketStats(filter, entitiesList, request.getGlobalFilter(), request.getDerivedEntityTypesList())
                     .forEach(responseObserver::onNext);
                 responseObserver.onCompleted();
             }
@@ -501,7 +500,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             final EntityStats.Builder entityStats = EntityStats.newBuilder()
                 .setOid(entityGroup.getSeedEntity());
             // fetch aggregated stats
-            getLiveMarketStats(statsFilter, entities, GlobalFilter.getDefaultInstance())
+            getLiveMarketStats(statsFilter, entities, GlobalFilter.getDefaultInstance(), entityGroup.getDerivedEntityTypesList())
                 .forEach(entityStats::addStatSnapshots);
             entityStatsList.add(entityStats.build());
         }
@@ -1047,12 +1046,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
      * @param globalFilter The global filter to apply to all commodities requested by the filter.
+     * @param derivedEntityTypes related entity types for which scope expansion was attempted.
      * @return stream of StatSnapshots from live market
      * @throws VmtDbException if error writing to the db.
      */
     private Stream<StatSnapshot> getLiveMarketStats(@Nonnull final StatsFilter statsFilter,
                                                     @Nonnull Collection<Long> entities,
-                                                    @Nonnull GlobalFilter globalFilter) throws VmtDbException {
+                                                    @Nonnull GlobalFilter globalFilter,
+                                                    @Nonnull List<Integer> derivedEntityTypes) throws VmtDbException {
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
         final boolean fullMarket = entities.isEmpty();
@@ -1066,7 +1067,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             statDBRecords = liveStatsReader.getRecords(
                     entities.stream()
                             .map(id -> Long.toString(id))
-                            .collect(Collectors.toSet()), statsFilter);
+                            .collect(Collectors.toSet()),
+                    statsFilter,
+                    derivedEntityTypes);
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
