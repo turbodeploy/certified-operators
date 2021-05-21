@@ -29,6 +29,10 @@
         <spotbugs.version>4.0.4</spotbugs.version>
         <grpc.version>1.29.0</grpc.version>
         <jackson.version>2.11.4</jackson.version>
+        <commons-lang3.version>3.8.1</commons-lang3.version>
+        <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
+        https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->
+        <wireMockVersion>2.27.2</wireMockVersion>
     </properties>
 
     <build>
@@ -191,6 +195,16 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.api.conversion</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.tomakehurst</groupId>
+                <artifactId>wiremock-jre8</artifactId>
+                <version>${wireMockVersion}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
