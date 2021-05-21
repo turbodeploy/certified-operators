@@ -707,8 +707,10 @@ public class Analysis {
                                 // Post process projected entities.
                                 for (ProjectedEntityPostProcessor postProcessor : PROJECTED_ENTITY_POST_PROCESSORS) {
                                     if (postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities)) {
-                                        postProcessor.process(topologyInfo, projectedEntities,
-                                            entityTypeToProjectedEntities, actionsList);
+                                        try (TracingScope postProcessorScope = Tracing.trace(postProcessor.getClass().getSimpleName())) {
+                                            postProcessor.process(topologyInfo, projectedEntities,
+                                                entityTypeToProjectedEntities, actionsList);
+                                        }
                                     }
                                 }
 

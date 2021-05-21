@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -16,6 +17,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -108,6 +110,7 @@ public class ProjectedContainerClusterPostProcessor extends ProjectedEntityPostP
                         @Nonnull final Map<Long, ProjectedTopologyEntity> projectedEntities,
                         @Nonnull final Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities,
                         @Nonnull final List<ActionTO> actionsList) {
+        final StopWatch stopWatch = StopWatch.createStarted();
         final String logPrefix = String.format("%s topology [ID=%d, context=%d]: ",
             topologyInfo.getTopologyType(), topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
         // Map of projected container cluster to be updated.
@@ -153,8 +156,8 @@ public class ProjectedContainerClusterPostProcessor extends ProjectedEntityPostP
         // Set the updated projected ContainerPlatformCluster entities to projectedEntities map.
         updatedProjectedCntClustersMap.forEach((oid, projectedCntClusterBuilder) ->
                 projectedEntities.put(oid, projectedCntClusterBuilder.build()));
-        logger.info("{}Finished updating {} projected ContainerPlatformCluster entities.", logPrefix,
-            updatedProjectedCntClustersMap.size());
+        logger.info("{}Finished updating {} projected ContainerPlatformCluster entities in {} ms.", logPrefix,
+            updatedProjectedCntClustersMap.size(), stopWatch.getTime(TimeUnit.MILLISECONDS));
     }
 
     @VisibleForTesting
