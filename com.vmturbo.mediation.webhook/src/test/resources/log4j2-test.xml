@@ -11,6 +11,8 @@
     <Loggers>
         <Logger name="com.vmturbo" level="info" />
         <Logger name="log4j.logger.httpclient.wire" level="debug" />
+        <Logger name="com.vmturbo.mediation.webhook" level="trace" />
+        <Logger name="com.vmturbo.mediation.connector.common" level="trace" />
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>

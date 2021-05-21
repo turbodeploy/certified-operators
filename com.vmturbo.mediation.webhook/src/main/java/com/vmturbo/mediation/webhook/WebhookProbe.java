@@ -1,60 +1,69 @@
 package com.vmturbo.mediation.webhook;
 
-import java.util.Collection;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
+import com.vmturbo.mediation.connector.common.HttpMethodType;
+import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
+import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
+import com.vmturbo.mediation.webhook.connector.WebhookBody;
+import com.vmturbo.mediation.webhook.connector.WebhookConnector;
+import com.vmturbo.mediation.webhook.connector.WebhookException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.Discovery.AccountValue;
+import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.platform.sdk.probe.ActionResult;
-import com.vmturbo.platform.sdk.probe.IActionAudit;
 import com.vmturbo.platform.sdk.probe.IActionExecutor;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
  * Webhook probe supports sending HTTP requests to specified URL endpoint for PRE,POST, and REPLACE events.
  */
 public class WebhookProbe
-        implements IDiscoveryProbe<WebhookProbeAccount>, IActionAudit<WebhookProbeAccount>,
-        IActionExecutor<WebhookProbeAccount> {
+        implements IDiscoveryProbe<WebhookAccount>,
+            IActionExecutor<WebhookAccount> {
 
-    private static final String WEBHOOK_ON_GEN_WORKFLOW_DESCRIPTION = "Workflow for making request to %s Webhook";
-
-    private IProbeContext probeContext;
+    private static final String TEMPLATED_ACTION_BODY_PROPERTY = "TEMPLATED_ACTION_BODY";
+    private WebhookProperties probeConfiguration;
 
     private final Logger logger = LogManager.getLogger(getClass());
 
     @Override
     public void initialize(@Nonnull IProbeContext probeContext,
             @Nullable ProbeConfiguration configuration) {
-        this.probeContext = probeContext;
+        final IPropertyProvider propertyProvider = probeContext.getPropertyProvider();
+        probeConfiguration = new WebhookProperties(propertyProvider);
     }
 
     @Nonnull
     @Override
-    public Class<WebhookProbeAccount> getAccountDefinitionClass() {
-        return WebhookProbeAccount.class;
+    public Class<WebhookAccount> getAccountDefinitionClass() {
+        return WebhookAccount.class;
     }
 
     /**
@@ -65,7 +74,7 @@ public class WebhookProbe
      */
     @Nonnull
     @Override
-    public ValidationResponse validateTarget(@Nonnull WebhookProbeAccount accountValues) {
+    public ValidationResponse validateTarget(@Nonnull WebhookAccount accountValues) {
         return ValidationResponse.newBuilder()
                 .build();
     }
@@ -78,7 +87,7 @@ public class WebhookProbe
      */
     @Nonnull
     @Override
-    public DiscoveryResponse discoverTarget(@Nonnull WebhookProbeAccount accountValues) {
+    public DiscoveryResponse discoverTarget(@Nonnull WebhookAccount accountValues) {
         // We need to make sure that we can still connect to webhook to ensure that the credentials
         // are still valid. Without this double check, if a customer rediscovers a target that
         // failed validation, the target will appear OK even thought validation fails.
@@ -86,12 +95,10 @@ public class WebhookProbe
 
         if (validationResponse.getErrorDTOList().isEmpty()) {
             return DiscoveryResponse.newBuilder()
-                    .addWorkflow(Workflow.newBuilder()
-                            .setId(SDKUtil.hash(accountValues.getDisplayName()))
-                            .setDisplayName(accountValues.getDisplayName())
-                            .setDescription(String.format(WEBHOOK_ON_GEN_WORKFLOW_DESCRIPTION, accountValues.getDisplayName()))
-                            .build())
-                    .build();
+                .addWorkflow(createWorkflow(ActionScriptPhase.PRE, accountValues))
+                .addWorkflow(createWorkflow(ActionScriptPhase.REPLACE, accountValues))
+                .addWorkflow(createWorkflow(ActionScriptPhase.POST, accountValues))
+                .build();
         } else {
             final List<String> errors = validationResponse.getErrorDTOList()
                     .stream()
@@ -103,46 +110,92 @@ public class WebhookProbe
         }
     }
 
-    /**
-     * Does nothing for now except logging. Full implementation will come from a future task.
-     *
-     * @param webhookProbeAccount the credentials to connect to Webhook,.
-     * @param actionEvents the action events to send to webhook.
-     * @return
-     */
-    @Nonnull
-    @Override
-    public Collection<ActionErrorDTO> auditActions(
-            @Nonnull final WebhookProbeAccount webhookProbeAccount,
-            @Nonnull final Collection<ActionEventDTO> actionEvents) {
-        if (logger.isTraceEnabled()) {
-            for (ActionEventDTO actionEvent : actionEvents) {
-                logger.trace(actionEvent.toString());
-            }
+    private static Workflow createWorkflow(ActionScriptPhase phase, WebhookAccount accountValues) {
+        final String phasePhrase;
+        switch (phase) {
+            case PRE:
+                phasePhrase = "after an action has been accepted, but before execution";
+                break;
+            case REPLACE:
+                phasePhrase = "instead of Turbonomic's native execute";
+                break;
+            case POST:
+                phasePhrase = "after an action executes";
+                break;
+            default:
+                phasePhrase = phase.name();
+                break;
         }
-        return Collections.emptyList();
+        return Workflow.newBuilder()
+            .setPhase(phase)
+            .setId(accountValues.getDisplayName() + " Webhook " + phase)
+            .setDisplayName(
+                accountValues.getDisplayName() + " Webhook " + phasePhrase)
+            .setDescription(
+                accountValues.getDisplayName() + " Webhook " + phasePhrase
+                    + " sent to " + accountValues.getHttpMethod() + " " + accountValues.getUrl())
+            .addParam(Parameter.newBuilder()
+                .setName(TEMPLATED_ACTION_BODY_PROPERTY)
+                .setType("String")
+                .setDescription("The web hook template applied to action to create the webhook body.")
+                .build())
+            .build();
     }
 
     @Override
     public boolean supportsVersion2ActionTypes() {
-        return false;
+        return true;
+    }
+
+    private Optional<String> getBody(ActionExecutionDTO actionExecutionDto) {
+        return actionExecutionDto.getWorkflow().getPropertyList().stream()
+            .filter(property -> TEMPLATED_ACTION_BODY_PROPERTY.equals(property.getName()))
+            .findAny()
+            .map(Property::getValue);
     }
 
     @Nonnull
     @Override
-    public ActionResult executeAction(@Nonnull ActionExecutionDTO actionExecutionDTO,
-            @Nonnull WebhookProbeAccount webhookProbeAccount,
-            @Nullable Map<String, AccountValue> map, @Nonnull IProgressTracker iProgressTracker)
-            throws InterruptedException {
-        // TODO: implement
-        return new ActionResult(ActionResponseState.SUCCEEDED, "");
+    public ActionResult executeAction(@Nonnull final ActionExecutionDTO actionExecutionDto,
+            @Nonnull final WebhookAccount accountValues,
+            @Nullable final Map<String, Discovery.AccountValue> secondaryAccountValuesMap,
+            @Nonnull final IProgressTracker progressTracker) throws InterruptedException {
+        try (WebhookConnector webhookConnector = new WebhookConnector(accountValues,
+                probeConfiguration)) {
+            final Optional<String> bodyOpt = getBody(actionExecutionDto);
+            if (!bodyOpt.isPresent()) {
+                logger.error("For action oid: " + actionExecutionDto.getActionOid()
+                    + " and account " + accountValues
+                    + " action orchestrator did not fill in TEMPLATED_ACTION_BODY");
+                return new ActionResult(
+                    ActionResponseState.FAILED,
+                    "ActionOrchestrator did not fill in TEMPLATED_ACTION_BODY");
+            }
+            String body = bodyOpt.get();
+            final WebhookQuery webhookQuery = new WebhookQuery(
+                HttpMethodType.valueOf(accountValues.getHttpMethod()),
+                new WebhookBody(body));
+            final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
+            logger.trace("Response from webhook endpoint: {}", webhookResponse.getResponseBody());
+            return new ActionResult(ActionResponseState.SUCCEEDED,
+                "Webhook successfully executed the action.");
+        } catch (WebhookException | IOException e) {
+            logger.error("There was an issue contacting the webhook", e);
+            return new ActionResult(ActionResponseState.FAILED,
+                    ExceptionUtils.getMessage(e) + "\n" + ExceptionUtils.getStackTrace(e));
+        }
     }
 
     @Nonnull
     @Override
     public List<ActionPolicyDTO> getActionPolicies() {
-        // TODO: implement
+        /*
+         * As an action orchestrator, this probe can execute almost every action, that is possible
+         * in the world. As we do not have a separate feature for action orchestration, we are
+         * masking the functionality under action execution. As a result, we have to provide
+         * something from this method, while it is ignored on the server side.
+         */
         return Collections.singletonList(
-                ActionPolicyDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build());
+            ActionPolicyDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build());
     }
 }

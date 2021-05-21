@@ -16,14 +16,15 @@ import com.vmturbo.platform.sdk.probe.AccountValue.Constraint;
  * Account values for the Webhook probe.
  */
 @AccountDefinition
-public class WebhookProbeAccount {
+public class WebhookAccount {
 
     @AccountValue(targetId = true, displayName = "Name", constraint = MANDATORY,
             description = "Display name of the webhook")
     private final String displayName;
 
     @AccountValue(displayName = "URL", constraint = MANDATORY,
-            description = "The URL to use for the webhook")
+            description = "The full URL to the endpoint. For example https://www.endpoint.com/executeAction"
+    )
     private final String url;
 
     @AccountValue(
@@ -38,11 +39,10 @@ public class WebhookProbeAccount {
             description = "The request body template to use for the webhook")
     private final String template;
 
-
     /**
      * Default, no-args constructor is required by the vmturbo-sdk-plugin during the build process.
      */
-    public WebhookProbeAccount() {
+    public WebhookAccount() {
         displayName = "";
         url = "";
         template = "";
@@ -57,7 +57,7 @@ public class WebhookProbeAccount {
      * @param httpMethod the http method to use.
      * @param template the body of the request.
      */
-    public WebhookProbeAccount(
+    public WebhookAccount(
             @Nonnull String displayName,
             @Nonnull String url,
             @Nonnull String httpMethod,
@@ -86,10 +86,10 @@ public class WebhookProbeAccount {
 
     @Override
     public boolean equals(Object obj) {
-        if (!(obj instanceof WebhookProbeAccount)) {
+        if (!(obj instanceof WebhookAccount)) {
             return false;
         }
-        final WebhookProbeAccount other = (WebhookProbeAccount)obj;
+        final WebhookAccount other = (WebhookAccount)obj;
         return Objects.equal(this.displayName, other.displayName);
     }
 
@@ -102,10 +102,10 @@ public class WebhookProbeAccount {
     public String toString() {
         // Make sure you do not place any customer secrets in toString()!!!
         return MoreObjects.toStringHelper(this)
-                .add("displayName", displayName)
-                .add("url", url)
-                .add("httpMethod", httpMethod)
-                .add("template", template)
+                .add("displayName", getDisplayName())
+                .add("url", getUrl())
+                .add("httpMethod", getHttpMethod())
+                .add("template", getTemplate())
                 .toString();
     }
 }
