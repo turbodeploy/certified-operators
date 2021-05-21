@@ -208,6 +208,30 @@ panels:
   timeShift:
   title: Wasted File Count Per Datastore
   type: bargauge
+- datasource:
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  gridPos:
+    h: 2
+    w: 24
+    x: 0
+    y: 19
+  id: 7
+  options:
+    content: |-
+      <p style="text-align: center; color: red; background-color: white">
+      The information in this report is correct as of the time the
+      data was collected. The data can be up to one day older than the date
+      of report generation. Before you delete files based on this report,
+      verify that the files are indeed unused.</p>
+    mode: html
+  pluginVersion: 7.1.0
+  timeFrom:
+  timeShift:
+  title: Caution
+  type: text
 - datasource: $DB
   fieldConfig:
     defaults:
@@ -246,7 +270,7 @@ panels:
     h: 12
     w: 24
     x: 0
-    y: 19
+    y: 21
   id: 6
   options:
     showHeader: true
