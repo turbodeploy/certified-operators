@@ -345,6 +345,8 @@ public class EntitySettingsApplicator {
                         CommodityType.TOTAL_SESSIONS),
                 new OverrideCapacityByUserApplicator(EntitySettingSpecs.LatencyCapacity,
                                                CommodityType.STORAGE_LATENCY, graphWithSettings),
+                new OverrideCapacityByUserApplicator(EntitySettingSpecs.IOPSCapacity,
+                        CommodityType.STORAGE_ACCESS, graphWithSettings),
                 new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
