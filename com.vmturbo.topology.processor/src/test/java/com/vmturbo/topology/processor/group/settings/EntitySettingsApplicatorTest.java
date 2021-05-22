@@ -276,7 +276,7 @@ public class EntitySettingsApplicatorTest {
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
             .build();
 
-    private static final Setting VM_IOPS_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+    private static final Setting IOPS_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationIops.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
             .build();
@@ -1665,8 +1665,6 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.DTUUtilization);
         testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_AMOUNT,
                 EntitySettingSpecs.ResizeTargetUtilizationStorageAmount);
-        testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_ACCESS,
-                EntitySettingSpecs.ResizeTargetDBSUtilizationIOPS);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
@@ -1875,7 +1873,7 @@ public class EntitySettingsApplicatorTest {
                 {EntityType.VIRTUAL_MACHINE, CommodityType.NET_THROUGHPUT,
                         VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
                 {EntityType.VIRTUAL_MACHINE, CommodityType.STORAGE_ACCESS,
-                        VM_IOPS_RESIZE_TARGET_UTILIZATION},
+                        IOPS_RESIZE_TARGET_UTILIZATION},
                 {EntityType.BUSINESS_USER, CommodityType.IMAGE_CPU,
                         BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION},
                 {EntityType.BUSINESS_USER, CommodityType.IMAGE_MEM,
@@ -1884,6 +1882,9 @@ public class EntitySettingsApplicatorTest {
                         BU_IMAGE_STORAGE_RESIZE_TARGET_UTILIZATION}})
                 .forEach(data -> testResizeTargetUtilizationCommodityBoughtApplicator(
                         (EntityType)data[0], (CommodityType)data[1], (Setting)data[2]));
+
+        testResizeTargetUtilizationCommoditySoldApplicator(EntityType.DATABASE_SERVER,
+                CommodityType.STORAGE_ACCESS, IOPS_RESIZE_TARGET_UTILIZATION);
     }
 
     /**
