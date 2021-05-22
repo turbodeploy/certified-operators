@@ -181,8 +181,6 @@ public class EntitySettingsApplicator {
                         CommodityType.DB_MEM),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
                         CommodityType.STORAGE_AMOUNT),
-                new UtilizationThresholdApplicator(EntitySettingSpecs.ResizeTargetDBSUtilizationIOPS,
-                        CommodityType.STORAGE_ACCESS),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -292,6 +290,8 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
                         CommodityType.IO_THROUGHPUT),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIops, CommodityType.STORAGE_ACCESS),
                 // Applies to cloud entities only.
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
