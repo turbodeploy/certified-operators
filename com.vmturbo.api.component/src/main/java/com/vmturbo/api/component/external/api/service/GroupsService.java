@@ -350,10 +350,16 @@ public class GroupsService implements IGroupsService {
         if (groupPaginationRequest == null) {
             throw new InvalidOperationException("Missing pagination parameters.");
         }
-        // Check if order_by is set to COST. Currently group component doesn't support ordering
-        // groups by COST, so in that case pagination happens inside api component.
+        /*
+         * Use the old implementation (paginate inside api component) in the following cases:
+         * - if order_by is set to COST:
+         *      Currently group component doesn't support ordering groups by COST.
+         * - if the user is scoped:
+         *      Currently group component doesn't support filtering groups by a specific scope.
+         */
         GroupPaginationRequest.GroupOrderBy orderBy = groupPaginationRequest.getOrderBy();
-        if (orderBy == GroupOrderBy.COST) {
+        if (orderBy == GroupOrderBy.COST
+                || userSessionContext.isUserScoped()) {
             List<Grouping> groups = new ArrayList<>();
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(GroupFilter.getDefaultInstance())
