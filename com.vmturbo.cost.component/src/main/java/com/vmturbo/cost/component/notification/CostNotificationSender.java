@@ -7,8 +7,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudCostStatsAvailable;
@@ -22,8 +20,6 @@ import com.vmturbo.components.api.server.IMessageSender;
  */
 public class CostNotificationSender extends
         ComponentNotificationSender<CostNotification> {
-
-    private final Logger logger = LogManager.getLogger();
 
     /**
      * The sender of the cost notifications.
@@ -69,9 +65,10 @@ public class CostNotificationSender extends
             return new ToStringBuilder(costNotification, ToStringStyle.SHORT_PREFIX_STYLE)
                     .append("Snapshot Time", new Timestamp(ccsa.getSnapshotDate()))
                     .build();
-        } else {
-            return CostNotificationSender.class.getSimpleName()
-                    + "[ This message type is not implemented. ]";
+        } else if (costNotification.hasAccountExpensesAvailable()) {
+            return new ToStringBuilder(costNotification, ToStringStyle.SHORT_PREFIX_STYLE).build();
         }
+        return CostNotificationSender.class.getSimpleName()
+                + "[ This message type is not implemented. ]";
     }
 }

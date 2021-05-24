@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.discount.CostConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.RIAndExpenseUploadRpcService;
@@ -30,6 +31,9 @@ public class CostServiceConfig {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
+
     @Value("${riSupportInPartialCloudEnvironment:true}")
     private boolean riSupportInPartialCloudEnvironment;
 
@@ -40,6 +44,7 @@ public class CostServiceConfig {
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload(),
-                riSupportInPartialCloudEnvironment);
+                riSupportInPartialCloudEnvironment,
+                costNotificationConfig.costNotificationSender());
     }
 }

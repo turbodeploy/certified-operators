@@ -225,4 +225,43 @@ public class ModelDefinitions {
                         COST)
                 .build();
     }
+
+    /**
+     * Table definition for cloud_service_cost table having billing account expense data.
+     */
+    public static class CloudServiceCost {
+        /**
+         * Timestamp column.
+         */
+        public static final Column<Timestamp> TIME = Column.timestampColumn(
+                Tables.CLOUD_SERVICE_COST.TIME);
+
+        /**
+         * Business account oid.
+         */
+        public static final Column<Long> ACCOUNT_OID = Column.longColumn(
+                Tables.CLOUD_SERVICE_COST.ACCOUNT_OID);
+
+        /**
+         * Cloud service oid.
+         */
+        public static final Column<Long> CLOUD_SERVICE_OID = Column.longColumn(
+                Tables.CLOUD_SERVICE_COST.CLOUD_SERVICE_OID);
+
+        /**
+         * Cloud service cost ($/hr).
+         */
+        public static final Column<Double> COST = Column.doubleColumn(
+                Tables.CLOUD_SERVICE_COST.COST.getName());
+
+        /**
+         * Cloud service cost table.
+         */
+        public static final Table TABLE = Table.named(Tables.CLOUD_SERVICE_COST.getName())
+                .withColumns(TIME,
+                        ACCOUNT_OID,
+                        CLOUD_SERVICE_OID,
+                        COST)
+                .build();
+    }
 }

@@ -156,7 +156,7 @@ public class Table {
     /**
      * Class to manage a record sink attached to a table.
      */
-    public static class TableWriter implements AutoCloseable {
+    public static class TableWriter implements Consumer<Record>, AutoCloseable {
 
         private final Table table;
         private final Consumer<Record> sink;
@@ -222,6 +222,7 @@ public class Table {
          *
          * @param full record with full data
          */
+        @Override
         public void accept(Record full) {
             if (!closed) {
                 try {

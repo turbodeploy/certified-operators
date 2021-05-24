@@ -15,6 +15,9 @@ message CostNotification {
         StatusUpdate status_update = 1;
         // notify of new cost data computed from a source real-time topology
         CloudCostStatsAvailable cloud_cost_stats_available = 2;
+
+        // Notify when account expenses (billing costs) are available.
+        AccountExpensesAvailable account_expenses_available = 3;
     }
 
     // A message about a cost operation stats
@@ -58,5 +61,9 @@ message CostNotification {
     message CloudCostStatsAvailable {
         // the snapshot_date of the topology on which the costs are based
         required int64 snapshot_date = 1;
+    }
+
+    // Notification sent out from cost when AccountExpenses (Billing costs) have been persisted.
+    message AccountExpensesAvailable {
     }
 }
