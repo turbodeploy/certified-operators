@@ -4,6 +4,8 @@ import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -25,6 +27,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -52,7 +55,9 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfi
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -81,6 +86,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * Unit tests for {@link CloudCostCalculator}.
@@ -896,7 +902,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateCostForIdleVm() {
         // Arrange
         final long vmId = 10;
-        final TestEntityClass vm = createVmTestEntity(vmId, EntityState.POWERED_OFF, OSType.LINUX,
+        final TestEntityClass vm = createVmTestEntity(vmId, EntityState.POWERED_OFF, OSType.WINDOWS_WITH_SQL_ENTERPRISE,
                 Tenancy.DEFAULT, VMBillingType.ONDEMAND, 1,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
@@ -927,10 +933,24 @@ public class CloudCostCalculatorTest {
 
         // Assert
         assertThat(journal.getTotalHourlyCost().getValue(), closeTo(EXPECTED_IDLE_IP_COST, DELTA));
+
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 closeTo(0D, DELTA));
+
+        // Make sure the on-demand rates are recorded as zero for both compute and license
+        final Map<CostSource, TraxNumber> computeCostsBySource =
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL);
+        assertThat(computeCostsBySource, hasKey(CostSource.ON_DEMAND_RATE));
+        assertThat(computeCostsBySource.get(CostSource.ON_DEMAND_RATE).getValue(), closeTo(0.0, .00001));
+
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
                 closeTo(0D, DELTA));
+
+        final Map<CostSource, TraxNumber> licenseCostBySource =
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.INCLUDE_ALL);
+        assertThat(licenseCostBySource, hasKey(CostSource.ON_DEMAND_RATE));
+        assertThat(licenseCostBySource.get(CostSource.ON_DEMAND_RATE).getValue(), closeTo(0.0, .00001));
+
         assertThat(journal.getHourlyCostForCategory(CostCategory.IP).getValue(),
                 closeTo(EXPECTED_IDLE_IP_COST, DELTA));
     }
@@ -947,8 +967,10 @@ public class CloudCostCalculatorTest {
                 .setEntityState(EntityState.POWERED_OFF)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
                         DatabaseEdition.ENTERPRISE,
-                        DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
+
+        when(infoExtractor.getRDBCommodityCapacity(any(), any())).thenReturn(Optional.empty());
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
@@ -968,6 +990,14 @@ public class CloudCostCalculatorTest {
         // Assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(0D));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(0D));
+
+        // Make sure the on-demand rates are recorded as zero for compute. DB server does not support
+        // a license cost atm.
+        final Map<CostSource, TraxNumber> computeCostsBySource =
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL);
+        assertThat(computeCostsBySource, hasKey(CostSource.ON_DEMAND_RATE));
+        assertThat(computeCostsBySource.get(CostSource.ON_DEMAND_RATE).getValue(), closeTo(0.0, .00001));
+
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0D));
     }
 

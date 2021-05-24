@@ -574,7 +574,15 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                     costType,
                                     CostJournal.CostSourceFilter.EXCLUDE_UPTIME);
                     categoryCostsBySourceExcludingUptime.forEach((costSource, categoryCost) -> {
-                        if (categoryCost != null && !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d)) {
+
+                        // We should always record the on-demand rate cost source, in order to properly
+                        // average the cost for an entity over time, including when an entity is powered
+                        // off and the on-demand rate is zero.
+                        final boolean persistCostItem = categoryCost != null
+                                && (costSource == CostSource.ON_DEMAND_RATE
+                                    || !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d));
+
+                        if (persistCostItem) {
                             final long entityOid = journal.getEntity().getOid();
                             if (planId.isPresent()) {
                                 batch.bind(entityOid,
