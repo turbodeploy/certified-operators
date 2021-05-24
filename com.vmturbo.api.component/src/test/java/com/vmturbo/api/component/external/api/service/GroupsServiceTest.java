@@ -101,6 +101,8 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.GroupPaginationRequest;
+import com.vmturbo.api.pagination.GroupPaginationRequest.GroupPaginationResponse;
 import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -2055,6 +2057,88 @@ public class GroupsServiceTest {
         when(apiId.oid()).thenReturn(scope);
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
                 null, null, null, Collections.singletonList(scope.toString()), false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+    }
+
+    /**
+     * Tests that {@link GroupsService#getPaginatedGroups} forwards pagination parameters to group
+     * component.
+     *
+     * @throws Exception to satisfy compiler
+     */
+    @Test
+    public void testGetPaginatedGroupsForwardingParameters()
+            throws Exception {
+        // GIVEN
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        final String orderBy = "SEVERITY";
+        final GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        when(paginationMapperMock.toProtoParams(any())).thenReturn(
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor)
+                        .setLimit(limit)
+                        .setAscending(ascending)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build());
+        GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
+        when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
+        // WHEN
+        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest);
+        //THEN
+        ArgumentCaptor<GetPaginatedGroupsRequest> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
+        verify(groupServiceSpyMole, times(1)).getPaginatedGroups(
+                captor.capture());
+        // verify input parameters
+        assertTrue(captor.getValue().hasPaginationParameters());
+        PaginationParameters capturedPaginationParams = captor.getValue().getPaginationParameters();
+        assertFalse(capturedPaginationParams.getAscending());
+        assertEquals(cursor, capturedPaginationParams.getCursor());
+        assertEquals(limit, capturedPaginationParams.getLimit());
+        assertEquals(GroupOrderBy.GROUP_SEVERITY,
+                capturedPaginationParams.getOrderBy().getGroupSearch());
+    }
+
+    /**
+     * Tests the cases for which {@link GroupsService#getPaginatedGroups} uses the old
+     * implementation (retrieving all groups from group component and paginating inside the api
+     * component instead of forwarding the paginated query to group component).
+     * Currently there are 2 cases:
+     * - if orderBy is set to COST,
+     * - if the user is a scoped user.
+     * As the relevant functionality is being implemented in group component (see OM-65839 for
+     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
+     * eventually the entire test should be removed, once everything is being forwarded to group
+     * component.
+     */
+    @Test
+    public void testGetPaginatedGroupsNotForwardingRequest()
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any()))
+                .thenReturn(GroupFilter.newBuilder());
+
+        // orderBy COST
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        String orderBy = "COST";
+        GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        groupsService.getPaginatedGroups(paginationRequest);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scoped user
+        orderBy = "SEVERITY";
+        paginationRequest = new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        groupsService.getPaginatedGroups(paginationRequest);
         verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
