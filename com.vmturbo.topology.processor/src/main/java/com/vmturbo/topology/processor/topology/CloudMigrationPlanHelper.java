@@ -19,6 +19,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -471,7 +472,7 @@ public class CloudMigrationPlanHelper {
 
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
-            prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
+            prepareBoughtCommodities(entity, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
                     isDestinationAws, true, graph);
 
             // Add NEW bought commodities
@@ -833,8 +834,8 @@ public class CloudMigrationPlanHelper {
         ALL_PROVIDER_TYPES
                 .stream()
                 .flatMap(graph::entitiesOfType)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .forEach(providerDtoBuilder -> {
+                .forEach(entity -> {
+                    TopologyEntityDTO.Builder providerDtoBuilder = entity.getTopologyEntityDtoBuilder();
                     final EntityType providerType = EntityType.forNumber(
                             providerDtoBuilder.getEntityType());
 
@@ -848,7 +849,7 @@ public class CloudMigrationPlanHelper {
 
                     if (PROCESS_PROVIDER_TYPES.contains(providerType)) {
                         // Need to set movable/scalable true for provider commBought.
-                        prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
+                        prepareBoughtCommodities(entity, topologyInfo,
                                 sourceToProducerToMaxStorageAccess, isDestinationAws, false, graph);
                         prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
                     }
@@ -934,7 +935,7 @@ public class CloudMigrationPlanHelper {
      * Not doing such filtering for provider commodities causes reconfigure action instead of
      * expected move migration action for storage volumes.
      *
-     * @param dtoBuilder Source entity or provider DTO being updated.
+     * @param entity Source entity being updated.
      * @param topologyInfo Info about plan topology.
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
@@ -944,12 +945,13 @@ public class CloudMigrationPlanHelper {
      * @param graph the topology graph contains all TopologyEntityDTOs.
      */
     @VisibleForTesting
-    void prepareBoughtCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
+    void prepareBoughtCommodities(@Nonnull final TopologyEntity entity,
                                   @Nonnull final TopologyInfo topologyInfo,
                                   @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
                                   boolean isDestinationAws,
                                   boolean isConsumer,
                                   TopologyGraph<TopologyEntity> graph) {
+        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
         EntityType entityType = EntityType.forNumber(dtoBuilder.getEntityType());
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
@@ -963,10 +965,8 @@ public class CloudMigrationPlanHelper {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
             }
-            if (shouldSkipCommboughtGrpForMigration(graph, dtoBuilder, commBoughtGrouping)) {
-                // Do not keep the VM's commBoughtByProvider on configuration volume and the configuration
-                // volume's commBoughtByProvider. The requirement in MCP is to not migrate them even though
-                // they exist in supply chain.
+            if (shouldSkipCommboughtGrpForMigration(graph, entity, commBoughtGrouping)) {
+                // Under some conditions, the comm bought list needs to be skipped.
                 continue;
             }
             CommoditiesBoughtFromProvider.Builder newCommBoughtGrouping =
@@ -1002,20 +1002,26 @@ public class CloudMigrationPlanHelper {
      * Check if the given commoditiesBoughtFromProvider's buyer should be skipped for migration.
      * If the buyer is a configuration volume, or buys from a configuration volume, the
      * commoditiesBoughtFromProvider should be skipped.
+     * If the provider of commoditiesBoughtFromProvider is a storage that does not have volumes or
+     * does not have volumes connected to the VM, the commoditiesBoughtFromProvider should also be
+     * skipped.
      *
      * @param graph the topology entity dto graph.
-     * @param dtoBuilder a given TopologyEntityDTO.Builder.
+     * @param entity the entity that has the commoditiesBoughtFromProvider
      * @param commoditiesBoughtFromProvider a given commoditiesBoughtFromProvider to check.
      * @return true if the commoditiesBoughtFromProvider is buying from a configuration volume or
      * the buyer itself is a configuration volume.
      */
     private static boolean shouldSkipCommboughtGrpForMigration(TopologyGraph<TopologyEntity> graph,
-            TopologyEntityDTO.Builder dtoBuilder,
+            TopologyEntity entity,
             CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
+        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
+        // Skip the commoditiesBoughtFromProvider if its provider is a configuration volume.
         if (isConfigurationVolume(dtoBuilder)) {
             return true;
         }
-        // Check if the dto is a vm that buys from a configuration volume.
+        // Skip the commoditiesBoughtFromProvider if the dto is a vm that buys from a configuration
+        // volume.
         if (dtoBuilder.getEntityType() == VIRTUAL_MACHINE_VALUE && commoditiesBoughtFromProvider
                 .hasProviderId()) {
             Optional<TopologyEntity> optionalEntity = graph.getEntity(commoditiesBoughtFromProvider
@@ -1024,6 +1030,11 @@ public class CloudMigrationPlanHelper {
                     .getTopologyEntityDtoBuilder())) {
                 return true;
             }
+        }
+        // Skip the commoditiesBoughtFromProvider if it is buying from a storage (old model) that
+        // does not have a volume, or connected to volumes that don't belong to the VM.
+        if (isCommBoughtFromStorageWithNoVolume(entity, commoditiesBoughtFromProvider)) {
+            return true;
         }
         return false;
     }
@@ -1059,6 +1070,45 @@ public class CloudMigrationPlanHelper {
             }
         }
         return hasStAmt && hasStProv && !hasStAcc && !hasStLat;
+    }
+
+    /**
+     * Check if the commBoughtGrouping is buying from a storage that does not have a volume, or
+     * does not connected to volumes of the VM.
+     *
+     * @param entity entity that owns the commBoughtGrouping
+     * @param commBoughtGrouping a commBoughtGrouping
+     * @return true if the commBoughtGrouping is buying from a storage that does not have a volume,
+     * or does not connected to volumes of the VM; false otherwise.
+     */
+    private static boolean isCommBoughtFromStorageWithNoVolume(@Nonnull final TopologyEntity entity,
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping) {
+        if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE
+                && commBoughtGrouping.hasProviderEntityType()
+                && commBoughtGrouping.getProviderEntityType() == STORAGE_VALUE) {
+            final long storageId = commBoughtGrouping.getProviderId();
+
+            // IDs of volumes attached to the VM
+            Set<Long> volumesOfVm = entity.getOutboundAssociatedEntities().stream()
+                    .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
+                    .map(TopologyEntity::getOid)
+                    .collect(Collectors.toSet());
+
+            // IDs of volumes on the storage provider of the commBoughtGrouping
+            Set<Long> volumesOfStorage = entity.getProviders().stream()
+                    .filter(p -> p.getOid() == storageId)
+                    .findFirst()
+                    .map(TopologyEntity::getInboundAssociatedEntities)
+                    .map(entities -> entities.stream()
+                            .map(TopologyEntity::getOid)
+                            .collect(Collectors.toSet()))
+                    .orElse(new HashSet<>());
+
+            // If the two sets don't intersect, the VM does not have a volume on this storage.
+            volumesOfVm.retainAll(volumesOfStorage);
+            return volumesOfVm.isEmpty();
+        }
+        return false;
     }
 
     /**
