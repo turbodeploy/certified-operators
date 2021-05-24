@@ -11,7 +11,6 @@
 while getopts b:h: flag
 do
     case "${flag}" in
-        b) deploymentBrand=${OPTARG};;
         h) hostName=${OPTARG};;
     esac
 done
@@ -467,16 +466,6 @@ then
   if [ $result -ne 0 ]; then
     sed -i "/tag:/a\
 \    externalIP: ${node}\n" ${chartsFile}
-  fi
-
-  # Set branding if not turbonomic
-  if [ ! -z "${deploymentBrand}" ]
-  then
-    # Adjust regular installs
-    echo "  ui:" >> ${chartsFile}
-    echo "    image:" >> ${chartsFile}
-    echo "      repository: ${deploymentBrand}" >> ${chartsFile}
-    echo "      tag: ${turboVersion}" >> ${chartsFile}
   fi
 
   # Enable services for gluster
