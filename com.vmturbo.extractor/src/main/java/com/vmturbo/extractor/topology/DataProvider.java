@@ -165,9 +165,6 @@ public class DataProvider {
             dataFetchers.add(clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats,
                     topologyCreationTime));
         }
-        if (extractorFeatureFlags.isExtractionEnabled()) {
-            dataFetchers.add(topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData));
-        }
         // todo: add more fetchers for cost, etc
 
         // run all fetchers in parallel
@@ -175,18 +172,26 @@ public class DataProvider {
     }
 
     /**
-     * Get bottom-up cost data for the given snapshot.
+     * Fetch bottom-up cost data for the given snapshot, it is updated in 'bottomUpCostData'.
      *
      * @param snapshotTime snapshot time of topology whose cost data is needed
      * @param timer        timer to use
-     * @return cost data, or null if none is available
      */
-    public BottomUpCostData fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
+    public void fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
         bottomUpCostFetcherFactory.newFetcher(timer, snapshotTime, this::setBottomUpCostData)
                 .fetchAndConsume();
-        return bottomUpCostData;
     }
 
+    /**
+     * Makes a call to the cost component to fetch the latest billing account expenses.
+     * This explicit call is needed to be called for embedded reporting billing data, otherwise
+     * data is not available when we get notified from cost that new billing data is available.
+     *
+     * @param timer Timer to use.
+     */
+    public void fetchTopDownCostData(@Nonnull MultiStageTimer timer) {
+        topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData).fetchAndConsume();
+    }
 
     /**
      * Clean unneeded data while keeping useful data for actions ingestion.
@@ -575,5 +580,15 @@ public class DataProvider {
      */
     public SupplyChain getSupplyChain() {
         return supplyChain;
+    }
+
+    /**
+     * Gets feature flags for extractor.
+     *
+     * @return Extractor feature flags.
+     */
+    @Nonnull
+    public ExtractorFeatureFlags getExtractorFeatureFlags() {
+        return extractorFeatureFlags;
     }
 }

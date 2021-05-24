@@ -48,6 +48,12 @@ public class ExtractorGlobalConfig {
     private boolean enableEntityCost;
 
     /**
+     * Configuration used to enable/disable top-up billing account cost ingestion.
+     */
+    @Value("${enableBillingCost:false}")
+    private boolean enableBillingCost;
+
+    /**
      * Clock for the component.
      *
      * @return The clock.
@@ -69,7 +75,8 @@ public class ExtractorGlobalConfig {
                 enableReporting,
                 enableActionIngestion,
                 enableDataExtraction,
-                enableEntityCost);
+                enableEntityCost,
+                enableBillingCost);
     }
 
     /**
@@ -91,14 +98,20 @@ public class ExtractorGlobalConfig {
         private final boolean enableExtraction;
         private final boolean enableEntityCost;
 
+        /**
+         * Whether billing cost data collection and reporting is enabled.
+         */
+        private final boolean enableBillingCost;
+
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
                 boolean enableReportActionIngestion, boolean enableExtraction,
-                boolean enableEntityCost) {
+                boolean enableEntityCost, boolean enableBillingCost) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
             this.enableEntityCost = enableEntityCost;
+            this.enableBillingCost = enableBillingCost;
         }
 
         public boolean isSearchEnabled() {
@@ -121,6 +134,14 @@ public class ExtractorGlobalConfig {
             return enableEntityCost;
         }
 
+        public boolean isBillingCostEnabled() {
+            return enableBillingCost;
+        }
+
+        public boolean isBillingCostReportingEnabled() {
+            return isBillingCostEnabled() && isReportingEnabled();
+        }
+
         @Override
         public String toString() {
             return FormattedString.format("Flags:\n"
@@ -128,9 +149,10 @@ public class ExtractorGlobalConfig {
                             + "Report Action Ingestion {}\n"
                             + "Search Ingestion {}\n"
                             + "Data Extraction {}\n"
-                            + "Entity Cost Ingestion {}",
+                            + "Entity Cost Ingestion {}"
+                            + "Billing Cost Ingestion {}",
                     isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
-                    isExtractionEnabled(), isEntityCostEnabled());
+                    isExtractionEnabled(), isEntityCostEnabled(), isBillingCostEnabled());
         }
     }
 }

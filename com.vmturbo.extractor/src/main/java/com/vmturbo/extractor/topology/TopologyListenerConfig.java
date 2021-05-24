@@ -11,6 +11,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -166,6 +168,25 @@ public class TopologyListenerConfig {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Set up billing cost processing listener if relevant flags are enabled.
+     *
+     * @return listener, or null if flags are not enabled.
+     */
+    @Bean
+    @Nullable
+    public AccountExpensesListener accountExpensesListener() {
+        final ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
+        if (extractorFeatureFlags.isExtractionEnabled()
+                || extractorFeatureFlags.isBillingCostReportingEnabled()) {
+            final AccountExpensesListener aeListener = new AccountExpensesListener(
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig());
+            costNotificationProcessor().addCostNotificationListener(aeListener);
+            return aeListener;
+        }
+        return null;
     }
 
     /**

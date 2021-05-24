@@ -1,7 +1,10 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -28,8 +31,12 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICovera
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.AccountExpensesAvailable;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -61,6 +68,8 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
 
     private final boolean riSupportInPartialCloudEnvironment;
 
+    private final CostNotificationSender costNotificationSender;
+
     /**
      * Constructor.
      *
@@ -72,19 +81,22 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
      * @param riSupportInPartialCloudEnvironment OM-58310: Improve handling partially
      *         discovered cloud environment feature flag. Calculate hourly reservation usage during
      *         upload if flag is set to {@code true}.
+     * @param costNotificationSender For notifying about account expense persistence.
      */
     public RIAndExpenseUploadRpcService(@Nonnull final DSLContext dsl,
             @Nonnull final AccountExpensesStore accountExpensesStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
-            final boolean riSupportInPartialCloudEnvironment) {
+            final boolean riSupportInPartialCloudEnvironment,
+            @Nonnull final CostNotificationSender costNotificationSender) {
         this.dsl = dsl;
         this.accountExpensesStore = accountExpensesStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceCoverageUpdate = reservedInstanceCoverageUpdate;
         this.riSupportInPartialCloudEnvironment = riSupportInPartialCloudEnvironment;
+        this.costNotificationSender = costNotificationSender;
     }
 
     @Override
@@ -114,6 +126,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
     @Override
     public void uploadAccountExpenses(final UploadAccountExpensesRequest request, final StreamObserver<UploadAccountExpensesResponse> responseObserver) {
         logger.info("Processing account expenses for topology {}", request.getTopologyId());
+        final Set<Long> expenseDates = new HashSet<>();
         if (request.getAccountExpensesCount() > 0) {
             // update biz accounts
             logger.debug("Updating expenses for {} Business Accounts...", request.getAccountExpensesCount());
@@ -122,6 +135,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
                     accountExpensesStore.persistAccountExpenses(accountExpenses.getAssociatedAccountId(),
                             accountExpenses.getExpensesDate(),
                             accountExpenses.getAccountExpensesInfo());
+                    expenseDates.add(accountExpenses.getExpensesDate());
                 } catch (Exception e) {
                     logger.error("Error saving account {}", accountExpenses.getAssociatedAccountId(), e);
                     // TODO: Refine the error handling. Return an error for now.
@@ -135,6 +149,36 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         lastProcessedAccountExpensesChecksum = request.getChecksum();
         responseObserver.onNext(UploadAccountExpensesResponse.getDefaultInstance());
         responseObserver.onCompleted();
+
+        sendAccountExpenseNotification(request.getTopologyId(), request.getAccountExpensesCount(),
+                expenseDates);
+    }
+
+    /**
+     * Notifies extractor about billing account expenses data being available.
+     *
+     * @param topologyId Topology ID.
+     * @param accountCount Number of accounts, for logging.
+     * @param expenseDates Usage dates for billing expenses, for logging.
+     */
+    private void sendAccountExpenseNotification(long topologyId, int accountCount,
+            Set<Long> expenseDates) {
+        if (accountCount == 0) {
+            logger.info("No billing notification yet. Topology: {}", topologyId);
+            return;
+        }
+        try {
+            logger.info("Sending billing notification. Topology: {}, {} accounts, dates: {}",
+                    topologyId, accountCount, expenseDates.stream().map(Date::new)
+                            .collect(Collectors.toSet()));
+            // Send notification of account expenses available.
+            costNotificationSender.sendCostNotification(CostNotification.newBuilder()
+                    .setAccountExpensesAvailable(AccountExpensesAvailable.getDefaultInstance())
+                    .build());
+        } catch (InterruptedException | CommunicationException e) {
+            logger.warn("Could not send billing notification. Topology: {}, {} accounts.",
+                    topologyId, accountCount, e);
+        }
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.topology.fetcher;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -82,11 +83,17 @@ public class TopDownCostFetcherFactory {
                                 .build());
 
                 response.getAccountExpenseList().forEach(newCostData::addAccountExpense);
+                logger.info("New expense data. Checksums: Old: {}, New: {}. Hashes: Old: {}, New: {}.",
+                        this.curChecksum, costChecksum, this.cachedCostData.hashCode(),
+                        newCostData.hashCode());
                 this.curChecksum = costChecksum;
                 this.cachedCostData = newCostData;
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to fetch top-down stats from cost component. Error: {}", e.getMessage());
             }
+        } else {
+            logger.trace("Cached expense data. Checksum: {}. Hash:{}.",
+                    this.curChecksum, this.cachedCostData.hashCode());
         }
         return cachedCostData;
     }
@@ -97,7 +104,12 @@ public class TopDownCostFetcherFactory {
     public static class TopDownCostData {
         private final Long2ObjectMap<AccountExpenses> accountExpensesById = new Long2ObjectOpenHashMap<>();
 
-        void addAccountExpense(final AccountExpenses accountExpenses) {
+        /**
+         * Adds a new account expense.
+         *
+         * @param accountExpenses Expense to add.
+         */
+        public void addAccountExpense(final AccountExpenses accountExpenses) {
             final long accountId = accountExpenses.getAssociatedAccountId();
             accountExpensesById.put(accountId, accountExpenses);
         }
@@ -111,6 +123,25 @@ public class TopDownCostFetcherFactory {
          */
         public Optional<AccountExpenses> getAccountExpenses(final long accountId) {
             return Optional.ofNullable(accountExpensesById.get(accountId));
+        }
+
+        /**
+         * Gets the collection of all current account expenses.
+         *
+         * @return All account expenses.
+         */
+        @Nonnull
+        public Collection<AccountExpenses> getAllAccountExpenses() {
+            return accountExpensesById.values();
+        }
+
+        /**
+         * Count of accounts.
+         *
+         * @return Count.
+         */
+        public int size() {
+            return accountExpensesById.size();
         }
     }
 }
