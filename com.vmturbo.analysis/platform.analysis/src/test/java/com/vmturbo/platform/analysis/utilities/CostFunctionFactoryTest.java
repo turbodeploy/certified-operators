@@ -72,6 +72,7 @@ public class CostFunctionFactoryTest {
     private static final long zoneId213 = 321L;
     public static final long DB_REGION_ID = 11L;
     public static final long DB_BUSINESS_ACCOUNT_ID = 33L;
+    public static final long IOPS_MIN = 100L;
     public static final int DB_LICENSE_COMMODITY_TYPE = 200;
     public static final int DB_STORAGE_AMOUNT_TYPE = TestUtils.ST_AMT.getType();
     public static final double DB_S3_DTU_PRICE = 150.0;
@@ -88,6 +89,7 @@ public class CostFunctionFactoryTest {
     private static ShoppingList databaseSL3;
     private static Trader databaseServerTier;
     private static ShoppingList databaseServerSL;
+    private static ShoppingList databaseServerSL0;
 
     @BeforeClass
     public static void setUp() {
@@ -136,6 +138,12 @@ public class CostFunctionFactoryTest {
                 new double[]{DBS_IOPS_AMOUNT, DBS_STORAGE_AMOUNT, 0},
                 new double[]{DBS_IOPS_AMOUNT, DBS_STORAGE_AMOUNT, 0}, databaseServerTier);
         databaseServerSL.setGroupFactor(1);
+
+        databaseServerSL0 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.IOPS, TestUtils.ST_AMT, dbLicense), testVM,
+                new double[]{0, DBS_STORAGE_AMOUNT, 0},
+                new double[]{0, DBS_STORAGE_AMOUNT, 0}, databaseServerTier);
+        databaseServerSL0.setGroupFactor(1);
 
         List<CommoditySpecification> stCommList = Arrays.asList(TestUtils.ST_AMT);
         storageTier = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(0L),
@@ -615,6 +623,32 @@ public class CostFunctionFactoryTest {
     }
 
     /**
+     * Check that new capacity respects min limits defined by dependent cost tuple is commodity used
+     * is 0.
+     */
+    @Test
+    public void testDBServerStorageAccessNewCapacityWithZeroUsed() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        when(context.getRegionId()).thenReturn(DB_REGION_ID);
+        when(context.getBalanceAccount()).thenReturn(balanceAccount);
+        when(balanceAccount.getPriceId()).thenReturn(DB_BUSINESS_ACCOUNT_ID);
+        databaseServerSL0.getBuyer().getSettings().setContext(context);
+        DatabaseServerTierCostDTO dbCostDTO = createDBSCostDTO();
+        CostTable costTable = Mockito.mock(CostTable.class);
+        when(costTable.hasAccountId(DB_BUSINESS_ACCOUNT_ID)).thenReturn(true);
+        when(costTable.getTuple(DB_REGION_ID, DB_BUSINESS_ACCOUNT_ID,
+                DB_LICENSE_COMMODITY_TYPE)).thenReturn(dbCostDTO.getCostTupleList(0));
+        MutableQuote quote1 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(
+                databaseServerTier, databaseServerSL0, costTable, licenseAccessCommBaseType);
+        Optional<CommodityContext> storageAccessCC = quote1.getCommodityContexts().stream().filter(
+                v -> v.getCommoditySpecification().getType() == TestUtils.IOPS.getType()).findAny();
+        Assert.assertTrue(storageAccessCC.isPresent());
+        //new capacity should be set to min IOPS defined in dependent cost tuple.
+        Assert.assertEquals(IOPS_MIN, storageAccessCC.get().getNewCapacityOnSeller(), DELTA);
+    }
+
+    /**
      * Tests generating a quote for a DB Server with dependent options for StorageAmount and IOPS.
      */
     @Test
@@ -906,8 +940,8 @@ public class CostFunctionFactoryTest {
         DependentCostTuple dependentCostTuple2 = DependentCostTuple.newBuilder()
                 .setDependentResourceType(TestUtils.IOPS.getType())
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
-                        .setAbsoluteIncrement(100)
-                        .setEndRange(100)
+                        .setAbsoluteIncrement(IOPS_MIN)
+                        .setEndRange(IOPS_MIN)
                         .setPrice(IOPS_COST)
                         .build())
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
