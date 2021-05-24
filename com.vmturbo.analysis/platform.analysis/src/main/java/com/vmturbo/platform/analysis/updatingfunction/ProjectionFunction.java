@@ -16,9 +16,9 @@ public interface ProjectionFunction extends Serializable {
      *
      * @param seller is the trader whose sold commodity is to be projected.
      * @param drivingCommodity is a sold commodity.
-     * @param byProduct is the dependent sold commodity.
+     * @param byProductUtilization is the dependent sold commodity utilization.
      *
      * @return {@link DoubleUnaryOperator} that returns the used value of the byProduct in terms of the drivingCommodity.
      */
-    DoubleUnaryOperator project(Trader seller, CommoditySold drivingCommodity, CommoditySold byProduct);
+    DoubleUnaryOperator project(Trader seller, CommoditySold drivingCommodity, double byProductUtilization);
 }
