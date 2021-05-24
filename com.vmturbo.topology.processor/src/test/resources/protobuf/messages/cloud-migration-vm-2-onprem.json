@@ -215,6 +215,57 @@
     "volumeId": "73433887060893"
   },
     {
+      "providerId": "73433887031975",
+      "providerEntityType": 2,
+      "commodityBought": [{
+        "commodityType": {
+          "type": 64
+        },
+        "used": 2.7666666666666666,
+        "peak": 8.0,
+        "active": true,
+        "displayName": ""
+      }, {
+        "commodityType": {
+          "type": 59,
+          "key": "free_storage_cluster"
+        },
+        "used": 1.0,
+        "active": true,
+        "displayName": ""
+      }, {
+        "commodityType": {
+          "type": 22
+        },
+        "used": 2.033333333333333,
+        "peak": 16.0,
+        "active": true,
+        "displayName": ""
+      }, {
+        "commodityType": {
+          "type": 8
+        },
+        "used": 48147.0,
+        "active": true,
+        "displayName": ""
+      }, {
+        "commodityType": {
+          "type": 6
+        },
+        "used": 61440.0,
+        "active": true,
+        "displayName": ""
+      }, {
+        "commodityType": {
+          "type": 51,
+          "key": "PhysicalMachine::34313836-3333-5553-4537-32384e374132"
+        },
+        "used": 1.0,
+        "active": true,
+        "displayName": ""
+      }]
+    },
+    {
     "providerId": "73433887033681",
     "providerEntityType": 1,
     "commodityBought": [{
