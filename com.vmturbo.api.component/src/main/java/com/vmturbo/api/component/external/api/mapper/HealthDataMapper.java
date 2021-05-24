@@ -51,7 +51,8 @@ public class HealthDataMapper {
         result.put(TargetErrorType.TOKEN_UNAVAILABLE, "Token is unavailable. Get (a new) one.");
         result.put(TargetErrorType.VERSION_NOT_SUPPORTED, "Target version is not supported. Choose a different target.");
         result.put(TargetErrorType.DATA_ACCESS_ERROR, "Wrong data received from target. Check what is being sent.");
-        result.put(TargetErrorType.INTERNAL_PROBE_ERROR, "Check the Targets page.");
+        result.put(TargetErrorType.INTERNAL_PROBE_ERROR,
+                "Check the Target Configuration page for more information. Please contact support if the problem persists.");
         return result;
     }
 
