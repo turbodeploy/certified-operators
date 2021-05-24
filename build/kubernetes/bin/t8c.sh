@@ -8,7 +8,13 @@
 # Exit out if running as root or sudo
 
 # Variable to use if a non-turbonomic deployment
-deploymentBrand=${1}
+while getopts b:h: flag
+do
+    case "${flag}" in
+        b) deploymentBrand=${OPTARG};;
+        h) hostName=${OPTARG};;
+    esac
+done
 serviceAccountFile="/opt/turbonomic/kubernetes/operator/deploy/service_account.yaml"
 roleFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml"
 roleBindingFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml"
@@ -16,6 +22,8 @@ crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd
 operatorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
 chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
 localStorageDataDirectory="/data/turbonomic/"
+yamlBasePath="/opt/turbonomic/kubernetes/yaml"
+glusterDeployPath="/opt/gluster-kubernetes/deploy"
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
@@ -166,6 +174,14 @@ then
 else
     sudo mkdir /tmp/releases
     sudo cp /usr/local/bin/{kubeadm,calicoctl} /tmp/releases/.
+fi
+
+# Set the hostname if it is passed in
+if [ ! -z "${hostName}" ]
+then
+  sed -i "s/node1/${hostName}/g" ${inventoryPath}/hosts.yml
+  sed -i "s/node1/${hostName}/g" ${glusterDeployPath}/topology.json
+  sed -i "s/node1/${hostName}/g" ${yamlBasePath}/persistent-volumes/local-storage-pv.yaml
 fi
 
 # Run ansible kubespray install
