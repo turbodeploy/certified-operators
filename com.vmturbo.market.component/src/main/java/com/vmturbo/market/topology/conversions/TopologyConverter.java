@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.market.topology.conversions.MarketAnalysisUtils.ACCESS_COMMODITY_TYPES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 
@@ -1544,6 +1545,15 @@ public class TopologyConverter {
         return topologyEntityDTOs;
     }
 
+    /**
+     * Create {@link TopologyEntityDTO}s for collapsed shopping lists.
+     *
+     * @param projectedEntityForConsumerOfCollapsedEntity projected entity for consumer of collapsed entity
+     * @param collapsedShoppingList shopping list with collapsedBuyerId
+     * @param reservedCapacityResults reserved capacity
+     * @param projTraders projected traders
+     * @return a list of {@link TopologyEntityDTO}s
+     */
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
         final TopologyEntityDTOOrBuilder projectedEntityForConsumerOfCollapsedEntity,
         final List<ShoppingListTO> collapsedShoppingList,
@@ -1564,10 +1574,17 @@ public class TopologyConverter {
 
                 final List<CommodityBoughtDTO> boughtCommodityDTOS = shoppingListTO
                     .getCommoditiesBoughtList().stream()
-                    .map(commodityBoughtTO -> commBoughtTOtoCommBoughtDTO(
-                        collapsedEntityDTO.getOid(), shoppingListTO.getSupplier(),
-                        shoppingListTO.getOid(), commodityBoughtTO, reservedCapacityResults,
-                        collapsedEntityDTO, new HashMap<>(), false))
+                    .map(commodityBoughtTO -> {
+                        // If the CommodityBoughtTO type is biclique, skip it in projected topology.
+                        if (commodityConverter.isSpecBiClique(commodityBoughtTO.getSpecification().getBaseType())) {
+                            return Optional.<CommodityBoughtDTO>empty();
+                        } else {
+                            return commBoughtTOtoCommBoughtDTO(
+                                collapsedEntityDTO.getOid(), shoppingListTO.getSupplier(),
+                                shoppingListTO.getOid(), commodityBoughtTO, reservedCapacityResults,
+                                collapsedEntityDTO, new HashMap<>(), false);
+                        }
+                    })
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
@@ -1721,7 +1738,7 @@ public class TopologyConverter {
         }
         // If the shopping list for this volume was skipped when passing to the market, it
         // won't appear in the projected topology and is therefore not valid.
-        return !skipShoppingListCreation(originalVolume);
+        return !skipShoppingListCreation(originalVolume, commBought);
     }
 
     /**
@@ -3267,6 +3284,12 @@ public class TopologyConverter {
                 .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType).reversed()
                                 .thenComparing(CommoditiesBoughtFromProvider::getProviderId))
                 .collect(Collectors.toList());
+
+        // Additional commBought needs to be added to shopping list.
+        final Map<Long, CommoditiesBoughtFromProvider> additionalCommBought = sortedCommBoughtGrouping.stream()
+            .filter(commBoughtGrouping -> shouldMoveCommodity(topologyEntity, commBoughtGrouping))
+            .collect(Collectors.toMap(CommoditiesBoughtFromProvider::getProviderId, Function.identity()));
+
         // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
         for (TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider commBoughtGrouping : sortedCommBoughtGrouping) {
             // skip converting shoppinglist that buys from VDC
@@ -3314,7 +3337,7 @@ public class TopologyConverter {
                 if (providerId.getSecond() == RiDiscountedMarketTier.class) {
                     computeTierProviderId = providerId.getFirst();
                 }
-                if (skipShoppingListCreation(entityForSL)) {
+                if (skipShoppingListCreation(entityForSL, commBoughtGrouping)) {
                     logger.trace("For context: {}: Skip SL creation for: {} ({}), entity: {}.",
                             topologyInfo.getTopologyContextId(), entityForSL.getDisplayName(),
                             entityForSL.getOid(), topologyEntity.getDisplayName());
@@ -3324,7 +3347,9 @@ public class TopologyConverter {
                             // Pass scalingGroupUsage down to underlying methods only when creating shoppingList
                             // for topologyEntity. If shoppingList is created for entityForSL(which is different
                             // from topologyEntity), no need to use scalingGroupUsage which is for topologyEntity.
-                            commBoughtGroupingForSL, providers, entityForSL == topologyEntity ? scalingGroupUsage : Optional.empty()));
+                            commBoughtGroupingForSL, providers,
+                            entityForSL == topologyEntity ? scalingGroupUsage : Optional.empty(),
+                            additionalCommBought.getOrDefault(providerId.getFirst(), CommoditiesBoughtFromProvider.getDefaultInstance())));
                 }
             }
         }
@@ -3332,17 +3357,36 @@ public class TopologyConverter {
     }
 
     /**
+     * Check if commodities of commBoughtGrouping should be added to another shopping list.
+     * If entity is VM, provider type is storage and all commodities of commBoughtGrouping are access commodities, then return true.
+     *
+     * @param topologyEntity topology entity
+     * @param commBoughtGrouping commodity bought of entity
+     * @return true if entity is VM, provider type is storage and all commodities of commBoughtGrouping are access commodities
+     */
+    private boolean shouldMoveCommodity(@Nonnull final TopologyEntityDTO topologyEntity,
+                                        @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping) {
+        return topologyEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+            && commBoughtGrouping.getProviderEntityType() == EntityType.STORAGE_VALUE
+            && ACCESS_COMMODITY_TYPES.containsAll(
+            commBoughtGrouping.getCommodityBoughtList().stream()
+                .map(commBought -> commBought.getCommodityType().getType()).collect(Collectors.toSet()));
+    }
+
+    /**
      * Checks if shopping list creation needs to be skipped - e.g in case of ephemeral local
      * volumes that are transient.
      *
      * @param entityDto Entity DTO for which shopping list creation needs to be checked.
+     * @param commBought commodity bought of entity
      * @return True if shopping list creation will be skipped for the entity.
      */
     @VisibleForTesting
-    boolean skipShoppingListCreation(@Nonnull final TopologyEntityDTO entityDto) {
+    boolean skipShoppingListCreation(@Nonnull final TopologyEntityDTO entityDto,
+                                     @Nonnull final CommoditiesBoughtFromProvider commBought) {
         if (entityDto.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
                 || entityDto.getTypeSpecificInfo().getTypeCase() != TypeCase.VIRTUAL_VOLUME) {
-            return false;
+            return shouldMoveCommodity(entityDto, commBought);
         }
         final VirtualVolumeInfo volumeInfo = entityDto.getTypeSpecificInfo().getVirtualVolume();
         return volumeInfo.hasIsEphemeral() && volumeInfo.getIsEphemeral();
@@ -3437,6 +3481,7 @@ public class TopologyConverter {
      * @param commBoughtGroupingForSL commoditiesBought for entityForSL from provider with providerOid
      * @param providers a map that captures the previous placement for unplaced plan entities
      * @param scalingGroupUsage cached usage data for buyers in scaling groups
+     * @param additionalCommBought Additional commBought needs to be added to shopping list
      * @return a shopping list between the buyer and seller
      */
     @Nonnull
@@ -3448,7 +3493,8 @@ public class TopologyConverter {
             @Nullable final Long providerOid,
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
             final Map<Long, Long> providers,
-            final Optional<ScalingGroupUsage> scalingGroupUsage) {
+            final Optional<ScalingGroupUsage> scalingGroupUsage,
+            @Nonnull final CommoditiesBoughtFromProvider additionalCommBought) {
         long entityForSLOid = entityForSL.getOid();
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
         float moveCost = !isPlan() && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
@@ -3456,14 +3502,20 @@ public class TopologyConverter {
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                 ? (float)(totalStorageAmountBought(entityForSL) / Units.KIBI)
                 : 0.0f;
-        Set<CommodityDTOs.CommodityBoughtTO> values = filterUnknownLicense(commBoughtGroupingForSL.getCommodityBoughtList(),
-                entityForSL)
-                .filter(CommodityBoughtDTO::getActive)
-                .map(topoCommBought -> convertCommodityBought(entityForSL, topoCommBought, providerOid,
-                        shopTogether, providers, scalingGroupUsage))
-                // Null for DSPMAccess/Datastore and shop-together
+        final List<CommodityBoughtDTO> allCommBought;
+        if (additionalCommBought.getCommodityBoughtCount() == 0) {
+            allCommBought = commBoughtGroupingForSL.getCommodityBoughtList();
+        } else {
+            allCommBought = new ArrayList<>(commBoughtGroupingForSL.getCommodityBoughtList());
+            allCommBought.addAll(additionalCommBought.getCommodityBoughtList());
+        }
+        final Set<CommodityDTOs.CommodityBoughtTO> values = filterUnknownLicense(allCommBought, entityForSL)
+            .filter(CommodityBoughtDTO::getActive)
+            .map(topoCommBought -> convertCommodityBought(entityForSL, topoCommBought, providerOid,
+                shopTogether, providers, scalingGroupUsage))
+            // Null for DSPMAccess/Datastore and shop-together
             .filter(Objects::nonNull)
-                .flatMap(List::stream)
+            .flatMap(List::stream)
             .collect(Collectors.toSet());
         boolean addGroupFactor = false;
         if (cloudTc.isMarketTier(providerOid)) {
@@ -3492,7 +3544,7 @@ public class TopologyConverter {
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
         } else if (isCloudMigration) {
-            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSL, commBoughtGroupingForSL));
+            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSL));
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
@@ -3594,7 +3646,7 @@ public class TopologyConverter {
         final Long collapsedBuyerId = entityForSL == originalEntityAsTrader ? null : entityForSLOid;
         shoppingListOidToInfos.put(id, new ShoppingListInfo(id, originalEntityAsTrader.getOid(),
                         providerOid, resourceIds, resourceDisplayName, collapsedBuyerId,
-                        providerEntityType, commBoughtGroupingForSL.getCommodityBoughtList()));
+                        providerEntityType, allCommBought));
 
         // in SMAOnly mode we are preventing M2 to generate actions for cloud VMs
         if (addShoppingListToSMA && isSMAOnly()) {
@@ -3794,12 +3846,11 @@ public class TopologyConverter {
      *
      * @param providerOid oid of the provider
      * @param buyer the cloud consumer
-     * @param commBoughtGroupingForSL commBoughtGrouping that is currently checked for the consumer
      * @return the list of template exclusion commodities the consumer needs to buy
      */
     @Nonnull
     private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForMigratingEntity(
-        long providerOid, TopologyEntityDTO buyer, @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        long providerOid, TopologyEntityDTO buyer) {
 
         TopologyEntityDTO provider = entityOidToDto.get(providerOid);
         if (provider == null) {

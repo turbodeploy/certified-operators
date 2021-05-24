@@ -1,0 +1,37 @@
+{
+  "entityType": 2,
+  "oid": 208,
+  "displayName": "hp-dl380.eng.vmturbo.com [local]",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 8,
+        "key": ""
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 777216.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true
+    },
+    {
+      "commodityType": {
+        "type": 51,
+        "key": "12345"
+      },
+      "accesses": [
+        102
+      ],
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 0.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap" : {
+    "shopTogether" : "false"
+  }
+}

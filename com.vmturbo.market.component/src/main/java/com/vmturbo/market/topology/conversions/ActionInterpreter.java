@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -1282,12 +1283,36 @@ public class ActionInterpreter {
             changeProviders.add(createChangeProvider(sourceTier.getOid(),
                     move.getDestination(), resourceIds, projectedTopology));
         } else {
-            // On prem to on prem (with or without source)
-            // A cloud container pod moving from a cloud VM to another cloud VM is covered by this case.
-            changeProviders.add(createChangeProvider(moveSource,
+            if (!shouldSkipChangeProvider(move, target, resourceIds, projectedTopology)) {
+                // On prem to on prem (with or without source)
+                // A cloud container pod moving from a cloud VM to another cloud VM is covered by this case.
+                changeProviders.add(createChangeProvider(moveSource,
                     move.getDestination(), resourceIds, projectedTopology));
+            } else {
+                logger.trace("Skip move action {}", move);
+            }
         }
         return changeProviders;
+    }
+
+    /**
+     * Determine if change provider creation should be skip for given move action.
+     *
+     * @param move a move action
+     * @param target target of move action
+     * @param resourceIds related resource ids
+     * @param projectedTopology projected topology
+     * @return should skip change provider creation or not
+     */
+    private boolean shouldSkipChangeProvider(
+            @Nonnull final MoveTO move, @Nullable final TopologyEntityDTO target,
+            @Nullable final Set<Long> resourceIds, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        // If we are trying to move a virtual volume, then skip change provider creation, which means this action will be discarded.
+        // TODO: We need a better way to determine configuration volume.
+        return target != null && target.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+            && projectedTopology.get(move.getDestination()).getEntity().getEntityType() == EntityType.STORAGE_VALUE
+            && resourceIds != null && !resourceIds.isEmpty()
+            && TopologyDTOUtil.isConfigurationVolume(originalTopology.get(resourceIds.iterator().next()));
     }
 
     /**

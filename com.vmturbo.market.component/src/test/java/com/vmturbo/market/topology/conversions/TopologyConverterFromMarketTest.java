@@ -127,6 +127,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -227,7 +228,7 @@ public class TopologyConverterFromMarketTest {
         when(analysisConfig.getQuoteFactor()).thenReturn(MarketAnalysisUtils.QUOTE_FACTOR);
         when(analysisConfig.getMarketMode()).thenReturn(MarketMode.M2Only);
         when(analysisConfig.getLiveMarketMoveCostFactor()).thenReturn(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR);
-        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning))
+        when(analysisConfig.getGlobalSetting(any()))
                 .thenReturn(Optional.empty());
 
         constructTopologyConverter();
@@ -2600,13 +2601,42 @@ public class TopologyConverterFromMarketTest {
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(
                         VirtualVolumeInfo.newBuilder().setIsEphemeral(true)))
                 .build();
-        assertTrue(converter.skipShoppingListCreation(ephemeralVolume));
+        assertTrue(converter.skipShoppingListCreation(ephemeralVolume, CommoditiesBoughtFromProvider.getDefaultInstance()));
 
         final TopologyDTO.TopologyEntityDTO nonEphemeralVolume =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .build();
-        assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume));
+        assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume, CommoditiesBoughtFromProvider.getDefaultInstance()));
+    }
+
+    /**
+     * Checks if logic to skip shopping list creation for vm -> storage commBoughtGrouping works or not.
+     */
+    @Test
+    public void skipShoppingListForVMStorageCommBoughtGrouping() {
+        final TopologyDTO.TopologyEntityDTO vm =
+            TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        assertTrue(converter.skipShoppingListCreation(vm,
+            CommoditiesBoughtFromProvider.newBuilder().setProviderEntityType(EntityType.STORAGE_VALUE)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)))
+                .build()));
+
+        assertFalse(converter.skipShoppingListCreation(vm,
+            CommoditiesBoughtFromProvider.newBuilder().setProviderEntityType(EntityType.STORAGE_VALUE)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                    CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
+                .build()));
+
+        assertFalse(converter.skipShoppingListCreation(vm,
+            CommoditiesBoughtFromProvider.newBuilder().setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build()));
     }
 
     /**

@@ -2,6 +2,7 @@ package com.vmturbo.common.protobuf.topology;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -637,5 +638,38 @@ public final class TopologyDTOUtil {
                         // Get storage connected to the volume
                         .orElse(TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
                                         EntityType.STORAGE.getNumber()).findFirst().orElse(null)));
+    }
+
+    /**
+     * Check the given dto to see whether it is a configuration volume. Disk volume populates storage amount
+     * and storage provisioned commodities but not storage access nor storage latency.
+     * TODO: Currently we rely on commodity types to determine a configuration volume.
+     * When the onPremAnalysisVolume flag is removed, the configuration volume will
+     * differ from others by having controllable flag set to false. We should change
+     * this method to rely on the controllable flag in future.
+     *
+     * @param dto a given topology entity dto.
+     * @return true if the volume is a configuration volume.
+     */
+    public static boolean isConfigurationVolume(TopologyEntityDTOOrBuilder dto) {
+        if (dto.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return false;
+        }
+        boolean hasStAmt = false;
+        boolean hasStProv = false;
+        boolean hasStAcc = false;
+        boolean hasStLat = false;
+        for (CommoditySoldDTO commSold : dto.getCommoditySoldListList()) {
+            if (commSold.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                hasStAmt = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_PROVISIONED_VALUE) {
+                hasStProv = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                hasStAcc = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE) {
+                hasStLat = true;
+            }
+        }
+        return hasStAmt && hasStProv && !hasStAcc && !hasStLat;
     }
 }
