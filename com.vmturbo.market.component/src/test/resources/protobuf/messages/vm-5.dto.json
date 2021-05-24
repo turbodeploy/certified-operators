@@ -1,0 +1,162 @@
+{
+  "entityType": 10,
+  "oid": 10101,
+  "displayName": "vm5",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 26,
+        "key": "P1"
+      },
+      "used": 50.0,
+      "peak": 80.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    },
+    {
+      "commodityType": {
+        "type": 26,
+        "key": "P2"
+      },
+      "used": 50.0,
+      "peak": 80.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    },
+    {
+      "commodityType": {
+        "type": 53,
+        "key": ""
+      },
+      "used": 50.0,
+      "peak": 80.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    }
+  ],
+  "commoditiesBoughtFromProviders" : [
+    {
+      "providerId" : 209,
+      "providerEntityType" : 14,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 21,
+            "key": ""
+          },
+          "used": 50.0,
+          "peak": 80.0,
+          "historicalUsed": {
+            "histUtilization": 50.0
+          },
+          "historicalPeak": {
+            "histUtilization": 80.0
+          }
+        },
+        {
+          "commodityType": {
+            "type": 40,
+            "key": ""
+          },
+          "used": 10.0,
+          "peak": 20.0,
+          "historicalUsed": {
+            "histUtilization": 10.0
+          },
+          "historicalPeak": {
+            "histUtilization": 20.0
+          }
+        },
+        {
+          "commodityType": {
+            "type": 36,
+            "key": "54321"
+          },
+          "used": 10.0,
+          "peak": 20.0,
+          "historicalUsed": {
+            "histUtilization": 10.0
+          },
+          "historicalPeak": {
+            "histUtilization": 20.0
+          }
+        }
+      ]
+    },
+    { "providerId" : 208,
+      "providerEntityType" : 2,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 51,
+            "key": "12345"
+          },
+          "used": 0.0,
+          "peak": 0.0,
+          "historicalUsed": {
+            "histUtilization": 0.0
+          },
+          "historicalPeak": {
+            "histUtilization": 0.0
+          }
+        }
+      ]
+    },
+    { "providerId" : 207,
+      "providerEntityType" : 60,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 8,
+            "key": ""
+          },
+          "used": 1024.0,
+          "peak": 0.0,
+          "historicalUsed": {
+            "histUtilization": 1024.0
+          },
+          "historicalPeak": {
+            "histUtilization": 0.0
+          }
+        }
+      ]
+    }
+  ],
+  "connectedEntityList": [
+    {
+      "connectedEntityId": "9876",
+      "connectedEntityType": 60,
+      "connectionType": "NORMAL_CONNECTION"
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "common_dto.EntityDTO.VirtualMachineData.vmState" : "connected: true\n",
+    "shopTogether" : "false",
+    "common_dto.EntityDTO.VirtualMachineData.ipAddress" : "[10.0.1.15]"
+  }
+}

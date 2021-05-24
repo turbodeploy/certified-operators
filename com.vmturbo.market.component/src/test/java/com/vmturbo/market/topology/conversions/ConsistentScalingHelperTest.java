@@ -223,7 +223,7 @@ public class ConsistentScalingHelperTest {
         when(analysisConfig.getQuoteFactor()).thenReturn(MarketAnalysisUtils.QUOTE_FACTOR);
         when(analysisConfig.getMarketMode()).thenReturn(MarketMode.M2Only);
         when(analysisConfig.getLiveMarketMoveCostFactor()).thenReturn(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR);
-        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning))
+        when(analysisConfig.getGlobalSetting(any()))
                 .thenReturn(Optional.empty());
         TierExcluder.TierExcluderFactory tierExcluderFactory = mock(TierExcluder.TierExcluderFactory.class);
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));

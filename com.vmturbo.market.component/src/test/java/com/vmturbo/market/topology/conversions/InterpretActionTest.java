@@ -8,7 +8,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,6 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -359,6 +359,98 @@ public class InterpretActionTest {
         ChangeProvider changeProvider = actionWithMaintenanceSource.getInfo().getMove().getChanges(0);
         assertEquals(srcId1, changeProvider.getSource().getId());
         assertEquals(destId, changeProvider.getDestination().getId());
+
+        Action configVolumeAction = converter.interpretAction(
+            ActionTO.newBuilder()
+                .setImportance(0.1)
+                .setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                    .setShoppingListToMove(shoppingList1.getOid())
+                    .setDestination(destId)
+                    .setMoveExplanation(MoveExplanation.getDefaultInstance())).build(),
+            projectedTopology, null, null, null).get(0);
+
+    }
+
+    /**
+     * Config volume move won't be interpreted.
+     *
+     * @throws IOException In case of file loading error.
+     */
+    @Test
+    public void testInterpretConfigVolumeMoveAction() throws IOException {
+        TopologyDTO.TopologyEntityDTO vm =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        TopologyDTO.TopologyEntityDTO source =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+        TopologyDTO.TopologyEntityDTO destination =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/ds-2.dto.json");
+        TopologyDTO.TopologyEntityDTO configVolume =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/volume-2.dto.json");
+        TopologyDTO.TopologyEntityDTO regularVolume =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/volume-3.dto.json");
+
+        final long shoppingListId1 = 5L;
+        final ShoppingListInfo slInfo1 = new ShoppingListInfo(shoppingListId1, vm.getOid(), source.getOid(),
+            Collections.emptySet(), configVolume.getOid(), source.getEntityType(), Arrays.asList());
+        final long shoppingListId2 = 6L;
+        final ShoppingListInfo slInfo2 = new ShoppingListInfo(shoppingListId2, vm.getOid(), source.getOid(),
+            Collections.emptySet(), regularVolume.getOid(), source.getEntityType(), Arrays.asList());
+        final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(
+            shoppingListId1, slInfo1, shoppingListId2, slInfo2);
+
+        final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(
+            vm.getOid(), vm, source.getOid(), source, destination.getOid(), destination,
+            configVolume.getOid(), configVolume, regularVolume.getOid(), regularVolume);
+
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+            vm.getOid(), entity(vm),
+            source.getOid(), entity(source),
+            destination.getOid(), entity(destination),
+            configVolume.getOid(), entity(configVolume),
+            regularVolume.getOid(), entity(regularVolume));
+
+        final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+
+        final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
+            slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+            new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+            CommodityIndex.newFactory()::newIndex, null);
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+            new TopologyEntityCloudTopologyFactory
+                .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                .newCloudTopology(originalTopology.values().stream());
+
+        final MoveTO configVolumeMove = MoveTO.newBuilder()
+            .setShoppingListToMove(shoppingListId1)
+            .setSource(source.getOid())
+            .setDestination(destination.getOid())
+            .setMoveExplanation(MoveExplanation.getDefaultInstance())
+            .build();
+
+        final Optional<Move> moveOptional = interpreter.interpretMoveAction(
+            configVolumeMove, projectedTopology, originalCloudTopology);
+        assertFalse(moveOptional.isPresent());
+
+        final MoveTO regularVolumeMove = MoveTO.newBuilder()
+            .setShoppingListToMove(shoppingListId2)
+            .setSource(source.getOid())
+            .setDestination(destination.getOid())
+            .setMoveExplanation(MoveExplanation.getDefaultInstance())
+            .build();
+
+        final Optional<Move> moveOptional1 = interpreter.interpretMoveAction(
+            regularVolumeMove, projectedTopology, originalCloudTopology);
+        assertTrue(moveOptional1.isPresent());
+        final Move move = moveOptional1.get();
+        assertThat(move.getTarget().getId(), is(vm.getOid()));
+        assertThat(move.getChangesCount(), is(1));
+        assertThat(move.getChanges(0).getSource().getId(), is(source.getOid()));
+        assertThat(move.getChanges(0).getDestination().getId(), is(destination.getOid()));
+        assertThat(move.getChanges(0).getResourceCount(), is(1));
+        assertThat(move.getChanges(0).getResource(0).getId(), is(regularVolume.getOid()));
     }
 
     /**

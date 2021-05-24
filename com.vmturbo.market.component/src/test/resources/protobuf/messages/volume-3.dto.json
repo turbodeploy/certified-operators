@@ -1,0 +1,83 @@
+{
+  "entityType": 60,
+  "oid": 211,
+  "displayName": "regular-volume",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 8,
+        "key": ""
+      },
+      "used": 1024.0,
+      "peak": 1024.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    },
+    {
+      "commodityType": {
+        "type": 6,
+        "key": ""
+      },
+      "used": 1024.0,
+      "peak": 1024.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    },
+    {
+      "commodityType": {
+        "type": 22,
+        "key": ""
+      },
+      "used": 1024.0,
+      "peak": 1024.0,
+      "capacity": 2000.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true,
+      "historicalUsed": {
+        "histUtilization": 50.0
+      },
+      "historicalPeak": {
+        "histUtilization": 80.0
+      }
+    }
+  ],
+  "commoditiesBoughtFromProviders" : [
+    { "providerId" : 208,
+      "providerEntityType" : 2,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 8,
+            "key": ""
+          },
+          "used": 1024.0,
+          "peak": 0.0,
+          "historicalUsed": {
+            "histUtilization": 1024.0
+          },
+          "historicalPeak": {
+            "histUtilization": 0.0
+          }
+        }
+      ]
+    }
+  ],
+  "entityState": "POWERED_ON"
+}

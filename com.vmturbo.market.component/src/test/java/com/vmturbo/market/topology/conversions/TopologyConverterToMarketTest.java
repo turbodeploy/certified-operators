@@ -1,7 +1,10 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.BICLIQUE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE;
 import static java.util.stream.Collectors.toList;
 import static org.apache.commons.lang3.ArrayUtils.isSorted;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -55,6 +58,8 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -80,11 +85,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -2614,5 +2622,57 @@ public class TopologyConverterToMarketTest {
         assertTrue(converter.getShoppingListOidToInfos().containsKey(vmTO.getShoppingLists(0).getOid()));
         assertEquals(Long.valueOf(volumeId), converter.getShoppingListOidToInfos().get(vmTO.getShoppingLists(0).getOid())
                 .getCollapsedBuyerId().get());
+    }
+
+    /**
+     * Access commodities bought by VM from storage should be added to the collapsed shopping list
+     * created from volume -> storage commBought.
+     *
+     * @throws IOException In case of file loading error.
+     */
+    @Test
+    public void tesOnPremVolume() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-5.dto.json"),
+            messageFromJsonFile("protobuf/messages/pm-3.dto.json"),
+            messageFromJsonFile("protobuf/messages/ds-3.dto.json"),
+            messageFromJsonFile("protobuf/messages/volume-1.dto.json"))
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        assertThat(topologyDTOs.size(), is(4));
+
+        AnalysisConfig analysisConfig = mock(AnalysisConfig.class);
+        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning))
+            .thenReturn(Optional.empty());
+        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.OnPremVolumeAnalysis))
+            .thenReturn(Optional.of(Setting.newBuilder().setBooleanSettingValue(
+                BooleanSettingValue.newBuilder().setValue(true)).build()));
+
+        final CommodityConverter commodityConverter = mock(CommodityConverter.class);
+        when(commodityConverter.commoditySpecification(CommodityType.newBuilder().setType(STORAGE_AMOUNT_VALUE).setKey("").build(), 1))
+            .thenReturn(Collections.singletonList(CommoditySpecificationTO.newBuilder().setBaseType(STORAGE_AMOUNT_VALUE).setType(1).build()));
+        when(commodityConverter.commoditySpecificationBiClique("BC-T1-208"))
+            .thenReturn(CommoditySpecificationTO.newBuilder().setBaseType(BICLIQUE_VALUE).setType(2).build());
+        final Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+            marketCloudRateExtractor,commodityConverter, ccd,
+            CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+            mock(TopologyEntityCloudTopology.class), reversibilitySettingFetcher, analysisConfig)
+            .convertToMarket(topologyDTOs);
+        // We don't create TraderTO for volume.
+        assertEquals(3, traderTOs.size());
+        for (TraderTO traderTO : traderTOs) {
+            if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // one PM shopping list, one storage shopping list
+                assertThat(traderTO.getShoppingListsCount(), is(2));
+                for (ShoppingListTO sl : traderTO.getShoppingListsList()) {
+                    // storage provider
+                    if (sl.getSupplier() == 208L) {
+                        assertThat(sl.getCommoditiesBoughtCount(), is(2));
+                        assertThat(sl.getCommoditiesBoughtList().stream()
+                            .map(commBought -> commBought.getSpecification().getBaseType()).collect(Collectors.toSet()),
+                            containsInAnyOrder(BICLIQUE_VALUE, STORAGE_AMOUNT_VALUE));
+                    }
+                }
+            }
+        }
     }
 }
