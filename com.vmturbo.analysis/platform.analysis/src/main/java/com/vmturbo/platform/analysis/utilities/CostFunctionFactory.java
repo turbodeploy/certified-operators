@@ -719,7 +719,9 @@ public class CostFunctionFactory {
             return new SelectedStorageAndCost(selectedAmount, Double.POSITIVE_INFINITY);
         }
         // Add the increment in the current option to satisfy the demand.
-        while (selectedAmount < dependentResourceQuantity) {
+        // if selectedAmount is 0 - do one increment step to satisfy limits defined in
+        // {@link DependentResourceOption}, 0 capacity is not valid
+        while (selectedAmount < dependentResourceQuantity || selectedAmount == 0) {
             selectedAmount += increment;
             cost += increment * price;
         }
