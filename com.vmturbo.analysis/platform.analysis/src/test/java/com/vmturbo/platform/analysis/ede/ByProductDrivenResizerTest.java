@@ -45,7 +45,8 @@ public class ByProductDrivenResizerTest {
     Ledger ledger;
     CommoditySpecification drivingComm = new CommoditySpecification(0).setDebugInfoNeverUseInCode("DRIVER");
     CommoditySpecification byProductComm = new CommoditySpecification(1).setDebugInfoNeverUseInCode("BY-PRODUCT");
-    CommoditySpecification rawMaterialComm = new CommoditySpecification(2).setDebugInfoNeverUseInCode("RAW_MATERIAL");
+    CommoditySpecification rawMaterialComm = new CommoditySpecification(2).setDebugInfoNeverUseInCode("RAW_MATERIAL1");
+    CommoditySpecification additionalRawMaterialComm = new CommoditySpecification(3).setDebugInfoNeverUseInCode("RAW_MATERIAL2");
 
     private static final double RIGHT_SIZE_LOWER = 0.3;
     private static final double RIGHT_SIZE_UPPER = 0.7;
@@ -68,6 +69,7 @@ public class ByProductDrivenResizerTest {
      * @param byProductOverhead existing consumption on byProduct commodity.
      * @param rawMaterialOverhead existing consumption on rawMaterial.
      * @param rawMaterialConsumerUsage consumption on rawMaterial due to the resizing seller.
+     * @param additionalRawMaterialConsumerUsage consumption on 2nd rawMaterial due to the resizing seller.
      * @param numActions is the number of expected actions.
      * @param newCapacity is the new capacity of the resizing commodity.
      * */
@@ -79,14 +81,15 @@ public class ByProductDrivenResizerTest {
                                                          double byProductOverhead,
                                                          double rawMaterialOverhead,
                                                          double rawMaterialConsumerUsage,
+                                                         double additionalRawMaterialConsumerUsage,
                                                          int numActions,
                                                          double newCapacity) {
         Economy economy = new Economy();
 
         // Create pod
         pod = TestUtils.createTrader(economy, TestUtils.POD_TYPE,
-                Arrays.asList(0L), Arrays.asList(rawMaterialComm),
-                new double[]{200}, false, false);
+                Arrays.asList(0L), Arrays.asList(rawMaterialComm, additionalRawMaterialComm),
+                new double[]{200, 1E11}, false, false);
         pod.setDebugInfoNeverUseInCode("POD1");
         pod.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResizable(false));
         pod.getCommoditySold(rawMaterialComm).setQuantity(rawMaterialOverhead);
@@ -102,8 +105,8 @@ public class ByProductDrivenResizerTest {
 
         // place container on pod
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(rawMaterialComm), cont,
-                new double[]{rawMaterialConsumerUsage}, pod).setMovable(false);
+                Arrays.asList(rawMaterialComm, additionalRawMaterialComm), cont,
+                new double[]{rawMaterialConsumerUsage, additionalRawMaterialConsumerUsage}, pod).setMovable(false);
 
         // Create app
         app = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
@@ -117,9 +120,17 @@ public class ByProductDrivenResizerTest {
 
         economy.getSettings().setRightSizeLower(RIGHT_SIZE_LOWER);
         economy.getSettings().setRightSizeUpper(RIGHT_SIZE_UPPER);
-        economy.getModifiableRawCommodityMap().put(drivingComm.getBaseType(),
-                new RawMaterials(new RawMaterialsMap.RawMaterialInfo(
-                    ImmutableList.of(new RawMaterialsMap.RawMaterial(rawMaterialComm.getBaseType(), false, false)))));
+
+        if (additionalRawMaterialConsumerUsage != 0) {
+            economy.getModifiableRawCommodityMap().put(drivingComm.getBaseType(),
+                    new RawMaterials(new RawMaterialsMap.RawMaterialInfo(
+                            ImmutableList.of(new RawMaterialsMap.RawMaterial(rawMaterialComm.getBaseType(), true, false),
+                                    new RawMaterialsMap.RawMaterial(additionalRawMaterialComm.getBaseType(), true, false)))));
+        } else {
+            economy.getModifiableRawCommodityMap().put(drivingComm.getBaseType(),
+                    new RawMaterials(new RawMaterialsMap.RawMaterialInfo(
+                            ImmutableList.of(new RawMaterialsMap.RawMaterial(rawMaterialComm.getBaseType(), false, false)))));
+        }
 
         economy.getModifiableByProductMap().put(drivingComm.getBaseType(), new ByProducts(ImmutableMap.of(byProductComm.getBaseType(),
                         ProjectionFunctionFactory.MM1)));
@@ -143,42 +154,44 @@ public class ByProductDrivenResizerTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestByProductDrivenResizeDecisions() {
         return new Object[][] {
-                // drivingCommOverhead, drivingCommConsumerUsage, byProductOverhead, rawMaterialOverhead, rawMaterialConsumerUsage
-                {0, 30, 80, 0, 30, 1, 115},
-                {20, 30, 80, 0, 30, 1, 110},
-                {70, 10, 80, 0, 30, 1, 120},
-                {50, 30, 30, 0, 30, 1, 115},
-                {0, 80, 30, 0, 30, 1, 115},
-                {0, 80, 0, 0, 30, 1, 115},
+                // drivingCommOverhead, drivingCommConsumerUsage, byProductOverhead, rawMaterialOverhead, rawMaterialConsumerUsage, additionalRawMaterialConsumerUsage
+                {0, 30, 80, 0, 30, 0, 1, 115},
+                {20, 30, 80, 0, 30, 0, 1, 110},
+                {70, 10, 80, 0, 30, 0, 1, 120},
+                {50, 30, 30, 0, 30, 0, 1, 115},
+                {0, 80, 30, 0, 30, 0, 1, 115},
+                {0, 80, 0, 0, 30, 0, 1, 115},
 
+                // resize down use-case with 2 rawMaterials.
+                {0, 5, 15, 160, 0.6, 1, 1, 25},
                 // change in behavior btw rawMaterial util of 10%-40%.
                 // no resize down with byProd.
-                {0, 20, 30, 0, 80, 0, 0},
+                {0, 20, 30, 0, 80, 0, 0, 0},
                 // resize down without byProd.
-                {0, 20, 0, 0, 80, 1, 0},
+                {0, 20, 0, 0, 80, 0, 1, 0},
                 // resize down with and without byProd converges around rawMat util of 42.5%.
-                {0, 20, 30, 0, 85, 1, 0},
-                {0, 20, 0, 0, 85, 1, 0},
+                {0, 20, 30, 0, 85, 0, 1, 0},
+                {0, 20, 0, 0, 85, 0, 1, 0},
 
                 // change in behavior btw rawMaterial util of 27.5%-47.5%.
-                {0, 30, 30, 0, 55, 0, 0},
-                {0, 30, 0, 0, 55, 1, 0},
+                {0, 30, 30, 0, 55, 0, 0, 0},
+                {0, 30, 0, 0, 55, 0, 1, 0},
                 // no resize down with byProd.
-                {0, 30, 30, 0, 95, 0, 0},
+                {0, 30, 30, 0, 95, 0, 0, 0},
                 // resize down with byProd.
-                {0, 30, 0, 0, 95, 1, 0},
+                {0, 30, 0, 0, 95, 0, 1, 0},
                 // resize down with and without byProd.
-                {0, 30, 30, 0, 100, 1, 0},
-                {0, 30, 0, 0, 100, 1, 0},
+                {0, 30, 30, 0, 100, 0, 1, 0},
+                {0, 30, 0, 0, 100, 0, 1, 0},
 
                 // Change in behavior btw rawMaterial util of 60%-65%.
                 // no resize down with byProd.
-                {0, 50, 30, 0, 120, 0, 0},
+                {0, 50, 30, 0, 120, 0, 0, 0},
                 // resize down without byProd.
-                {0, 50, 0, 0, 120, 1, 0},
+                {0, 50, 0, 0, 120, 0, 1, 0},
                 // resize down with and without byProd.
-                {0, 50, 30, 0, 130, 1, 0},
-                {0, 50, 0, 0, 130, 1, 0}
+                {0, 50, 30, 0, 130, 0, 1, 0},
+                {0, 50, 0, 0, 130, 0, 1, 0}
         };
     }
 }

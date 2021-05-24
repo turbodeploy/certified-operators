@@ -977,9 +977,9 @@ public class Resizer {
                 int soldIndex = seller.getBasketSold().indexOfBaseType(baseTypeEntry.getKey());
                 if (soldIndex != -1) {
                     CommoditySold byProduct = seller.getCommoditiesSold().get(soldIndex);
-                    double resizingCommNewUtil = (resizingCommodity.getUtilization() * resizingCommodity.getCapacity())
+                    double resizingCommNewUtil = (resizingCommodity.getHistoricalOrElseCurrentUtilization() * resizingCommodity.getCapacity())
                                                         / newCapacity;
-                    DoubleUnaryOperator updateFunction = baseTypeEntry.getValue().project(seller, resizingCommodity, byProduct);
+                    DoubleUnaryOperator updateFunction = baseTypeEntry.getValue().project(seller, resizingCommodity, byProduct.getUtilization());
                     double byProdNewUtil = updateFunction.applyAsDouble(resizingCommNewUtil);
                     byProduct.setQuantity(byProdNewUtil * byProduct.getCapacity());
                 }

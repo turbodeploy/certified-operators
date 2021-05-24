@@ -72,7 +72,10 @@ public class ByProducts implements Serializable {
             CommoditySold byProduct = seller.getCommoditiesSold().get(soldIndex);
             PriceFunction bpPriceFunction = byProduct.getSettings().getPriceFunction();
             double projectedUtil = byProductDescriptor.getValue()
-                    .project(seller, resizingCommodity, byProduct).applyAsDouble(u);
+                    .project(seller, resizingCommodity,
+                // Consider utilizationUpperBound to drive revenue up due to a decrease in effective capacity.
+                byProduct.getUtilization() / byProduct.getSettings().getUtilizationUpperBound())
+                    .applyAsDouble(u);
             return projectedUtil * bpPriceFunction
                     .unitPrice((projectedUtil), null, seller, resizingCommodity, economy);
         }

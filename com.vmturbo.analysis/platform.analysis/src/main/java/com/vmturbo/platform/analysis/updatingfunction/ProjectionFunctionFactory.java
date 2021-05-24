@@ -38,17 +38,24 @@ public class ProjectionFunctionFactory {
 
     /**
      * Create {@link ProjectionFunction} for MM1 projection.
-     * byProductUtil' = byProductUtil * resizingCommUtil' * (1 - resizingCommUtil)
-     *                                  ------------------------------------------
-     *                                  resizingCommUtil * (1 - resizingCommUtil')
+     * byProductUtil' = byProductUtil * normalizedResizingCommUtil' * (1 - resizingCommUtil)
+     *                                  ----------------------------------------------------
+     *                                  resizingCommUtil * (1 - normalizedResizingCommUtil')
      *
      * @return ProjectionFunction
      */
     public static final ProjectionFunction MM1 = new ProjectionFunction() {
         @Override
-        public DoubleUnaryOperator project(Trader seller, CommoditySold resizingCommodity, CommoditySold byProduct) {
-            return u -> (byProduct.getUtilization() * u * (1 - resizingCommodity.getUtilization()))
-                            / (resizingCommodity.getUtilization() * (1 - u));
+        public DoubleUnaryOperator project(Trader seller, CommoditySold resizingCommodity, double byProductUtilization) {
+            return u -> {
+                // 'u' here is going to be a percentile utilization. We do not know the percentile numbers for both the
+                // byproduct and the resizingCommodity simultaneously. In this case, we want to have all the terms in
+                // the same unit and so we normalize the percentile utilization into a smoothened average utilization representation.
+                double normalizedAverageUtil = u * (resizingCommodity.getQuantity()
+                        / resizingCommodity.getHistoricalOrElseCurrentQuantity());
+                return (byProductUtilization * normalizedAverageUtil) * (1 - resizingCommodity.getUtilization())
+                            / (resizingCommodity.getUtilization() * (1 - normalizedAverageUtil));
+            };
         }
     };
 
