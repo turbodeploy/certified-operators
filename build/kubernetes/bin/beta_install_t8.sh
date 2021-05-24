@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# redirect stdout/stderr to a file
+logFile="install_$(date +%Y-%m-%d_%H_%M_%S).log"
+echo "Install logging will be in /opt/turbonmic/${logFile}"
+exec &> /opt/turbonomic/${logFile}
+
 # Run this as the root user
 if [[ $(/usr/bin/id -u) -ne 0 ]]
 then
@@ -8,9 +13,16 @@ then
 fi
 
 # Variable to use if a non-turbonomic deployment
+# Variable to use if a non-turbonomic deployment
+while getopts b:h: flag
+do
+    case "${flag}" in
+        b) deploymentBrand=${OPTARG};;
+        h) hostName=${OPTARG};;
+    esac
+done
 oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
 newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
-deploymentBrand=${1}
 oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
 newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 serviceAccountFile="/opt/turbonomic/kubernetes/operator/deploy/service_account.yaml"
@@ -20,6 +32,15 @@ crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd
 operatorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
 chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
 localStorageDataDirectory="/data/turbonomic/"
+yamlBasePath="/opt/turbonomic/kubernetes/yaml"
+glusterDeployPath="/opt/gluster-kubernetes/deploy"
+
+# Change the node name if it is passed in
+if [ ! -z "${hostName}" ]
+then
+  pushd /etc/; for i in `grep -lr node1 *`; do sed -i "s/node1/${hostName}/g" $i; done; popd
+  sed -i "s/node1/${hostName}/g" ${yamlBasePath}/persistent-volumes/local-storage-pv.yaml
+fi
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
@@ -132,12 +153,22 @@ ln -s ca-key.pem ca.key
 /usr/local/bin/kubeadm init phase certs etcd-peer
 /usr/local/bin/kubeadm init phase certs etcd-healthcheck-client
 
-mv peer.crt member-node1.pem
-mv peer.key member-node1-key.pem
-mv server.crt node-node1.pem
-mv server.key node-node1-key.pem
-mv healthcheck-client.crt admin-node1.pem
-mv healthcheck-client.key admin-node1-key.pem
+if [ ! -z "${hostName}" ]
+then
+  mv peer.crt member-${hostName}.pem
+  mv peer.key member-${hostName}-key.pem
+  mv server.crt node-${hostName}.pem
+  mv server.key node-${hostName}-key.pem
+  mv healthcheck-client.crt admin-${hostName}.pem
+  mv healthcheck-client.key admin-${hostName}-key.pem
+else
+  mv peer.crt member-node1.pem
+  mv peer.key member-node1-key.pem
+  mv server.crt node-node1.pem
+  mv server.key node-node1-key.pem
+  mv healthcheck-client.crt admin-node1.pem
+  mv healthcheck-client.key admin-node1-key.pem
+fi
 
 systemctl restart etcd
 
@@ -150,7 +181,13 @@ then
 fi
 mv apiserver* expired/.
 mv front-proxy-client.* expired/.
-sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
+if [ ! -z "${hostName}" ]
+then
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
+  sed -i "s/node1/${hostname}/g" /etc/kubernetes/kubeadm-config.yaml
+else
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
+fi
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 
 /usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml
@@ -160,7 +197,12 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 cd /etc/kubernetes
 /usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf
 /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf
+if [ ! -z "${hostName}" ]
+then
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf
+else
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf
+fi
 /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf
 
 systemctl restart kubelet
@@ -198,8 +240,16 @@ printf '\nFinished! kubectl apply commands will follow\n'
 # Update configmaps
 /usr/local/bin/kubectl get cm -n kube-system kubeadm-config -o yaml > /etc/kubernetes/kubeadm-config.yaml
 /usr/local/bin/kubectl get cm -n kube-system kube-proxy -o yaml > /etc/kubernetes/kube-proxy.yaml
-sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
-sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
+if [ ! -z "${hostName}" ]
+then
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
+  sed -i "s/node1/${hostname}/g" /etc/kubernetes/kubeadm-config.yaml
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
+  sed -i "s/node1/${hostname}/g" /etc/kubernetes/kube-proxy.yaml
+else
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
+fi
 /usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml
 /usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system
 
