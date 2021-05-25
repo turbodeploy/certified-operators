@@ -491,72 +491,29 @@ public class ActionInterpreter {
                             + actionTO.getActionTypeCase().name()));
                 }
                 final ProvisionBySupplyTO provisionBySupply = actionTO.getProvisionBySupply();
-                long modelSellerEntityOid = provisionBySupply.getModelSeller();
-                TraderTO modelSellerEntityTO =  oidToProjectedTraderTOMap.get(modelSellerEntityOid);
+                long provisionedEntityOid = provisionBySupply.getModelSeller();
+                TraderTO provisionedEntityTO =  oidToProjectedTraderTOMap.get(provisionedEntityOid);
 
                 // get the entity DTO from the original topology
-                TopologyEntityDTO modelSellerEntity =  originalTopology.get(modelSellerEntityOid);
+                TopologyEntityDTO provisionedEntity =  originalTopology.get(provisionedEntityOid);
 
-                if (modelSellerEntityTO == null || modelSellerEntity == null) {
+                if (provisionedEntityTO == null || provisionedEntity == null) {
                     return new NoSavings(trax(0, "investment calculation for "
                             + actionTO.getActionTypeCase().name()));
                 }
                 // get the cost journal of the model seller
                 // since the costs for the provisioned (cloned) entity is not computed
-                final CostJournal<TopologyEntityDTO> modelSellerProjectedCostJournal
-                                                 = projectedCosts.get(modelSellerEntity);
+                final CostJournal<TopologyEntityDTO> origEntityCostJournal
+                                                 = projectedCosts.get(provisionedEntityOid);
 
-                // If cost for the entity from the projected topology is not available
-                if (!hasOnDemandCostForMarketTier(modelSellerProjectedCostJournal)) {
-                    // OM-59809 - we are seeing suspend and provision actions
-                    // for the same VM in realtime and plan topologies.
-                    // A VM that was suspended in the projected topology gets provisioned
-                    // during the analysis cycle. But since the VM was suspended originally
-                    // the cost for this suspended VM is not computed and the calculated savings could be 0
-                    Optional<CostJournal<TopologyEntityDTO>> entityCostJournalFromRealTimeTopology =
-                            topologyCostCalculator.calculateCostForEntity(
-                                    originalCloudTopology, modelSellerEntity);
-
-                    CalculatedSavings entityCostsRealTimeTopology
-                            = calculateHorizontalScalingActionSavings(entityCostJournalFromRealTimeTopology,
-                            modelSellerEntityTO, modelSellerEntity, false);
-
-                    logger.debug("{}: cost for entity in projected topology is not found, computed cost for entity in real time topology {}",
-                            modelSellerEntity.getDisplayName(), entityCostsRealTimeTopology.savingsAmount);
-                    return entityCostsRealTimeTopology;
-                } else {
-                    CalculatedSavings entityCostsProjectedTopology
-                            = calculateHorizontalScalingActionSavings(
-                            Optional.ofNullable(modelSellerProjectedCostJournal),
-                            modelSellerEntityTO, modelSellerEntity, false);
-                    return entityCostsProjectedTopology;
-                }
+                return calculateHorizontalScalingActionSavings(Optional.ofNullable(origEntityCostJournal),
+                        provisionedEntityTO, provisionedEntity, false);
             default:
                 return new NoSavings(trax(0, "No savings calculation for "
                     + actionTO.getActionTypeCase().name()));
         }
 
         // Do not have a return statement here. Ensure all cases in the switch return a value.
-    }
-
-    /**
-     * Helper method to check if the on-demand compute cost for an entity is available.
-     *
-     * @param journal cost journal of an entity
-     * @return Returns true if the on demand compute cost is available, else false
-     */
-    private boolean hasOnDemandCostForMarketTier(CostJournal<TopologyEntityDTO> journal) {
-        if (journal == null) {
-            return false;
-        }
-        TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_COMPUTE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
-
-        if (onDemandComputeCost.valueEquals(0.0)) {
-            return false;
-        }
-        return true;
     }
 
     @Nonnull
@@ -617,12 +574,7 @@ public class ActionInterpreter {
         if (!entityCostJournal.isPresent()) {
             return new NoSavings(trax(0, "no entity cost journal"));
         }
-
         CostJournal<TopologyEntityDTO> costJournal = entityCostJournal.get();
-        if (!hasOnDemandCostForMarketTier(costJournal)) {
-            logger.error("{} : on-demand cost not computed", cloudEntityHzScaling.getDisplayName());
-            return new NoSavings(trax(0, "no entity cost journal"));
-        }
 
         // need suppliers to get the market tier
         List<Long> suppliers = projectedEntityTO.getShoppingListsList()
