@@ -453,6 +453,7 @@ public class ReservedInstanceCoverageUpdate {
                                     .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)
                                     .setTopologyContextId(topologyInfo.getTopologyContextId())
                                     .setTopologyId(topologyInfo.getTopologyId())
+                                    .setTopologyCreationTime(topologyInfo.getCreationTime())
                                     .setStatus(status)
                                     .setTimestamp(Instant.now().toEpochMilli())
                                     .build())
