@@ -84,6 +84,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ReservationMapper {
 
+    private final boolean enableReservationModeGrouping;
+
     private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
             .put(ApiEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
@@ -138,11 +140,13 @@ public class ReservationMapper {
     ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TemplateServiceBlockingStub templateService,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final PolicyServiceBlockingStub policyService) {
+                      @Nonnull final PolicyServiceBlockingStub policyService,
+                      final boolean enableReservationModeGrouping) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
+        this.enableReservationModeGrouping = enableReservationModeGrouping;
     }
 
     /**
@@ -240,13 +244,15 @@ public class ReservationMapper {
                         reservationApiDTO);
         }
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
-        if (reservation.hasReservationMode()) {
-            reservationApiDTO.setMode(ReservationFieldsConverter.modeToApi(reservation
-                .getReservationMode()));
-        }
-        if (reservation.hasReservationGrouping()) {
-            reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(reservation
-                .getReservationGrouping()));
+        if (enableReservationModeGrouping) {
+            if (reservation.hasReservationMode()) {
+                reservationApiDTO.setMode(ReservationFieldsConverter.modeToApi(reservation
+                    .getReservationMode()));
+            }
+            if (reservation.hasReservationGrouping()) {
+                reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(reservation
+                    .getReservationGrouping()));
+            }
         }
         return reservationApiDTO;
     }

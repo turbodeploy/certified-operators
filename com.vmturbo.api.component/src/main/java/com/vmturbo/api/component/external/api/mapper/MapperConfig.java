@@ -91,6 +91,12 @@ public class MapperConfig {
     @Value("${enableApplicationMinMaxReplicas:false}")
     private boolean enableApplicationMinMaxReplicas;
 
+    /**
+     * Enable reservation mode and grouping settings.
+     */
+    @Value("${enableReservationModeGrouping:false}")
+    private boolean enableReservationModeGrouping;
+
     @Autowired
     private CommunicationConfig communicationConfig;
 
@@ -325,7 +331,8 @@ public class MapperConfig {
         return new ReservationMapper(communicationConfig.repositoryApi(),
             communicationConfig.templateServiceBlockingStub(),
             communicationConfig.groupRpcService(),
-            communicationConfig.policyRpcService());
+            communicationConfig.policyRpcService(),
+            enableReservationModeGrouping);
     }
 
     @Bean
