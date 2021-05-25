@@ -174,6 +174,14 @@ public class TopologyConfig {
     @Value("${startupDiscovery.maxDiscoveryWaitMins:360}")
     private long startupDiscoveryMaxDiscoveryWaitMinutes;
 
+    /**
+     * Whether we should scope the plan topology to include the entities required to
+     * compute and represent the action savings or investment costs
+     * for horizontal scaling actions that are recommended for container platform clusters.
+     */
+    @Value("${enableContainerClusterScalingCost:false}")
+    private boolean enableContainerClusterScalingCost;
+
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
@@ -197,7 +205,8 @@ public class TopologyConfig {
 
     @Bean
     public PlanTopologyScopeEditor planTopologyScopeEditor() {
-        return new PlanTopologyScopeEditor(groupConfig.groupServiceBlockingStub());
+        return new PlanTopologyScopeEditor(groupConfig.groupServiceBlockingStub(),
+                                            enableContainerClusterScalingCost);
     }
 
     @Bean

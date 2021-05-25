@@ -13,7 +13,6 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +34,7 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -428,7 +428,7 @@ public interface AnalysisFactory {
                               final boolean shouldPopulateByProducts,
                               final boolean fastProvisionEnabled,
                               final boolean branchAndBoundEnabled,
-                               final boolean enableContainerClusterScalingCost) {
+                              final boolean enableContainerClusterScalingCost) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -601,7 +601,7 @@ public interface AnalysisFactory {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
                 enableOP, shouldPopulateByProducts, true, true,
-                    enableContainerClusterScalingCost);
+                enableContainerClusterScalingCost);
         }
 
         /**
@@ -637,7 +637,7 @@ public interface AnalysisFactory {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
                     enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled,
-                    shouldPopulateByProducts);
+                    enableContainerClusterScalingCost);
         }
 
         public boolean isFastProvisionEnabled() {
@@ -684,7 +684,6 @@ public interface AnalysisFactory {
             private final boolean fastProvisionEnabled;
 
             private final boolean branchAndBoundEnabled;
-
 
             private final boolean enableContainerClusterScalingCost;
 
@@ -795,7 +794,6 @@ public interface AnalysisFactory {
                 return this;
             }
 
-
             /**
              * Returns the maximum ratio of the on-demand cost of new template to current template
              * that is allowed for analysis engine to recommend resize up to utilize a RI. If we are
@@ -824,7 +822,7 @@ public interface AnalysisFactory {
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
                     licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled,
                     branchAndBoundEnabled,
-                        enableContainerClusterScalingCost);
+                    enableContainerClusterScalingCost);
             }
         }
     }

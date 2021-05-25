@@ -1707,9 +1707,14 @@ public class Stages {
             }
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
-            if (!StringConstants.CLOUD_PLAN_TYPES.contains(topologyInfo.getPlanInfo().getPlanType())) {
+            final String planType = topologyInfo.getPlanInfo().getPlanType();
+            if (!StringConstants.CLOUD_PLAN_TYPES.contains(planType)) {
+                if (planType.equals(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN)) {
+                    logger.info("Indexing container platform entities for scoping .....");
+                } else {
+                    logger.info("Indexing on-prem entities for scoping .....");
+                }
                 // populate InvertedIndex
-                logger.info("Indexing on-prem entities for scoping .....");
                 InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
                         index = planTopologyScopeEditor.createInvertedIndex();
                 graph.entities().forEach(entity -> index.add(entity));
