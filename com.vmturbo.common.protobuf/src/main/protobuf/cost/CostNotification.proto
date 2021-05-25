@@ -41,6 +41,8 @@ message CostNotification {
         // the time that the operation reached the status indicated
         optional int64 timestamp = 6;
 
+        optional int64 topology_creation_time = 7;
+
     }
 
     enum StatusUpdateType {
