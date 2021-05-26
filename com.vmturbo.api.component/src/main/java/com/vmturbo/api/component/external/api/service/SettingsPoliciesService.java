@@ -322,8 +322,14 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         return true;
     }
 
+    /**
+     * Validates the input setting policy api object.
+     *
+     * @param inputDTO  Object to validate
+     * @param e         Spring framework validation errors, not actually used in our validations
+     */
     @Override
-    public void validateInput(Object obj, Errors e) {
+    public void validateInput(SettingsPolicyApiDTO inputDTO, Errors e) {
         // We do the validation in the group component as part of saving the policy.
     }
 }

@@ -554,19 +554,11 @@ public class ActionsService implements IActionsService {
     /**
      * Validates incoming action api input dto.
      *
-     * @param obj Object to validate
-     * @param e   Spring framework validation errors, not actually used in our validations
+     * @param actionApiInputDTO Object to validate
+     * @param e                 Spring framework validation errors, not actually used in our validations
      */
     @Override
-    public void validateInput(final Object obj, final Errors e) {
-        if (!(obj instanceof ActionApiInputDTO)) {
-            logger.error("Unexpected object type validating action api input: {}",
-                    () -> obj.getClass().getCanonicalName());
-            throw new IllegalArgumentException("Unexpected object type validating schedule input: "
-                    + obj.getClass());
-        }
-
-        final ActionApiInputDTO actionApiInputDTO = (ActionApiInputDTO)obj;
+    public void validateInput(final ActionApiInputDTO actionApiInputDTO, final Errors e) {
         final StringBuilder errors = new StringBuilder();
 
         // description query

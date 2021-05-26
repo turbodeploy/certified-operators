@@ -757,16 +757,15 @@ public class TemplatesDaoImpl implements TemplatesDao {
         final List<String> validationErrors = Lists.newArrayList();
 
         if (template.getTemplateInfo().getName().length() > TEMPLATE.NAME.getDataType().length()) {
-            validationErrors.add("TEMPLATE.NAME length exceeded. max char: "
+            validationErrors.add("Template Name field too long, the max size is: "
                     + TEMPLATE.NAME.getDataType().length()
-                    + ". Input String: " + template.getTemplateInfo().getName());
+                    + " characters.");
         }
 
         if (!validationErrors.isEmpty()) {
             final StringBuilder errorBuilder = new StringBuilder();
-            errorBuilder.append(validationErrors.size()).append(" validation errors.\n");
             validationErrors.forEach(errorStr -> errorBuilder.append("\n").append(errorStr));
-            throw new IllegalArgumentException(errorBuilder.toString());
+            throw new IllegalArgumentException(errorBuilder.substring(1));
         }
     }
 }

@@ -106,6 +106,7 @@ import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.api.serviceinterfaces.IScenariosService;
 import com.vmturbo.api.serviceinterfaces.ISchedulesService;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
+import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
@@ -1779,6 +1780,11 @@ public class TargetsServiceTest {
         @Bean
         public IActionsService actionsService() {
             return Mockito.mock(IActionsService.class);
+        }
+
+        @Bean
+        public ITemplatesService templatesService() {
+            return Mockito.mock(ITemplatesService.class);
         }
 
         @Bean
