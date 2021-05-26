@@ -2116,16 +2116,6 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>topology-processor-</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.communication.matrix-</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>action-orchestrator-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
