@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.2.2-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.133-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.132-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -420,7 +420,6 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
-                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
@@ -723,13 +722,6 @@
             <id>mediation-azure-volumes</id>
             <modules>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-azure-mca-billing</id>
-            <modules>
-                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
             </modules>
         </profile>
 
@@ -1326,7 +1318,6 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
-                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
@@ -2116,6 +2107,16 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>topology-processor-</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.communication.matrix-</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>action-orchestrator-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -2223,8 +2224,8 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.external-api-stubs</artifactId>
-                <version>${com.vmturbo.api.version}</version>
+                <artifactId>external-api-stubs</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

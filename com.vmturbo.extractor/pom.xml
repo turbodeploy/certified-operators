@@ -327,6 +327,10 @@
             <groupId>net.sf.jopt-simple</groupId>
             <artifactId>jopt-simple</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
         <!-- All components make use of the build pom.xml jackson
              version which is 2.11.4. However this version contains
              a slight defect with how json is converted to yaml.

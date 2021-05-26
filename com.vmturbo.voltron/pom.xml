@@ -107,7 +107,7 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.external-api-stubs</artifactId>
+            <artifactId>external-api-stubs</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
