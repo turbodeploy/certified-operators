@@ -110,7 +110,7 @@ public class RpcConfig {
     /**
      * Determines if we are caching parent groups for entities.
      */
-    @Value("${cacheEntityParentGroups:false}")
+    @Value("${cacheEntityParentGroups:true}")
     private boolean cacheEntityParentGroups;
 
     @Bean
