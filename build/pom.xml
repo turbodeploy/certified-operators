@@ -420,6 +420,7 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
@@ -722,6 +723,13 @@
             <id>mediation-azure-volumes</id>
             <modules>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-azure-mca-billing</id>
+            <modules>
+                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
             </modules>
         </profile>
 
@@ -1318,6 +1326,7 @@
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.azure.mcabilling.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
