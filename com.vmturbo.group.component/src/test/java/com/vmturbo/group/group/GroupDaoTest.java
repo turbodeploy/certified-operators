@@ -397,7 +397,7 @@ public class GroupDaoTest {
         final Set<MemberType> memberTypes = new HashSet<>(
                 Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
-        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expect(StoreOperationException.class);
         expectedException.expectMessage(nonExistingProperty);
         groupStore.createGroup(OID1, createUserOrigin(), groupDefinition, memberTypes, false);
     }
