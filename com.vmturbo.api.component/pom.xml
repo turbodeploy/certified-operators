@@ -607,9 +607,5 @@
             <artifactId>jsonassert</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>external-api-stubs</artifactId>
-        </dependency>
     </dependencies>
 </project>
