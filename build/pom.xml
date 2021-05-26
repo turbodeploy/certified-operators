@@ -2233,8 +2233,8 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>external-api-stubs</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
+                <artifactId>com.vmturbo.external-api-stubs</artifactId>
+                <version>${com.vmturbo.api.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
