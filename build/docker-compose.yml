@@ -1433,6 +1433,31 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     mem_limit: ${MEDIATION_AZUREEA_MEM_LIMIT_MB}M
 
+  mediation-azuremcabilling:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.mcabilling.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AZUREMCABILLING_PORT}"
+      - "${MEDIATION_AZUREMCABILLING_DEBUG_PORT}"
+    environment:
+      component_type: mediation-azuremcabilling
+      instance_id: mediation-azuremcabilling-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZUREMCABILLING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZUREMCABILLING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    mem_limit: ${MEDIATION_AZUREMCABILLING_MEM_LIMIT_MB}M
+
   mediation-azuresp:
     extends:
       file: common-services.yml
