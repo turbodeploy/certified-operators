@@ -79,6 +79,7 @@ import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
@@ -181,10 +182,9 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     }
 
     private boolean isInMemoryCostRequest(@Nonnull final CostFilter entityCostFilter) {
-        return (entityCostFilter.isLatest() ||
-                entityCostFilter.isLatestTimeStampRequested() ||
-                entityCostFilter.getTimeFrame() == TimeFrame.LATEST)
-                        && !entityCostFilter.hasPlanTopologyContextId();
+        return (entityCostFilter.isLatest() || entityCostFilter.isLatestTimeStampRequested())
+                && entityCostFilter.getTimeFrame() == TimeFrame.LATEST
+                && !entityCostFilter.hasPlanTopologyContextId();
     }
 
     @Override
@@ -546,6 +546,10 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                  @Nonnull LocalDateTime createdTime) {
 
         final Table table = planId.isPresent() ? PLAN_ENTITY_COST : ENTITY_COST;
+        final CostSourceFilter costSourceFilter = planId.isPresent()
+                ? CostSourceFilter.INCLUDE_ALL
+                : CostSourceFilter.EXCLUDE_UPTIME;
+
         dsl.transaction(transaction -> {
             try (DSLContext transactionContext = DSL.using(transaction)) {
                 // Initialize the batch.
@@ -568,12 +572,13 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
                 // Bind values to the batch insert statement. Each "bind" should have values for
                 // all fields set during batch initialization.
+
                 costJournals.forEach(journal -> journal.getCategories().forEach(costType -> {
-                    Map<CostSource, TraxNumber> categoryCostsBySourceExcludingUptime = journal
+                    Map<CostSource, TraxNumber> filteredCostsBySource = journal
                             .getFilteredCategoryCostsBySource(
                                     costType,
-                                    CostJournal.CostSourceFilter.EXCLUDE_UPTIME);
-                    categoryCostsBySourceExcludingUptime.forEach((costSource, categoryCost) -> {
+                                    costSourceFilter);
+                    filteredCostsBySource.forEach((costSource, categoryCost) -> {
 
                         // We should always record the on-demand rate cost source, in order to properly
                         // average the cost for an entity over time, including when an entity is powered
