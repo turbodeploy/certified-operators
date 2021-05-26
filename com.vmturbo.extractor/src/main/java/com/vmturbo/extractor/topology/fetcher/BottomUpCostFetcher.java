@@ -8,6 +8,8 @@ import javax.annotation.Nonnull;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -76,6 +78,10 @@ public class BottomUpCostFetcher extends DataFetcher<BottomUpCostData> {
 //                                .setEndDate(snapshotTime)
                                 .setStartDate(start)
                                 .setEndDate(end)
+                                // exclude entity uptime discount to so we record actual cost
+                                .setCostSourceFilter(CostSourceFilter.newBuilder()
+                                        .addCostSources(CostSource.ENTITY_UPTIME_DISCOUNT)
+                                        .setExclusionFilter(true))
                                 .build())
                         .build());
         response.forEachRemaining(chunk ->

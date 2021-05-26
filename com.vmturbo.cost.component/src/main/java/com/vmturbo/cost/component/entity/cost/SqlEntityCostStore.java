@@ -44,6 +44,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 import com.google.common.math.DoubleMath;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
@@ -430,7 +431,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     private void setStatRecordValues(@Nonnull final StatRecord.Builder statRecordBuilder,
             final float avg, final float max, final float min, final float sum) {
         statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setUnits(StringConstants.DOLLARS_PER_HOUR);
         statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
                 .setAvg(avg)
                 .setMax(max)

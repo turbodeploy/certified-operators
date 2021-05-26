@@ -160,9 +160,10 @@ public class TopologyListenerConfig {
     @Bean
     public EntityCostListener entityCostListener() {
         final ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
-        if (extractorFeatureFlags.isEntityCostEnabled() && extractorFeatureFlags.isReportingEnabled()) {
+        if (extractorFeatureFlags.isReportingEnabled() || extractorFeatureFlags.isExtractionEnabled()) {
             final EntityCostListener entityCostListener = new EntityCostListener(
-                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig());
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig(),
+                    extractorFeatureFlags.isReportingEnabled());
             costNotificationProcessor().addCostNotificationListener(entityCostListener);
             return entityCostListener;
         } else {

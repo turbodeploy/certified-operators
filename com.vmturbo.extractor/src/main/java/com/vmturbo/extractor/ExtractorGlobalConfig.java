@@ -75,7 +75,6 @@ public class ExtractorGlobalConfig {
                 enableReporting,
                 enableActionIngestion,
                 enableDataExtraction,
-                enableEntityCost,
                 enableBillingCost);
     }
 
@@ -96,7 +95,6 @@ public class ExtractorGlobalConfig {
         private final boolean enableReporting;
         private final boolean enableReportActionIngestion;
         private final boolean enableExtraction;
-        private final boolean enableEntityCost;
 
         /**
          * Whether billing cost data collection and reporting is enabled.
@@ -105,12 +103,11 @@ public class ExtractorGlobalConfig {
 
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
                 boolean enableReportActionIngestion, boolean enableExtraction,
-                boolean enableEntityCost, boolean enableBillingCost) {
+                boolean enableBillingCost) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
-            this.enableEntityCost = enableEntityCost;
             this.enableBillingCost = enableBillingCost;
         }
 
@@ -130,10 +127,6 @@ public class ExtractorGlobalConfig {
             return enableExtraction;
         }
 
-        public boolean isEntityCostEnabled() {
-            return enableEntityCost;
-        }
-
         public boolean isBillingCostEnabled() {
             return enableBillingCost;
         }
@@ -149,10 +142,9 @@ public class ExtractorGlobalConfig {
                             + "Report Action Ingestion {}\n"
                             + "Search Ingestion {}\n"
                             + "Data Extraction {}\n"
-                            + "Entity Cost Ingestion {}"
                             + "Billing Cost Ingestion {}",
                     isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
-                    isExtractionEnabled(), isEntityCostEnabled(), isBillingCostEnabled());
+                    isExtractionEnabled(), isBillingCostEnabled());
         }
     }
 }

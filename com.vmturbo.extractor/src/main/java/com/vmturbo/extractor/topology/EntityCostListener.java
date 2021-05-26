@@ -34,6 +34,7 @@ public class EntityCostListener implements CostNotificationListener {
     private final DbEndpoint dbEndpoint;
     private final ExecutorService pool;
     private final WriterConfig config;
+    private final boolean reportingEnabled;
 
     /**
      * Create a new instance.
@@ -42,13 +43,15 @@ public class EntityCostListener implements CostNotificationListener {
      * @param dbEndpoint   access to extractor database
      * @param pool         thread pool
      * @param config       writer config
+     * @param reportingEnabled whether reporting is enabled
      */
     public EntityCostListener(DataProvider dataProvider, final DbEndpoint dbEndpoint,
-            final ExecutorService pool, WriterConfig config) {
+            final ExecutorService pool, WriterConfig config, boolean reportingEnabled) {
         this.dataProvider = dataProvider;
         this.dbEndpoint = dbEndpoint;
         this.pool = pool;
         this.config = config;
+        this.reportingEnabled = reportingEnabled;
     }
 
     @Override
@@ -56,16 +59,22 @@ public class EntityCostListener implements CostNotificationListener {
         if (costNotification.hasCloudCostStatsAvailable()) {
             MultiStageTimer timer = new MultiStageTimer(logger);
             final long snapshotTime = costNotification.getCloudCostStatsAvailable().getSnapshotDate();
-            dataProvider.fetchBottomUpCostData(snapshotTime, timer);
-            timer.start("Write entity costs");
-            try {
-                long n = writeEntityCosts(snapshotTime);
-                timer.info(String.format("Wrote entity costs for %d entities", n), Detail.STAGE_DETAIL);
-            } catch (UnsupportedDialectException | SQLException e) {
-                logger.error("Failed writing entity cost data", e);
-            } catch (InterruptedException e) {
-                logger.error("Interrupted while writing entity cost data");
-                Thread.currentThread().interrupt();
+            final BottomUpCostData costData = dataProvider.fetchBottomUpCostData(snapshotTime, timer);
+
+            // only write to postgres if reporting is enabled
+            if (reportingEnabled) {
+                timer.start("Write entity costs");
+                try {
+                    long n = writeEntityCosts(snapshotTime);
+                    timer.info(String.format("Wrote entity costs for %d entities", n), Detail.STAGE_DETAIL);
+                } catch (UnsupportedDialectException | SQLException e) {
+                    logger.error("Failed writing entity cost data", e);
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted while writing entity cost data");
+                    Thread.currentThread().interrupt();
+                }
+            } else {
+                timer.info(String.format("Fetched costs for %d entities", costData.size()), Detail.STAGE_DETAIL);
             }
         }
     }
