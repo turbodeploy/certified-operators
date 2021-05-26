@@ -127,6 +127,8 @@ public class DataExtractionWriter extends TopologyWriterBase {
                 dataExtractionFactory.newRelatedEntitiesExtractor();
         final Optional<TopDownCostExtractor> topDownCostExtractor =
                 dataExtractionFactory.newTopDownCostExtractor();
+        final Optional<BottomUpCostExtractor> bottomUpCostExtractor =
+                dataExtractionFactory.newBottomUpCostExtractor();
 
         // set related entities and related groups
         final String relatedStageLabel = "Populate related entities and groups";
@@ -138,6 +140,10 @@ public class DataExtractionWriter extends TopologyWriterBase {
                         extractor.extractRelatedEntities(entity.getOid())));
                     topDownCostExtractor.flatMap(extractor -> extractor.getExpenses(entity.getOid()))
                         .ifPresent(entity::setAccountExpenses);
+                    // set bottom up cost
+                    bottomUpCostExtractor.ifPresent(extractor ->
+                            entity.setCost(extractor.getCost(entity.getOid())));
+
                     final ExportedObject exportedObject = new ExportedObject();
                     exportedObject.setTimestamp(formattedTopologyCreationTime);
                     exportedObject.setEntity(entity);

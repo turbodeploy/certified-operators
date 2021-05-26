@@ -45,7 +45,7 @@ public class EntityCostToStatRecordConverter {
             builder.setCategory(componentCost.getCategory());
             builder.setCostSource(componentCost.getCostSource());
             builder.setName(StringConstants.COST_PRICE);
-            builder.setUnits("$/h");
+            builder.setUnits(StringConstants.DOLLARS_PER_HOUR);
             builder.setValues(StatValue.newBuilder()
                     .setAvg(amount)
                     .setMax(amount)

@@ -176,10 +176,12 @@ public class DataProvider {
      *
      * @param snapshotTime snapshot time of topology whose cost data is needed
      * @param timer        timer to use
+     * @return {@link BottomUpCostData}
      */
-    public void fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
+    public BottomUpCostData fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
         bottomUpCostFetcherFactory.newFetcher(timer, snapshotTime, this::setBottomUpCostData)
                 .fetchAndConsume();
+        return bottomUpCostData;
     }
 
     /**

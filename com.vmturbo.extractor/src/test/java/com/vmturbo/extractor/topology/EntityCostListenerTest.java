@@ -107,7 +107,7 @@ public class EntityCostListenerTest {
         this.entityCostRecordsCapture = captureSink(entityCostInserterSink, false);
         final DataPack<Long> oidPack = new LongDataPack();
         this.listener = spy(new EntityCostListener(dataProvider, endpoint,
-                Executors.newSingleThreadScheduledExecutor(), writerConfig));
+                Executors.newSingleThreadScheduledExecutor(), writerConfig, true));
         doReturn(entityCostInserterSink).when(listener).getEntityCostInserterSink();
         doReturn(bottomUpCostData).when(dataProvider).getBottomUpCostData();
     }
