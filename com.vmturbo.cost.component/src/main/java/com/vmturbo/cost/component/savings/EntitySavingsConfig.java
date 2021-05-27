@@ -209,7 +209,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
-                entityEventsJournal(), getEntitySavingsRetentionConfig());
+                entityEventsJournal());
     }
 
     /**
