@@ -50,31 +50,17 @@ public class TopologyEventsPoller {
     private final TopologyInfoTracker topologyInfoTracker;
 
     /**
-     * Action lifetimes.
-     */
-    private final Long actionLifetimeMs;
-    private final Long deleteVolumeActionLifetimeMs;
-
-    /**
      * Constructor.
      * @param tep The Topology Event Provider.
      * @param topoInfoTracker The topology Info Tracker.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
-     * @param entitySavingsRetentionConfig savings action retention configuration.
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
             @Nonnull final TopologyInfoTracker topoInfoTracker,
-            @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
-            @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
+            @Nonnull final EntityEventsJournal entityEventsInMemoryJournal) {
         topologyEventProvider = Objects.requireNonNull(tep);
         topologyInfoTracker = Objects.requireNonNull(topoInfoTracker);
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        this.actionLifetimeMs = entitySavingsRetentionConfig.getActionRetentionMs();
-        this.deleteVolumeActionLifetimeMs =
-                entitySavingsRetentionConfig.getVolumeDeleteRetentionMs();
-        logger.info("Starting topology events poller, actionLifetimeMs = {},"
-                + " deleteVolumeActionLifetimeMs = {}",
-                actionLifetimeMs, deleteVolumeActionLifetimeMs);
     }
 
     /**

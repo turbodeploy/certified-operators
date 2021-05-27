@@ -68,10 +68,7 @@ public class TopologyEventsPollerTest {
     @Before
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
-        EntitySavingsRetentionConfig config = mock(EntitySavingsRetentionConfig.class);
-        when(config.getActionRetentionMs()).thenReturn(ACTION_EXPIRATION_TIME);
-        when(config.getVolumeDeleteRetentionMs()).thenReturn(1L);
-        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store, config);
+        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store);
     }
 
     /**
