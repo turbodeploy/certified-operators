@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
@@ -597,13 +598,14 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Get CPU speed in MHz/core for given VM.
+     * Get CPU speed in MHz/core for given VM if entity state is not unknown.
      *
      * @param topologyEntity Given topology entity DTO or builder of VM.
      * @return CPU speed in MHz/core for given VM.
      */
     private static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
-        if (topologyEntity.hasTypeSpecificInfo()
+        if (topologyEntity.getEntityState() != EntityState.UNKNOWN
+            && topologyEntity.hasTypeSpecificInfo()
             && topologyEntity.getTypeSpecificInfo().hasVirtualMachine()
             && topologyEntity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
             int numCPUCores = topologyEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
