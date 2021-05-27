@@ -137,7 +137,7 @@ public class QueryInfoFactory {
         final Predicate<ActionEntity> entityPredicate;
         switch (scopeFilter.getScopeCase()) {
             case ENTITY_LIST:
-                entityPredicate = actionEntity -> desiredEntityIds.contains(actionEntity.getId());
+                entityPredicate = actionEntity -> desiredEntityIds == null || desiredEntityIds.contains(actionEntity.getId());
                 break;
             case GLOBAL:
                 final Predicate<ActionEntity> envTypePredicate;

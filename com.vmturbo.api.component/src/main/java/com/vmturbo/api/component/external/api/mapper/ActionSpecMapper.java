@@ -1806,6 +1806,8 @@ public class ActionSpecMapper {
                 queryBuilder.setCostType(ActionSpecMapper.mapApiCostTypeToXL(inputDto.getCostType()));
             }
 
+            // TODO either toRegexQuery needs to be reimplemented to more portable,
+            // or we need to stop delegating regex's to databases
             if (inputDto.getDescriptionQuery() != null && Strings.isNotEmpty(inputDto.getDescriptionQuery().getQuery())) {
                 queryBuilder.setDescriptionQuery(inputDto.getDescriptionQuery().toRegexQuery());
             }

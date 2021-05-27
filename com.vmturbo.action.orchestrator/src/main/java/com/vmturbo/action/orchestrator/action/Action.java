@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -263,7 +264,7 @@ public class Action implements ActionView {
             // TODO: OM-48679 Initially actionDetailData will contain the action description.
             //  It was named this way instead of description since eventually we should store the
             //  the data used to build the action description instead of the description itself.
-            this.description = new String(savedState.getActionDetailData());
+            this.description = new String(savedState.getActionDetailData(), StandardCharsets.UTF_8);
         }
         if (savedState.getRecommendationOid() != null) {
             this.recommendationOid = savedState.getRecommendationOid();
@@ -1358,7 +1359,7 @@ public class Action implements ActionView {
             this.actionCategory = action.getActionCategory();
             this.associatedAccountId = action.getAssociatedAccount().orElse(null);
             this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
-            this.actionDetailData = action.getDescription().getBytes();
+            this.actionDetailData = action.getDescription().getBytes(StandardCharsets.UTF_8);
             this.schedule = action.getSchedule().orElse(null);
             this.recommendationOid = action.getRecommendationOid();
         }
