@@ -94,9 +94,6 @@ enum ReservationMode {
 
     // Entities of the same reservation will be placed within the same ReservationGrouping.
     AFFINITY = 2;
-
-    // Entities of the same reservation will be placed on different ReservationGroupings.
-    ANTI_AFFINITY = 3;
 }
 
 // Reservation Grouping specification to determine what group type entities should be placed on
@@ -108,12 +105,6 @@ enum ReservationGrouping {
 
     // Restrict ReservationMode behavior on a Cluster level.
     CLUSTER = 2;
-
-    // Restrict ReservationMode behavior on a Datacenter level.
-    DATACENTER = 3;
-
-    // Restrict ReservationMode behavior on a Storage Cluster level.
-    STORAGE_CLUSTER = 4;
 }
 
 message ReservationTemplateCollection {
