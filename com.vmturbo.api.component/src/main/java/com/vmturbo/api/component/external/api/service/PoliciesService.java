@@ -19,6 +19,7 @@ import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
@@ -160,7 +161,7 @@ public class PoliciesService implements IPoliciesService {
     }
 
     @Override
-    public void validateInput(Object o, Errors errors) {
+    public void validateInput(PolicyApiInputDTO inputDTO, Errors errors) {
         // TODO Will perform validation later.
         return;
     }

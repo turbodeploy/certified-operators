@@ -200,7 +200,8 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TemplatesController templatesController() {
-        return new TemplatesController(serviceConfig.templatesService());
+        return new TemplatesController(serviceConfig.templatesService(),
+                dispatcherValidatorConfig.inputDTOValidator());
     }
 
     @Bean

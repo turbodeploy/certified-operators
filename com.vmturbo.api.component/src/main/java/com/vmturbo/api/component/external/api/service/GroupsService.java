@@ -893,7 +893,7 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public void validateInput(Object o, Errors errors) {
+    public void validateInput(GroupApiDTO inputDTO, Errors errors) {
         // TODO: Implement validation for groups
     }
 

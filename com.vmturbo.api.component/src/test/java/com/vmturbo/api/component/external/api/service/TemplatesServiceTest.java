@@ -61,6 +61,12 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  */
 public class TemplatesServiceTest {
 
+    /**
+     * Exception handler.
+     */
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
+
     private static final TemplateInfo TEMPLATE_INFO = TemplateInfo.newBuilder()
         .setName("test-template")
         .setTemplateSpecId(456)
@@ -292,5 +298,73 @@ public class TemplatesServiceTest {
         final String uuid = String.valueOf(TEMPLATE.getId());
         Boolean result = templatesService.deleteTemplate(uuid);
         assertTrue(result);
+    }
+
+    /**
+     * Test that having a missing ClassName throws the expected exceptions.
+     */
+    @Test
+    public void testValidateInputMissingClassName() {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("name");
+        expectedEx.expect(IllegalArgumentException.class);
+        expectedEx.expectMessage("ClassName is a required field");
+
+        templatesService.validateInput(templateApiInputDTO, null);
+    }
+
+    /**
+     * Test that having a missing DisplayName throws the expected exceptions.
+     */
+    @Test
+    public void testValidateInputMissingDisplayName() {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setClassName("VirtualMachineProfile");
+        expectedEx.expect(IllegalArgumentException.class);
+        expectedEx.expectMessage("DisplayName is a required field");
+
+        templatesService.validateInput(templateApiInputDTO, null);
+    }
+
+    /**
+     * Test that having an invalid ComputeResources stats throws the expected exceptions.
+     */
+    @Test
+    public void testValidateInputComputeResources() {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("name");
+        templateApiInputDTO.setClassName("VirtualMachineProfile");
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName("numOfCpu");
+        final StatApiDTO invalidStatApiDTO = new StatApiDTO();
+        invalidStatApiDTO.setName("invalidStat");
+        resourceApiDTO.setStats(Lists.newArrayList(statApiDTO, invalidStatApiDTO));
+        templateApiInputDTO.setComputeResources(Lists.newArrayList(resourceApiDTO));
+        expectedEx.expect(IllegalArgumentException.class);
+        expectedEx.expectMessage("The following stat names in computeResources are not allowed: invalidStat.");
+
+        templatesService.validateInput(templateApiInputDTO, null);
+    }
+
+    /**
+     * Test that having an invalid StorageResources stats throws the expected exceptions.
+     */
+    @Test
+    public void testValidateInputStorageResources() {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("name");
+        templateApiInputDTO.setClassName("VirtualMachineProfile");
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName("diskSize");
+        final StatApiDTO invalidStatApiDTO = new StatApiDTO();
+        invalidStatApiDTO.setName("invalidStat");
+        resourceApiDTO.setStats(Lists.newArrayList(statApiDTO, invalidStatApiDTO));
+        templateApiInputDTO.setStorageResources(Lists.newArrayList(resourceApiDTO));
+        expectedEx.expect(IllegalArgumentException.class);
+        expectedEx.expectMessage("The following stat names in storageResources are not allowed: invalidStat.");
+
+        templatesService.validateInput(templateApiInputDTO, null);
     }
 }

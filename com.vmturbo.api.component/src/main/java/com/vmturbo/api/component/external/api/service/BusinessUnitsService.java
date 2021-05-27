@@ -337,7 +337,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     }
 
     @Override
-    public void validateInput(final Object o, final Errors errors) {
+    public void validateInput(final BusinessUnitApiInputDTO inputDTO, final Errors errors) {
         //TODO implement validator for business unit
     }
 

@@ -258,19 +258,11 @@ public class SchedulesService implements ISchedulesService {
      * In case of any validation errors Runtime exception is thrown with all validated errors
      * combined in the exception message.
      *
-     * @param obj Object to validate
-     * @param e   Spring framework validation errors, not actually used in our validations
+     * @param scheduleDto   Object to validate
+     * @param e             Spring framework validation errors, not actually used in our validations
      */
     @Override
-    public void validateInput(final Object obj, final Errors e) {
-        if (!(obj instanceof ScheduleApiDTO)) {
-            logger.error("Unexpected object type validating schedule input: {}",
-                () -> obj.getClass().getCanonicalName());
-            throw new IllegalArgumentException("Unexpected object type validating schedule input: "
-                + obj.getClass());
-        }
-        final ScheduleApiDTO scheduleDto = (ScheduleApiDTO)obj;
-
+    public void validateInput(final ScheduleApiDTO scheduleDto, final Errors e) {
         // Timezone
         final TimeZone timeZone = DateTimeUtil.getTimeZone(scheduleDto.getTimeZone());
         if (timeZone == null) {
