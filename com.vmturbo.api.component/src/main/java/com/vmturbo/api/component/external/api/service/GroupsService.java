@@ -777,7 +777,8 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     @Override
     public GroupApiDTO editGroup(@Nonnull String uuid, @Nonnull GroupApiDTO inputDTO)
-            throws UnknownObjectException, ConversionException, InterruptedException {
+                    throws UnknownObjectException, ConversionException, InterruptedException,
+                    OperationFailedException {
 
         final GetGroupResponse groupResponse =
                 groupServiceRpc.getGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());

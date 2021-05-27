@@ -8,13 +8,19 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -23,8 +29,11 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.MultiTraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -40,6 +49,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -109,15 +119,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a simple byName criterion is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByNameSearch() {
+    public void testByNameSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
@@ -127,15 +139,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Tests the filter for getting vms based on their OS type.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByVMGuestOsType() {
+    public void testByVMGuestOsType() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "Linux", "vmsByGuestName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
 
@@ -163,15 +177,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Tests the filter for getting vms based on the number of their cpus.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByVMNumCpus() {
+    public void testByVMNumCpus() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "3", "vmsByNumCPUs"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
 
@@ -197,15 +213,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Tests the filter for getting vms based on the VMEM capacity.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByVMCommodityVMemCapacity() {
+    public void testByVMCommodityVMemCapacity() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.GREATER_THAN, "1024", "vmsByMem"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
 
@@ -264,9 +282,11 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that exception will be thrown for unknown filter type.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testNotExistingFilter() {
+    public void testNotExistingFilter() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "notExistingFilter"));
         thrown.expect(IllegalArgumentException.class);
@@ -277,15 +297,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a simple byName criterion is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByNameSearchNotEqual() {
+    public void testByNameSearchNotEqual() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.NOT_EQUAL, FOO, "vmsByName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(FOO, byName.getSearchFilter(0).getPropertyFilter().getStringFilter()
@@ -296,34 +318,40 @@ public class EntityFilterMapperTest {
 
     /**
      * Test for searching by equal operator.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByStateSearchEqual() {
+    public void testByStateSearchEqual() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "IDLE", "vmsByState"));
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
+        final SearchParameters filter = parameters.iterator().next();
         final PropertyFilter propertyFilter =
-                        parameters.get(0).getSearchFilter(0).getPropertyFilter();
+                        filter.getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
-        Assert.assertEquals(TYPE_IS_VM, parameters.get(0).getStartingFilter());
+        Assert.assertEquals(TYPE_IS_VM, filter.getStartingFilter());
         Assert.assertEquals("state", propertyFilter.getPropertyName());
         Assert.assertEquals("IDLE", propertyFilter.getStringFilter().getOptions(0));
     }
 
     /**
      * Test for searching by not equal operator.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByStateSearchNotEqual() {
+    public void testByStateSearchNotEqual() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE,
                         filterDTO(EntityFilterMapper.NOT_EQUAL, "ACTIVE", "pmsByState"));
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
+        final SearchParameters filter = parameters.iterator().next();
         final PropertyFilter propertyFilter =
-                        parameters.get(0).getSearchFilter(0).getPropertyFilter();
+                        filter.getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
-        Assert.assertEquals(TYPE_IS_PM, parameters.get(0).getStartingFilter());
+        Assert.assertEquals(TYPE_IS_PM, filter.getStartingFilter());
         Assert.assertEquals("state", propertyFilter.getPropertyName());
         Assert.assertEquals("ACTIVE", propertyFilter.getStringFilter().getOptions(0));
     }
@@ -344,10 +372,11 @@ public class EntityFilterMapperTest {
      * @param searchParameters filter's {@link SearchParameters}.
      * @param propertyFilter filter's {@link PropertyFilter}.
      */
-    private void verifyUserDefinedEntityFilterParameters(List<SearchParameters> searchParameters,
+    private void verifyUserDefinedEntityFilterParameters(Collection<SearchParameters> searchParameters,
                                                                 PropertyFilter propertyFilter) {
         Assert.assertEquals(1, searchParameters.size());
-        Assert.assertEquals(TYPE_IS_SERVICE, searchParameters.get(0).getStartingFilter());
+        Assert.assertEquals(TYPE_IS_SERVICE,
+                        searchParameters.iterator().next().getStartingFilter());
         Assert.assertEquals(
             SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET, propertyFilter.getPropertyName());
         Assert.assertEquals(1, propertyFilter.getStringFilter().getOptionsCount());
@@ -356,61 +385,64 @@ public class EntityFilterMapperTest {
     }
 
     @Test
-    public void testByUserDefinedEntityEqual() {
+    public void testByUserDefinedEntityEqual() throws OperationFailedException {
         registerUserDefinedEntitiesProbe();
         GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
                 "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         final PropertyFilter propertyFilter =
-                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+                parameters.iterator().next().getSearchFilter(0).getPropertyFilter();
 
         verifyUserDefinedEntityFilterParameters(parameters, propertyFilter);
         Assert.assertEquals(true, propertyFilter.getStringFilter().getPositiveMatch());
     }
 
     @Test
-    public void testByUserDefinedEntityNotEqual() {
+    public void testByUserDefinedEntityNotEqual() throws OperationFailedException {
         registerUserDefinedEntitiesProbe();
         GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
                 "False", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         final PropertyFilter propertyFilter =
-                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+                parameters.iterator().next().getSearchFilter(0).getPropertyFilter();
         verifyUserDefinedEntityFilterParameters(parameters, propertyFilter);
         Assert.assertFalse(propertyFilter.getStringFilter().getPositiveMatch());
     }
 
     @Test
-    public void testUserDefinedTopologyProbeNotRegistered() {
+    public void testUserDefinedTopologyProbeNotRegistered() throws OperationFailedException {
         Mockito.when(thinTargetCache.getAllTargets()).thenReturn(Lists.newArrayList());
         GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
                 "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), inputDTO.getClassName());
         final PropertyFilter propertyFilter =
-                parameters.get(0).getSearchFilter(0).getPropertyFilter();
+                parameters.iterator().next().getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(0, propertyFilter.getStringFilter().getOptionsCount());
     }
 
     /**
      * Verify multiple not equal by name search are converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByNameSearchMultipleNotEqual() {
+    public void testByNameSearchMultipleNotEqual() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.NOT_EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.NOT_EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
-        SearchParameters firstByName = parameters.get(0);
+        final Iterator<SearchParameters> iterator = parameters.iterator();
+        SearchParameters firstByName = iterator.next();
         assertEquals(TYPE_IS_VM, firstByName.getStartingFilter());
         assertEquals(1, firstByName.getSearchFilterCount());
         assertEquals(FOO, firstByName.getSearchFilter(0).getPropertyFilter().getStringFilter()
@@ -418,7 +450,7 @@ public class EntityFilterMapperTest {
         assertFalse(firstByName.getSearchFilter(0).getPropertyFilter().getStringFilter()
                         .getPositiveMatch());
 
-        SearchParameters secondByName = parameters.get(1);
+        SearchParameters secondByName = iterator.next();
         assertEquals(TYPE_IS_PM, secondByName.getStartingFilter());
         assertEquals(3, secondByName.getSearchFilterCount());
         assertEquals(BAR, secondByName.getSearchFilter(0).getPropertyFilter().getStringFilter()
@@ -429,20 +461,23 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a byName criterion combined with a traversal with one hop are converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByNameAndTraversalHopSearch() {
+    public void testByNameAndTraversalHopSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        final Iterator<SearchParameters> it = parameters.iterator();
+        SearchParameters byName = it.next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
-        SearchParameters byPMNameByVMName = parameters.get(1);
+        SearchParameters byPMNameByVMName = it.next();
         assertEquals(TYPE_IS_PM, byPMNameByVMName.getStartingFilter());
         assertEquals(3, byPMNameByVMName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_BAR, byPMNameByVMName.getSearchFilter(0));
@@ -453,16 +488,18 @@ public class EntityFilterMapperTest {
 
     /**
      * Verifies that criteria for PMs by number of vms converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByTraversalHopNumConnectedVMs() {
+    public void testByTraversalHopNumConnectedVMs() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "3", "pmsByNumVms"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         assertEquals(1, parameters.size());
-        SearchParameters byTraversalHopNumConnectedVMs = parameters.get(0);
+        SearchParameters byTraversalHopNumConnectedVMs = parameters.iterator().next();
         assertEquals(TYPE_IS_PM, byTraversalHopNumConnectedVMs.getStartingFilter());
         assertEquals(1, byTraversalHopNumConnectedVMs.getSearchFilterCount());
 
@@ -489,15 +526,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verifies that criteria for VM by disk array search is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testVmsByDiskArrayNameSearch() {
+    public void testVmsByDiskArrayNameSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByDiskArrayName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName(), BAR);
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_DISK_ARRAY, byName.getStartingFilter());
         assertEquals(5, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
@@ -511,15 +550,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verifies that criteria for VM by VDC name search is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testVmsByVdcNameSearch() {
+    public void testVmsByVdcNameSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByVDC"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
         assertEquals(3, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
@@ -529,15 +570,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verifies that criteria for VM by VDC nested name search is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testVmsByVdcNestedNameSearch() {
+    public void testVmsByVdcNestedNameSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByDCnested"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
         assertEquals(2, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
@@ -546,15 +589,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a traversal with one hop (without a byName criterion) is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testTraversalSearch() {
+    public void testTraversalSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        SearchParameters byPMName = parameters.get(0);
+        SearchParameters byPMName = parameters.iterator().next();
         assertEquals(TYPE_IS_PM, byPMName.getStartingFilter());
         assertEquals(3, byPMName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_BAR, byPMName.getSearchFilter(0));
@@ -565,20 +610,23 @@ public class EntityFilterMapperTest {
     /**
      * Verify that a byName criterion combined with a traversal that stops at a class type,are
      * converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByNameAndTraversalClassSearch() {
+    public void testByNameAndTraversalClassSearch() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByStorage"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
-        SearchParameters byName = parameters.get(0);
+        final Iterator<SearchParameters> it = parameters.iterator();
+        SearchParameters byName = it.next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
-        SearchParameters byDSName = parameters.get(1);
+        SearchParameters byDSName = it.next();
         assertEquals(TYPE_IS_DS, byDSName.getStartingFilter());
         assertEquals(3, byDSName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_BAR, byDSName.getSearchFilter(0));
@@ -588,27 +636,63 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that two traversals are converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testTwoTraversals() {
+    public void testTwoTraversals() throws OperationFailedException {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"),
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByStorage"));
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
     }
 
     /**
-     * Verifies that criteria for VM by name search is converted properly.
+     * Verify that traversal that combines more than one relations correctly converts into search
+     * parameters collection.
+     *
+     * @throws OperationFailedException in case specified searching parameters
+     *                 cannot be converted.
      */
     @Test
-    public void testVmsWithNameQuery() {
+    public void checkCombinedTraversal() throws OperationFailedException {
+        final GroupApiDTO inputDTO = groupApiDTO(AND, StringConstants.VIRTUAL_VOLUME,
+                        filterDTO(EntityFilterMapper.EQUAL, FOO, "volumeByStorage"));
+        final Collection<SearchParameters> parameters = entityFilterMapper
+                        .convertToSearchParameters(inputDTO.getCriteriaList(),
+                                        inputDTO.getClassName());
+        Assert.assertThat(1, CoreMatchers.is(parameters.size()));
+        final Iterator<SearchParameters> it = parameters.iterator();
+        final SearchParameters byName = it.next();
+        assertEquals(SearchProtoUtil.entityTypeFilter(DS_TYPE), byName.getStartingFilter());
+        assertEquals(3, byName.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
+        final MultiTraversalFilter multiTraversalFilter =
+                        byName.getSearchFilter(1).getMultiTraversalFilter();
+        Assert.assertThat(multiTraversalFilter.getTraversalFilterCount(), CoreMatchers.is(2));
+        final Collection<TraversalDirection> actualDirections =
+                        multiTraversalFilter.getTraversalFilterList().stream()
+                                        .map(TraversalFilter::getTraversalDirection)
+                                        .collect(Collectors.toSet());
+        Assert.assertThat(actualDirections, Matchers.containsInAnyOrder(TraversalDirection.PRODUCES,
+                        TraversalDirection.CONNECTED_FROM));
+        Assert.assertThat(multiTraversalFilter.getOperator(), CoreMatchers.is(LogicalOperator.OR));
+    }
+
+    /**
+     * Verifies that criteria for VM by name search is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
+     */
+    @Test
+    public void testVmsWithNameQuery() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE);
-        List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), FOO);
         assertThat(parameters.size(), is(1));
-        SearchParameters param = parameters.get(0);
+        SearchParameters param = parameters.iterator().next();
         assertThat(param.getStartingFilter(), is(TYPE_IS_VM));
         assertThat(param.getSearchFilterCount(), is(1));
         assertThat(param.getSearchFilter(0), is(SearchProtoUtil
@@ -617,15 +701,17 @@ public class EntityFilterMapperTest {
 
     /**
      * Test that the vendor ID criterion is properly converted into a list filter.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testVendorIdSearch() {
-        final List<SearchParameters> sp = entityFilterMapper.convertToSearchParameters(
+    public void testVendorIdSearch() throws OperationFailedException {
+        final Collection<SearchParameters> sp = entityFilterMapper.convertToSearchParameters(
             Collections.singletonList(
                 filterDTO(EntityFilterMapper.REGEX_MATCH, "id-1.*", "volumeById")),
             "VirtualVolume");
         assertEquals(1, sp.size());
-        final SearchParameters params = sp.get(0);
+        final SearchParameters params = sp.iterator().next();
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
@@ -641,9 +727,11 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a extact string match by-tags criterion is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByTagSearch() {
+    public void testByTagSearch() throws OperationFailedException {
         final MapFilter tagFilter =
                         checkAndReturnMapFilter(EntityFilterMapper.NOT_EQUAL, "k=v1|k=v2");
         assertEquals("k", tagFilter.getKey());
@@ -656,9 +744,11 @@ public class EntityFilterMapperTest {
 
     /**
      * Verify that a regex match by-tags criterion is converted properly.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testByTagSearchRegex() {
+    public void testByTagSearchRegex() throws OperationFailedException {
         final MapFilter tagFilter =
                         checkAndReturnMapFilter(EntityFilterMapper.REGEX_MATCH, "k=.*a.*");
         assertEquals(0, tagFilter.getValuesCount());
@@ -669,9 +759,11 @@ public class EntityFilterMapperTest {
     /**
      * This test verifies that the expression value that comes from the UI is translated properly
      * into a map filter, in various cases.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testMapFilter() {
+    public void testMapFilter() throws OperationFailedException {
         final MapFilter filter1 = checkAndReturnMapFilter(EntityFilterMapper.EQUAL, "AA=B");
         assertEquals("AA", filter1.getKey());
         assertEquals(1, filter1.getValuesCount());
@@ -704,36 +796,44 @@ public class EntityFilterMapperTest {
      * The expression value that comes from the UI during the creation of a map filter
      * should be well-formed. Otherwise an all-rejecting (or all-accepting) filter
      * will be created.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testBadMapFilter1() {
+    public void testBadMapFilter1() throws OperationFailedException {
         testByTagSearchBadExpVal(EntityFilterMapper.NOT_EQUAL, "AA=B|DD");
     }
 
     /**
      * The expression value that comes from the UI during the creation of a map filter
      * should be well-formed. Otherwise no filter will be created.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testBadMapFilter2() {
+    public void testBadMapFilter2() throws OperationFailedException {
         testByTagSearchBadExpVal(EntityFilterMapper.NOT_EQUAL, "AA=BB|C=D");
     }
 
     /**
      * The expression value that comes from the UI during the creation of a map filter
      * should be well-formed. Otherwise no filter will be created.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testBadMapFilter3() {
+    public void testBadMapFilter3() throws OperationFailedException {
         testByTagSearchBadExpVal(EntityFilterMapper.EQUAL, "=B|foo=DD");
     }
 
     /**
      * This test verifies that the expression value that comes from the UI is translated properly
      * into a map filter, when special characters = | \ are present in the keys or values.
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testMapFilterSpecialCharacters() {
+    public void testMapFilterSpecialCharacters() throws OperationFailedException {
         final MapFilter filter1 = checkAndReturnMapFilter(EntityFilterMapper.EQUAL,
                         "AA\\==B|AA\\==\\=C\\|D");
         assertEquals("AA=", filter1.getKey());
@@ -752,25 +852,28 @@ public class EntityFilterMapperTest {
         assertFalse(filter2.hasRegex());
     }
 
-    private PropertyFilter checkAndReturnOnePropertyFilter(@Nonnull String operator, @Nonnull String expVal) {
+    private PropertyFilter checkAndReturnOnePropertyFilter(@Nonnull String operator, @Nonnull String expVal)
+                    throws OperationFailedException {
         final GroupApiDTO inputDTO = new GroupApiDTO();
         inputDTO.setCriteriaList(
                 Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
         inputDTO.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
-        final SearchParameters byName = parameters.get(0);
+        final SearchParameters byName = parameters.iterator().next();
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
         assertEquals(1, byName.getSearchFilterCount());
         return byName.getSearchFilter(0).getPropertyFilter();
     }
 
-    private MapFilter checkAndReturnMapFilter(@Nonnull String operator, @Nonnull String expVal) {
+    private MapFilter checkAndReturnMapFilter(@Nonnull String operator, @Nonnull String expVal)
+                    throws OperationFailedException {
         return checkAndReturnOnePropertyFilter(operator, expVal).getMapFilter();
     }
 
-    private void testByTagSearchBadExpVal(@Nonnull String operator, @Nonnull String expVal) {
+    private void testByTagSearchBadExpVal(@Nonnull String operator, @Nonnull String expVal)
+                    throws OperationFailedException {
         assertEquals(EntityFilterMapper.REJECT_ALL_PROPERTY_FILTER,
                      checkAndReturnOnePropertyFilter(operator, expVal));
     }
@@ -778,15 +881,17 @@ public class EntityFilterMapperTest {
     /**
      * Test that the group filter processor creates the correct group membership filter
      * (positive match case).
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testGroupFilterProcessorPositive() {
+    public void testGroupFilterProcessorPositive() throws OperationFailedException {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroupName"));
-        final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
             criteriaList, ApiEntityType.VIRTUAL_VOLUME.apiStr());
         assertEquals(1, result.size());
-        final SearchParameters params = result.get(0);
+        final SearchParameters params = result.iterator().next();
 
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME),
             params.getStartingFilter());
@@ -803,15 +908,17 @@ public class EntityFilterMapperTest {
     /**
      * Test that the group filter processor creates the correct group membership filter
      * (negative match case).
+     *
+     * @throws OperationFailedException in case specified searching parameters cannot be converted.
      */
     @Test
-    public void testGroupFilterProcessorNegative() {
+    public void testGroupFilterProcessorNegative() throws OperationFailedException {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupName"));
-        final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+        final Collection<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
             criteriaList, ApiEntityType.DATABASE_SERVER.apiStr());
         assertEquals(1, result.size());
-        final SearchParameters params = result.get(0);
+        final SearchParameters params = result.iterator().next();
 
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.DATABASE_SERVER),
             params.getStartingFilter());
@@ -824,4 +931,5 @@ public class EntityFilterMapperTest {
         assertEquals("asdf", specifierStringFilter.getOptions(0));
         assertFalse(specifierStringFilter.getPositiveMatch());
     }
+
 }

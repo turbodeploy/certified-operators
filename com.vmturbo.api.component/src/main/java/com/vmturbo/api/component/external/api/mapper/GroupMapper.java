@@ -245,7 +245,8 @@ public class GroupMapper {
      * @throws ConversionException if the conversion fails.
      * @throws IllegalArgumentException if invalid group type.
      */
-    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException, IllegalArgumentException {
+    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto)
+                    throws ConversionException, IllegalArgumentException, OperationFailedException {
         GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
                         .setDisplayName(groupDto.getDisplayName())
                         .setType(GroupType.REGULAR)
@@ -284,7 +285,7 @@ public class GroupMapper {
             // this means this is dynamic group of entities
             errorIfInvalidGroupType(groupDto);
 
-            final List<SearchParameters> searchParameters = entityFilterMapper
+            final Collection<SearchParameters> searchParameters = entityFilterMapper
                             .convertToSearchParameters(groupDto.getCriteriaList(),
                                             groupDto.getGroupType());
 

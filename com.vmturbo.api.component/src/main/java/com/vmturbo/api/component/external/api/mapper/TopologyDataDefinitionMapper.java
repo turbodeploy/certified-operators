@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.UNKNOWN;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import com.vmturbo.api.dto.topologydefinition.TopoDataDefContextBasedApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -572,8 +574,9 @@ public class TopologyDataDefinitionMapper {
     @Nonnull
     @ParametersAreNonnullByDefault
     private AssociatedEntitySelectionCriteria.Builder getDynamicCriteria(final ManualDynamicConnections dynamicConnections,
-                                                                         final EntityType entityType) {
-        final List<SearchParameters> searchParameters = entityFilterMapper
+                                                                         final EntityType entityType)
+                    throws OperationFailedException {
+        final Collection<SearchParameters> searchParameters = entityFilterMapper
                 .convertToSearchParameters(dynamicConnections.getDynamicConnectionCriteria(),
                         entityType.name());
         return AssociatedEntitySelectionCriteria.newBuilder()
