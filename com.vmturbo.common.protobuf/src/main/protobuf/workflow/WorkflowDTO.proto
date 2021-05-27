@@ -55,6 +55,32 @@ message WorkflowInfo {
 
     // Determines if the action is sent to the workflow target using public API message format
     optional bool apiMessageFormatEnabled = 12[default = false];
+
+    // the type of workflow
+    optional OrchestratorType type = 13;
+
+    // the information about workflow that is specific to its type
+    oneof type_specific_info {
+        WebhookInfo webhook_info = 14;
+    }
+
+    // information about the webhook
+    message WebhookInfo {
+        // the endpoint that webhook made call to
+        optional string url = 1;
+        // the type of http method made to webhook
+        optional HttpMethod http_method = 2;
+        // the template for the body of workflow
+        optional string template = 3;
+
+        // the type of http method made to webhook
+        enum HttpMethod {
+            GET = 1;
+            POST = 2;
+            PUT = 3;
+            DELETE = 4;
+        }
+    }
 }
 
 // A descriptor for an input parameter to a workflow as specified by the workflow author.
@@ -98,6 +124,12 @@ enum OrchestratorType {
     UCSD = 1;
     // Turbonomic ActionScript
     ACTION_SCRIPT = 2;
+    // ServiceNow workflow
+    SERVICENOW = 3;
+    // ActionStream kafka workflow
+    ACTIONSTREAM_KAFKA = 4;
+    // Webhook workflow
+    WEBHOOK = 5;
 }
 // The response to a request to store discovered workflows
 message StoreDiscoveredWorkflowsResponse { }
@@ -132,6 +164,42 @@ message FetchWorkflowsResponse {
     // TODO: support paginated results when the request supports pagination
 }
 
+// Request for creating workflow
+message CreateWorkflowRequest {
+    // the information about the workflow to create
+    optional Workflow workflow = 1;
+}
+
+// Response for creating a workflow
+message CreateWorkflowResponse {
+    // the information about the created workflow
+    optional Workflow workflow = 1;
+}
+
+// Request for updating a workflow
+message UpdateWorkflowRequest {
+    // id of workflow to update
+    optional int64 id = 1;
+    // the updated workflow information
+    optional Workflow workflow = 2;
+}
+
+// Response for updating a workflow
+message UpdateWorkflowResponse {
+    // the updated workflow
+    optional Workflow workflow = 1;
+}
+
+// Request for deleting workflow
+message DeleteWorkflowRequest {
+    // id of workflow to delete
+    optional int64 id = 1;
+}
+
+// Response for deleting a workflow
+message DeleteWorkflowResponse {
+}
+
 service DiscoveredWorkflowService {
     // Store workflows discovered from a single Orchestration target
     rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
@@ -139,11 +207,20 @@ service DiscoveredWorkflowService {
 
 // Access to the Workflows store.
 service WorkflowService {
-    // Retrive workflows from the Workflows store
+    // Retrieve workflows from the Workflows store
     // TODO: implement paging
     rpc FetchWorkflows(FetchWorkflowsRequest) returns (FetchWorkflowsResponse);
 
     // Retrieve an individual workflow by ID; if not found, then the 'workflow' field will
     // be empty.
     rpc FetchWorkflow(FetchWorkflowRequest) returns (FetchWorkflowResponse);
+
+    // creates a workflow
+    rpc createWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
+
+    // updates a workflow
+    rpc updateWorkflow(UpdateWorkflowRequest) returns (UpdateWorkflowResponse);
+
+    // delete a workflow
+    rpc deleteWorkflow(DeleteWorkflowRequest) returns (DeleteWorkflowResponse);
 }
