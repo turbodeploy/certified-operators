@@ -33,34 +33,28 @@ public final class ReservationFieldsConverter {
      */
     private static final ImmutableBiMap<ReservationDTO.ReservationMode, Integer> MODE_TO_DB
         = ImmutableBiMap.of(ReservationDTO.ReservationMode.NO_GROUPING, 1,
-                            ReservationDTO.ReservationMode.AFFINITY, 2,
-                            ReservationDTO.ReservationMode.ANTI_AFFINITY, 3);
+                            ReservationDTO.ReservationMode.AFFINITY, 2);
 
     /**
      * Grouping to Db.
      */
     private static final ImmutableBiMap<ReservationDTO.ReservationGrouping, Integer> GROUPING_TO_DB
         = ImmutableBiMap.of(ReservationDTO.ReservationGrouping.NONE, 1,
-                            ReservationDTO.ReservationGrouping.CLUSTER, 2,
-                            ReservationDTO.ReservationGrouping.STORAGE_CLUSTER, 3,
-                            ReservationDTO.ReservationGrouping.DATACENTER, 4);
+                            ReservationDTO.ReservationGrouping.CLUSTER, 2);
 
     /**
      * Mode to Api.
      */
     private static final ImmutableBiMap<ReservationDTO.ReservationMode, ReservationMode> MODE_TO_API
         = ImmutableBiMap.of(ReservationDTO.ReservationMode.NO_GROUPING, ReservationMode.NO_GROUPING,
-                            ReservationDTO.ReservationMode.AFFINITY, ReservationMode.AFFINITY,
-                            ReservationDTO.ReservationMode.ANTI_AFFINITY, ReservationMode.ANTI_AFFINITY);
+                            ReservationDTO.ReservationMode.AFFINITY, ReservationMode.AFFINITY);
 
     /**
      * Grouping to Api.
      */
     private static final ImmutableBiMap<ReservationDTO.ReservationGrouping, ReservationGrouping> GROUPING_TO_API
         = ImmutableBiMap.of(ReservationDTO.ReservationGrouping.NONE, ReservationGrouping.NONE,
-                            ReservationDTO.ReservationGrouping.CLUSTER, ReservationGrouping.CLUSTER,
-                            ReservationDTO.ReservationGrouping.STORAGE_CLUSTER, ReservationGrouping.STORAGE_CLUSTER,
-                            ReservationDTO.ReservationGrouping.DATACENTER, ReservationGrouping.DATACENTER);
+                            ReservationDTO.ReservationGrouping.CLUSTER, ReservationGrouping.CLUSTER);
 
     private ReservationFieldsConverter() {}
 
