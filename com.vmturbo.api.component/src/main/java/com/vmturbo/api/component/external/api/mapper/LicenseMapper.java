@@ -132,6 +132,9 @@ public class LicenseMapper {
             if (licenseSummary.hasNumInUseEntities()) {
                 setNumInUseEntities(licenseSummary.getNumInUseEntities());
             }
+            if (licenseSummary.hasMaxReportEditorsCount()) {
+                setMaxReportEditorsCount(licenseSummary.getMaxReportEditorsCount());
+            }
             // isOverEntityLimit has no equivalent, so this won't be added to the return LicenseApiDTO
 
             if (licenseSummary.getFeatureCount() > 0) {
