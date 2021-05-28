@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import java.util.Optional;
 
 import org.immutables.gson.Gson;
+import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
@@ -52,6 +53,16 @@ interface EntityPriceChange {
      * @return Optional destination oid.
      */
     Optional<Long> getDestinationOid();
+
+    /**
+     * Whether the price change (recommendation) is active and accumulating missed.
+     *
+     * @return whether the price change (recommendation) is active
+     */
+    @Default
+    default boolean active() {
+        return true;
+    }
 
     /**
      * Creates a new builder.
