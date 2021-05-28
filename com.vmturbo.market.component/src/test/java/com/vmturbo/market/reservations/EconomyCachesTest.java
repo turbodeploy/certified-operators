@@ -22,10 +22,12 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -149,8 +151,8 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), buyerMemUsed);
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -194,8 +196,8 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), buyerMemUsed / 1.0);
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -247,8 +249,8 @@ public class EconomyCachesTest {
                     .setKey(cluster1Key)
                     .build(), 1.0d);
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -288,8 +290,8 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -335,8 +337,8 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -377,8 +379,8 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -439,7 +441,8 @@ public class EconomyCachesTest {
                 economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
                 commTypeToSpecMap, new HashMap(), new HashMap());
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
-                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0);
+                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
 
         Assert.assertTrue(result.get(buyerOid).size() == 1);
         Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> pl.supplier.get() == pm3Oid));
@@ -471,6 +474,58 @@ public class EconomyCachesTest {
     }
 
     /**
+     * Construct an existing reservation with 3 buyers. Pass an economy with 4 pms in 2 different
+     * clusters as the historical economy. Pass the same economy with 4 pms as the real time
+     * economy.
+     * The lowest util host is pm3 in cluster 2.
+     * Expected: buyers are placed on pm3 and 4 in both historical and real time economy caches.
+     * The findInitialPlacement returns pm3 and 4 as suppliers.
+     */
+    @Test
+    public void testFindInitialPlacementSuccessClusterAffinity() {
+        double buyerMemUsed = 10;
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        ArrayList<InitialPlacementBuyer> buyers = new ArrayList();
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        buyers.add(buyer);
+        long buyerOid2 = 1235L;
+        long buyerSlOid2 = 10001L;
+        InitialPlacementBuyer buyer2 = initialPlacementBuyer(buyerOid2, buyerSlOid2, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        buyers.add(buyer2);
+        long buyerOid3 = 1236L;
+        long buyerSlOid3 = 10002L;
+        InitialPlacementBuyer buyer3 = initialPlacementBuyer(buyerOid3, buyerSlOid3, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        buyers.add(buyer3);
+        economyCaches.getState().setReservationReceived(true);
+        // Create a historical economy with no existing reservations. The economy has 4 pms, all of
+        // them have used == capacity.
+        economyCaches.updateHistoricalCachedEconomy(
+                economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
+                commTypeToSpecMap, new HashMap(), new HashMap());
+        // Create a real time economy with no existing reservations. The economy has same 4 pms.
+        // All of them are low utilized.
+        economyCaches.updateRealtimeCachedEconomy(
+                economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
+                commTypeToSpecMap, new HashMap(), new HashMap());
+        Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
+                buyers, new HashMap(), 0,
+                TopologyDTO.ReservationMode.AFFINITY, TopologyDTO.ReservationGrouping.CLUSTER, 5);
+        Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> pl.supplier.get() == pm3Oid
+            || pl.supplier.get() == pm4Oid));
+        Assert.assertTrue(result.get(buyerOid2).stream().allMatch(pl -> pl.supplier.get() == pm3Oid
+                || pl.supplier.get() == pm4Oid));
+        Assert.assertTrue(result.get(buyerOid3).stream().allMatch(pl -> pl.supplier.get() == pm3Oid
+                || pl.supplier.get() == pm4Oid));
+    }
+
+    /**
      * Construct an existing reservation with 1 buyer. Pass an economy with 4 pms in 2 different
      * clusters as the historical economy. Pass an economy with 4 pms in 2 different clusters as the
      * real time economy. All 4 pms in historical economy is full.
@@ -498,7 +553,8 @@ public class EconomyCachesTest {
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
-                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0);
+                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
 
         Assert.assertTrue(result.get(buyerOid).size() == 1);
         Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> !pl.supplier.isPresent()));
@@ -552,7 +608,8 @@ public class EconomyCachesTest {
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
-                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0);
+                new ArrayList(Arrays.asList(buyer)), new HashMap(), 0,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
 
         Assert.assertTrue(result.get(buyerOid).size() == 1);
         Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> !pl.supplier.isPresent()));
@@ -643,9 +700,11 @@ public class EconomyCachesTest {
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyer2MemUsed));
         }});
         Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
-                new ArrayList(Arrays.asList(buyer1, buyer2)), new HashMap(), 1);
+                new ArrayList(Arrays.asList(buyer1, buyer2)), new HashMap(), 1,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
         Mockito.verify(economyCaches, Mockito.times(1)).retryPlacement(Mockito.anyList(),
-                Mockito.anyMap(), Mockito.anyMap(), Mockito.anyInt());
+                Mockito.anyMap(), Mockito.anyMap(), Mockito.anyInt(),
+                Mockito.anyObject(), Mockito.anyObject(), Mockito.anyInt());
         result.get(buyer1Oid).stream().allMatch(pl -> pl.supplier.get() == pm3Oid);
         result.get(buyer2Oid).stream().allMatch(pl -> pl.supplier.get() == pm1Oid);
         economyCaches.historicalCachedEconomy.getTraders().stream().forEach(t -> {
@@ -685,7 +744,7 @@ public class EconomyCachesTest {
         // If they both are not updated correctly we might end up with wrong results in future reservations.
         // It can also cause some exceptions.
         Map<Long, List<InitialPlacementDecision>> sanityCheckRetry = economyCaches.findInitialPlacement(new ArrayList(Arrays.asList(buyer3)),
-                new HashMap(), 1);
+                new HashMap(), 1, TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
         Assert.assertEquals(7, economyCaches.historicalCachedEconomy.getTraders().size());
         Assert.assertEquals(7, economyCaches.realtimeCachedEconomy.getTraders().size());
         sanityCheckRetry.get(buyer3Oid).stream().allMatch(pl -> pl.supplier.get() == pm1Oid);
@@ -767,8 +826,8 @@ public class EconomyCachesTest {
                     .setKey(cluster1Key)
                     .build(), 1.0d);
         }});
-        Map<Long, List<InitialPlacementBuyer>> existingReservations = new HashMap() {{
-            put(reservationOid, Arrays.asList(buyer));
+        Map<Long, InitialPlacementDTO> existingReservations = new HashMap() {{
+            put(reservationOid, PlanUtils.setupInitialPlacement(Arrays.asList(buyer), reservationOid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyerOid, Arrays.asList(
@@ -862,7 +921,8 @@ public class EconomyCachesTest {
         Assert.assertEquals(2, economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> !t.getSettings().canAcceptNewCustomers()).count());
         Map<Long, List<InitialPlacementDecision>> placements = economyCaches.findInitialPlacement(
-                Arrays.asList(buyer1), new HashMap<>(), 1);
+                Arrays.asList(buyer1), new HashMap<>(), 1,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
         // Only pm1 and pm2 can be considered for placement, so buyer should be on pm1.
         Assert.assertTrue(placements.values().stream().flatMap(List::stream).allMatch(p -> p.supplier.get() == pm1Oid));
         Assert.assertTrue(economyCaches.historicalCachedEconomy.getMarkets().size() == 1);
@@ -876,14 +936,15 @@ public class EconomyCachesTest {
         economyCaches.updateRealtimeCachedEconomy(
                 economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
                 commTypeToSpecMap, placements, new HashMap() {{
-                    put(1L, Arrays.asList(buyer1));
+                    put(1L, PlanUtils.setupInitialPlacement(Arrays.asList(buyer1), 1L));
                 }});
         long buyer2Oid = 2234L;
         long buyer2SlOid = 2000L;
         InitialPlacementBuyer buyer2 = initialPlacementBuyer(buyer2Oid, buyer2SlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
-        economyCaches.findInitialPlacement(Arrays.asList(buyer2), new HashMap<>(), 1);
+        economyCaches.findInitialPlacement(Arrays.asList(buyer2), new HashMap<>(), 1,
+                TopologyDTO.ReservationMode.NO_GROUPING, TopologyDTO.ReservationGrouping.NONE, 5);
         List<Trader> providers = economyCaches.historicalCachedEconomy.getTraders().stream().filter(
                 t -> InitialPlacementUtils.PROVIDER_ENTITY_TYPES.contains(t.getType())).collect(
                 Collectors.toList());

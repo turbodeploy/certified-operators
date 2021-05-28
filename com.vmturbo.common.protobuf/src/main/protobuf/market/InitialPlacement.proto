@@ -7,7 +7,23 @@ option java_package = "com.vmturbo.common.protobuf.market";
 import "topology/TopologyDTO.proto";
 
 message FindInitialPlacementRequest {
+    // Placement related information.
+    repeated InitialPlacementDTO initialPlacement = 1;
+}
+
+message InitialPlacementDTO {
+    // List of buyers.
     repeated InitialPlacementBuyer initialPlacementBuyer = 1;
+
+    // Specification to determine what the type of behavior Placement entities should take.
+    optional .topology.ReservationMode reservation_mode = 2;
+
+    // Specification to determine what group type entities should be placed on corresponding to
+    // the Mode of the reservation.
+    optional .topology.ReservationGrouping reservation_grouping = 3;
+
+    // The reservation id.
+    optional int64 id = 4;
 }
 
 message InitialPlacementBuyer {

@@ -34,8 +34,6 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationGrouping;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationMode;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -45,6 +43,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraint
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationGrouping;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationMode;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -119,8 +119,8 @@ public class ReservationDaoImplTest {
                                 .setConstraintId(100)
                                 .setType(Type.DATA_CENTER)))
             .setDeployed(false)
-            .setReservationMode(ReservationDTO.ReservationMode.NO_GROUPING)
-            .setReservationGrouping(ReservationDTO.ReservationGrouping.NONE)
+            .setReservationMode(ReservationMode.NO_GROUPING)
+            .setReservationGrouping(ReservationGrouping.NONE)
             .build();
 
     private Reservation testSecondReservation = Reservation.newBuilder()
@@ -142,8 +142,8 @@ public class ReservationDaoImplTest {
                             .setConstraintId(100)
                             .setType(Type.DATA_CENTER)))
             .setDeployed(false)
-            .setReservationMode(ReservationDTO.ReservationMode.NO_GROUPING)
-            .setReservationGrouping(ReservationDTO.ReservationGrouping.NONE)
+            .setReservationMode(ReservationMode.NO_GROUPING)
+            .setReservationGrouping(ReservationGrouping.NONE)
             .build();
 
     @Before
