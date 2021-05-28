@@ -1,9 +1,15 @@
 package com.vmturbo.plan.orchestrator.api;
 
+import java.util.List;
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 
 /**
@@ -42,5 +48,34 @@ public class PlanUtils {
             }
         }
         return true;
+    }
+
+    /**
+     * Sets up a reservation request for testing.
+     *
+     * @param newBuyers the buyers to find placement for.
+     * @param reservationId the reservation id.
+     * @return the request.
+     */
+    @Nonnull
+    public static FindInitialPlacementRequest setupReservationRequest(@Nonnull List<InitialPlacementBuyer> newBuyers,
+            Long reservationId) {
+        FindInitialPlacementRequest.Builder findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder();
+        findInitialPlacementRequest.addInitialPlacement(setupInitialPlacement(newBuyers, reservationId));
+        return findInitialPlacementRequest.build();
+    }
+
+    /**
+     * Sets up an InitialPlacementDTO.
+     *
+     * @param newBuyers the buyers to find placement for.
+     * @param reservationId the reservation id.
+     * @return the InitialPlacementDTO.
+     */
+    @Nonnull
+    public static InitialPlacementDTO setupInitialPlacement(@Nonnull List<InitialPlacementBuyer> newBuyers,
+            Long reservationId) {
+        InitialPlacementDTO.Builder initialPlacement = InitialPlacementDTO.newBuilder();
+        return initialPlacement.addAllInitialPlacementBuyer(newBuyers).setId(reservationId).build();
     }
 }

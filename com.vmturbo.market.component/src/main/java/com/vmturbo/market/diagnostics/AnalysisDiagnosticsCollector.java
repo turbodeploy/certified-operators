@@ -13,6 +13,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
@@ -21,7 +24,7 @@ import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -176,7 +179,7 @@ public class AnalysisDiagnosticsCollector {
      * Save Initial Placement Diags.
      *
      * @param timeStamp unix time.
-     * @param newBuyers the current set of InitialPlacementBuyers.
+     * @param newInitialPlacements the initialPlacements to save.
      * @param historicalCachedCommTypeMap A map that stores the TopologyDTO.CommodityType
      *                                    to traderTO's CommoditySpecification in historical economy.
      * @param realtimeCachedCommTypeMap A map that stores the TopologyDTO.CommodityType
@@ -184,12 +187,12 @@ public class AnalysisDiagnosticsCollector {
      * @param historicalCachedEconomy historical cached economy.
      * @param realtimeCachedEconomy realtime cached economy.
      */
-    public void saveInitialPlacementDiags(String timeStamp,
-                                          BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
-                                          BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-                                          List<InitialPlacementBuyer> newBuyers,
-                                          Economy historicalCachedEconomy,
-                                          Economy realtimeCachedEconomy) {
+    public void saveInitialPlacementDiags(@Nullable String timeStamp,
+        @Nullable BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
+        @Nullable BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
+        @Nonnull List<InitialPlacementDTO> newInitialPlacements,
+        @Nullable Economy historicalCachedEconomy,
+        @Nullable Economy realtimeCachedEconomy) {
         final Stopwatch stopwatch = Stopwatch.createStarted();
         try {
             logger.info("FindInitialPlacement: Starting dump of InitialPlacement diagnostics with timeStamp {}",
@@ -213,9 +216,9 @@ public class AnalysisDiagnosticsCollector {
                 }
             }
 
-            writeAnalysisDiagsEntry(diagsWriter, newBuyers.stream(),
+            writeAnalysisDiagsEntry(diagsWriter, newInitialPlacements.stream(),
                     NEW_BUYERS_NAME,
-                    newBuyers.size() + " " +  NEW_BUYERS_NAME);
+                    newInitialPlacements.size() + " " +  NEW_BUYERS_NAME);
 
             if (historicalCachedCommTypeMap != null) {
                 List<InitialPlacementCommTypeMap> historicalCachedCommType = new ArrayList<>();

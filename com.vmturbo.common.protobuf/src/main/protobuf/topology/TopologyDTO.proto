@@ -1710,3 +1710,25 @@ service TopologyService {
     // return the topology to the caller as a stream of Topology messages.
     rpc BroadcastAndReturnTopology(TopologyBroadcastRequest) returns (stream Topology);
 }
+
+// Reservation Mode specification to determine what the type of behavior Placement entities should
+// take.
+enum ReservationMode {
+
+    // Entities of the same reservation may be placed across multiple ReservationGroupings.
+    NO_GROUPING = 1;
+
+    // Entities of the same reservation will be placed within the same ReservationGrouping.
+    AFFINITY = 2;
+}
+
+// Reservation Grouping specification to determine what group type entities should be placed on
+// corresponding to the Mode of the reservation.
+enum ReservationGrouping {
+
+    // Do not restrict ReservationMode behavior on a specific grouping level.
+    NONE = 1;
+
+    // Restrict ReservationMode behavior on a Cluster level.
+    CLUSTER = 2;
+}

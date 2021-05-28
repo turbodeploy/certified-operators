@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -18,6 +19,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -57,7 +59,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
@@ -85,6 +86,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ReservationMapper {
 
     private final boolean enableReservationModeGrouping;
+
+    private static final EnumMap<ReservationMode, Set<ReservationGrouping>> VALID_RESERVATION_MODE_GROUPINGS
+        = new EnumMap<>(ImmutableMap.<ReservationMode, Set<ReservationGrouping>>builder()
+            .put(ReservationMode.NO_GROUPING, Sets.newHashSet(ReservationGrouping.NONE))
+            .put(ReservationMode.AFFINITY, Sets.newHashSet(ReservationGrouping.CLUSTER))
+            .build());
 
     private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
@@ -190,14 +197,7 @@ public class ReservationMapper {
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
                 .build());
-        if (demandApiInputDTO.getMode() != null) {
-            reservationBuilder.setReservationMode(ReservationFieldsConverter
-                .modeFromApi(demandApiInputDTO.getMode()));
-        }
-        if (demandApiInputDTO.getGrouping() != null) {
-            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
-                .groupingFromApi(demandApiInputDTO.getGrouping()));
-        }
+        convertReservationModeGroupingFromApi(demandApiInputDTO, reservationBuilder);
         return reservationBuilder.build();
     }
 
@@ -379,6 +379,48 @@ public class ReservationMapper {
                 .build();
     }
 
+    /**
+     * Validate and set reservation mode and grouping.
+     *
+     * @param demandApiInputDTO the reservation from api.
+     * @param reservationBuilder the reservation to be built.
+     * @throws NoSuchValueException Unsupported mode or grouping specification.
+     * @throws InvalidOperationException Invalid combination.
+     */
+    private void convertReservationModeGroupingFromApi(
+        @Nonnull final DemandReservationApiInputDTO demandApiInputDTO,
+        @Nonnull final Reservation.Builder reservationBuilder)
+        throws NoSuchValueException, InvalidOperationException {
+        final String invalidModeGroupingMessage = "Invalid Mode-Grouping combination! MODE: "
+            + demandApiInputDTO.getMode() + " - " + "GROUPING: " + demandApiInputDTO.getGrouping();
+        if (demandApiInputDTO.getMode() == null && demandApiInputDTO.getGrouping() != null) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if (demandApiInputDTO.getMode() == ReservationMode.NO_GROUPING
+            && (demandApiInputDTO.getGrouping() != ReservationGrouping.NONE
+                || demandApiInputDTO.getGrouping() == null)) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if (!(VALID_RESERVATION_MODE_GROUPINGS.containsKey(demandApiInputDTO.getMode())
+            && VALID_RESERVATION_MODE_GROUPINGS.get(demandApiInputDTO.getMode())
+                .contains(demandApiInputDTO.getGrouping())
+            || ((demandApiInputDTO.getMode() == null || demandApiInputDTO.getMode()
+                == ReservationMode.NO_GROUPING) && demandApiInputDTO.getGrouping() == null))) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if ((demandApiInputDTO.getMode() == null || demandApiInputDTO.getMode()
+            == ReservationMode.NO_GROUPING) && demandApiInputDTO.getGrouping() == null) {
+            reservationBuilder.setReservationMode(ReservationFieldsConverter
+                    .modeFromApi(ReservationMode.NO_GROUPING));
+            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
+                    .groupingFromApi(ReservationGrouping.NONE));
+        } else {
+            reservationBuilder.setReservationMode(ReservationFieldsConverter
+                    .modeFromApi(demandApiInputDTO.getMode()));
+            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
+                .groupingFromApi(demandApiInputDTO.getGrouping()));
+        }
+    }
 
     /**
      * Convert timestamp to {@link java.util.Date} string with default UTC timezone.

@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Unplac
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -347,9 +348,9 @@ public class ReservationManagerTest {
         Mockito.doNothing().when(reservationManagerSpy).updateReservationResult(anySet());
         when(reservationDao.getAllReservations())
                 .thenReturn(new HashSet<>(Arrays.asList(unfulfilledReservation)));
-        FindInitialPlacementRequest findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder()
-                .addInitialPlacementBuyer(InitialPlacementBuyer.newBuilder().setBuyerId(6).build()).build();
-        Mockito.when(reservationManagerSpy.buildIntialPlacementRequest(anySet())).thenReturn(findInitialPlacementRequest);
+        FindInitialPlacementRequest findInitialPlacementRequest = PlanUtils
+            .setupReservationRequest(Arrays.asList(InitialPlacementBuyer.newBuilder().setBuyerId(6).build()), 1L);
+        Mockito.when(reservationManagerSpy.buildInitialPlacementRequest(anySet())).thenReturn(findInitialPlacementRequest);
         reservationManagerSpy.checkAndStartReservationPlan();
         when(initialPlacementService.findInitialPlacement(findInitialPlacementRequest))
                 .thenReturn(FindInitialPlacementResponse.getDefaultInstance());
@@ -364,7 +365,6 @@ public class ReservationManagerTest {
         }
         verify(initialPlacementService, times(1)).findInitialPlacement(findInitialPlacementRequest);
     }
-
 
     /**
      * Test checkAndStartReservationPlan method with in progress reservation.
@@ -497,8 +497,9 @@ public class ReservationManagerTest {
         Set<Reservation> reservations = new HashSet<>();
         reservations.add(reservation);
         FindInitialPlacementRequest existingInitialPlacementBuyersRequest =
-                reservationManager.buildIntialPlacementRequest(reservations);
+                reservationManager.buildInitialPlacementRequest(reservations);
         Assert.assertEquals(789L, existingInitialPlacementBuyersRequest
+                .getInitialPlacement(0)
                 .getInitialPlacementBuyer(0)
                 .getInitialPlacementCommoditiesBoughtFromProviderList()
                 .get(0).getCommoditiesBoughtFromProvider().getProviderId());
@@ -523,7 +524,7 @@ public class ReservationManagerTest {
             Set<Reservation> reservations = new HashSet<>();
             reservations.add(updateReservation);
             FindInitialPlacementRequest findInitialPlacementRequest =
-                    reservationManagerSpy.buildIntialPlacementRequest(reservations);
+                    reservationManagerSpy.buildInitialPlacementRequest(reservations);
             FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
                     FindInitialPlacementResponse.newBuilder();
             for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
@@ -585,7 +586,7 @@ public class ReservationManagerTest {
             Set<Reservation> reservations = new HashSet<>();
             reservations.add(updateReservation);
             FindInitialPlacementRequest findInitialPlacementRequest =
-                    reservationManagerSpy.buildIntialPlacementRequest(reservations);
+                    reservationManagerSpy.buildInitialPlacementRequest(reservations);
             FindInitialPlacementResponse.Builder findInitialPlacementResponseBuilder =
                     FindInitialPlacementResponse.newBuilder();
             when(reservationDao.getAllReservations())

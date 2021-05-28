@@ -17,7 +17,6 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.market.MarketDBConfig;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 
 @Configuration
 @Import({MarketDBConfig.class, PlanOrchestratorClientConfig.class})
@@ -31,6 +30,9 @@ public class MarketRpcConfig {
 
     @Value("${maxRetry:1}")
     private int maxRetry;
+
+    @Value("${maxGroupingRetry:5}")
+    private int maxGroupingRetry;
 
     @Value("${maxRequestReservationTimeoutInSeconds:6000}")
     private long maxRequestReservationTimeoutInSeconds;
@@ -66,7 +68,7 @@ public class MarketRpcConfig {
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
         return new InitialPlacementFinder(dbConfig.dsl(), getReservationService(),
-                prepareReservationCache, maxRetry);
+                prepareReservationCache, maxRetry, maxGroupingRetry);
     }
 
     @Bean

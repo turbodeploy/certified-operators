@@ -21,8 +21,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsResponse;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -76,13 +76,13 @@ public class ReservationRpcService extends ReservationServiceImplBase {
     }
 
     /**
-     * rpc call to get all the buyers associated with RESERVED reservations.
+     * rpc call to get all the RESERVED reservations.
      * @param request this is a dummy request with nothing in it.
      * @param responseObserver response with all the buyers.
      */
     @Override
-    public void getBuyersOfExistingReservations(GetBuyersOfExistingReservationsRequest request,
-                                                StreamObserver<GetBuyersOfExistingReservationsResponse> responseObserver) {
+    public void getExistingReservations(@Nonnull GetExistingReservationsRequest request,
+        @Nonnull StreamObserver<GetExistingReservationsResponse> responseObserver) {
 
         try {
             // market just restarted. The historical cache has to be updated. Run a cluster headroom.
@@ -94,10 +94,10 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     reservations.add(reservation);
                 }
             });
-            GetBuyersOfExistingReservationsResponse.Builder response
-                    = GetBuyersOfExistingReservationsResponse.newBuilder();
-            reservationManager.buildInitialPlacementBuyerList(reservations).stream()
-                    .forEach(buyer -> response.addInitialPlacementBuyer(buyer));
+            GetExistingReservationsResponse.Builder response
+                    = GetExistingReservationsResponse.newBuilder();
+            response.addAllInitialPlacement(reservationManager.buildInitialPlacementRequest(reservations)
+                .getInitialPlacementList());
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
         } catch (Exception e) {

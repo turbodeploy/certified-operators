@@ -73,9 +73,13 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     @Override
     public void findInitialPlacement(final FindInitialPlacementRequest request,
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
-        logger.info(logPrefix + "The number of workloads to find initial placement is " + request.getInitialPlacementBuyerList().size());
+        request.getInitialPlacementList().forEach(initialPlacement -> {
+            logger.info("{} The number of workloads for reservation {} is {} with mode {} "
+                + "and grouping {}", logPrefix, initialPlacement.getId(), initialPlacement.getInitialPlacementBuyerCount(),
+                initialPlacement.getReservationMode(), initialPlacement.getReservationGrouping());
+        });
         Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
-                .findPlacement(request.getInitialPlacementBuyerList());
+                .findPlacement(request);
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> triplet : result.cellSet()) {
             InitialPlacementBuyerPlacementInfo.Builder builder = InitialPlacementBuyerPlacementInfo

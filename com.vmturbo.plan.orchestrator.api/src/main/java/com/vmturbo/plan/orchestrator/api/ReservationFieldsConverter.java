@@ -7,6 +7,7 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.api.enums.ReservationGrouping;
 import com.vmturbo.api.enums.ReservationMode;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 
 /**
  * A converter between db status, mode, grouping ints and {@link ReservationDTO.ReservationStatus},
@@ -31,30 +32,30 @@ public final class ReservationFieldsConverter {
     /**
      * Mode to Db.
      */
-    private static final ImmutableBiMap<ReservationDTO.ReservationMode, Integer> MODE_TO_DB
-        = ImmutableBiMap.of(ReservationDTO.ReservationMode.NO_GROUPING, 1,
-                            ReservationDTO.ReservationMode.AFFINITY, 2);
+    private static final ImmutableBiMap<TopologyDTO.ReservationMode, Integer> MODE_TO_DB
+        = ImmutableBiMap.of(TopologyDTO.ReservationMode.NO_GROUPING, 1,
+                            TopologyDTO.ReservationMode.AFFINITY, 2);
 
     /**
      * Grouping to Db.
      */
-    private static final ImmutableBiMap<ReservationDTO.ReservationGrouping, Integer> GROUPING_TO_DB
-        = ImmutableBiMap.of(ReservationDTO.ReservationGrouping.NONE, 1,
-                            ReservationDTO.ReservationGrouping.CLUSTER, 2);
+    private static final ImmutableBiMap<TopologyDTO.ReservationGrouping, Integer> GROUPING_TO_DB
+        = ImmutableBiMap.of(TopologyDTO.ReservationGrouping.NONE, 1,
+                            TopologyDTO.ReservationGrouping.CLUSTER, 2);
 
     /**
      * Mode to Api.
      */
-    private static final ImmutableBiMap<ReservationDTO.ReservationMode, ReservationMode> MODE_TO_API
-        = ImmutableBiMap.of(ReservationDTO.ReservationMode.NO_GROUPING, ReservationMode.NO_GROUPING,
-                            ReservationDTO.ReservationMode.AFFINITY, ReservationMode.AFFINITY);
+    private static final ImmutableBiMap<TopologyDTO.ReservationMode, ReservationMode> MODE_TO_API
+        = ImmutableBiMap.of(TopologyDTO.ReservationMode.NO_GROUPING, ReservationMode.NO_GROUPING,
+                            TopologyDTO.ReservationMode.AFFINITY, ReservationMode.AFFINITY);
 
     /**
      * Grouping to Api.
      */
-    private static final ImmutableBiMap<ReservationDTO.ReservationGrouping, ReservationGrouping> GROUPING_TO_API
-        = ImmutableBiMap.of(ReservationDTO.ReservationGrouping.NONE, ReservationGrouping.NONE,
-                            ReservationDTO.ReservationGrouping.CLUSTER, ReservationGrouping.CLUSTER);
+    private static final ImmutableBiMap<TopologyDTO.ReservationGrouping, ReservationGrouping> GROUPING_TO_API
+        = ImmutableBiMap.of(TopologyDTO.ReservationGrouping.NONE, ReservationGrouping.NONE,
+                            TopologyDTO.ReservationGrouping.CLUSTER, ReservationGrouping.CLUSTER);
 
     private ReservationFieldsConverter() {}
 
@@ -98,7 +99,7 @@ public final class ReservationFieldsConverter {
      * @return mode value.
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
-    public static int modeToDb(@Nonnull final ReservationDTO.ReservationMode mode)
+    public static int modeToDb(@Nonnull final TopologyDTO.ReservationMode mode)
             throws NoSuchValueException {
         Integer value = MODE_TO_DB.get(mode);
         if (value == null) {
@@ -115,9 +116,9 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationDTO.ReservationMode modeFromDb(final int dbMode)
+    public static TopologyDTO.ReservationMode modeFromDb(final int dbMode)
             throws NoSuchValueException {
-        ReservationDTO.ReservationMode value = MODE_TO_DB.inverse().get(dbMode);
+        TopologyDTO.ReservationMode value = MODE_TO_DB.inverse().get(dbMode);
         if (value == null) {
             throw new NoSuchValueException("Unexpected mode from db: " + dbMode);
         }
@@ -132,7 +133,7 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationMode modeToApi(@Nonnull final ReservationDTO.ReservationMode mode)
+    public static ReservationMode modeToApi(@Nonnull final TopologyDTO.ReservationMode mode)
             throws NoSuchValueException {
         ReservationMode value = MODE_TO_API.get(mode);
         if (value == null) {
@@ -149,9 +150,9 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationDTO.ReservationMode modeFromApi(@Nonnull final ReservationMode apiMode)
+    public static TopologyDTO.ReservationMode modeFromApi(@Nonnull final ReservationMode apiMode)
             throws NoSuchValueException {
-        ReservationDTO.ReservationMode value = MODE_TO_API.inverse().get(apiMode);
+        TopologyDTO.ReservationMode value = MODE_TO_API.inverse().get(apiMode);
         if (value == null) {
             throw new NoSuchValueException("Unexpected mode from api: " + apiMode);
         }
@@ -165,7 +166,7 @@ public final class ReservationFieldsConverter {
      * @return grouping value.
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
-    public static int groupingToDb(@Nonnull final ReservationDTO.ReservationGrouping grouping)
+    public static int groupingToDb(@Nonnull final TopologyDTO.ReservationGrouping grouping)
             throws NoSuchValueException {
         Integer value = GROUPING_TO_DB.get(grouping);
         if (value == null) {
@@ -182,9 +183,9 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationDTO.ReservationGrouping groupingFromDb(final int dbGrouping)
+    public static TopologyDTO.ReservationGrouping groupingFromDb(final int dbGrouping)
             throws NoSuchValueException {
-        ReservationDTO.ReservationGrouping value = GROUPING_TO_DB.inverse().get(dbGrouping);
+        TopologyDTO.ReservationGrouping value = GROUPING_TO_DB.inverse().get(dbGrouping);
         if (value == null) {
             throw new NoSuchValueException("Unexpected grouping from db: " + dbGrouping);
         }
@@ -199,7 +200,7 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationGrouping groupingToApi(@Nonnull final ReservationDTO.ReservationGrouping grouping)
+    public static ReservationGrouping groupingToApi(@Nonnull final TopologyDTO.ReservationGrouping grouping)
             throws NoSuchValueException {
         ReservationGrouping value = GROUPING_TO_API.get(grouping);
         if (value == null) {
@@ -216,9 +217,9 @@ public final class ReservationFieldsConverter {
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     @Nonnull
-    public static ReservationDTO.ReservationGrouping groupingFromApi(@Nonnull ReservationGrouping apiGrouping)
+    public static TopologyDTO.ReservationGrouping groupingFromApi(@Nonnull ReservationGrouping apiGrouping)
             throws NoSuchValueException {
-        ReservationDTO.ReservationGrouping value = GROUPING_TO_API.inverse().get(apiGrouping);
+        TopologyDTO.ReservationGrouping value = GROUPING_TO_API.inverse().get(apiGrouping);
         if (value == null) {
             throw new NoSuchValueException("Unexpected grouping from api: " + apiGrouping);
         }

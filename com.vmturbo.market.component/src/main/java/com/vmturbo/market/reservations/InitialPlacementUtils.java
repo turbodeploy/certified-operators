@@ -3,6 +3,7 @@ package com.vmturbo.market.reservations;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
@@ -282,17 +284,18 @@ public final class InitialPlacementUtils {
      * @return a list of {@link TraderTO} lists. The order of reservation buyers follows the order
      * they were added.
      */
-    public static List<List<TraderTO>> constructTraderTOListWithBoundary(
+    @Nonnull
+    public static Map<Long, List<TraderTO>> constructTraderTOListWithBoundary(
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations,
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations,
             boolean includeDeployed) {
-        List<List<TraderTO>> placedBuyersPerRes = new ArrayList();
+        Map<Long, List<TraderTO>> placedBuyersPerRes = new LinkedHashMap<>();
         // Create the reservations one by one following the order they were added
-        existingReservations.values().forEach( buyers -> {
-            List<TraderTO> placedBuyers = new ArrayList();
-            buyers.forEach(buyer -> {
+        existingReservations.forEach((resId, findInitialPlacement) -> {
+            List<TraderTO> placedBuyers = new ArrayList<>();
+            findInitialPlacement.getInitialPlacementBuyerList().forEach(buyer -> {
                 if (includeDeployed || !buyer.getDeployed()) {
                     List<InitialPlacementDecision> placementPerBuyer =
                             buyerOidToPlacement.get(buyer.getBuyerId());
@@ -300,15 +303,15 @@ public final class InitialPlacementUtils {
                             .allMatch(r -> r.supplier.isPresent())) {
                         // When all shopping lists of a buyer have a supplier, figure out the cluster
                         // boundaries from the suppliers.
-                        Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
-                                placementPerBuyer, buyer);
+                        Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy,
+                            commTypeToSpecMap, placementPerBuyer, buyer);
                         if (traderTO.isPresent()) {
                             placedBuyers.add(traderTO.get());
                         }
                     }
                 }
             });
-            placedBuyersPerRes.add(placedBuyers);
+            placedBuyersPerRes.put(resId, placedBuyers);
         });
         return placedBuyersPerRes;
     }
@@ -327,7 +330,7 @@ public final class InitialPlacementUtils {
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final List<InitialPlacementDecision> decisions,
             @Nonnull final InitialPlacementBuyer buyer) {
-        Map<Long, CommodityType> clusterCommPerSl = new HashMap();
+        Map<Long, CommodityType> clusterCommPerSl = new HashMap<>();
         try {
             for (InitialPlacementDecision placement : decisions) {
                 if (placement.supplier.isPresent()) {
@@ -435,7 +438,7 @@ public final class InitialPlacementUtils {
      */
     public static List<FailureInfo> populateFailureInfos(@Nonnull final InfiniteQuoteExplanation exp,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
-        List<FailureInfo> failureInfos = new ArrayList();
+        List<FailureInfo> failureInfos = new ArrayList<>();
         for (CommodityBundle bundle : exp.commBundle) {
             CommodityType commType = commTypeToSpecMap.inverse().get(bundle.commSpec.getType());
             double maxQuantity = MarketAnalysisUtils.getMaxAvailableForUnplacementReason(commType, bundle);
@@ -461,7 +464,7 @@ public final class InitialPlacementUtils {
             @Nonnull final Map<Long, List<InitialPlacementDecision>> placements,
             @Nonnull final List<InitialPlacementBuyer> originalBuyers,
             @Nonnull final Set<Long> buyerFailed) {
-        Map<Long, CommodityType> clusterCommPerSl = new HashMap();
+        Map<Long, CommodityType> clusterCommPerSl = new HashMap<>();
         for (Map.Entry<Long, List<InitialPlacementDecision>> entry : placements.entrySet()) {
             Long buyerOid = entry.getKey();
             for (InitialPlacementDecision placement : entry.getValue()) {
@@ -524,7 +527,7 @@ public final class InitialPlacementUtils {
                 // only retain the cluster commodity not the storage cluster commodity
                 .filter(c -> c.getType() == CommodityDTO.CommodityType.CLUSTER_VALUE)
                 .map(c -> commTypeMap.get(c)).collect(Collectors.toSet());
-        Set<Long> ineligibleSellers = new HashSet();
+        Set<Long> ineligibleSellers = new HashSet<>();
         economy.getTraders().stream().forEach(t -> {
             if (t.getBasketSold().stream().anyMatch(cs -> clusterCommSpecSet.contains(cs.getType()))) {
                 // make all sellers that sell this cluster comm as CanAcceptNewCustomer false
@@ -566,9 +569,9 @@ public final class InitialPlacementUtils {
             @Nonnull final Economy historicalCachedEconomy,
             @Nonnull final BiMap<CommodityType, Integer> historicalCachedCommTypeMap) {
         // Remove all old access commodities in historical economy cache and historicalCachedCommTypeMap.
-        Set<CommoditySpecification> oldAccessComm = new HashSet();
+        Set<CommoditySpecification> oldAccessComm = new HashSet<>();
         for (Trader t : historicalCachedEconomy.getTraders()) {
-            Set<CommoditySpecification> removeCommSpecs = new HashSet();
+            Set<CommoditySpecification> removeCommSpecs = new HashSet<>();
             for (int i = 0; i < t.getBasketSold().size(); i++) {
                 CommodityType historicalComm = historicalCachedCommTypeMap.inverse()
                         .get(t.getBasketSold().get(i).getType());
@@ -638,7 +641,7 @@ public final class InitialPlacementUtils {
     public static Map<Long, List<UpdateCommodityWrapper>> findAccessCommByTrader(
             @Nonnull final List<Trader> traders,
             @Nonnull final BiMap<CommodityType, Integer> commTypeMap) {
-        Map<Long, List<UpdateCommodityWrapper>> accessCommoditiesByTraderOid = new HashMap();
+        Map<Long, List<UpdateCommodityWrapper>> accessCommoditiesByTraderOid = new HashMap<>();
         for (Trader t : traders) {
             for (int i = 0; i < t.getBasketSold().size(); i++) {
                 CommodityType realtimeComm = commTypeMap.inverse()
@@ -647,7 +650,7 @@ public final class InitialPlacementUtils {
                     // a commodity has key is considered as an access comm
                     List<UpdateCommodityWrapper> placementCommList = accessCommoditiesByTraderOid.get(t.getOid());
                     if (placementCommList == null) {
-                        List<UpdateCommodityWrapper> newPlacementComm = new ArrayList();
+                        List<UpdateCommodityWrapper> newPlacementComm = new ArrayList<>();
                         accessCommoditiesByTraderOid.put(t.getOid(), newPlacementComm);
                         newPlacementComm.add(new UpdateCommodityWrapper(t.getBasketSold().get(i),
                                 (CommoditySoldWithSettings)t.getCommoditiesSold().get(i)));

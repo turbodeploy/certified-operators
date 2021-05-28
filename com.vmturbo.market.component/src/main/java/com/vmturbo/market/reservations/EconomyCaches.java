@@ -19,15 +19,23 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationGrouping;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ReservationMode;
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -39,6 +47,7 @@ import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * The real time and historical economy caches used for find initial placements.
@@ -303,7 +312,7 @@ public class EconomyCaches {
     public void updateRealtimeCachedEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
             @Nonnull final Map<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
         Economy newEconomy;
         try {
             realtimeCacheStartUpdateTime = clock.instant();
@@ -403,7 +412,7 @@ public class EconomyCaches {
             @Nonnull final UnmodifiableEconomy originalEconomy,
             @Nonnull final Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
         Economy newEconomy;
         Map<Long, List<InitialPlacementDecision>> newResult;
         try {
@@ -451,7 +460,7 @@ public class EconomyCaches {
     private void addExistingReservationEntities(@Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations, boolean includeDeployed,
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations, boolean includeDeployed,
                                                 final boolean shouldApplyUtilization) {
         if (existingReservations.isEmpty() || buyerOidToPlacement.isEmpty()) {
             return;
@@ -460,8 +469,9 @@ public class EconomyCaches {
         // boundaries.
         List<TraderTO> currentlyPlacedBuyers = InitialPlacementUtils
                 .constructTraderTOListWithBoundary(economy, commTypeToSpecMap, buyerOidToPlacement,
-                        existingReservations, includeDeployed).stream().flatMap(List::stream).collect(Collectors.toList());
-        List<Trader> addedTraders = new ArrayList();
+                        existingReservations, includeDeployed)
+                .values().stream().flatMap(List::stream).collect(Collectors.toList());
+        List<Trader> addedTraders = new ArrayList<>();
         // Add reservation traders into economy. The economy only contains host and storage at this point.
         currentlyPlacedBuyers.forEach(traderTO -> {
             Trader trader = ProtobufToAnalysis.addTrader(economy.getTopology(), traderTO);
@@ -514,19 +524,22 @@ public class EconomyCaches {
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
         if (existingReservations.isEmpty() || buyerOidToPlacement.isEmpty()) {
-            return new HashMap();
+            return new HashMap<>();
         }
         // Replay the reservation one by one following the order they were added
-        List<List<TraderTO>> placedBuyersPerRes = InitialPlacementUtils
+        Map<Long, List<TraderTO>> placedBuyersPerRes = InitialPlacementUtils
                 .constructTraderTOListWithBoundary(economy, commTypeToSpecMap, buyerOidToPlacement,
                         existingReservations, true);
         // Run placement in historical economy cache and override the old placement result with new ones
         // The replay order follows the order reservations were added.
-        for (List<TraderTO> tradersPerRes : placedBuyersPerRes) {
+        for (Map.Entry<Long, List<TraderTO>> tradersOfRes : placedBuyersPerRes.entrySet()) {
+            logger.info("{} replayReservation for reservation {} with {} buyers",
+                    logPrefix, tradersOfRes.getKey(), tradersOfRes.getValue().size());
             Map<Long, List<InitialPlacementDecision>> newPlacementResult =
-                    placeBuyerInCachedEconomy(tradersPerRes, economy, commTypeToSpecMap);
+                    placeBuyerInCachedEconomy(tradersOfRes.getValue(), economy, commTypeToSpecMap,
+                        ReservationMode.NO_GROUPING, ReservationGrouping.NONE, 1);
             if (newPlacementResult.values().stream().flatMap(List::stream)
                     .allMatch(i -> i.supplier.isPresent())) {
                 // All buyers in a given reservation can still find providers in the chosen cluster.
@@ -562,7 +575,7 @@ public class EconomyCaches {
      */
     public void restoreHistoricalEconomyCache(
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, InitialPlacementDTO> existingReservations) {
         if (historicalCachedEconomy == null || !state.isHistoricalCacheReceived()) {
             return;
         }
@@ -679,35 +692,44 @@ public class EconomyCaches {
      * @param slToClusterMap A map to keep track of successfully placed  reservation buyer's shopping
      * list oid to its cluster commodity mapping.
      * @param maxRetry the max number of retry the find placement logic.
+     * @param mode the mode of the reservation.
+     * @param grouping the grouping of the reservation.
+     * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
+     *          within a certain grouping.
      * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
      */
+    @Nonnull
     public Map<Long, List<InitialPlacementDecision>> findInitialPlacement(
             @Nonnull final List<InitialPlacementBuyer> buyers,
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
-            final int maxRetry) {
+            final int maxRetry, @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
+            final int maxGroupingRetry) {
         if (!getState().isEconomyReady()) {
             logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
-            return new HashMap();
+            return new HashMap<>();
         }
         // Create buyers and add into historical cache
-        List<TraderTO> traderTOs = new ArrayList();
-        Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = new HashMap();
+        List<TraderTO> traderTOs = new ArrayList<>();
+        Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = new HashMap<>();
 
-        Set<Long> buyerFailedInHistoricalCache = new HashSet();
+        Set<Long> buyerFailedInHistoricalCache = new HashSet<>();
         // A map of shopping list oid to its supplier's cluster commodity.
-        final Map<Long, CommodityType> clusterCommPerSl = new HashMap();
-        if (getState().isHistoricalCacheReceived()) {
+        final Map<Long, CommodityType> clusterCommPerSl = new HashMap<>();
+        boolean historicalReady = getState().isHistoricalCacheReceived();
+        if (historicalReady) {
+            logger.info("{} historical placement for reservation {} with mode {} and grouping {}",
+                    logPrefix, buyers.get(0).getReservationId(), mode, grouping);
             for (InitialPlacementBuyer buyer : buyers) {
                 Optional<TraderTO> traderTO = InitialPlacementUtils.constructTraderTO(buyer,
-                        historicalCachedCommTypeMap, new HashMap());
+                        historicalCachedCommTypeMap, new HashMap<>());
                 if (traderTO.isPresent()) {
                     traderTOs.add(traderTO.get());
                 } else {
-                    return new HashMap();
+                    return new HashMap<>();
                 }
             }
             firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
-                    historicalCachedCommTypeMap);
+                    historicalCachedCommTypeMap, mode, grouping, maxGroupingRetry);
             logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
@@ -726,7 +748,7 @@ public class EconomyCaches {
             return firstRoundPlacement;
         }
         // All the buyers succeeded in historical cache, now place them on real time.
-        List<TraderTO> placedBuyerTOs = new ArrayList();
+        List<TraderTO> placedBuyerTOs = new ArrayList<>();
         //construct traderTO from InitialPlacementBuyer including cluster boundary
         for (InitialPlacementBuyer buyer : buyers) {
             // Construct traderTO with cluster boundaries provided in clusterCommPerSl
@@ -735,15 +757,22 @@ public class EconomyCaches {
             if (traderTO.isPresent()) {
                 placedBuyerTOs.add(traderTO.get());
             } else {
-                return new HashMap();
+                return new HashMap<>();
             }
         }
-        Map<Long, List<InitialPlacementDecision>> secondRoundPlacement =
-                placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
-                        realtimeCachedCommTypeMap);
+        // Second round placement should use no grouping mode if first round placement on historical
+        // economy has run successfully because traders are reacted at this point to buy the
+        // the cluster commodity and will be forced to try placing only on the cluster that was
+        // picked from the first round.
+        logger.info("{} realtime placement for reservation {} with mode {} and grouping {}",
+                logPrefix, buyers.get(0).getReservationId(), mode, grouping);
+        Map<Long, List<InitialPlacementDecision>> secondRoundPlacement
+            = placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
+                realtimeCachedCommTypeMap, historicalReady ? ReservationMode.NO_GROUPING : mode,
+                historicalReady ? ReservationGrouping.NONE : grouping, maxGroupingRetry);
         logger.info(logPrefix + "Placing reservation buyers on realtime economy cache");
         InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
-        Set<Long> failedBuyerOids = new HashSet();
+        Set<Long> failedBuyerOids = new HashSet<>();
         for (Map.Entry<Long, List<InitialPlacementDecision>> entry : secondRoundPlacement.entrySet()) {
             if (entry.getValue().stream().allMatch(pl -> pl.supplier.isPresent())) {
                 // Populate the cluster commodity type for successful each buyer's shopping list.
@@ -761,7 +790,7 @@ public class EconomyCaches {
             // Retry means the cluster chosen in historical economy may not be good in real time.
             Map<Long, List<InitialPlacementDecision>> retryResult = retryPlacement(buyers.stream()
                     .filter(b -> failedBuyerOids.contains(b.getBuyerId())).collect(Collectors.toList()),
-                    clusterCommPerSl, slToClusterMap, maxRetry - 1);
+                    clusterCommPerSl, slToClusterMap, maxRetry - 1, mode, grouping, maxGroupingRetry);
             if (retryResult.values().stream().flatMap(List::stream)
                     .anyMatch(pl -> !pl.supplier.isPresent())) {
                 // Retry still contains some no placements, unplace and clear all the buyers
@@ -772,7 +801,7 @@ public class EconomyCaches {
         }  else if (!getState().isHistoricalCacheReceived() && failedBuyerOids.isEmpty()) {
             // Populate the cluster map which will be used for stats
             slToClusterMap.putAll(InitialPlacementUtils.extractClusterBoundary(realtimeCachedEconomy,
-                    realtimeCachedCommTypeMap, secondRoundPlacement, buyers, new HashSet()));
+                    realtimeCachedCommTypeMap, secondRoundPlacement, buyers, new HashSet<>()));
         }
         return secondRoundPlacement;
     }
@@ -807,19 +836,26 @@ public class EconomyCaches {
      * @param clusterCommPerSl buyer's shopping list oid to the cluster that it failed to be placed.
      * @param slToClusterMap the map to keep track of placed shopping list and cluster commodity.
      * @param maxRetry the max number of rerun the findInitialPlacement.
+     * @param mode the mode of the reservation.
+     * @param grouping the grouping of the reservation.
+     * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
+     *          within a certain grouping.
      * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
      */
+    @Nonnull
     protected Map<Long, List<InitialPlacementDecision>> retryPlacement(
             @Nonnull final List<InitialPlacementBuyer> buyersToRetry,
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl,
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
-            final int maxRetry) {
+            final int maxRetry, @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
+            final int maxGroupingRetry) {
         if (buyersToRetry.isEmpty()) {
-            return new HashMap();
+            return new HashMap<>();
         }
         Set<Long> buyerOids = buyersToRetry.stream().map(b -> b.getBuyerId())
                 .collect(Collectors.toSet());
-        logger.info(logPrefix + "Retrying for buyers {} in reservation {}", buyerOids, buyersToRetry.get(0).getReservationId());
+        logger.info(logPrefix + "Retrying for buyers {} in reservation {} with mode {} and grouping {}",
+            buyerOids, buyersToRetry.get(0).getReservationId(), mode, grouping);
         // Remove buyersToRetry from both economy caches.
         clearDeletedBuyersFromCache(buyerOids, false);
         // We are going to make sellers that sell cluster commodity as CanAcceptNewCustomers
@@ -827,7 +863,7 @@ public class EconomyCaches {
         Set<Long> failedClusterSellers = InitialPlacementUtils.setSellersNotAcceptCustomers(
                 historicalCachedEconomy, historicalCachedCommTypeMap, clusterCommPerSl);
         Map<Long, List<InitialPlacementDecision>> result = findInitialPlacement(buyersToRetry,
-                slToClusterMap, maxRetry);
+                slToClusterMap, maxRetry, mode, grouping, maxGroupingRetry);
         // Reset back sellers after rerun the placement.
         InitialPlacementUtils.restoreCanNotAcceptNewCustomerSellers(historicalCachedEconomy,
                 failedClusterSellers);
@@ -840,48 +876,30 @@ public class EconomyCaches {
      * @param traderTOs the list of traderTOs to be placed.
      * @param economy the economy.
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param mode the mode of the reservation.
+     * @param grouping the grouping of the reservation.
+     * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
+     *          within a certain grouping.
      * @return a map of reservation buyer oid to its placement decisions.
      */
+    @Nonnull
     private Map<Long, List<InitialPlacementDecision>> placeBuyerInCachedEconomy(
             @Nonnull final List<TraderTO> traderTOs, @Nonnull final Economy economy,
-            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping,
+            final int maxGroupingRetry) {
+        Set<Long> unplacedBuyer = new HashSet<>();
+        Map<Long, List<InitialPlacementDecision>> traderIdToPlacement = new HashMap<>();
+        final PlacementResults placementResults;
+        if (isClusterAffinity(mode, grouping)) {
+            placementResults = processAffinityGrouping(traderTOs, economy, unplacedBuyer,
+                traderIdToPlacement, maxGroupingRetry,
+                CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE,
+                CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE);
+        } else {
+            placementResults = placeAnywhere(traderTOs, economy, unplacedBuyer, traderIdToPlacement);
+        }
 
-        // make all shopping list of all traders except the current traders movable false.
-        for (Trader trader : economy.getTraders()) {
-            for (ShoppingList sl : economy.getMarketsAsBuyer(trader).keySet()) {
-                sl.setMovable(false);
-            }
-        }
-        Map<Long, List<InitialPlacementDecision>> traderIdToPlacement = new HashMap();
-        traderTOs.stream().forEach(
-                trader -> ProtobufToAnalysis.addTrader(economy.getTopology(), trader));
-        InitialPlacementUtils.getEconomyReady(economy);
-        Set<Long> buyerIds = traderTOs.stream().map(TraderTO::getOid).collect(
-                Collectors.toSet());
-        PlacementResults placementResults = Placement.placementDecisions(economy);
-        Set<Long> unplacedBuyer = new HashSet();
-        for (long oid : buyerIds) {
-            Trader reservationBuyer = economy.getTopology().getTradersByOid().get(oid);
-            for (ShoppingList sl : economy.getMarketsAsBuyer(reservationBuyer).keySet()) {
-                // Create reservation placement for each sl, including those do not have a supplier
-                // so that each sl has a reservationPlacement initialized
-                InitialPlacementDecision resPlacement = new InitialPlacementDecision(
-                        economy.getTopology().getShoppingListOids().get(sl), sl.getSupplier() == null
-                        ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList());
-                if (!traderIdToPlacement.containsKey(oid)) {
-                    traderIdToPlacement.put(oid, new ArrayList(Arrays.asList(resPlacement)));
-                } else {
-                    traderIdToPlacement.get(oid).add(resPlacement);
-                }
-                if (sl.getSupplier() == null) {
-                    unplacedBuyer.add(oid);
-                }
-            }
-        }
-        if (!unplacedBuyer.isEmpty()) {
-            // Populate explanation only if there is any unplaced buyer.
-            placementResults.populateExplanationForInfinityQuoteTraders();
-        }
         // Populate failureInfos in ReservationPlacement for unplaced buyers.
         for (Map.Entry<Trader, List<InfiniteQuoteExplanation>> entry
                 : placementResults.getExplanations().entrySet()) {
@@ -899,8 +917,429 @@ public class EconomyCaches {
                 });
             }
         }
+        economy.clearSellersFromMarkets();
+        InitialPlacementUtils.getEconomyReady(economy);
         return traderIdToPlacement;
     }
 
+    /**
+     * Adding the traderTOs to the economy.
+     *
+     * @param tradersToAdd the traders to be added.
+     * @param economy the economy.
+     * @return List of added trader oids.
+     */
+    @Nonnull
+    private List<Long> addTraders(@Nonnull List<TraderTO> tradersToAdd, @Nonnull Economy economy) {
+        logger.info("{} Adding {} traders", logPrefix, tradersToAdd.size());
+        economy.clearSellersFromMarkets();
+        InitialPlacementUtils.getEconomyReady(economy);
+        tradersToAdd.stream().forEach(trader -> ProtobufToAnalysis
+            .addTrader(economy.getTopology(), trader));
+        InitialPlacementUtils.getEconomyReady(economy);
+        return tradersToAdd.stream().map(TraderTO::getOid).collect(Collectors.toList());
+    }
+
+    /**
+     * Check if combination is for cluster affinity.
+     *
+     * @param mode - the mode
+     * @param grouping - the grouping
+     * @return true if cluster affinity combination.
+     */
+    private boolean isClusterAffinity(@Nonnull ReservationMode mode, @Nonnull ReservationGrouping grouping) {
+        return mode == ReservationMode.AFFINITY && grouping == ReservationGrouping.CLUSTER;
+    }
+
+    /**
+     * Process the buyers placements and update the placement decisions mapping.
+     *
+     * @param buyerIds the buyers.
+     * @param unplacedBuyer unplaced buyers.
+     * @param economy the economy.
+     * @param traderIdToPlacement placement mapping.
+     */
+    private void processPlacements(@Nonnull List<Long> buyerIds,
+            @Nonnull Set<Long> unplacedBuyer, @Nonnull Economy economy,
+            @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement) {
+        for (long oid : buyerIds) {
+            Trader reservationBuyer = economy.getTopology().getTradersByOid().get(oid);
+            for (ShoppingList sl : economy.getMarketsAsBuyer(reservationBuyer).keySet()) {
+                // Create reservation placement for each sl, including those do not have a supplier
+                // so that each sl has a reservationPlacement initialized
+                InitialPlacementDecision resPlacement = new InitialPlacementDecision(
+                    economy.getTopology().getShoppingListOids().get(sl), sl.getSupplier() == null
+                    ? Optional.empty() : Optional.of(sl.getSupplier().getOid()), new ArrayList<>());
+                if (!traderIdToPlacement.containsKey(oid)) {
+                    traderIdToPlacement.put(oid, new ArrayList<>(Arrays.asList(resPlacement)));
+                } else {
+                    traderIdToPlacement.get(oid).add(resPlacement);
+                }
+                if (sl.getSupplier() == null) {
+                    unplacedBuyer.add(oid);
+                }
+            }
+        }
+    }
+
+    /**
+     * Processing of placements for affinity grouping.
+     *
+     * @param traderTOs the traders.
+     * @param economy the economy.
+     * @param unplacedBuyer unplaced buyers set.
+     * @param traderIdToPlacement the placement results.
+     * @param maxGroupingRetry maximum number of attempts to place on grouping.
+     * @param entityType the type of entity to expect placing on with affinity.
+     * @param commodityType the commodity type that is constraining for the grouping.
+     * @return the placement results.
+     */
+    @Nonnull
+    private PlacementResults processAffinityGrouping(@Nonnull List<TraderTO> traderTOs,
+        @Nonnull Economy economy, @Nonnull Set<Long> unplacedBuyer,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement,
+        final int maxGroupingRetry, final int entityType, final int commodityType) {
+        PlacementResults placementResults = PlacementResults.empty();
+        // Maps grouping to available entities of that grouping.
+        Map<Integer, List<Trader>> entityToGroupingMapping = new HashMap<>();
+        // Keep track of original canAcceptNewCustomer values of entities to be reset at the end.
+        Map<Trader, Boolean> originalCanAcceptValue = new HashMap<>();
+        // Keep track of groupings that have been attempted for placement to not be used again.
+        Set<Integer> processedGroupings = new HashSet<>();
+
+        // Disable existing non reservation entities from moving.
+        // Prepare entity grouping mapping.
+        disableMovesAndProcessMapping(economy, entityToGroupingMapping, originalCanAcceptValue,
+            entityType, commodityType);
+
+        PlacementResults firstAttemptFailureResults = new PlacementResults();
+        Map<Long, List<InitialPlacementDecision>> firstAttemptTraderIdToPlacement = new HashMap<>();
+        Set<Long> firstAttemptUnplacedBuyers = new HashSet<>();
+
+        // Number of allowed attempts for successfully placing the buyers.
+        int allowedAttempts = Math.min(maxGroupingRetry, entityToGroupingMapping.size());
+        // Create Analysis Traders for buyers of the reservation and add them to the economy.
+        List<Long> buyerIds = addTraders(traderTOs, economy);
+        // First Trader will be used to find a potential best grouping to try to place all the buyers
+        // of the reservation.
+        Set<ShoppingList> firstTraderSLs = economy.getMarketsAsBuyer(economy.getTopology()
+            .getTradersByOid().get(buyerIds.get(0))).keySet();
+        List<Long> restOfTraderIds = buyerIds.subList(1, buyerIds.size());
+        logger.info("{} attempting affinity placement for {} traders with first trader name {}",
+            logPrefix, buyerIds.size(), economy.getTopology()
+            .getTradersByOid().get(buyerIds.get(0)).getDebugInfoNeverUseInCode());
+        placementResults = attemptAffinityPlacement(buyerIds, economy, firstAttemptUnplacedBuyers,
+            firstTraderSLs, firstAttemptTraderIdToPlacement, firstAttemptFailureResults, restOfTraderIds,
+            allowedAttempts, unplacedBuyer, entityType, commodityType, traderIdToPlacement,
+            entityToGroupingMapping, processedGroupings);
+        // Reset providers' canAcceptNewCustomers values back to original values.
+        economy.clearSellersFromMarkets();
+        originalCanAcceptValue.forEach((trader, canAccept) -> {
+            trader.getSettings().setCanAcceptNewCustomers(canAccept);
+        });
+        InitialPlacementUtils.getEconomyReady(economy);
+        return placementResults;
+    }
+
+    /**
+     * Default processing of finding placement without special casing due to mode and grouping settings.
+     *
+     * @param traderTOs the traders.
+     * @param economy the economy.
+     * @param unplacedBuyer unplaced buyers set.
+     * @param traderIdToPlacement buyers placement map.
+     * @return the placement results.
+     */
+    @Nonnull
+    private PlacementResults placeAnywhere(@Nonnull List<TraderTO> traderTOs,
+        @Nonnull Economy economy, @Nonnull Set<Long> unplacedBuyer,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement) {
+        disableMovesForExistingTraders(economy);
+        List<Long> buyerIds = addTraders(traderTOs, economy);
+        PlacementResults placementResults = Placement.placementDecisions(economy);
+        processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+        if (!unplacedBuyer.isEmpty()) {
+            // Populate explanation only if there is any unplaced buyer.
+            placementResults.populateExplanationForInfinityQuoteTraders();
+        }
+        return placementResults;
+    }
+
+    /**
+     * Sets shopping lists movable for a trader.
+     *
+     * @param economy the economy.
+     * @param trader the trader.
+     * @param movable value for field.
+     */
+    private void setShoppingListsMovable(@Nonnull Economy economy, @Nonnull Trader trader,
+        boolean movable) {
+        // make all shopping list of all traders except the current traders movable false.
+        for (ShoppingList sl : economy.getMarketsAsBuyer(trader).keySet()) {
+            sl.setMovable(movable);
+        }
+    }
+
+    /**
+     * Sets shopping lists movable for traders.
+     *
+     * @param economy the economy.
+     * @param traders the traders.
+     * @param movable value for field.
+     */
+    private void setShoppingListsMovable(@Nonnull Economy economy, @Nonnull List<Long> traders,
+        boolean movable) {
+        Map<Long, Trader> tradersByOid = economy.getTopology().getTradersByOid();
+        traders.forEach(traderId -> {
+            setShoppingListsMovable(economy, tradersByOid.get(traderId), movable);
+        });
+    }
+
+    /**
+     * Sets can accept new customer for all specified entities.
+     *
+     * @param entityToGroupingMapping entity to grouping mapping.
+     * @param skipGroupings groupings to skip.
+     * @param canAccept value for field.
+     */
+    private void setProviderCanAcceptAllEntities(@Nonnull Map<Integer, List<Trader>> entityToGroupingMapping,
+        @Nonnull Set<Integer> skipGroupings, boolean canAccept) {
+        entityToGroupingMapping.entrySet().stream().filter(entry -> !skipGroupings.contains(entry.getKey()))
+        .forEach(entry -> {
+            entry.getValue().forEach(trader -> trader.getSettings().setCanAcceptNewCustomers(canAccept));
+        });
+    }
+
+    /**
+     * Disable moves for all traders of economy.
+     *
+     * @param economy the economy.
+     */
+    private void disableMovesForExistingTraders(@Nonnull Economy economy) {
+        for (Trader trader : economy.getTraders()) {
+            setShoppingListsMovable(economy, trader, false);
+        }
+    }
+
+    /**
+     * Disable existing non reservation entities from moving. Prepare grouping to entity mapping.
+     *
+     * @param economy the economy.
+     * @param entityToGroupingMapping Maps grouping to available entities of that grouping.
+     * @param originalCanAcceptValue Keep track of original canAcceptNewCustomer values of entities
+     *     to be reset when needed.
+     * @param entityType the type of entity to expect placing on with affinity.
+     * @param commodityType the commodity type that is constraining for the grouping.
+     */
+    private void disableMovesAndProcessMapping(@Nonnull Economy economy,
+        @Nonnull Map<Integer, List<Trader>> entityToGroupingMapping,
+        @Nonnull Map<Trader, Boolean> originalCanAcceptValue,
+        final int entityType, final int commodityType) {
+        for (Trader trader : economy.getTraders()) {
+            setShoppingListsMovable(economy, trader, false);
+            if (trader.getType() != entityType || !trader.getSettings().canAcceptNewCustomers()) {
+                continue;
+            }
+            originalCanAcceptValue.put(trader, trader.getSettings().canAcceptNewCustomers());
+            int indexOfComm = trader.getBasketSold()
+                .indexOfBaseType(commodityType);
+            if (indexOfComm == -1) {
+                trader.getSettings().setCanAcceptNewCustomers(false);
+            } else {
+                entityToGroupingMapping.computeIfAbsent(trader.getBasketSold().get(indexOfComm)
+                    .getType(), list -> new ArrayList<>()).add(trader);
+            }
+        }
+    }
+
+    /**
+     * Set the results of current placement to use the results of the first placement attempt.
+     *
+     * @param placementResults current placement results.
+     * @param unplacedBuyer current unplaced buyers.
+     * @param traderIdToPlacement current placements.
+     * @param firstAttemptFailureResults first attempt placement results.
+     * @param firstAttemptUnplacedBuyers first attempt unplaced buyers.
+     * @param firstAttemptTraderIdToPlacement first attempt placements.
+     * @return the placement results.
+     */
+    private PlacementResults useFirstAttempt(@Nonnull PlacementResults placementResults,
+        @Nonnull Set<Long> unplacedBuyer,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement,
+        @Nonnull PlacementResults firstAttemptFailureResults,
+        @Nonnull Set<Long> firstAttemptUnplacedBuyers,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> firstAttemptTraderIdToPlacement) {
+        unplacedBuyer.clear();
+        traderIdToPlacement.clear();
+        Lists.reverse(placementResults.getActions()).forEach(Action::rollback);
+        firstAttemptFailureResults.getActions().forEach(Action::take);
+        unplacedBuyer.addAll(firstAttemptUnplacedBuyers);
+        traderIdToPlacement.putAll(firstAttemptTraderIdToPlacement);
+        return firstAttemptFailureResults;
+    }
+
+    /**
+     * Track the first failed attempt to place on the grouping.
+     *
+     * @param buyerIds the list of buyers.
+     * @param economy the economy.
+     * @param firstAttemptUnplacedBuyers first attempt unplaced buyers.
+     * @param firstAttemptTraderIdToPlacement first attempt placements.
+     * @param firstAttemptFailureResults first attempt placement results.
+     * @param placementResults current placement results.
+     * @param firstAttempt the flag to update.
+     */
+    private void trackFirstAttempt(@Nonnull List<Long> buyerIds, @Nonnull Economy economy,
+        @Nonnull Set<Long> firstAttemptUnplacedBuyers,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> firstAttemptTraderIdToPlacement,
+        @Nonnull PlacementResults firstAttemptFailureResults,
+        @Nonnull PlacementResults placementResults, boolean firstAttempt) {
+        processPlacements(buyerIds, firstAttemptUnplacedBuyers, economy, firstAttemptTraderIdToPlacement);
+        firstAttemptFailureResults.addActions(placementResults.getActions());
+        placementResults.getInfinityQuoteTraders().forEach((trader, quoteTrackers) -> {
+            firstAttemptFailureResults.addInfinityQuoteTraders(trader, (List)quoteTrackers);
+        });
+        firstAttemptFailureResults.populateExplanationForInfinityQuoteTraders();
+    }
+
+    /**
+     * An attempt to fit all buyers of reservation placement within one grouping.
+     *
+     * @param buyerIds the buyers.
+     * @param economy the economy.
+     * @param firstAttemptUnplacedBuyers tracking of the first attempt unplaced buyers.
+     * @param firstTraderSLs sls of the first trader.
+     * @param firstAttemptTraderIdToPlacement tracking of the first attempt placements.
+     * @param firstAttemptFailureResults tracking of the first attempt failure results.
+     * @param restOfTraderIds traders except for first one.
+     * @param allowedAttempts number of attempts to place.
+     * @param unplacedBuyer the current attempt unplaced buyers.
+     * @param entityType the entity type to place on within the grouping.
+     * @param commodityType the commodity type to consider for the grouping.
+     * @param traderIdToPlacement the placements.
+     * @param entityToGroupingMapping mapping of grouping to entity.
+     * @param processedGroupings groupings that have already been processed.
+     * @return the placement results.
+     */
+    private PlacementResults attemptAffinityPlacement(@Nonnull List<Long> buyerIds, @Nonnull Economy economy,
+            @Nonnull Set<Long> firstAttemptUnplacedBuyers, @Nonnull Set<ShoppingList> firstTraderSLs,
+            @Nonnull Map<Long, List<InitialPlacementDecision>> firstAttemptTraderIdToPlacement,
+            @Nonnull PlacementResults firstAttemptFailureResults, @Nonnull List<Long> restOfTraderIds,
+            int allowedAttempts, @Nonnull Set<Long> unplacedBuyer, final int entityType,
+            final int commodityType, @Nonnull Map<Long, List<InitialPlacementDecision>> traderIdToPlacement,
+            @Nonnull Map<Integer, List<Trader>> entityToGroupingMapping,
+            @Nonnull Set<Integer> processedGroupings) {
+        // Keep track of the first attempt results to send back if all attempts fail.
+        boolean firstAttempt = true;
+        PlacementResults placementResults = PlacementResults.empty();
+        for (int attempts = allowedAttempts; attempts > 0; attempts--) {
+            // Disable the rest of the buyers from trying to find placement until the first buyer shops.
+            setShoppingListsMovable(economy, restOfTraderIds, false);
+            // Find placement for the first buyer.
+            placementResults = Placement.placementDecisions(economy);
+            // Enable the rest of the VMs to find placement.
+            setShoppingListsMovable(economy, restOfTraderIds, true);
+            // Check if the first buyer was able to find placement. If not, then no other buyer would be
+            // able to place.
+            if (firstTraderSLs.stream().anyMatch(sl -> sl.getSupplier() == null)) {
+                logger.info("{} first trader unable to find placement. Attempt count {}",
+                    logPrefix, attempts);
+                // Run the placement with the rest of the buyers shopping. The buyers should not find placement.
+                placementResults.combine(Placement.placementDecisions(economy));
+                // Process the results and update the collections.
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                // Populate unplacement explanations.
+                placementResults.populateExplanationForInfinityQuoteTraders();
+                if (!firstAttempt) {
+                    return useFirstAttempt(placementResults, unplacedBuyer, traderIdToPlacement,
+                        firstAttemptFailureResults, firstAttemptUnplacedBuyers,
+                        firstAttemptTraderIdToPlacement);
+                }
+                return placementResults;
+            }
+            if (buyerIds.size() == 1) {
+                // Only 1 buyer in reservation and it is placed, so process the reservation results.
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                return placementResults;
+            }
+            // First buyer is able to place. Now find what grouping its provider entity is on.
+            Optional<Trader> provider = firstTraderSLs.stream()
+                .map(sl -> economy.getTopology().getTradersByOid()
+                .get(sl.getSupplier().getOid())).filter(trader -> trader.getType()
+                    == entityType).findFirst();
+            if (!provider.isPresent()) {
+                // Unexpected behavior since the placed buyer should have a provider that is specified.
+                // Log a message but still process the rest of the reservation and exit.
+                logger.error("Unexpected behavior for affinity reservation. Attempts " + attempts);
+                placementResults.combine(Placement.placementDecisions(economy));
+                processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+                if (!unplacedBuyer.isEmpty()) {
+                    placementResults.populateExplanationForInfinityQuoteTraders();
+                }
+                if (!firstAttempt) {
+                    return useFirstAttempt(placementResults, unplacedBuyer, traderIdToPlacement,
+                        firstAttemptFailureResults, firstAttemptUnplacedBuyers,
+                        firstAttemptTraderIdToPlacement);
+                }
+                return placementResults;
+            }
+            Basket basketSold = provider.get().getBasketSold();
+            CommoditySpecification commSpec = basketSold
+                .get(basketSold.indexOfBaseType(commodityType));
+            logger.info("{} first trader placed on provider {} from cluster {}. Attempt count {}",
+                logPrefix, provider.get().getDebugInfoNeverUseInCode(),
+                commSpec.getDebugInfoNeverUseInCode(), attempts);
+            // Set entities that are not part of the same grouping to not be able to accept new customers.
+            economy.clearSellersFromMarkets();
+            setProviderCanAcceptAllEntities(entityToGroupingMapping, Sets.newHashSet(commSpec.getType()), false);
+            InitialPlacementUtils.getEconomyReady(economy);
+            // Run placements with the rest of the buyers able to find placement.
+            placementResults.combine(Placement.placementDecisions(economy));
+            // Process the results.
+            processPlacements(buyerIds, unplacedBuyer, economy, traderIdToPlacement);
+            if (unplacedBuyer.isEmpty()) {
+                // Successful placement of all buyers within the same grouping.
+                return placementResults;
+            }
+            // If some buyers are unplaced, then this grouping didn't have enough resources
+            // to fit all the buyers. Attempt another grouping while attempts count is available.
+            if (attempts <= 1) {
+                // Ran out of attempts. Not all buyers were able to find placement.
+                if (firstAttempt) {
+                    placementResults.populateExplanationForInfinityQuoteTraders();
+                } else {
+                    return useFirstAttempt(placementResults, unplacedBuyer, traderIdToPlacement,
+                        firstAttemptFailureResults, firstAttemptUnplacedBuyers,
+                        firstAttemptTraderIdToPlacement);
+                }
+                return placementResults;
+            }
+            // Keep track of the first attempt results to send back if all attempts fail.
+            if (firstAttempt) {
+                trackFirstAttempt(buyerIds, economy, firstAttemptUnplacedBuyers,
+                    firstAttemptTraderIdToPlacement, firstAttemptFailureResults, placementResults,
+                    firstAttempt);
+            }
+            // Keep track of the attempted groupings.
+            processedGroupings.add(commSpec.getType());
+            // Rollback all the actions that were done for the buyers in order to unplace
+            // them and also reduce the increased quantities on providers due to the
+            // placements that were done for some of the buyers.
+            Lists.reverse(placementResults.getActions()).forEach(Action::rollback);
+            // Reset the collections.
+            unplacedBuyer.clear();
+            traderIdToPlacement.clear();
+            // Allow the rest of the providers from the non processed groupings to be potential
+            // candidates for placement again.
+            economy.clearSellersFromMarkets();
+            setProviderCanAcceptAllEntities(entityToGroupingMapping, processedGroupings, true);
+            // Disable placement for providers of the grouping that was attempted.
+            entityToGroupingMapping.get(commSpec.getType())
+                .forEach(trader -> trader.getSettings().setCanAcceptNewCustomers(false));
+            InitialPlacementUtils.getEconomyReady(economy);
+            firstAttempt = false;
+        }
+        return placementResults;
+    }
 }
 
