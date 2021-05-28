@@ -361,8 +361,13 @@ class SavingsCalculator {
         // Close out the current segment and open a new with the new periodic missed savings/investment
         algorithmState.endSegment(timestamp);
 
-        // Clear the current recommendation.
-        algorithmState.setCurrentRecommendation(null);
+        // Deactivate the current recommendation.
+        if (algorithmState.getCurrentRecommendation() != null) {
+            EntityPriceChange updatedRecommendation =
+                    new EntityPriceChange.Builder().from(algorithmState.getCurrentRecommendation())
+                            .active(false).build();
+            algorithmState.setCurrentRecommendation(updatedRecommendation);
+        }
     }
 
     /**

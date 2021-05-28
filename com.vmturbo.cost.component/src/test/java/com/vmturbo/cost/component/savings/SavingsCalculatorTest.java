@@ -289,6 +289,45 @@ public class SavingsCalculatorTest {
     }
 
     /**
+     * Ensure that we are handling recommendation removed events that occur before the associated
+     * action executed event.
+     *
+     *  @throws FileNotFoundException if the events file is missing.
+     */
+    @Test
+    public void testRemovedBeforeExecutionSuccess() throws FileNotFoundException {
+        // Add events
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal(
+                mock(AuditLogWriter.class));
+        addTestEvents("src/test/resources/savings/recommendation-removed-before-execution.json",
+                eventsJournal);
+
+        // Run the algorithm.
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        Map<Long, EntityState> entityStates = new HashMap<>();
+        long baseTime = 1622174400000L;  // Fri May 28 00:00:00 2021
+
+        Result[] results = {
+                new Result(1, false, ImmutableList.of(), null, null),
+                new Result(1, false, ImmutableList.of(2.0), null, 1.8333333333333333d),
+                new Result(1, false, ImmutableList.of(2.0), null, 2.0d)
+        };
+        for (int period = 0; period < results.length; period++) {
+            long start = baseTime + period * 3600000L;
+            long end = start + 3600000L;
+            savingsCalculator.calculate(entityStates, entityStates.values(),
+                    eventsJournal.removeEventsBetween(start, end), start, end);
+            // Verify the results for this period
+            Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
+            EntityState entityState = entityStates.values().iterator().next();
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
+            Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
+            Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
+            Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
+        }
+    }
+
+    /**
      * Round the indicated time up or down to the nearest top of the hour.
      *
      * @param time time in ms to round

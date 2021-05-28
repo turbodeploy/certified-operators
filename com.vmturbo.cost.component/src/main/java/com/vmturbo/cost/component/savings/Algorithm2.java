@@ -165,7 +165,7 @@ public class Algorithm2 implements Algorithm {
         periodicRealized.savings += result.getSavings() * segmentLength;
         periodicRealized.investments += result.getInvestments() * segmentLength;
         // If there's an active recommendation, accumulate missed savings/investments.
-        if (currentRecommendation != null) {
+        if (currentRecommendation != null && currentRecommendation.active()) {
             double delta = currentRecommendation.getDelta() * segmentLength;
             periodicMissed.savings += deltaToSavings(delta);
             periodicMissed.investments += deltaToInvestment(delta);
