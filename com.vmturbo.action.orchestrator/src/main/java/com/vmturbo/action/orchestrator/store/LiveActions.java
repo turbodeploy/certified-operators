@@ -750,9 +750,11 @@ class LiveActions implements QueryableActionViews {
      */
     @Override
     public Stream<ActionView> getByEntity(@Nonnull final Collection<Long> involvedEntities) {
-        // if the user is scoped, verify that the user has access to all of the requested entities.
+        // If the user is scoped, only retain the entities scoped user has access to. Otherwise, the
+        // result will contain entities that the user cannot see, eventually causing the entire request
+        // to fail with AuthorizationException$UserAccessScopeException.
         if (userSessionContext.isUserScoped()) {
-            UserScopeUtils.checkAccess(userSessionContext, involvedEntities);
+            involvedEntities.retainAll(userSessionContext.getUserAccessScope().accessibleOids().toSet());
         }
 
         // We need to copy the matching action views into an intermediate list
