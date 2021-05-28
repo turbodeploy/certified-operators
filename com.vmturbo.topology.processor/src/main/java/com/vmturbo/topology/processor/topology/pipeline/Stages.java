@@ -1721,7 +1721,7 @@ public class Stages {
                 PlanProjectType planProjectType = topologyInfo.getPlanInfo().getPlanProjectType();
                 // scope using inverted index
                 try {
-                    result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope, planProjectType);
+                    result = planTopologyScopeEditor.indexBasedScoping(index, topologyInfo, graph, groupResolver, planScope, planProjectType);
                 } catch (GroupResolutionException e) {
                     throw new PipelineStageException(e);
                 }

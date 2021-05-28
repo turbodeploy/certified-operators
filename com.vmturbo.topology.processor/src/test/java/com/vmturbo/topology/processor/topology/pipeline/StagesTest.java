@@ -274,13 +274,13 @@ public class StagesTest {
 
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
-        when(scopeEditor.indexBasedScoping(eq(index), eq(graph), any(), eq(scope), eq(PlanProjectType.USER))).thenReturn(result);
+        when(scopeEditor.indexBasedScoping(eq(index), eq(onpremTopologyInfo), eq(graph), any(), eq(scope), eq(PlanProjectType.USER))).thenReturn(result);
         when(scopeEditor.createInvertedIndex()).thenReturn(index);
         when(graph.entities()).thenReturn(Stream.empty());
         when(result.size()).thenReturn(0);
         when(graph.size()).thenReturn(0);
         onpremScopingStage.execute(graph);
-        verify(scopeEditor).indexBasedScoping(eq(index), eq(graph), any(), eq(scope), eq(PlanProjectType.USER));
+        verify(scopeEditor).indexBasedScoping(eq(index), eq(onpremTopologyInfo), eq(graph), any(), eq(scope), eq(PlanProjectType.USER));
     }
 
     @Test
