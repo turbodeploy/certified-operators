@@ -457,7 +457,12 @@ public enum Component {
     /**
      * ServiceNOW.
      */
-    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component");
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component"),
+
+    /**
+     * Xen.
+     */
+    MEDIATION_XEN("xen", "com.vmturbo.mediation.xen.component");
 
     private final String shortName;
     private final String topLevelFolder;

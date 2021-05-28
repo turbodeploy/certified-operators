@@ -821,7 +821,13 @@ public class VoltronConfiguration {
         /**
          * ServiceNOW.
          */
-        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW);
+        MEDIATION_SERVICENOW(Component.MEDIATION_SERVICENOW),
+
+        /**
+         * Xen.
+         */
+        MEDIATION_XEN(Component.MEDIATION_XEN);
+
 
         private Component component;
 
