@@ -11,17 +11,19 @@
 -- and harmless.
 --
 -- This migration will only be operable if the wrong schema (`extractor`) is present and  the
--- correct schema (`grafana_writer`) is present and contains no tables. This is the expected state
--- in any installation that run afoul of this bug.
+-- correct schema (`grafana_writer`) is present and contains no tables, except possibly the
+-- schema-version table created (just prior to running this migraiton) by flyway).
+-- This is the expected state in any installation that run afoul of this bug.
 DO $$ BEGIN
   IF EXISTS(SELECT * FROM information_schema.schemata WHERE schema_name='extractor')
-     AND NOT EXISTS(SELECT * FROM information_schema.tables WHERE table_schema='grafana_writer')
+     AND NOT EXISTS(SELECT * FROM information_schema.tables
+       WHERE table_schema='grafana_writer' AND table_name != 'schema_version')
   THEN
     DECLARE t text;
     BEGIN
       FOR t IN SELECT table_name FROM information_schema.tables WHERE table_schema='extractor' LOOP
         EXECUTE concat('ALTER TABLE extractor.', t, ' SET SCHEMA grafana_writer');
       END LOOP;
-    END
+    END;
   END IF;
 END; $$
