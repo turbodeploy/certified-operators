@@ -28,6 +28,7 @@ public class License implements ILicense, Comparable<ILicense>, Serializable {
     private Set<ErrorReason> errorReasons = new LinkedHashSet<>();
     private int numLicensedEntities;
     private int numInUseEntities;
+    private Integer maxReportEditorsCount;
 
     private SortedSet<String> features = new TreeSet<>();
 
@@ -175,6 +176,16 @@ public class License implements ILicense, Comparable<ILicense>, Serializable {
 
     public License setFilename(final String filename) {
         this.filename = filename;
+        return this;
+    }
+
+    @Override
+    public Integer getMaxReportEditorsCount() {
+        return maxReportEditorsCount;
+    }
+
+    public License setMaxReportEditorsCount(final Integer maxReportEditorsCount) {
+        this.maxReportEditorsCount = maxReportEditorsCount;
         return this;
     }
 

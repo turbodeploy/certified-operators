@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -28,6 +29,12 @@ public class LicenseMapperTest {
 
         LicenseSummary invalidLicenseSummary = LicenseSummary.newBuilder().setIsValid(false).build();
         assertFalse(LicenseMapper.licenseSummaryToLicenseApiDTO(invalidLicenseSummary).isValid());
+
+        LicenseSummary maxReportEditorsCountLicenseSummary =
+                LicenseSummary.newBuilder().setMaxReportEditorsCount(10).build();
+        assertEquals(10, LicenseMapper.licenseSummaryToLicenseApiDTO(maxReportEditorsCountLicenseSummary)
+                .getMaxReportEditorsCount().intValue());
+
     }
 
 
