@@ -372,11 +372,10 @@ public class CloudRateExtractor {
 
             storageOptions.sort((a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
             // Add the base configuration price.
-            final double hourlyPrice = baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)
-                    .getValue());
             priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
-                    dbEdition, deploymentType, licenseModel, hourlyPrice, storageOptions,
-                    serverConfigPrice.getRatioDependecyList());
+                    dbEdition, deploymentType, licenseModel,
+                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)
+                            .getValue()), storageOptions);
         }
     }
 
