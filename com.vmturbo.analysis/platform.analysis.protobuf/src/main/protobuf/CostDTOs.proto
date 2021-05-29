@@ -86,7 +86,15 @@ message CostDTO {
 
     }
 
-
+    // the dependency commodity and its base commodity and the max ratio between dependent
+    // commodity's capacity and base commodity's capacity
+    message StorageResourceRatioDependency {
+        optional CommoditySpecificationTO base_resource_type = 1;
+        optional CommoditySpecificationTO dependent_resource_type = 2;
+        optional double max_ratio = 3;
+        optional double min_ratio = 4;
+        optional bool increase_base_default_supported = 5;
+    }
 
     message StorageTierCostDTO {
         // the commodity specification to min and max capacity limitation mapping
@@ -95,15 +103,6 @@ message CostDTO {
             optional double min_capacity = 2;
             optional double max_capacity = 3;
             optional bool check_min_capacity = 4;
-        }
-        // the dependency commodity and its base commodity and the max ratio between dependent
-        // commodity's capacity and base commodity's capacity
-        message StorageResourceRatioDependency {
-            optional CommoditySpecificationTO base_resource_type = 1;
-            optional CommoditySpecificationTO dependent_resource_type = 2;
-            optional double max_ratio = 3;
-            optional double min_ratio = 4;
-            optional bool increase_base_default_supported = 5;
         }
         // the dependency commodity, its base commodity, and the range relationship between
         // dependent commodity's capacity and base commodity's capacity
@@ -156,5 +155,6 @@ message CostDTO {
         optional int32 license_commodity_base_type = 2;
         optional int32 region_commodity_base_type = 3;
         required int32 couponBaseType = 4;
+        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 5;
     }
 }
