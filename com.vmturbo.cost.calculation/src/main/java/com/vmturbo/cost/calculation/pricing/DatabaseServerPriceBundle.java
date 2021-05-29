@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.pricing;
 
+import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -13,6 +14,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
+import com.vmturbo.platform.sdk.common.PricingDTO.ResourceRatioDependency;
 
 /**
  * A bundle of of possible prices for a (database server tier, region) combination. The possible
@@ -54,16 +56,18 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          * @param licenseModel The license mode.
          * @param hourlyPrice The hourly price.
          * @param storageOptions the storage options.
+         * @param ratioDependencies ratio dependencies for database server resources
          * @return A builder.
          */
         @Nonnull
         public Builder addPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
                 @Nonnull final DatabaseEdition dbEdition, @Nullable final DeploymentType depType,
                 @Nullable final LicenseModel licenseModel, final double hourlyPrice,
-                @Nonnull final List<DbsStorageOption> storageOptions) {
+                @Nonnull final List<DbsStorageOption> storageOptions,
+                @Nonnull List<ResourceRatioDependency> ratioDependencies) {
             priceBuilder.add(
                     new DatabaseServerPrice(accountId, dbEngine, dbEdition, depType, licenseModel,
-                            hourlyPrice, storageOptions));
+                            hourlyPrice, storageOptions, ratioDependencies));
             return this;
         }
 
@@ -83,6 +87,8 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
      */
     public static class DatabaseServerPrice extends GenericDbPriceBundle.GenericPrice {
 
+        private Collection<ResourceRatioDependency> ratioDependencies;
+
         /**
          * Constructor for the database price.
          *
@@ -93,13 +99,20 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          * @param licenseModel The license model.
          * @param hourlyPrice The hourly price.
          * @param storageOptions The storage options.
+         * @param ratioDependencies ratio dependencies for database server resources
          */
         public DatabaseServerPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
                 @Nonnull final DatabaseEdition dbEdition, @Nullable final DeploymentType depType,
                 @Nullable final LicenseModel licenseModel, final double hourlyPrice,
-                @Nonnull final List<DbsStorageOption> storageOptions) {
+                @Nonnull final List<DbsStorageOption> storageOptions,
+                @Nonnull Collection<ResourceRatioDependency> ratioDependencies) {
             super(accountId, dbEngine, dbEdition, depType, licenseModel, hourlyPrice,
                     storageOptions);
+            this.ratioDependencies = ratioDependencies;
+        }
+
+        public Collection<ResourceRatioDependency> getRatioDependencies() {
+            return ratioDependencies;
         }
 
         /**
