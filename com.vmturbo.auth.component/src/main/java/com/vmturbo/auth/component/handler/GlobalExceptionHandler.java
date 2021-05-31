@@ -58,6 +58,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle {@link IllegalArgumentException}.
+     *
+     * @param req request
+     * @param ex exception
+     * @return {@link ResponseEntity<ErrorApiDTO>} ErrorApiDTO in ResponseEntity.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleIllegalArgumentException(HttpServletRequest req, IllegalArgumentException ex) {
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
      * Handle authorization exception.
      *
      * @param req request.
