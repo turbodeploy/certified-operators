@@ -6,10 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
+import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO.Recommendation;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
@@ -168,12 +167,11 @@ public class HealthDataMapper {
         }
         int numberOfTargets = statesCounter.getOrDefault(state, 0);
 
-        AggregatedHealthResponseDTO response = new AggregatedHealthResponseDTO();
-        response.setSubcategory(subcategory.toString());
-        response.setHealthState(state);
-        response.setNumberOfItems(numberOfTargets);
+        AggregatedHealthResponseDTO response = new AggregatedHealthResponseDTO(
+                subcategory.toString(), state, numberOfTargets);
         for (Map.Entry<TargetErrorType, String> entry : recommendations.entrySet()) {
-            response.addRecommendation(new ImmutablePair<>(entry.getKey().toString(), entry.getValue()));
+            Recommendation recommendation = new Recommendation(entry.getKey().toString(), entry.getValue());
+            response.addRecommendation(recommendation);
         }
         return response;
     }

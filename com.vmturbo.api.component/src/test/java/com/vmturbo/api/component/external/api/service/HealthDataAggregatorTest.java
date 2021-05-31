@@ -68,7 +68,7 @@ public class HealthDataAggregatorTest {
             } else {
                 Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
                 Assert.assertEquals(1, rItem.getNumberOfItems());
-                Assert.assertNull(rItem.getRecommendations());
+                Assert.assertEquals(0, rItem.getRecommendations().size());
             }
         }
     }
@@ -98,11 +98,11 @@ public class HealthDataAggregatorTest {
             if (TargetCheckSubcategory.DISCOVERY.toString().equals(rItem.getSubcategory())) {
                 Assert.assertEquals(HealthState.NORMAL, rItem.getHealthState());
                 Assert.assertEquals(1, rItem.getNumberOfItems());
-                Assert.assertNull(rItem.getRecommendations());
+                Assert.assertEquals(0, rItem.getRecommendations().size());
             } else {
                 Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
                 Assert.assertEquals(1, rItem.getNumberOfItems());
-                Assert.assertNull(rItem.getRecommendations());
+                Assert.assertEquals(0, rItem.getRecommendations().size());
             }
         }
     }
@@ -129,6 +129,6 @@ public class HealthDataAggregatorTest {
         Assert.assertEquals(TargetCheckSubcategory.DISCOVERY.toString(), response.getSubcategory());
         Assert.assertEquals(HealthState.NORMAL, response.getHealthState());
         Assert.assertEquals(2, response.getNumberOfItems());
-        Assert.assertNull(response.getRecommendations());
+        Assert.assertEquals(0, response.getRecommendations().size());
     }
 }
