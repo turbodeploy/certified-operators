@@ -628,7 +628,7 @@ public class KVBackedILocalAuthStoreTest {
     /**
      * Test create group which role doesn't exist.
      */
-    @Test(expected = SecurityException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testCreateSecurityGroupWhichRoleDoesNotExist() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
@@ -682,7 +682,7 @@ public class KVBackedILocalAuthStoreTest {
     /**
      * Test update group which role doesn't exist.
      */
-    @Test(expected = SecurityException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void testUpdateSecurityGroupWhichRoleDoesNotExist() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);

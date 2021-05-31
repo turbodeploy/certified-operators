@@ -886,7 +886,7 @@ public class AuthProvider extends AuthProviderBase {
         }
 
         if (!areValidRoles(roleNames)) {
-            throw new SecurityException("Invalid role: " + roleNames);
+            throw new IllegalArgumentException("Invalid role: " + roleNames);
         }
     }
 
