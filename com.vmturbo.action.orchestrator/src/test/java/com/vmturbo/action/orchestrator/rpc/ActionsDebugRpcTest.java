@@ -23,6 +23,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -47,8 +48,10 @@ public class ActionsDebugRpcTest {
         .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1))
         .build();
 
+    private final LiveActionPipelineFactory liveActionPipelineFactory = Mockito.mock(LiveActionPipelineFactory.class);
+
     private final ActionsDebugRpcService actionsDebugRpcService =
-            new ActionsDebugRpcService(actionStorehouse);
+            new ActionsDebugRpcService(actionStorehouse, liveActionPipelineFactory);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsDebugRpcService);

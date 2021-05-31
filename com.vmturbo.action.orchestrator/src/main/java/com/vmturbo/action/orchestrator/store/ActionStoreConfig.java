@@ -196,6 +196,17 @@ public class ActionStoreConfig {
     }
 
     /**
+     * The time window within which actions will not be populated if they are already executed (SUCCEEDED).
+     *
+     * @return The time window within which actions will not be populated if
+     * they are already executed (SUCCEEDED).
+     */
+    @Bean
+    public int queryTimeWindowForLastExecutedActionsMins() {
+        return queryTimeWindowForLastExecutedActionsMins;
+    }
+
+    /**
      * Create atomic action factory.
      *
      * @return @link AtomicActionFactory}

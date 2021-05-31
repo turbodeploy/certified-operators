@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
+import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
@@ -81,6 +82,9 @@ public class RpcConfig {
 
     @Autowired
     private AuditCommunicationConfig auditCommunicationConfig;
+
+    @Autowired
+    private MarketConfig marketConfig;
 
     @Value("${actionPaginationDefaultLimit:100}")
     private int actionPaginationDefaultLimit;
@@ -177,7 +181,8 @@ public class RpcConfig {
         // The ActionsDebugRpcService should only be instantiated if the system property
         // for the debug service has been set to true at startup time.
         return grpcDebugServicesEnabled
-            ? Optional.of(new ActionsDebugRpcService(actionStoreConfig.actionStorehouse()))
+            ? Optional.of(new ActionsDebugRpcService(actionStoreConfig.actionStorehouse(),
+                marketConfig.liveActionPipelineFactory()))
             : Optional.empty();
     }
 

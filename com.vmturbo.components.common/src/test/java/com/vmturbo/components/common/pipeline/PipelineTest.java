@@ -418,9 +418,10 @@ public class PipelineTest {
         new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
             .finalStage(stage));
         stage.execute(1L);
+        final ContextMemberSummary contextMemberSummary = stage.contextMemberCleanup(context);
 
         final Status status = Status.success("My message");
-        status.setContextMemberSummary(new ContextMemberSummary(stage, context));
+        status.setContextMemberSummary(contextMemberSummary);
         assertThat(status.getMessageWithSummary(), either(
             is("My message\n"
                 + "PIPELINE_CONTEXT_MEMBERS:\n"
@@ -432,5 +433,30 @@ public class PipelineTest {
                 + "    PROVIDED=(baz[size=2])\n"
                 + "    REQUIRED=(quux[one object])\n"
                 + "    DROPPED=(baz, quux)\n")));
+    }
+
+    /**
+     * Test that the pipeline status generates the correct message when
+     * the context member summary is disabled..
+     *
+     * @throws Exception on exception.
+     */
+    @Test
+    public void testStatusMessageWithNoContextMemberSummary() throws Exception {
+        final TestPipelineContext context = Mockito.spy(new TestPipelineContext());
+        when(context.includeContextMemberSummary()).thenReturn(false);
+
+        final Stage<Long, Long, TestPipelineContext> stage = new TestPassthroughStage();
+        stage.providesToContext(TestMemberDefinitions.BAZ, (Supplier<List<Long>>)() -> Arrays.asList(1L, 2L));
+        stage.requiresFromContext(TestMemberDefinitions.QUUX);
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .finalStage(stage));
+        stage.execute(1L);
+        final ContextMemberSummary contextMemberSummary = stage.contextMemberCleanup(context);
+
+        final Status status = Status.success("My message");
+        status.setContextMemberSummary(contextMemberSummary);
+        assertThat(status.getMessageWithSummary(), containsString("My message"));
+        assertThat(status.getMessageWithSummary(), not(containsString("PIPELINE_CONTEXT_MEMBERS")));
     }
 }

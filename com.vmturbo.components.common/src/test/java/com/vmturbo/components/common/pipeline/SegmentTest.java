@@ -183,12 +183,12 @@ public class SegmentTest {
     }
 
     /**
-     * Ensure that an exception in the segment kills the pipeline.
+     * Ensure that a PipelineStageException exception in the segment kills the pipeline.
      *
      * @throws Exception on exception.
      */
     @Test
-    public void testExceptionInSegment() throws Exception {
+    public void testPipelineExceptionInSegment() throws Exception {
         final Stage<Long, Long, TestPipelineContext> blowup = Mockito.spy(new NamedTestPassthroughStage("blowup"));
         final Stage<Long, Long, TestPipelineContext> nestedSegmentStage = SegmentDefinition
             .finalStage(blowup)
@@ -213,6 +213,39 @@ public class SegmentTest {
         }
 
         assertThat(pipeline.getSummary().toString(), containsString("We blew up!"));
+    }
+
+    /**
+     * Ensure that a RuntimeException in the segment kills the pipeline.
+     *
+     * @throws Exception on exception.
+     */
+    @Test
+    public void testRuntimeExceptionInSegment() throws Exception {
+        final Stage<Long, Long, TestPipelineContext> blowup = Mockito.spy(new NamedTestPassthroughStage("blowup"));
+        final Stage<Long, Long, TestPipelineContext> nestedSegmentStage = SegmentDefinition
+            .finalStage(blowup)
+            .asStage("nestedStage");
+
+        final Stage<Long, Long, TestPipelineContext> neverRun = Mockito.spy(new NamedTestPassthroughStage("never run"));
+        final Stage<Long, Long, TestPipelineContext> segmentStage = segmentStage(nestedSegmentStage, neverRun);
+        final Stage<Long, Long, TestPipelineContext> otherStage = Mockito.spy(new NamedTestPassthroughStage("OtherStage"));
+        final TestPipeline<Long, Long> pipeline = new TestPipeline<>(
+            PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+                .addStage(segmentStage)
+                .finalStage(otherStage));
+
+        when(blowup.executeStage(anyLong())).thenThrow(new RuntimeException("runtime exception!"));
+        try {
+            pipeline.run(1L);
+            fail();
+        } catch (PipelineException e) {
+            // We should never execute the stages after the blowup stage blows up
+            verify(neverRun, never()).executeStage(anyLong());
+            verify(otherStage, never()).executeStage(anyLong());
+        }
+
+        assertThat(pipeline.getSummary().toString(), containsString("runtime exception!"));
     }
 
     /**

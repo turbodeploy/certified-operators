@@ -92,11 +92,7 @@ public class ActionStorehouse {
     @Nonnull
     public ActionStore storeActions(@Nonnull final ActionPlan actionPlan)
             throws InterruptedException {
-        final long topologyContextId = ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo());
-
-        measureActionPlan(actionPlan);
-        ActionStore store = storehouse.computeIfAbsent(topologyContextId,
-                k -> actionStoreFactory.newStore(topologyContextId));
+        final ActionStore store = measurePlanAndGetOrCreateStore(actionPlan);
 
         DataMetricTimer populationTimer = STORE_POPULATION_SUMMARY
             .labels(store.getStoreTypeName())
@@ -105,6 +101,24 @@ public class ActionStorehouse {
         populationTimer.observe();
 
         return store;
+    }
+
+    /**
+     * Measure and log statistics about an {@link ActionPlan} and get or create its associated {@link ActionStore}.
+     * If an existing {@link ActionStore} exists for the topology context,
+     * that store will be reused. If no such store exists, a new one will be created.
+     *
+     * @param actionPlan The plan whose actions should be stored in a Store in the StoreHouse.
+     * @return The store used to store the actions.
+     * @throws IllegalArgumentException If the input is invalid.
+     */
+    @Nonnull
+    public ActionStore measurePlanAndGetOrCreateStore(@Nonnull final ActionPlan actionPlan) {
+        final long topologyContextId = ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo());
+
+        measureActionPlan(actionPlan);
+        return storehouse.computeIfAbsent(topologyContextId,
+            k -> actionStoreFactory.newStore(topologyContextId));
     }
 
     /**

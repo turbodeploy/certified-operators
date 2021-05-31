@@ -319,7 +319,9 @@ public abstract class Stage<I2, O2, C2 extends PipelineContext> {
     protected ContextMemberSummary contextMemberCleanup(@Nonnull final PipelineContext context)
         throws PipelineContextMemberException {
         // Be sure to generate the summary before dropping members from the context.
-        final ContextMemberSummary summary = new ContextMemberSummary(this, context);
+        final ContextMemberSummary summary = context.includeContextMemberSummary()
+            ? new ContextMemberSummary(this, context)
+            : new BlankContextMemberSummary();
 
         // Drop any context members no longer needed.
         membersToDrop.forEach(context::dropMember);
@@ -494,6 +496,15 @@ public abstract class Stage<I2, O2, C2 extends PipelineContext> {
             dropsSummary = summary(stage.getContextMembersToDrop(), "DROPPED", def -> "");
         }
 
+        /**
+         * Construct a {@link ContextMemberSummary} with empty contents.
+         */
+        protected ContextMemberSummary() {
+            this.providesSummary = "";
+            this.requiresSummary = "";
+            this.dropsSummary = "";
+        }
+
         private String summary(@Nonnull final List<PipelineContextMemberDefinition<?>> memberDefinitions,
                                @Nonnull final String prefix,
                                @Nonnull final Function<PipelineContextMemberDefinition<?>, String> sizeFunction) {
@@ -537,6 +548,17 @@ public abstract class Stage<I2, O2, C2 extends PipelineContext> {
                 sb.append(PipelineSummary.NESTING_SPACING).append(dropsSummary).append("\n");
             }
             return sb.toString();
+        }
+    }
+
+    /**
+     * Blank summary for context members. Used when we want to omit the context member summary
+     * from the overall pipeline summary.
+     */
+    public static class BlankContextMemberSummary extends ContextMemberSummary {
+        @Override
+        public String toString() {
+            return "";
         }
     }
 }

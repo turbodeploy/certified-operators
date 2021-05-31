@@ -89,6 +89,17 @@ public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, 
     public abstract static class PassthroughStage<T> extends Pipeline.PassthroughStage<T, ActionPipelineContext> {
     }
 
+    /**
+     * A passthrough stage that is required (its failure will fail the overall pipeline).
+     *
+     * @param <T> The type of the input.
+     */
+    public abstract static class RequiredPassthroughStage<T> extends PassthroughStage<T> {
+        @Override
+        public boolean required() {
+            return true;
+        }
+    }
 
     /**
      * A pipeline stage takes an input and produces an output that gets passed along to the

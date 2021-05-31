@@ -85,6 +85,19 @@ public abstract class PipelineContext {
     public abstract TracingScope startStageTrace(String stageName);
 
     /**
+     * Check whether stages should include a summary of their context members in their
+     * {@link com.vmturbo.components.common.pipeline.Pipeline.StageResult}s. If false,
+     * stages should return a blank summary from their
+     * {@link Stage#contextMemberCleanup(PipelineContext)} method.
+     *
+     * @return Whether stages should include a summary of their context members.
+     */
+    public boolean includeContextMemberSummary() {
+        // By default, enable.
+        return true;
+    }
+
+    /**
      * Add a new ContextMember to the {@link PipelineContext}. Adding a new member with the
      * previous for a definition that was already added will overwrite the previous one.
      *

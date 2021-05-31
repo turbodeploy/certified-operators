@@ -29,7 +29,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Utility class that contains the cache for entity with new states and the methods to update
  * actions based on them.
  */
-class EntitiesWithNewStateCache {
+public class EntitiesWithNewStateCache {
 
     /**
      * Map containing the id of the host with the corresponding HostWithUpdatedState object.
@@ -45,7 +45,13 @@ class EntitiesWithNewStateCache {
         this.actions = actions;
     }
 
-    int clearActionsAndUpdateCache(long topologyId) {
+    /**
+     * Clear actions from the cache associated with entities whose state have changed.
+     *
+     * @param topologyId The id of the topology for which we are making this update.
+     * @return The number of actions affected.
+     */
+    public int clearActionsAndUpdateCache(long topologyId) {
         hostsWithNewState.entrySet().removeIf(entry -> (
             topologyId > entry.getValue().getStateChangeId()));
         return clearActionsAffectingHostsWithNewState(hostsWithNewState.values());

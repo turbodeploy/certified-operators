@@ -11,12 +11,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -52,6 +50,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
+import com.vmturbo.action.orchestrator.store.pipeline.ActionCounts;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -60,20 +59,13 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
  * A wrapper object for actions in the {@link LiveActionStore}.
@@ -370,12 +362,12 @@ class LiveActions implements QueryableActionViews {
      *
      * @param actionsToRemove The {@link Action}s to remove.
      * @param actionsToAdd The {@link Action}s to add.
-     * @param mergedActionViews List of the market actions that were merged to create the atomci actions
+     * @param mergedActions List of the market actions that were merged to create the atomic actions
      * @param newEntitiesSnapshot  The {@link EntitiesAndSettingsSnapshot} for mode calculation
      */
     void updateAtomicActions(@Nonnull final Collection<Action> actionsToRemove,
                              @Nonnull final Collection<Action> actionsToAdd,
-                             Collection<Action> mergedActionViews,
+                             @Nonnull final Collection<Action> mergedActions,
                              @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
         actionsLock.writeLock().lock();
         try {
@@ -390,9 +382,9 @@ class LiveActions implements QueryableActionViews {
             });
 
             // remove the market actions that were merged.
-            mergedActionViews.forEach(actionView -> {
-                marketActions.remove(actionView.getId());
-                recommendationIdToMarketActionMap.remove(actionView.getRecommendationOid());
+            mergedActions.forEach(action -> {
+                marketActions.remove(action.getId());
+                recommendationIdToMarketActionMap.remove(action.getRecommendationOid());
             });
 
             addInvolvedEntitiesToIndex(atomicActions.values());
@@ -895,6 +887,26 @@ class LiveActions implements QueryableActionViews {
     }
 
     /**
+     * Get a numerical breakdown of actions by their type.
+     *
+     * @return a numerical breakdown of actions by their type.
+     */
+    @Nonnull
+    public ActionCounts getActionCounts() {
+        actionsLock.readLock().lock();
+        try {
+            final List<Action> actions = new ArrayList<>(
+                marketActions.size() + atomicActions.size() + riActions.size());
+            actions.addAll(marketActions.values());
+            actions.addAll(atomicActions.values());
+            actions.addAll(riActions.values());
+            return new ActionCounts("Live Action Store Counts:", actions);
+        } finally {
+            actionsLock.readLock().unlock();
+        }
+    }
+
+    /**
      * Check the current user's access to the action. The default case is that access is allowed,
      * but if the user is scoped, then we'll check to make sure that at least one involved entity is in
      * the user's accessible entity set.
@@ -935,99 +947,6 @@ class LiveActions implements QueryableActionViews {
         }
 
         return true;
-    }
-
-    /**
-     * An acceleration structure used to permit ordered lookups of actions by their {@link ActionInfo}.
-     * This assists in rapidly matching {@link ActionInfo}s in a new {@link ActionPlan} with their
-     * corresponding {@link Action}s currently in the store.
-     *
-     * Internally keeps a map of queues where the key is the ActionInfo for a recommended Action by the
-     * market and the values are an ordered queue of the corresponding domain model {@link Action}s.
-     */
-    static class RecommendationTracker implements Iterable<Action> {
-        final Map<Long, Queue<Action>> recommendations = new HashMap<>();
-
-        /**
-         * Add an action to the tracker. Inserts an entry at the back of the queue
-         * corresponding to the {@link ActionInfo} associated with the action.
-         *
-         * @param action The action to add to the tracker.
-         */
-        void add(@Nonnull final Action action) {
-            Queue<Action> actions = recommendations.get(action.getRecommendationOid());
-            if (actions == null) {
-                actions = new LinkedList<>();
-                recommendations.put(action.getRecommendationOid(), actions);
-            }
-
-            actions.add(action);
-        }
-
-        /**
-         *  Remove and return the action which matches the given
-         *  ActionInfo.
-         *
-         * @param actionInfoId ActionInfo id - the id of the market recommendation
-         * @return Action which has the ActionInfo info
-         *
-         * If the action exists, it is removed from the queue
-         * and returned to the caller.
-         */
-        Optional<Action> take(long actionInfoId) {
-            Queue<Action> actions = recommendations.get(actionInfoId);
-            if (actions == null) {
-                return Optional.empty();
-            } else {
-                return actions.isEmpty() ? Optional.empty() : Optional.of(actions.remove());
-            }
-        }
-
-        @Override
-        public RemainingActionsIterator iterator() {
-            return new RemainingActionsIterator();
-        }
-
-        /**
-         * Iterates over the remaining actions in the {@link RecommendationTracker}.
-         */
-        private class RemainingActionsIterator implements Iterator<Action> {
-            private final Iterator<Queue<Action>> mapIterator =
-                    recommendations.values().iterator();
-            private Iterator<Action> queueIterator = mapIterator.hasNext() ?
-                    mapIterator.next().iterator() :
-                    Collections.emptyIterator();
-
-            @Override
-            public boolean hasNext() {
-                if (queueIterator.hasNext()) {
-                    return true;
-                } else if (!mapIterator.hasNext()) {
-                    return false;
-                }
-
-                // try to get the 1st non-empty queue.
-                while (mapIterator.hasNext() && !queueIterator.hasNext()) {
-                    queueIterator = mapIterator.next().iterator();
-                }
-                return queueIterator.hasNext();
-            }
-
-            @Override
-            public Action next() {
-                return queueIterator.next();
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        @Override
-        public String toString() {
-            return recommendations.toString();
-        }
     }
 
     /**
