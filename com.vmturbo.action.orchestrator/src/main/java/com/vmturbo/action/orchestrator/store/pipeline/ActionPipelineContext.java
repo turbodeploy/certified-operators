@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store.pipeline;
 import static com.vmturbo.action.orchestrator.store.pipeline.ActionPipeline.ACTION_PLAN_TYPE_LABEL;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -77,12 +78,34 @@ public class ActionPipelineContext extends PipelineContext {
     }
 
     /**
+     * Get the topology ID associated with the action plan. Only available on market
+     * action plans.
+     *
+     * @return The topology ID associated with the action plan, or {@link Optional#empty()}
+     *         if none is available.
+     */
+    public Optional<Long> getTopologyId() {
+        return actionPlanInfo.hasMarket()
+            ? Optional.of(actionPlanInfo.getMarket().getSourceTopologyInfo().getTopologyId())
+            : Optional.empty();
+    }
+
+    /**
      * Get the {@link ActionPlanInfo} associated with the action plan processing pipeline.
      *
      * @return the {@link ActionPlanInfo} associated with the action plan processing pipeline.
      */
     public ActionPlanInfo getActionPlanInfo() {
         return actionPlanInfo;
+    }
+
+    /**
+     * Get the ID of the action plan for this pipeline context.
+     *
+     * @return the ID of the action plan for this pipeline context.
+     */
+    public long getActionPlanId() {
+        return actionPlanId;
     }
 
     @Nonnull
@@ -101,6 +124,13 @@ public class ActionPipelineContext extends PipelineContext {
     @Override
     public TracingScope startStageTrace(String stageName) {
         return Tracing.trace(stageName);
+    }
+
+    @Override
+    public boolean includeContextMemberSummary() {
+        // Action pipeline has a lot of context members. Including them in summary
+        // by default is too noisy.
+        return false;
     }
 
     private String getPlanInfoDescription() {

@@ -82,7 +82,7 @@ public abstract class SegmentStage<
     private static final Logger logger = LogManager.getLogger();
 
     private final List<Stage> interiorStages;
-    private final SegmentSummary segmentSummary;
+    protected final SegmentSummary segmentSummary;
 
     /**
      * Construct a new {@link SegmentStage}.
@@ -228,9 +228,9 @@ public abstract class SegmentStage<
                 logger.info("Executing stage {}::{}", getName(), stage.getName());
                 stageResult = runStage(stage, curStageInput);
                 curStageInput = stageResult.getResult();
-            } catch (PipelineStageException e) {
+            } catch (PipelineStageException | RuntimeException e) {
                 getSummary().endStage(Status.failed(e), false);
-                getSummary().fail(e.getMessage());
+                getSummary().fail(e.getMessage() == null ? "" : e.getMessage());
                 throw new PipelineStageException(e.getMessage(), e, getSummary());
             }
         }

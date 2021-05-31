@@ -8,11 +8,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
+import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
+import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
 import com.vmturbo.action.orchestrator.store.pipeline.PlanActionPipelineFactory;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -43,6 +48,21 @@ public class MarketConfig {
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
 
+    @Autowired
+    private ActionExecutionConfig actionExecutionConfig;
+
+    @Autowired
+    private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
+
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
+
+    @Autowired
+    private ActionStatsConfig actionStatsConfig;
+
+    @Autowired
+    private AuditCommunicationConfig auditCommunicationConfig;
+
     /**
      * The maximum allowed age of an action plan in seconds.
      * If we receive a live action plan older than this value, it will be discarded.
@@ -50,6 +70,22 @@ public class MarketConfig {
      */
     @Value("${maxLiveActionPlanAgeSeconds:600}")
     private long maxLiveActionPlanAgeSeconds;
+
+    /**
+     * Max time to wait in minutes for the shared live actions lock during live
+     * actions pipeline execution before timing out. Must be > 0.
+     */
+    @Value("${liveActionsLockMaxWaitTimeMinutes:60}")
+    private long liveActionsLockMaxWaitTimeMinutes;
+
+    /**
+     * Controls whether to use the new action pipeline (where logic is broken out into multiple stages)
+     * or the old pipeline which does everything in one massive function
+     * (LiveActionStore#populateRecommendedActions).
+     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
+     */
+    @Value("${useNewActionPipeline:true}")
+    private boolean useNewActionPipeline;
 
     @Bean
     public ActionPlanAssessor actionPlanAssessor() {
@@ -60,7 +96,14 @@ public class MarketConfig {
     @Bean
     public LiveActionPipelineFactory liveActionPipelineFactory() {
         return new LiveActionPipelineFactory(actionStoreConfig.actionStorehouse(),
-            actionStoreConfig.automationManager());
+            actionStoreConfig.automationManager(), actionStoreConfig.atomicActionFactory(),
+            actionStoreConfig.entitySettingsCache(), liveActionsLockMaxWaitTimeMinutes,
+            actionExecutionConfig.targetCapabilityCache(), actionStoreConfig.actionHistory(),
+            actionStoreConfig.actionFactory(), actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+            actionStoreConfig.queryTimeWindowForLastExecutedActionsMins(),
+            actionStoreConfig.actionIdentityService(), actionExecutionConfig.actionTargetSelector(),
+            actionTranslationConfig.actionTranslator(), actionStatsConfig.actionsStatistician(),
+            auditCommunicationConfig.actionAuditSender(), useNewActionPipeline);
     }
 
     /**

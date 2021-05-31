@@ -75,15 +75,15 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testStoreActionsNewStore() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+    public void testGetOrCreateNewStore() {
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
 
         verify(actionStoreFactory).newStore(anyLong());
         assertEquals(actionStore, actionStorehouse.getStore(topologyContextId).get());
     }
 
     @Test
-    public void testStoreActionsWithNoContextId() throws Exception {
+    public void testGetOrCreateWithNoContextId() {
         ActionPlan noContextPlan = ActionPlan.newBuilder()
             .setId(1234L)
             .setInfo(ActionPlanInfo.newBuilder()
@@ -94,13 +94,13 @@ public class ActionStorehouseTest {
             .build();
 
         expectedException.expect(IllegalArgumentException.class);
-        actionStorehouse.storeActions(noContextPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(noContextPlan);
     }
 
     @Test
-    public void testStoreActionsExistingStore() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
-        actionStorehouse.storeActions(actionPlan);
+    public void testGetOrCreateExistingStore() {
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
 
         verify(actionStoreFactory, times(1)).newStore(eq(topologyContextId));
     }
@@ -112,12 +112,12 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testGetNonExistingStore() throws Exception {
+    public void testGetNonExistingStore() {
         assertFalse(actionStorehouse.getStore(topologyContextId).isPresent());
     }
 
     @Test
-    public void testGetNonExistingSeverityCache() throws Exception {
+    public void testGetNonExistingSeverityCache() {
         assertFalse(actionStorehouse.getSeverityCache(topologyContextId).isPresent());
     }
 
