@@ -12,20 +12,36 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.MultiTraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
@@ -81,6 +97,7 @@ public class TopologyFilterFactoryTest {
                     .addTargetIdentity(UDT_OID, VENDOR_ID2)
                     .addTargetIdentity(TARGET_ID1, VENDOR_ID1)
                     .build();
+    private static final long ONE_MINUTE_MILLIS = 60_000L;
 
     private final TopologyFilterFactory<TestGraphEntity> filterFactory = new TopologyFilterFactory<>();
     private final TopologyGraph<TestGraphEntity> graph = mock(TopologyGraph.class);
@@ -186,11 +203,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("foo")
+        final TestGraphEntity entity1 = createGraphEntityBuilder(1234L,
+                        ApiEntityType.VIRTUAL_MACHINE, "foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("bar")
+        final TestGraphEntity entity2 = createGraphEntityBuilder(2345L,
+                        ApiEntityType.VIRTUAL_MACHINE, "bar")
             .build();
 
         assertTrue(propertyFilter.test(entity1, graph));
@@ -212,11 +229,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("MyEntity")
+        final TestGraphEntity entity1 = createGraphEntityBuilder(1234L,
+                        ApiEntityType.VIRTUAL_MACHINE, "MyEntity")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("myentity")
+        final TestGraphEntity entity2 = createGraphEntityBuilder(2345L,
+                        ApiEntityType.VIRTUAL_MACHINE, "myentity")
             .build();
 
 
@@ -239,11 +256,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("MyEntity")
+        final TestGraphEntity entity1 = createGraphEntityBuilder(1234L,
+                        ApiEntityType.VIRTUAL_MACHINE, "MyEntity")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("myentity")
+        final TestGraphEntity entity2 = createGraphEntityBuilder(2345L,
+                        ApiEntityType.VIRTUAL_MACHINE, "myentity")
             .build();
 
         assertTrue(propertyFilter.test(entity1, graph));
@@ -264,11 +281,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("foo")
+        final TestGraphEntity entity1 = createGraphEntityBuilder(1234L,
+                        ApiEntityType.VIRTUAL_MACHINE, "foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("bar")
+        final TestGraphEntity entity2 = createGraphEntityBuilder(2345L,
+                        ApiEntityType.VIRTUAL_MACHINE, "bar")
             .build();
 
 
@@ -291,11 +308,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("foo")
+        final TestGraphEntity entity1 = createGraphEntityBuilder(1234L,
+                        ApiEntityType.VIRTUAL_MACHINE, "foo")
             .build();
-        final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("bar")
+        final TestGraphEntity entity2 = createGraphEntityBuilder(2345L,
+                        ApiEntityType.VIRTUAL_MACHINE, "bar")
             .build();
 
 
@@ -832,6 +849,150 @@ public class TopologyFilterFactoryTest {
         assertEquals(TraversalDirection.PRODUCES, propertyFilter.getTraversalDirection());
     }
 
+    /**
+     * Checks that {@link MultiTraversalFilter} working as expected and combining results through OR
+     * condition correctly.
+     */
+    @Test
+    public void checkMultiRelationsFilterOrCondition() {
+        final TestGraphEntity.Builder vv1 =
+                        createGraphEntityBuilder(124L, ApiEntityType.VIRTUAL_VOLUME, "vv1");
+        final TestGraphEntity.Builder vv2 =
+                        createGraphEntityBuilder(125L, ApiEntityType.VIRTUAL_VOLUME, "vv2");
+        final TestGraphEntity.Builder vv3 =
+                        createGraphEntityBuilder(126L, ApiEntityType.VIRTUAL_VOLUME, "vv3");
+        checkMultiRelationsFilter(LogicalOperator.OR, ImmutableSet.of(vv1, vv3),
+                        ImmutableSet.of(vv2, vv3),
+                        Stream.of(vv1, vv2, vv3).map(TestGraphEntity.Builder::build)
+                                        .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Checks that {@link MultiTraversalFilter} working as expected and combining results through
+     * AND condition correctly.
+     */
+    @Test
+    public void checkMultiRelationsFilterAndCondition() {
+        final TestGraphEntity.Builder vv1 =
+                        createGraphEntityBuilder(124L, ApiEntityType.VIRTUAL_VOLUME, "vv1");
+        final TestGraphEntity.Builder vv2 =
+                        createGraphEntityBuilder(125L, ApiEntityType.VIRTUAL_VOLUME, "vv2");
+        final TestGraphEntity.Builder vv3 =
+                        createGraphEntityBuilder(126L, ApiEntityType.VIRTUAL_VOLUME, "vv3");
+        checkMultiRelationsFilter(LogicalOperator.AND, ImmutableSet.of(vv1, vv3),
+                        ImmutableSet.of(vv2, vv3), Collections.singleton(vv3.build()));
+    }
+
+    /**
+     * Checks that multi relations filter will not cause significant performance degradation.
+     */
+    @Test
+    public void checkMultiTraversalPerformanceTest() {
+        final Map<Long, TestGraphEntity.Builder> storages = new HashMap<>();
+        final AtomicLong idGenerator = new AtomicLong();
+        final int storageAmount = 1000;
+        final int relatedEntitiesAmount = 3000;
+        final Map<Long, Collection<TestGraphEntity.Builder>> storageIdToVvs = new HashMap<>();
+        final Map<Long, Collection<TestGraphEntity.Builder>> storageIdToVms = new HashMap<>();
+        IntStream.range(0, storageAmount).forEach(i -> {
+            final long storageId = idGenerator.getAndIncrement();
+            final TestGraphEntity.Builder storageBuilder =
+                            createGraphEntityBuilder(storageId, ApiEntityType.STORAGE,
+                                            String.format("st#%s", storageId));
+            storages.put(storageId, storageBuilder);
+            final Collection<TestGraphEntity.Builder> vvs = new HashSet<>();
+            final Collection<TestGraphEntity.Builder> vms = new HashSet<>();
+            IntStream.range(0, relatedEntitiesAmount).forEach(j -> {
+                final long vvId = idGenerator.getAndIncrement();
+                vvs.add(createGraphEntityBuilder(vvId, ApiEntityType.VIRTUAL_VOLUME,
+                                String.format("vv#%s", vvId)));
+                final long vmId = idGenerator.getAndIncrement();
+                vms.add(createGraphEntityBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE,
+                                String.format("vm#%s", vmId)));
+            });
+            storageIdToVvs.put(storageId, vvs);
+            storageIdToVms.put(storageId, vms);
+            final TestGraphEntity storage = storageBuilder.build();
+            final Collection<TestGraphEntity.Builder> consumers =
+                            Stream.concat(vvs.stream(), vms.stream()).collect(Collectors.toSet());
+            consumers.forEach(storageBuilder::addConsumer);
+            Mockito.doAnswer((invocation) -> consumers.stream().map(TestGraphEntity.Builder::build))
+                            .when(graph).getConsumers(storage);
+            Mockito.doAnswer((invocation) -> Stream.concat(vvs.stream(), vms.stream())
+                            .map(TestGraphEntity.Builder::build)).when(graph)
+                            .getOwnersOrAggregators(storage);
+        });
+
+        final SearchFilter searchFilter = createSearchFilter(LogicalOperator.OR);
+        final Iterator<Entry<Long, TestGraphEntity.Builder>> it = storages.entrySet().iterator();
+        final int attempts = 100;
+        int i = 0;
+        float timeInFiltering = 0;
+        while (it.hasNext() && i < attempts) {
+            final long start = System.currentTimeMillis();
+            final Entry<Long, TestGraphEntity.Builder> current = it.next();
+            final Set<TestGraphEntity> result = filterFactory.filterFor(searchFilter)
+                            .apply(Stream.of(current.getValue().build()), graph).collect(Collectors.toSet());
+            final long end = System.currentTimeMillis();
+            timeInFiltering += end - start;
+            Assert.assertThat(result.size(), CoreMatchers.is(relatedEntitiesAmount * 2));
+            final Long storageId = current.getKey();
+            final Collection<TestGraphEntity.Builder> relatedVms =
+                            storageIdToVms.getOrDefault(storageId, Collections.emptySet());
+            final Collection<TestGraphEntity.Builder> relatedVolumes =
+                            storageIdToVvs.getOrDefault(storageId, Collections.emptySet());
+            Assert.assertThat(result, CoreMatchers.is(Stream
+                            .concat(relatedVms.stream(), relatedVolumes.stream())
+                            .map(TestGraphEntity.Builder::build).collect(Collectors.toSet())));
+            i++;
+        }
+        Assert.assertTrue(
+                        String.format("Multi-traversal filter execution takes more than '%s' milliseconds to complete",
+                                        ONE_MINUTE_MILLIS),
+                        timeInFiltering / attempts < ONE_MINUTE_MILLIS);
+    }
+
+    private void checkMultiRelationsFilter(LogicalOperator operation,
+                    Collection<TestGraphEntity.Builder> consumers,
+                    Collection<TestGraphEntity.Builder> connectedFrom,
+                    Collection<TestGraphEntity> expectedObjects) {
+        final SearchFilter searchFilter = createSearchFilter(operation);
+        final TestGraphEntity.Builder targetEntityBuilder =
+                        createGraphEntityBuilder(123, ApiEntityType.STORAGE, "st-1");
+        final TestGraphEntity targetEntity = targetEntityBuilder.build();
+        Mockito.doAnswer((invocation) -> consumers.stream().map(TestGraphEntity.Builder::build))
+                        .when(graph).getConsumers(targetEntity);
+        Mockito.doAnswer((invocation) -> connectedFrom.stream().map(TestGraphEntity.Builder::build))
+                        .when(graph).getOwnersOrAggregators(targetEntity);
+        final Set<TestGraphEntity> result = filterFactory.filterFor(searchFilter)
+                        .apply(Stream.of(targetEntity), graph)
+                        .collect(Collectors.toSet());
+        Assert.assertThat(result, Matchers.is(expectedObjects));
+    }
+
+    private static TestGraphEntity.Builder createGraphEntityBuilder(long oid,
+                    ApiEntityType entityType, String name) {
+        return TestGraphEntity.newBuilder(oid, entityType).setName(name);
+    }
+
+    @Nonnull
+    private static SearchFilter createSearchFilter(LogicalOperator operation) {
+        final StoppingCondition stoppingCondition =
+                        StoppingCondition.newBuilder().setNumberHops(1).build();
+        final Search.TraversalFilter.Builder connectedFromFilter =
+                        Search.TraversalFilter.newBuilder()
+                                        .setTraversalDirection(TraversalDirection.CONNECTED_FROM)
+                                        .setStoppingCondition(stoppingCondition);
+        final Search.TraversalFilter.Builder consumesFilter = Search.TraversalFilter.newBuilder()
+                        .setTraversalDirection(TraversalDirection.PRODUCES)
+                        .setStoppingCondition(stoppingCondition);
+        final MultiTraversalFilter.Builder multiTraversalFilter =
+                        MultiTraversalFilter.newBuilder().setOperator(operation)
+                                        .addTraversalFilter(connectedFromFilter)
+                                        .addTraversalFilter(consumesFilter);
+        return SearchFilter.newBuilder().setMultiTraversalFilter(multiTraversalFilter).build();
+    }
+
     @Test
     public void testRegexContainsMatch() {
         final PropertyFilter<TestGraphEntity> displayNameFilter =
@@ -842,8 +1003,8 @@ public class TopologyFilterFactoryTest {
                 ).build());
 
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("entity-in-group-1")
+        final TestGraphEntity entity = createGraphEntityBuilder(123L, ApiEntityType.VIRTUAL_MACHINE,
+                        "entity-in-group-1")
             .build();
 
         assertThat(
@@ -860,8 +1021,8 @@ public class TopologyFilterFactoryTest {
                         .setStringPropertyRegex("^entity")
                 ).build());
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("entity-in-group-1")
+        final TestGraphEntity entity = createGraphEntityBuilder(123L, ApiEntityType.VIRTUAL_MACHINE,
+                        "entity-in-group-1")
             .build();
 
         assertThat(
@@ -878,8 +1039,8 @@ public class TopologyFilterFactoryTest {
                         .setStringPropertyRegex(".*group.+")
                 ).build());
 
-        final TestGraphEntity entity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
-            .setName("entity-in-group-1")
+        final TestGraphEntity entity = createGraphEntityBuilder(123L, ApiEntityType.VIRTUAL_MACHINE,
+                        "entity-in-group-1")
             .build();
 
         assertThat(

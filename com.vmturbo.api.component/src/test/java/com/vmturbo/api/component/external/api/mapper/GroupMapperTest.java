@@ -842,11 +842,11 @@ public class GroupMapperTest {
     public void testVmsByClusterNameToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "vmsByClusterName"));
-        List<SearchParameters> parameters =
+        Collection<SearchParameters> parameters =
                         entityFilterMapper.convertToSearchParameters(
                                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
-        SearchParameters param = parameters.get(0);
+        SearchParameters param = parameters.iterator().next();
 
         // verify that the starting filter is PM
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
@@ -896,11 +896,11 @@ public class GroupMapperTest {
     public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, ApiEntityType.PHYSICAL_MACHINE.apiStr(),
                 filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "pmsByClusterName"));
-        List<SearchParameters> parameters =
+        Collection<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
-        SearchParameters param = parameters.get(0);
+        SearchParameters param = parameters.iterator().next();
 
         // verify that the starting filter is PM
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE),
@@ -2517,11 +2517,11 @@ public class GroupMapperTest {
     public void testVmsByEncryptedVolumeToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
                 filterDTO(EntityFilterMapper.REGEX_MATCH, "False", "vmsConnectedToEncryptedVolume"));
-        List<SearchParameters> parameters =
+        Collection<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
-        SearchParameters param = parameters.get(0);
+        SearchParameters param = parameters.iterator().next();
 
         // verify that the starting filter is virtual Volume
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME), param.getStartingFilter());
@@ -2550,11 +2550,11 @@ public class GroupMapperTest {
     public void testVmsByEphemeralStorageToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
                 filterDTO(EntityFilterMapper.REGEX_MATCH, "True", "vmsConnectedToEphemeralStorage"));
-        List<SearchParameters> parameters =
+        Collection<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
-        SearchParameters param = parameters.get(0);
+        SearchParameters param = parameters.iterator().next();
 
         // verify that the starting filter is virtual Volume
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME), param.getStartingFilter());

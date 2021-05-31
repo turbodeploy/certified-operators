@@ -63,11 +63,21 @@ message SearchFilter {
     // - property filter: used to specify specific criteria on properties of the element
     // - group filter: this is a special-case filter that will target members of
     // a group/set of groups or owners of groups
+    // - multi traversal filter: used to do handle more than one graph relationships
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;
         GroupFilter group_filter = 3;
+        MultiTraversalFilter multi_traversal_filter = 4;
     }
+}
+
+// Filter which combines results of the more than one traversal filter
+message MultiTraversalFilter {
+    // shows the way how results of the traversal filters have to be combined
+    optional LogicalOperator operator = 1 [default = OR];
+    // Contains filters that are traversing over the graph relationships
+    repeated TraversalFilter traversal_filter = 2;
 }
 
 // Filter used to traverse graph relationship.
