@@ -7,6 +7,11 @@ import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowT
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.WORKFLOW_1_OID;
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.WORKFLOW_2_NAME;
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.WORKFLOW_2_OID;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -60,6 +65,11 @@ public class InMemoryWorkflowStoreTest {
     @Mock
     private IdentityStore mockIdentityStore;
 
+    @Mock
+    private PersistentWorkflowStore mockPersistentWorkflowStore;
+
+    private InMemoryWorkflowStore inMemoryWorkflowStore;
+
     /**
      * The jooq context for running DB operations.
      */
@@ -80,10 +90,15 @@ public class InMemoryWorkflowStoreTest {
 
     /**
      * Setup up test environment.
+     *
+     * @throws WorkflowStoreException should not be thrown.
      */
     @Before
-    public void setup() {
+    public void setup() throws WorkflowStoreException {
         MockitoAnnotations.initMocks(this);
+        when(mockPersistentWorkflowStore.fetchWorkflows(any())).thenReturn(Collections.emptySet());
+        inMemoryWorkflowStore = new InMemoryWorkflowStore(mockPersistentWorkflowStore);
+        reset(mockPersistentWorkflowStore);
     }
 
     /**
@@ -194,4 +209,36 @@ public class InMemoryWorkflowStoreTest {
                 workflows.stream().map(Workflow::getWorkflowInfo).collect(Collectors.toSet()));
     }
 
+    /**
+     * Inserting a workflow should refresh the cache.
+     *
+     * @throws WorkflowStoreException should not be thrown.
+     */
+    @Test
+    public void testCreateRefreshesCache() throws WorkflowStoreException {
+        inMemoryWorkflowStore.insertWorkflow(WORKFLOW_1);
+        verify(mockPersistentWorkflowStore, times(1)).fetchWorkflows(any());
+    }
+
+    /**
+     * Updating a workflow should refresh the cache.
+     *
+     * @throws WorkflowStoreException should not be thrown.
+     */
+    @Test
+    public void testUpdateRefreshesCache() throws WorkflowStoreException {
+        inMemoryWorkflowStore.updateWorkflow(123L, WORKFLOW_1);
+        verify(mockPersistentWorkflowStore, times(1)).fetchWorkflows(any());
+    }
+
+    /**
+     * Deleting a workflow should refresh the cache.
+     *
+     * @throws WorkflowStoreException should not be thrown.
+     */
+    @Test
+    public void testDeleteRefreshesCache() throws WorkflowStoreException {
+        inMemoryWorkflowStore.deleteWorkflow(123L);
+        verify(mockPersistentWorkflowStore, times(1)).fetchWorkflows(any());
+    }
 }
