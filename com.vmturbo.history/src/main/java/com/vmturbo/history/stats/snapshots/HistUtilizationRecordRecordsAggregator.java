@@ -7,7 +7,6 @@ package com.vmturbo.history.stats.snapshots;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -19,9 +18,7 @@ import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 
 /**
@@ -33,21 +30,21 @@ public class HistUtilizationRecordRecordsAggregator
 
     /**
      * Creates {@link HistUtilizationRecordRecordsAggregator} instance.
+     *
+     * @param commodityRequests which contains information that manages aggregation process.
      */
-    public HistUtilizationRecordRecordsAggregator() {
-        super(Collections.singletonMap(StringConstants.RELATED_ENTITY,
-                        HistUtilization.HIST_UTILIZATION.PRODUCER_OID));
+    public HistUtilizationRecordRecordsAggregator(
+                    @Nonnull Collection<CommodityRequest> commodityRequests) {
+        super(commodityRequests);
     }
 
     @Override
-    public void aggregate(@Nonnull HistUtilizationRecord record,
-                    @Nonnull Collection<CommodityRequest> commodityRequests,
-                    @Nonnull Map<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity) {
+    public void aggregate(@Nonnull HistUtilizationRecord record, @Nonnull Map<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity) {
         final Timestamp maxTimestamp =
                         statRecordsByTimeByCommodity.keySet().stream().max(Timestamp::compareTo)
                                         .orElseGet(() -> Timestamp.from(Instant.now()));
         statRecordsByTimeByCommodity.computeIfAbsent(maxTimestamp, (k) -> HashMultimap.create())
-                        .put(createRecordKey(record, commodityRequests), record);
+                        .put(createRecordKey(record), record);
     }
 
     @Nonnull

@@ -6,7 +6,6 @@ package com.vmturbo.history.stats.snapshots;
 
 import java.sql.Timestamp;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -14,8 +13,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -26,7 +23,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
  * parameters.
  */
 public class StatsRecordsAggregator extends AbstractRecordsAggregator<Record> {
-    private static final Logger LOGGER = LogManager.getLogger(StatsRecordsAggregator.class);
     private final Collection<Class<? extends Record>> excludingRecordTypes;
 
     /**
@@ -34,16 +30,16 @@ public class StatsRecordsAggregator extends AbstractRecordsAggregator<Record> {
      *
      * @param excludingRecordTypes types of DB records that need to be excluded from
      *                 stats processing.
+     * @param commodityRequests which contains information that manages aggregation process.
      */
-    public StatsRecordsAggregator(Collection<Class<? extends Record>> excludingRecordTypes) {
-        super(Collections.singletonMap(StringConstants.RELATED_ENTITY, STATS_TABLE.PRODUCER_UUID));
+    public StatsRecordsAggregator(@Nonnull Collection<CommodityRequest> commodityRequests,
+                    @Nonnull Collection<Class<? extends Record>> excludingRecordTypes) {
+        super(commodityRequests);
         this.excludingRecordTypes = excludingRecordTypes;
     }
 
     @Override
-    public void aggregate(@Nonnull Record record,
-                    @Nonnull Collection<CommodityRequest> commodityRequests,
-                    @Nonnull Map<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity) {
+    public void aggregate(@Nonnull Record record, @Nonnull Map<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity) {
         // Filter out the utilization as we are interested in the used values
         if (excludingRecordTypes.stream().anyMatch(type -> type.isInstance(record))) {
             return;
@@ -52,7 +48,7 @@ public class StatsRecordsAggregator extends AbstractRecordsAggregator<Record> {
                         record.getValue(StringConstants.SNAPSHOT_TIME, Timestamp.class);
         final Multimap<String, Record> snapshotMap = statRecordsByTimeByCommodity
                         .computeIfAbsent(snapshotTime, k -> HashMultimap.create());
-        snapshotMap.put(createRecordKey(record, commodityRequests), record);
+        snapshotMap.put(createRecordKey(record), record);
     }
 
     @Nonnull

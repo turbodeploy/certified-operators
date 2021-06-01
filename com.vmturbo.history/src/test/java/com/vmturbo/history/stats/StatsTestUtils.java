@@ -414,6 +414,37 @@ public class StatsTestUtils {
         return statsRecord;
     }
 
+    /**
+     * Creates {@link Record} instance.
+     *
+     * @param uuid identifier of the entity for statistic record.
+     * @param snapshotTime moment of time when record was created.
+     * @param propType type of the property for which statistics record is going to
+     *                 be created.
+     * @param propSubType sub type of the property for which statistics record is
+     *                 going to be created.
+     * @param testValue value that will be used for average, minimum, maximum and
+     *                 for capacity in the result record.
+     * @param producerUuid identifier of the producer
+     * @return instance of {@link Record}
+     */
+    @Nonnull
+    public static Record createRecord(@Nonnull String uuid, @Nonnull Timestamp snapshotTime,
+                    @Nonnull String propType, @Nonnull String propSubType, double testValue,
+                    @Nonnull String producerUuid) {
+        final PmStatsLatestRecord result = new PmStatsLatestRecord();
+        result.setUuid(uuid);
+        result.setSnapshotTime(snapshotTime);
+        result.setPropertyType(propType);
+        result.setPropertySubtype(propSubType);
+        result.setAvgValue(testValue);
+        result.setMinValue(testMinValue(testValue));
+        result.setMaxValue(testMaxValue(testValue));
+        result.setCapacity(testCapacity(testValue));
+        result.setProducerUuid(producerUuid);
+        return result;
+    }
+
     private static double testMaxValue(final double testValue) {
         return testValue * 2;
     }
