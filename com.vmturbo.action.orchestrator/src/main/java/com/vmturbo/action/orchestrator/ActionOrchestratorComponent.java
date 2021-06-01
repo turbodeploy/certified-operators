@@ -111,7 +111,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         services.add(rpcConfig.actionConstraintsRpcService());
         services.add(rpcConfig.atomicActionSpecsRpcService());
         services.add(workflowConfig.discoveredWorkflowRpcService());
-        services.add(workflowConfig.fetchWorkflowRpcService());
+        services.add(workflowConfig.workflowRpcService());
         rpcConfig.actionsDebugRpcService().ifPresent(services::add);
         return services;
     }

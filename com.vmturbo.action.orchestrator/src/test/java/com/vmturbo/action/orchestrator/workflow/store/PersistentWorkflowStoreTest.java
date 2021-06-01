@@ -9,9 +9,12 @@ import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowT
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.WORKFLOW_2_OID;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -24,17 +27,21 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.jooq.Result;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
+import org.mockito.Mock;
 
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.tables.records.WorkflowRecord;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
+import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.sql.utils.DbCleanupRule;
@@ -51,6 +58,26 @@ public class PersistentWorkflowStoreTest {
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
+    private static final String OLD_DESCRIPTION = "This is an old description";
+    private static final String NEW_DESCRIPTION = "This is a new description";
+
+    private static final WorkflowInfo WORKFLOW_1 = WorkflowInfo.newBuilder()
+        .setTargetId(TARGET_ID)
+        .setName(WORKFLOW_1_NAME)
+        .setDescription(OLD_DESCRIPTION)
+        .build();
+    private static final WorkflowInfo WORKFLOW_1_NEW = WorkflowInfo.newBuilder()
+        .setTargetId(TARGET_ID)
+        .setName(WORKFLOW_1_NAME)
+        .setDescription(NEW_DESCRIPTION)
+        .build();
+    private static final WorkflowInfo WORKFLOW_2 = WorkflowInfo.newBuilder()
+        .setTargetId(TARGET_ID)
+        .setName(WORKFLOW_2_NAME)
+        .build();
+
+    private static final Clock CLOCK = Clock.systemUTC();
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
@@ -62,24 +89,37 @@ public class PersistentWorkflowStoreTest {
      */
     private DSLContext dsl = dbConfig.getDslContext();
 
-    IdentityStore mockIdentityStore;
+    private IdentityStore mockIdentityStore;
 
-    WorkflowInfo WORKFLOW_1 = WorkflowInfo.newBuilder()
-            .setTargetId(TARGET_ID)
-            .setName(WORKFLOW_1_NAME)
-            .build();
-    WorkflowInfo WORKFLOW_2 = WorkflowInfo.newBuilder()
-            .setTargetId(TARGET_ID)
-            .setName(WORKFLOW_2_NAME)
-            .build();
+    /**
+     * When testing using the in memory database, you must also setup up a REAL identity store,
+     * otherwise the foreign key constraint between the WORKFLOW_OID table and WORKFLOW will
+     * fail.
+     */
+    private IdentityStore cachingIdentityStore;
+    private PersistentWorkflowIdentityStore persistentWorkflowIdentityStore;
 
-    Clock clock = Clock.systemUTC();
+    /**
+     * The object being tested.
+     */
+    private PersistentWorkflowStore persistentWorkflowStore;
 
-
+    /**
+     * Sets up the persistentWorkflowStore with mocks.
+     *
+     * @throws IdentityStoreException should not be thrown.
+     */
     @Before
-    public void setup() {
+    public void setup() throws IdentityStoreException {
         // Set up a mock for the IdentityStore
-        mockIdentityStore = Mockito.mock(IdentityStore.class);
+        mockIdentityStore = mock(IdentityStore.class);
+
+        persistentWorkflowIdentityStore = new PersistentWorkflowIdentityStore(dsl);
+        cachingIdentityStore = new CachingIdentityStore(new WorkflowAttributeExtractor(),
+            persistentWorkflowIdentityStore, new IdentityInitializer(1L));
+        persistentWorkflowStore = new PersistentWorkflowStore(dsl,
+            cachingIdentityStore, CLOCK);
+
     }
 
     /**
@@ -111,12 +151,9 @@ public class PersistentWorkflowStoreTest {
         when(mockIdentityStore.fetchOrAssignItemOids(anyList()))
                 .thenReturn(new IdentityStoreUpdate(itemOidsMap, Collections.emptyMap()));
         List<WorkflowInfo> workflowInfos = Lists.newArrayList(WORKFLOW_1, WORKFLOW_2);
-        // workflowStore under test
-        PersistentWorkflowStore workflowStoreToTest = new PersistentWorkflowStore(dsl,
-                mockIdentityStore, clock);
 
         // act
-        workflowStoreToTest.persistWorkflows(TARGET_ID, workflowInfos);
+        persistentWorkflowStore.persistWorkflows(TARGET_ID, workflowInfos);
 
         // assert that the WORKFLOW table has the two rows
         List<WorkflowRecord> workflowsFromDB = dsl.selectFrom(WORKFLOW)
@@ -151,13 +188,9 @@ public class PersistentWorkflowStoreTest {
                 .values(WORKFLOW_2_OID, WORKFLOW_2)
                 .execute();
 
-        // workflowStore under test
-        PersistentWorkflowStore workflowStoreToTest = new PersistentWorkflowStore(dsl,
-                mockIdentityStore, clock);
-
         // Act
-        Optional<WorkflowDTO.Workflow> optResult1 = workflowStoreToTest.fetchWorkflow(WORKFLOW_1_OID);
-        Optional<WorkflowDTO.Workflow> optResult2 = workflowStoreToTest.fetchWorkflow(WORKFLOW_2_OID);
+        Optional<WorkflowDTO.Workflow> optResult1 = persistentWorkflowStore.fetchWorkflow(WORKFLOW_1_OID);
+        Optional<WorkflowDTO.Workflow> optResult2 = persistentWorkflowStore.fetchWorkflow(WORKFLOW_2_OID);
 
         // Assert
         assertTrue("WORKFLOW 1 not found", optResult1.isPresent());
@@ -180,13 +213,9 @@ public class PersistentWorkflowStoreTest {
         // arrange
         // empty database
 
-        // workflowStore under test
-        PersistentWorkflowStore workflowStoreToTest = new PersistentWorkflowStore(dsl,
-                mockIdentityStore, clock);
-
         // Act
-        Optional<WorkflowDTO.Workflow> optResult1 = workflowStoreToTest.fetchWorkflow(WORKFLOW_1_OID);
-        Optional<WorkflowDTO.Workflow> optResult2 = workflowStoreToTest.fetchWorkflow(WORKFLOW_2_OID);
+        Optional<WorkflowDTO.Workflow> optResult1 = persistentWorkflowStore.fetchWorkflow(WORKFLOW_1_OID);
+        Optional<WorkflowDTO.Workflow> optResult2 = persistentWorkflowStore.fetchWorkflow(WORKFLOW_2_OID);
 
         // Assert
         assertFalse("WORKFLOW 1 found", optResult1.isPresent());
@@ -208,5 +237,45 @@ public class PersistentWorkflowStoreTest {
                 equalTo(expectedWorkflowOid));
         assertThat(workflowRecord.get(WORKFLOW.WORKFLOW_INFO),
                 equalTo(expectedWorkflowInfo));
+    }
+
+    @Test
+    public void testInsert() throws WorkflowStoreException {
+        persistentWorkflowStore.insertWorkflow(WORKFLOW_1);
+
+        Result<Record> record = dsl.select().from(WORKFLOW)
+            .fetch();
+
+        WorkflowInfo workflowInfo = WORKFLOW.WORKFLOW_INFO.from(record.get(0)).component1();
+        assertEquals(WORKFLOW_1, workflowInfo);
+    }
+
+    @Test
+    public void testUpdate() throws WorkflowStoreException {
+        persistentWorkflowStore.insertWorkflow(WORKFLOW_1);
+        Result<Record> afterInsertRecord = dsl.select().from(WORKFLOW)
+            .fetch();
+        long workflowId = WORKFLOW.ID.from(afterInsertRecord.get(0)).component1();
+
+        persistentWorkflowStore.updateWorkflow(workflowId, WORKFLOW_1_NEW);
+        Result<Record> afterUpdateRecord = dsl.select().from(WORKFLOW)
+            .fetch();
+
+        WorkflowInfo workflowInfo = WORKFLOW.WORKFLOW_INFO.from(afterUpdateRecord.get(0)).component1();
+        assertEquals(WORKFLOW_1_NEW, workflowInfo);
+    }
+
+    @Test
+    public void testDelete() throws WorkflowStoreException {
+        persistentWorkflowStore.insertWorkflow(WORKFLOW_1);
+        Result<Record> afterInsertRecord = dsl.select().from(WORKFLOW)
+            .fetch();
+        long workflowId = WORKFLOW.ID.from(afterInsertRecord.get(0)).component1();
+
+        persistentWorkflowStore.deleteWorkflow(workflowId);
+
+        int numOfRows = dsl.selectCount().from(WORKFLOW).fetch().get(0).component1();
+        // there should be no rows in the inmemory database
+        assertEquals(0, numOfRows);
     }
 }

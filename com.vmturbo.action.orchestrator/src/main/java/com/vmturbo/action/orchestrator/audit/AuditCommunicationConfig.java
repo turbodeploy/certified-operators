@@ -24,7 +24,6 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Spring configuration to perform external audit functionality.
@@ -85,18 +84,8 @@ public class AuditCommunicationConfig {
     @Bean
     public ActionAuditSender actionAuditSender() {
         return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(),
-            thinTargetCache(), actionTranslationConfig.actionTranslator(),
+            tpConfig.thinTargetCache(), actionTranslationConfig.actionTranslator(),
                 auditedActionsManager(), minsClearedActionsCriteria, Clock.systemDefaultZone());
-    }
-
-    /**
-     * Thin target cache.
-     *
-     * @return the bean created
-     */
-    @Bean
-    public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(tpConfig.topologyProcessor());
     }
 
     /**
