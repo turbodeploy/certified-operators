@@ -90,6 +90,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
+import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
@@ -108,6 +109,7 @@ import com.vmturbo.api.serviceinterfaces.ISchedulesService;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
+import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -1785,6 +1787,11 @@ public class TargetsServiceTest {
         @Bean
         public ITemplatesService templatesService() {
             return Mockito.mock(ITemplatesService.class);
+        }
+
+        @Bean
+        public IWorkflowsService workflowsService() {
+            return Mockito.mock(IWorkflowsService.class);
         }
 
         @Bean
