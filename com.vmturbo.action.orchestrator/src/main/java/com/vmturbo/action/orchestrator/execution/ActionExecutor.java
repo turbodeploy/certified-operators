@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,16 +19,12 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.velocity.runtime.parser.ParseException;
 
-import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
-import com.vmturbo.action.orchestrator.template.Velocity;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -40,8 +35,8 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -144,14 +139,12 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param targetId target to execute action on
      * @param action action to execute
      * @param workflowOpt workflow associated with this target (if any)
-     * @throws ExecutionInitiationException if failed to process workflow
      * @return DTO to send request to topology processor
      */
     @Nonnull
     public static ExecuteActionRequest createRequest(final long targetId,
                          @Nonnull final ActionDTO.ActionSpec action,
-                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
-            throws ExecutionInitiationException {
+                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
         return createRequest(targetId, action, workflowOpt, null, action.getRecommendation().getId());
     }
 
@@ -164,7 +157,6 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param explanation the explanation string describing the action
      * @param actionId the action identifier (actionId or recommendationId used for external
      *        audit/approve operations)
-     * @throws ExecutionInitiationException if failed to process workflow
      * @return DTO to send request to topology processor
      */
     @Nonnull
@@ -172,7 +164,7 @@ public class ActionExecutor implements ActionExecutionListener {
             @Nonnull final ActionDTO.ActionSpec action,
             @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
             @Nullable String explanation,
-            final long actionId) throws ExecutionInitiationException {
+            final long actionId) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
@@ -203,19 +195,18 @@ public class ActionExecutor implements ActionExecutionListener {
 
     private static WorkflowInfo fillInProperties(
         @Nonnull final ActionDTO.ActionSpec action,
-        @Nonnull final WorkflowInfo workflowInfo) throws ExecutionInitiationException {
-        if (workflowInfo.getType().equals(OrchestratorType.WEBHOOK)) {
-            try {
-                return workflowInfo.toBuilder()
-                    .addWorkflowProperty(WorkflowProperty.newBuilder()
-                        .setName(TEMPLATED_ACTION_BODY_PARAM_NAME)
-                        // TODO (OM-71250) Replace action.getRecommendation
-                        .setValue(Velocity.apply(workflowInfo.getWebhookInfo().getTemplate(), action.getRecommendation())))
-                    .build();
-            } catch (ParseException | IOException e) {
-                throw new ExecutionInitiationException("Failed to fill in properties for workflow", e,
-                        Status.INTERNAL.getCode());
-            }
+        @Nonnull final WorkflowInfo workflowInfo) {
+        if (workflowInfo.getWorkflowParamList().stream()
+            .map(WorkflowParameter::getName)
+            .anyMatch(paramName -> TEMPLATED_ACTION_BODY_PARAM_NAME.equals(paramName))
+        ) {
+            return workflowInfo.toBuilder()
+                .addWorkflowProperty(WorkflowProperty.newBuilder()
+                    .setName(TEMPLATED_ACTION_BODY_PARAM_NAME)
+                    // TODO(OM-70050): Fill this in with the webhook template applied to the action.
+                    .setValue("This is where the filled in template would go, applied to action with oid: " + action.getRecommendation().getId())
+                    .build())
+                .build();
         }
 
         return workflowInfo;
@@ -228,7 +219,7 @@ public class ActionExecutor implements ActionExecutionListener {
      *                 Workflow specified - see below)
      * @param action the Action to execute
      * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
-     * @throws ExecutionStartException if action execution failed to start or failed to process workflow
+     * @throws ExecutionStartException if action execution failed to start
      */
     public void execute(final long targetId, @Nonnull final ActionDTO.ActionSpec action,
                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
@@ -240,8 +231,8 @@ public class ActionExecutor implements ActionExecutionListener {
             // component or this component could be in the middle of starting up.
             throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
         }
+        final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt);
         try {
-            final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt);
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
             logger.info("Starting action {}", action.getRecommendation().getId());
@@ -251,10 +242,6 @@ public class ActionExecutor implements ActionExecutionListener {
             throw new ExecutionStartException(
                     "Action: " + action.getRecommendation().getId()
                         + " failed to start. Failure status: " + e.getStatus(), e);
-        } catch (ExecutionInitiationException e) {
-            throw new ExecutionStartException(
-                    "Action: " + action.getRecommendation().getId()
-                            + " failed to start.", e);
         }
     }
 

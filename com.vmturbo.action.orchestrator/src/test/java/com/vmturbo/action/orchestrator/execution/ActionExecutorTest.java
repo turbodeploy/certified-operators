@@ -29,7 +29,6 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionState;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory;
@@ -47,7 +46,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -365,10 +363,9 @@ public class ActionExecutorTest {
     /**
      * When an action has a workflow without WorkflowParam, ActionExecutor should not fail
      * to create an ExecuteActionRequest.
-     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Test
-    public void testWorkflowWithNoParamsDoesNotFail() throws ExecutionInitiationException {
+    public void testWorkflowWithNoParamsDoesNotFail() {
         ExecuteActionRequest request = ActionExecutor.createRequest(
             TARGET_ID,
             testAction,
@@ -386,10 +383,9 @@ public class ActionExecutorTest {
 
     /**
      * When an action has a workflow that has a supported WorkflowParam, ActionExecutor should not fill it in.
-     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Test
-    public void testWorkflowWithUnsupportedParamDoesNothing() throws ExecutionInitiationException {
+    public void testWorkflowWithUnsupportedParamDoesNothing() {
         ExecuteActionRequest request = ActionExecutor.createRequest(
             TARGET_ID,
             testAction,
@@ -412,10 +408,9 @@ public class ActionExecutorTest {
 
     /**
      * When an action has a workflow that has a supported WorkflowParam, ActionExecutor should fill it in.
-     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Test
-    public void testWorkflowWithParamToFill() throws ExecutionInitiationException {
+    public void testWorkflowWithParamToFill() {
         ExecuteActionRequest request = ActionExecutor.createRequest(
             TARGET_ID,
             testAction,
@@ -426,10 +421,6 @@ public class ActionExecutorTest {
                         .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
                         .setType("String")
                         .build())
-                    .addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
-                            .setValue("123")
-                            .build())
                     .build())
                 .build())
         );
@@ -445,10 +436,9 @@ public class ActionExecutorTest {
     /**
      * When an action has a workflow that has multiple params, only the support params should have
      * properties filled in. The unsupported properties should not appear in WorkflowProperties.
-     * @throws ExecutionInitiationException if failed to process workflow
      */
     @Test
-    public void testWorkflowWithMultipleParams() throws ExecutionInitiationException {
+    public void testWorkflowWithMultipleParams() {
         ExecuteActionRequest request = ActionExecutor.createRequest(
             TARGET_ID,
             testAction,
@@ -463,10 +453,6 @@ public class ActionExecutorTest {
                         .setName("UNRELATED_PARAM")
                         .setType("String")
                         .build())
-                        .addWorkflowProperty(WorkflowProperty.newBuilder()
-                                .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
-                                .setValue("123")
-                                .build())
                     .build())
                 .build())
         );

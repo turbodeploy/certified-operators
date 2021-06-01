@@ -22,7 +22,6 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
-import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
@@ -243,7 +242,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             sendStateUpdateIfNeeded(action,
                     getActionStateUpdateDescription(actionSuccess.getSuccessDescription(),
                             "executed successfully", action.getRecommendationOid()), 100);
-        } catch (CommunicationException | InterruptedException | ExecutionInitiationException e) {
+        } catch (CommunicationException | InterruptedException e) {
             logger.error("Unable to send notification for success of " + actionSuccess, e);
         }
     }
@@ -376,7 +375,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                 .setActionSpec(actionTranslator.translateToSpec(action))
                 .build());
             sendStateUpdateIfNeeded(action, errorDescription, 100);
-        } catch (CommunicationException | InterruptedException | ExecutionInitiationException e) {
+        } catch (CommunicationException | InterruptedException e) {
             logger.error("Unable to send notification for failure of " + actionFailure, e);
         }
     }

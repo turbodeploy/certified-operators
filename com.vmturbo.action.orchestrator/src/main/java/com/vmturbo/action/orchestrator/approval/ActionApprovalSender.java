@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
-import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -69,7 +68,6 @@ public class ActionApprovalSender {
      *
      * @param store store to get actions ready for approval from
      * @throws InterruptedException if current thread has been interrupted
-     * @throws ExecutionInitiationException if failed to process workflow
      */
     public void sendApprovalRequests(@Nonnull ActionStore store) throws InterruptedException {
         if (store.getStoreTypeName().equals(PlanActionStore.STORE_TYPE_NAME)) {
@@ -109,8 +107,6 @@ public class ActionApprovalSender {
                     } catch (WorkflowStoreException e) {
                         logger.warn("Could not get workflow for action " + action.getId()
                                 + ". Skip approval request for it");
-                    } catch (ExecutionInitiationException e) {
-                        logger.warn("Could not process external workflow", e);
                     }
                 }
             }

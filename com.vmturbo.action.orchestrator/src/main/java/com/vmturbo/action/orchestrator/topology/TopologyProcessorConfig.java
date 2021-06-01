@@ -12,7 +12,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for integration with the {@link TopologyProcessor}.
@@ -63,15 +62,6 @@ public class TopologyProcessorConfig {
         return topologyProcessorClientConfig.topologyProcessorChannel();
     }
 
-    /**
-     * Thin target cache.
-     *
-     * @return the bean created
-     */
-    @Bean
-    public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(topologyProcessor());
-    }
 
     /**
      * See: {@link ActionTopologyStore}.

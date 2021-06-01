@@ -758,7 +758,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         "Live action store wasn't found. Operation of resending actions will be"
                                 + " skipped").asException());
             }
-        } catch (DataAccessException | CommunicationException | InterruptedException | UnsupportedActionException | ExecutionInitiationException ex) {
+        } catch (DataAccessException | CommunicationException | InterruptedException | UnsupportedActionException ex) {
             responseObserver.onError(ex);
         }
     }
