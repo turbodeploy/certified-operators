@@ -4,9 +4,9 @@
 
     <parent>
         <groupId>com.vmturbo</groupId>
-        <artifactId>mediation-parent</artifactId>
+        <artifactId>com.vmturbo.components</artifactId>
         <version>8.2.2-SNAPSHOT</version>
-        <relativePath>../build/mediation-parent-pom.xml</relativePath>
+        <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
     <artifactId>com.vmturbo.mediation.webhook.component</artifactId>
@@ -16,8 +16,52 @@
         <swagger.component.name>Webhook Mediation Component</swagger.component.name>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>topology-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.client</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <configuration>
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}/lib</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/probe-jars</targetPath>
+                            <directory>${project.build.directory}/probe-jars</directory>
+                        </resource>
+                    </resources>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.vmturbo.mediation.webhook.component.WebhookComponent</mainClass>
+                            <addClasspath>true</addClasspath>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>

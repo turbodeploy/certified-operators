@@ -19,13 +19,11 @@ import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
 import com.vmturbo.mediation.webhook.connector.WebhookBody;
 import com.vmturbo.mediation.webhook.connector.WebhookConnector;
+import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
 import com.vmturbo.mediation.webhook.connector.WebhookException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
-import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery;
@@ -49,6 +47,8 @@ public class WebhookProbe
             IActionExecutor<WebhookAccount> {
 
     private static final String TEMPLATED_ACTION_BODY_PROPERTY = "TEMPLATED_ACTION_BODY";
+    private static final String URL_PROPERTY = "URL";
+    private static final String HTTP_METHOD_PROPERTY = "HTTP_METHOD";
     private WebhookProperties probeConfiguration;
 
     private final Logger logger = LogManager.getLogger(getClass());
@@ -94,11 +94,7 @@ public class WebhookProbe
         final ValidationResponse validationResponse = validateTarget(accountValues);
 
         if (validationResponse.getErrorDTOList().isEmpty()) {
-            return DiscoveryResponse.newBuilder()
-                .addWorkflow(createWorkflow(ActionScriptPhase.PRE, accountValues))
-                .addWorkflow(createWorkflow(ActionScriptPhase.REPLACE, accountValues))
-                .addWorkflow(createWorkflow(ActionScriptPhase.POST, accountValues))
-                .build();
+            return DiscoveryResponse.getDefaultInstance();
         } else {
             final List<String> errors = validationResponse.getErrorDTOList()
                     .stream()
@@ -108,38 +104,6 @@ public class WebhookProbe
                     "Discovery of the target %s failed on validation step with errors: %s",
                     accountValues, String.join(", ", errors)));
         }
-    }
-
-    private static Workflow createWorkflow(ActionScriptPhase phase, WebhookAccount accountValues) {
-        final String phasePhrase;
-        switch (phase) {
-            case PRE:
-                phasePhrase = "after an action has been accepted, but before execution";
-                break;
-            case REPLACE:
-                phasePhrase = "instead of Turbonomic's native execute";
-                break;
-            case POST:
-                phasePhrase = "after an action executes";
-                break;
-            default:
-                phasePhrase = phase.name();
-                break;
-        }
-        return Workflow.newBuilder()
-            .setPhase(phase)
-            .setId(accountValues.getDisplayName() + " Webhook " + phase)
-            .setDisplayName(
-                accountValues.getDisplayName() + " Webhook " + phasePhrase)
-            .setDescription(
-                accountValues.getDisplayName() + " Webhook " + phasePhrase
-                    + " sent to " + accountValues.getHttpMethod() + " " + accountValues.getUrl())
-            .addParam(Parameter.newBuilder()
-                .setName(TEMPLATED_ACTION_BODY_PROPERTY)
-                .setType("String")
-                .setDescription("The web hook template applied to action to create the webhook body.")
-                .build())
-            .build();
     }
 
     @Override
@@ -160,7 +124,8 @@ public class WebhookProbe
             @Nonnull final WebhookAccount accountValues,
             @Nullable final Map<String, Discovery.AccountValue> secondaryAccountValuesMap,
             @Nonnull final IProgressTracker progressTracker) throws InterruptedException {
-        try (WebhookConnector webhookConnector = new WebhookConnector(accountValues,
+        try (WebhookConnector webhookConnector = new WebhookConnector(
+                createWebhookCredentials(actionExecutionDto.getWorkflow().getPropertyList()),
                 probeConfiguration)) {
             final Optional<String> bodyOpt = getBody(actionExecutionDto);
             if (!bodyOpt.isPresent()) {
@@ -173,8 +138,8 @@ public class WebhookProbe
             }
             String body = bodyOpt.get();
             final WebhookQuery webhookQuery = new WebhookQuery(
-                HttpMethodType.valueOf(accountValues.getHttpMethod()),
-                new WebhookBody(body));
+                    getWebhookMethodType(actionExecutionDto.getWorkflow().getPropertyList()),
+                    new WebhookBody(body));
             final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
             logger.trace("Response from webhook endpoint: {}", webhookResponse.getResponseBody());
             return new ActionResult(ActionResponseState.SUCCEEDED,
@@ -184,6 +149,48 @@ public class WebhookProbe
             return new ActionResult(ActionResponseState.FAILED,
                     ExceptionUtils.getMessage(e) + "\n" + ExceptionUtils.getStackTrace(e));
         }
+    }
+
+    private HttpMethodType getWebhookMethodType(final List<Property> webhookProperties)
+            throws WebhookException {
+        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD_PROPERTY, webhookProperties);
+        if (!webhookHttpMethodType.isPresent()) {
+            throw new WebhookException(
+                    "Webhook http method type was not provided in the list of workflow properties");
+        }
+        return HttpMethodType.valueOf(webhookHttpMethodType.get());
+    }
+
+    /**
+     * Creates webhook credentials used for sending request to webhook server.
+     *
+     * @param webhookProperties the list of webhook properties
+     * @return the webhook credentials
+     * @throws WebhookException if all data required for sending request to webhook server weren't provided
+     */
+    @Nonnull
+    private WebhookCredentials createWebhookCredentials(final List<Property> webhookProperties)
+            throws WebhookException {
+        final Optional<String> webhookURL = getWebhookPropertyValue(URL_PROPERTY,
+                webhookProperties);
+        if (!webhookURL.isPresent()) {
+            throw new WebhookException(
+                    "Webhook url was not provided in the list of workflow properties");
+        }
+        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD_PROPERTY, webhookProperties);
+        if (!webhookHttpMethodType.isPresent()) {
+            throw new WebhookException(
+                    "Webhook http method type was not provided in the list of workflow properties");
+        }
+        return new WebhookCredentials(webhookURL.get(), webhookHttpMethodType.get(),
+                probeConfiguration.getConnectionTimeout());
+    }
+
+    private Optional<String> getWebhookPropertyValue(@Nonnull final String webhookPropertyName,
+            @Nonnull final List<Property> webhookProperties) {
+        return webhookProperties.stream().filter(
+                property -> webhookPropertyName.equals(property.getName())).findAny().map(
+                Property::getValue);
     }
 
     @Nonnull

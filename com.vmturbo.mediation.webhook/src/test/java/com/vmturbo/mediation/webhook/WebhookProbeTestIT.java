@@ -14,7 +14,6 @@ import com.github.tomakehurst.wiremock.recording.RecordSpecBuilder;
 
 import org.junit.Test;
 
-import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
@@ -90,13 +89,7 @@ public class WebhookProbeTestIT {
         WebhookProbe probe = new WebhookProbe();
         probe.initialize(probeContext, null);
         IProgressTracker progressTracker = mock(IProgressTracker.class);
-        return probe.executeAction(actionExecutionDTO,
-            new WebhookAccount(
-                "Test webhook endpoint",
-                url,
-                HttpMethodType.POST.name(),
-                "{id: $actionOid}"
-            ),
+        return probe.executeAction(actionExecutionDTO, new WebhookAccount(),
             new HashMap<>(),
             progressTracker);
     }
