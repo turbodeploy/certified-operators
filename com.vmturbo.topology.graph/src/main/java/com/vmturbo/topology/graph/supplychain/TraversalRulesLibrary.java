@@ -265,6 +265,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         private static final Collection<Integer> EXCLUDED_TYPES =
                         ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE,
                                         EntityType.VIRTUAL_DATACENTER_VALUE);
+
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
             return entity.getEntityType() == EntityType.STORAGE_VALUE;
@@ -448,28 +449,47 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
      */
     private static class CloudCommitmentAggregatorRule<E extends TopologyGraphEntity<E>> implements TraversalRule<E> {
 
-        private static final ImmutableList<Integer> ENTITY_TYPES = ImmutableList.of(EntityType.REGION_VALUE, EntityType.CLOUD_SERVICE_VALUE, EntityType.SERVICE_PROVIDER_VALUE);
+        private static final List<Integer> ENTITY_TYPES = ImmutableList.of(
+                EntityType.REGION_VALUE,
+                EntityType.AVAILABILITY_ZONE_VALUE);
 
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            return ENTITY_TYPES.contains(entity.getEntityType()) && traversalMode == TraversalMode.AGGREGATED_BY;
+            return ENTITY_TYPES.contains(entity.getEntityType())
+                    && traversalMode == TraversalMode.START;
         }
 
         @Override
         public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
                 @Nonnull Queue<TraversalState> frontier) {
-            entity.getOwner().ifPresent(owner ->
-                owner.getAggregatedAndOwnedEntities().stream()
-                    .filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
-                    .forEach(aggregatedOrOwnedByOwner ->
-                        frontier.add(new TraversalState(entity.getOid(),
-                            aggregatedOrOwnedByOwner.getOid(), TraversalMode.STOP, depth + 1))
-                    )
-            );
+            final E region;
+            if (entity.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE) {
+                // For Zone scope, Region is the owner of the Zone
+                region = entity.getOwner().orElse(null);
+            } else if (entity.getEntityType() == EntityType.REGION_VALUE) {
+                // For Region scope, Region is the entity itself
+                region = entity;
+            } else {
+                // Is not expected to happen
+                region = null;
+            }
+            if (region != null) {
+                // Add EC2 Cloud Commitments owned by the Region
+                addOwnedCloudCommitments(region, depth, frontier);
+                // Add Compute Cloud Commitments owned by the Service Provider
+                region.getOwner().ifPresent(serviceProvider ->
+                        addOwnedCloudCommitments(serviceProvider, depth, frontier));
+            }
+        }
+
+        private void addOwnedCloudCommitments(
+                @Nonnull final E entity,
+                final int depth,
+                @Nonnull final Queue<TraversalState> frontier) {
             entity.getAggregatedAndOwnedEntities().stream()
-                .filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
-                .forEach(s -> frontier.add(new TraversalState(entity.getOid(), s.getOid(),
-                    TraversalMode.STOP, depth + 1)));
+                    .filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
+                    .forEach(s -> frontier.add(new TraversalState(entity.getOid(),
+                            s.getOid(), TraversalMode.STOP, depth + 1)));
         }
 
         @Override
