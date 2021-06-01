@@ -92,15 +92,13 @@ public abstract class TestDBMigrationChecksums {
      */
     private void validatedMigrationFile(File file, @Nonnull Map<Object, Object> checksums) throws ChecksumValidationException {
         final String key = file.getName();
-        final String expectedChecksum = computeChecksum(file);
+        final String actualChecksum = computeChecksum(file);
+        final Object expectedChecksum = checksums.get(key);
 
-        if (!checksums.containsKey(key)) {
+        if (expectedChecksum == null) {
             throw new ChecksumValidationException("File " + key + " must have a recorded checksum. "
-                  + "Use " + expectedChecksum + " if you want to add it");
+                  + "Use " + actualChecksum + " if you want to add it");
         }
-
-        final Object actualChecksum = checksums.get(key);
-        // Corrected incorrect order of expected and actual in the exception message below.
         if (!expectedChecksum.equals(actualChecksum)) {
             throw new ChecksumValidationException("The checksum for the file " + key + " does not match the one recorded. "
                 + "Migration files must never change once published (pushed). "
