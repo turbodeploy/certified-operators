@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.webhook.connector;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.base.MoreObjects;
@@ -8,7 +10,6 @@ import com.vmturbo.mediation.connector.common.credentials.PortAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.SecureAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TargetAwareCredentials;
 import com.vmturbo.mediation.connector.common.credentials.TimeoutAwareCredentials;
-import com.vmturbo.mediation.webhook.WebhookAccount;
 
 /**
  * Webhook credentials.
@@ -23,12 +24,13 @@ public class WebhookCredentials
     /**
      * Creates a {@link WebhookCredentials} instance.
      *
-     * @param account - Account information needed by an Webhook probe.
+     * @param url - webhook url
+     * @param httpMethodType - http method type used for sending webhook request
      * @param timeout - timeout value which will restrict time to interconnect with server.
      */
-    public WebhookCredentials(@Nonnull WebhookAccount account, long timeout) {
-        this.url = account.getUrl();
-        this.methodType = account.getHttpMethod();
+    public WebhookCredentials(@Nonnull String url, @Nonnull String httpMethodType, long timeout) {
+        this.url = Objects.requireNonNull(url);
+        this.methodType = Objects.requireNonNull(httpMethodType);
         this.timeout = timeout;
     }
 

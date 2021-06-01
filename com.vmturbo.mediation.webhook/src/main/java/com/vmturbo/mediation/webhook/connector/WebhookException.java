@@ -18,4 +18,13 @@ public class WebhookException extends HttpConnectorException {
     public WebhookException(String msg, final Throwable cause) {
         super(msg, cause);
     }
+
+    /**
+     * Class constructor.
+     *
+     * @param msg The input exception message.
+     */
+    public WebhookException(String msg) {
+        super(msg);
+    }
 }

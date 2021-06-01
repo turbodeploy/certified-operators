@@ -3,6 +3,7 @@ package com.vmturbo.mediation.webhook.connector;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Objects;
 import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
@@ -24,7 +25,6 @@ import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.connector.common.Query;
 import com.vmturbo.mediation.connector.common.Response;
 import com.vmturbo.mediation.connector.common.http.query.converter.HttpQueryConverter;
-import com.vmturbo.mediation.webhook.WebhookAccount;
 import com.vmturbo.mediation.webhook.WebhookProperties;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
 
@@ -39,12 +39,12 @@ public class WebhookConnector implements HttpConnector, Closeable {
     /**
      * Constructor for webhook connector.
      *
-     * @param webhookAccount account values for webhook probe
+     * @param webhookCredentials webhook credentials
      * @param propertyProvider property provide
      */
-    public WebhookConnector(@Nonnull WebhookAccount webhookAccount,
+    public WebhookConnector(@Nonnull WebhookCredentials webhookCredentials,
             @Nonnull WebhookProperties propertyProvider) {
-        this.credentials = getCredentials(webhookAccount, propertyProvider);
+        this.credentials = Objects.requireNonNull(webhookCredentials);
         this.connectorFactory = getConnectorFactory(propertyProvider.getConnectionTimeout());
     }
 
@@ -59,12 +59,6 @@ public class WebhookConnector implements HttpConnector, Closeable {
             @Nonnull HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> connectorFactory) {
         this.credentials = webhookCredentials;
         this.connectorFactory = connectorFactory;
-    }
-
-    private static WebhookCredentials getCredentials(WebhookAccount account,
-            WebhookProperties propertyProvider) {
-        final int timeout = propertyProvider.getConnectionTimeout();
-        return new WebhookCredentials(account, timeout);
     }
 
     /**

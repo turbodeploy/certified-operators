@@ -76,40 +76,6 @@ public class WebhookProbeWiremockTest {
             .build();
 
     private static final double VCPU_USED = 2883.433349609375;
-    private static final ActionExecutionDTO RESIZE_ACTION = ActionExecutionDTO.newBuilder()
-        .setActionType(ActionType.RESIZE)
-        .setActionOid(RESIZE_ACTION_OID)
-        .setExplanation("Test resize action")
-        .setSubCategory(TEST_SUBCATEGORY)
-        .setSeverity(TEST_SEVERITY)
-        .setWorkflow(Workflow.newBuilder()
-            .setId("Webhook")
-            .addProperty(Property.newBuilder()
-                .setName("TEMPLATED_ACTION_BODY")
-                .setValue("Send this to the webhook endpoint")
-                .build())
-            .build())
-        .addActionItem(
-            ActionItemDTO.newBuilder()
-                .setUuid(String.valueOf(RESIZE_ACTION_OID))
-                .setActionType(ActionType.RESIZE)
-                .setTargetSE(TARGET_ENTITY)
-                .setHostedBySE(HOSTED_BY_ENTITY)
-                .setSavings((float)0.0)
-                .setSavingUnit("")
-                .setCommodityAttribute(CommodityAttribute.Capacity)
-                .setCurrentComm(CommodityDTO.newBuilder()
-                    .setCommodityType(CommodityType.VCPU)
-                    .setCapacity(1.0)
-                    .setUsed(VCPU_USED)
-                    .build())
-                .setNewComm(CommodityDTO.newBuilder()
-                    .setCommodityType(CommodityType.VCPU)
-                    .setCapacity(2.0)
-                    .setUsed(VCPU_USED)
-                    .build())
-                .build()
-        ).build();
 
     /**
      * When the endpoint returns 200, the action should succeed.
@@ -120,7 +86,8 @@ public class WebhookProbeWiremockTest {
     public void testValidEndpoint() throws InterruptedException {
         final WireMockServer server = startServer("normalRequest");
         try {
-            ActionResult result = executeAction("http://localhost:" + server.port() + "/runAction", RESIZE_ACTION);
+            ActionResult result = executeAction(
+                    createExecutedAction("http://localhost:" + server.port() + "/runAction"));
             Assert.assertEquals(ActionResponseState.SUCCEEDED, result.getState());
         } finally {
             server.stop();
@@ -136,7 +103,8 @@ public class WebhookProbeWiremockTest {
     public void testNotFound() throws InterruptedException {
         final WireMockServer server = startServer("endpointNotFound");
         try {
-            ActionResult result = executeAction("http://localhost:" + server.port() + "/notFound", RESIZE_ACTION);
+            ActionResult result = executeAction(
+                    createExecutedAction("http://localhost:" + server.port() + "/notFound"));
             Assert.assertEquals(ActionResponseState.FAILED, result.getState());
         } finally {
             server.stop();
@@ -161,7 +129,7 @@ public class WebhookProbeWiremockTest {
         return server;
     }
 
-    private ActionResult executeAction(String url, ActionExecutionDTO actionExecutionDTO) throws InterruptedException {
+    private ActionResult executeAction(ActionExecutionDTO actionExecutionDTO) throws InterruptedException {
         IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
         when(propertyProvider.getProperty(any())).thenReturn(30000);
         IProbeContext probeContext = mock(IProbeContext.class);
@@ -171,13 +139,53 @@ public class WebhookProbeWiremockTest {
         probe.initialize(probeContext, null);
         IProgressTracker progressTracker = mock(IProgressTracker.class);
         return probe.executeAction(actionExecutionDTO,
-            new WebhookAccount(
-                "Test webhook endpoint",
-                url,
-                HttpMethodType.POST.name(),
-                "{id: $actionOid}"
-            ),
+            new WebhookAccount(),
             new HashMap<>(),
             progressTracker);
+    }
+
+    private ActionExecutionDTO createExecutedAction(String webhookURL) {
+        return ActionExecutionDTO.newBuilder()
+                .setActionType(ActionType.RESIZE)
+                .setActionOid(RESIZE_ACTION_OID)
+                .setExplanation("Test resize action")
+                .setSubCategory(TEST_SUBCATEGORY)
+                .setSeverity(TEST_SEVERITY)
+                .setWorkflow(Workflow.newBuilder()
+                        .setId("Webhook")
+                        .addProperty(Property.newBuilder()
+                                .setName("TEMPLATED_ACTION_BODY")
+                                .setValue("Send this to the webhook endpoint")
+                                .build())
+                        .addProperty(Property.newBuilder()
+                                .setName("URL")
+                                .setValue(webhookURL)
+                                .build())
+                        .addProperty(Property.newBuilder()
+                                .setName("HTTP_METHOD")
+                                .setValue(HttpMethodType.POST.name())
+                                .build())
+                        .build())
+                .addActionItem(
+                        ActionItemDTO.newBuilder()
+                                .setUuid(String.valueOf(RESIZE_ACTION_OID))
+                                .setActionType(ActionType.RESIZE)
+                                .setTargetSE(TARGET_ENTITY)
+                                .setHostedBySE(HOSTED_BY_ENTITY)
+                                .setSavings((float)0.0)
+                                .setSavingUnit("")
+                                .setCommodityAttribute(CommodityAttribute.Capacity)
+                                .setCurrentComm(CommodityDTO.newBuilder()
+                                        .setCommodityType(CommodityType.VCPU)
+                                        .setCapacity(1.0)
+                                        .setUsed(VCPU_USED)
+                                        .build())
+                                .setNewComm(CommodityDTO.newBuilder()
+                                        .setCommodityType(CommodityType.VCPU)
+                                        .setCapacity(2.0)
+                                        .setUsed(VCPU_USED)
+                                        .build())
+                                .build()
+                ).build();
     }
 }

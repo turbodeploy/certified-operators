@@ -12,7 +12,6 @@ import com.vmturbo.mediation.connector.common.HttpConnectorException;
 import com.vmturbo.mediation.connector.common.HttpConnectorFactory;
 import com.vmturbo.mediation.connector.common.HttpConnectorSettings;
 import com.vmturbo.mediation.connector.common.HttpMethodType;
-import com.vmturbo.mediation.webhook.WebhookAccount;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookResponse;
 
@@ -32,13 +31,8 @@ public class WebhookConnectorTest {
      */
     @Before
     public void init() {
-        final WebhookAccount webhookAccount = new WebhookAccount(
-            "Test webhook endpoint",
-            "http://fake_webhook:142/endpoint",
-            HttpMethodType.POST.name(),
-            "{id: $actionOid}"
-        );
-        webhookCredentials = new WebhookCredentials(webhookAccount, 30000L);
+        webhookCredentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
+                HttpMethodType.POST.name(), 30000L);
         connectorFactory = Mockito.spy(WebhookConnector.createConnectorFactoryBuilder().build());
         webhookConnector = new WebhookConnector(webhookCredentials, connectorFactory);
         httpConnector = Mockito.spy(HttpConnector.class);
