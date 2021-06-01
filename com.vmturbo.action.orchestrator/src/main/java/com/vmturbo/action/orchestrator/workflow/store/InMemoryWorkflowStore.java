@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -65,7 +67,17 @@ public class InMemoryWorkflowStore implements WorkflowStore {
      */
     public InMemoryWorkflowStore(@Nonnull DSLContext dsl, @Nonnull IdentityStore identityStore,
             @Nonnull Clock clock) {
-        this.persistentWorkflowStore = new PersistentWorkflowStore(dsl, identityStore, clock);
+        this(new PersistentWorkflowStore(dsl, identityStore, clock));
+    }
+
+    /**
+     * Visibile for testing so we can replace the persistentWorkflowStore with a mocked one.
+     *
+     * @param persistentWorkflowStore the persistentWorkflowStore implementation to inject.
+     */
+    @VisibleForTesting
+    /*pkg*/ InMemoryWorkflowStore(@Nonnull PersistentWorkflowStore persistentWorkflowStore) {
+        this.persistentWorkflowStore = persistentWorkflowStore;
         try {
             updateInMemoryWorkflowStore();
         } catch (WorkflowStoreException ex) {
@@ -121,6 +133,25 @@ public class InMemoryWorkflowStore implements WorkflowStore {
         persistentWorkflowStore.persistWorkflows(targetId, workflowInfos);
         // Synchronise in-memory workflow store after identifying and persisting discovered
         // workflows in DB through PersistentWorkflowStore
+        updateInMemoryWorkflowStore();
+    }
+
+    @Override
+    public long insertWorkflow(final WorkflowInfo workflowInfo) throws WorkflowStoreException {
+        long workflowId = persistentWorkflowStore.insertWorkflow(workflowInfo);
+        updateInMemoryWorkflowStore();
+        return workflowId;
+    }
+
+    @Override
+    public void updateWorkflow(final long workflowId, final WorkflowInfo workflowInfo) throws WorkflowStoreException {
+        persistentWorkflowStore.updateWorkflow(workflowId, workflowInfo);
+        updateInMemoryWorkflowStore();
+    }
+
+    @Override
+    public void deleteWorkflow(final long workflowId) throws WorkflowStoreException {
+        persistentWorkflowStore.deleteWorkflow(workflowId);
         updateInMemoryWorkflowStore();
     }
 

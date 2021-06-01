@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.workflow.WorkflowDiagnostics;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowRpcService;
@@ -27,6 +28,9 @@ import com.vmturbo.identity.store.PersistentIdentityStore;
 @Configuration
 @Import(ActionOrchestratorDBConfig.class)
 public class WorkflowConfig {
+
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
@@ -48,8 +52,10 @@ public class WorkflowConfig {
     }
 
     @Bean
-    public WorkflowRpcService fetchWorkflowRpcService() {
-        return new WorkflowRpcService(workflowStore());
+    public WorkflowRpcService workflowRpcService() {
+        return new WorkflowRpcService(
+            workflowStore(),
+            tpConfig.thinTargetCache());
     }
 
     @Bean

@@ -7,6 +7,7 @@ import static org.jooq.impl.DSL.select;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import com.google.common.collect.Streams;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -208,6 +210,81 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 : Optional.empty();
     }
 
+    @Override
+    public long insertWorkflow(@Nonnull final WorkflowInfo workflowInfo) throws WorkflowStoreException {
+        try {
+            final IdentityStoreUpdate identityStoreUpdate =
+                identityStore.fetchOrAssignItemOids(Arrays.asList(workflowInfo));
+            final Optional<Long> workflowIdOpt = Streams.concat(
+                identityStoreUpdate.getNewItems().values().stream(),
+                identityStoreUpdate.getOldItems().values().stream())
+                .findAny();
+            if (!workflowIdOpt.isPresent()) {
+                throw new WorkflowStoreException("Unable to create a workflowId for: " + workflowInfo.getDisplayName());
+            }
+            final long workflowId = workflowIdOpt.get();
+
+            // wrap the insert/update process in a DB transaction
+            dsl.transaction(configuration -> {
+                // set up a DSLContext for this transaction to use in all Jooq operations
+                DSLContext transactionDsl = DSL.using(configuration);
+
+                // capture the time now - use to set last_update_time and then to remove old records
+                final LocalDateTime dateTimeNow = LocalDateTime.now(clock);
+
+                transactionDsl
+                    .insertInto(WORKFLOW)
+                    .set(WORKFLOW.ID, workflowId)
+                    .set(WORKFLOW.WORKFLOW_INFO, workflowInfo)
+                    .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
+                    .execute();
+            });
+
+            return workflowId;
+        } catch (DataAccessException | IdentityStoreException e) {
+            throw new WorkflowStoreException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void updateWorkflow(final long workflowId, @Nonnull final WorkflowInfo workflowInfo) throws WorkflowStoreException {
+        try {
+            dsl.transaction(configuration -> {
+                // set up a DSLContext for this transaction to use in all Jooq operations
+                DSLContext transactionDsl = DSL.using(configuration);
+
+                // capture the time now - use to set last_update_time and then to remove old records
+                final LocalDateTime dateTimeNow = LocalDateTime.now(clock);
+
+                transactionDsl
+                    .update(WORKFLOW)
+                    .set(WORKFLOW.WORKFLOW_INFO, workflowInfo)
+                    .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
+                    .where(WORKFLOW.ID.eq(workflowId))
+                    .execute();
+            });
+        } catch (DataAccessException e) {
+            throw new WorkflowStoreException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void deleteWorkflow(final long workflowId) throws WorkflowStoreException {
+        try {
+            dsl.transaction(configuration -> {
+                // set up a DSLContext for this transaction to use in all Jooq operations
+                DSLContext transactionDsl = DSL.using(configuration);
+
+                transactionDsl
+                    .delete(WORKFLOW)
+                    .where(WORKFLOW.ID.eq(workflowId))
+                    .execute();
+            });
+        } catch (DataAccessException e) {
+            throw new WorkflowStoreException(e.getMessage(), e);
+        }
+    }
+
     /**
      * Return a Predicate which, given an {@link IdentityMatchingAttributes}, will compare
      * the WORKFLOW_TARGET_ID with the given targetId. Return true if this IdentityMatchinAttributes
@@ -221,7 +298,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
         return (IdentityMatchingAttributes foo) -> {
             try {
                 return foo.getMatchingAttribute(WORKFLOW_TARGET_ID).getAttributeValue()
-                        .equals(targetIdString);
+                    .equals(targetIdString);
             } catch (IdentityStoreException e) {
                 return false;
             }
