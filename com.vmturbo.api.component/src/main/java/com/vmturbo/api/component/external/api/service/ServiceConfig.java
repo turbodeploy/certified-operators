@@ -782,7 +782,7 @@ public class ServiceConfig {
     @Bean
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
-                targetService(), mapperConfig.workflowMapper());
+                targetService(), mapperConfig.workflowMapper(), communicationConfig.settingPolicyRpcService());
     }
 
     @Bean
