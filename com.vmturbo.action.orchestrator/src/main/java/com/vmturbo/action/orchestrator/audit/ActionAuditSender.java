@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -98,9 +99,10 @@ public class ActionAuditSender {
      * @throws CommunicationException if communication error occurred while sending
      *         notifications
      * @throws InterruptedException if current thread has been interrupted while blocking.
+     * @throws ExecutionInitiationException if failed to process workflow
      */
     public void sendAfterExecutionEvents(@Nonnull ActionView action)
-        throws CommunicationException, InterruptedException {
+            throws CommunicationException, InterruptedException, ExecutionInitiationException {
         Optional<WorkflowDTO.Workflow> workflowOptional;
         try {
             workflowOptional = action.getWorkflow(workflowStore, action.getState());
@@ -163,11 +165,13 @@ public class ActionAuditSender {
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
      * @throws UnsupportedActionException when primary entity of an action cannot be found.
+     * @throws ExecutionInitiationException if failed to process workflow
      */
     public void sendOnGenerationEvents(
             @Nonnull Collection<? extends ActionView> actions,
             @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
-            throws CommunicationException, InterruptedException, UnsupportedActionException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException,
+            ExecutionInitiationException {
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         final AuditedActionsUpdate auditedActionsUpdates = new AuditedActionsUpdate();
@@ -190,9 +194,11 @@ public class ActionAuditSender {
      * notifications
      * @throws InterruptedException if current thread has been interrupted
      * @throws UnsupportedActionException when primary entity of an action cannot be found.
+     * @throws ExecutionInitiationException if failed to process workflow
      */
     public int resendActionEvents(@Nonnull Collection<? extends ActionView> actions)
-            throws CommunicationException, InterruptedException, UnsupportedActionException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException,
+            ExecutionInitiationException {
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         final int reAuditedActionsCount = processActionsForAudit(actions, null, true);
@@ -205,7 +211,8 @@ public class ActionAuditSender {
             @Nonnull Collection<? extends ActionView> actions,
             @Nullable AuditedActionsUpdate auditedActionsUpdates,
             boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException, UnsupportedActionException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException,
+            ExecutionInitiationException {
         int auditedActionsCount = 0;
         for (ActionView action : actions) {
             Optional<WorkflowDTO.Workflow> workflowOptional;
@@ -237,7 +244,8 @@ public class ActionAuditSender {
             @Nonnull Workflow workflow,
             @Nullable AuditedActionsUpdate auditedActionsUpdates,
             boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException, UnsupportedActionException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException,
+            ExecutionInitiationException {
         Optional<String> probeTypeOpt = getProbeType(workflow);
         if (probeTypeOpt.isPresent()) {
             // TODO OM-64606 remove this ServiceNow specific logic after changing the ServiceNow app
@@ -372,7 +380,8 @@ public class ActionAuditSender {
     }
 
     private boolean processServiceNowWorkflow(@Nonnull ActionView action,
-            @Nonnull Workflow workflow) throws CommunicationException, InterruptedException {
+            @Nonnull Workflow workflow)
+            throws CommunicationException, InterruptedException, ExecutionInitiationException {
         final ActionResponseState oldState;
         final ActionResponseState newState;
         switch (workflow.getWorkflowInfo().getActionPhase()) {
@@ -401,7 +410,8 @@ public class ActionAuditSender {
             @Nonnull Workflow workflow,
             @Nullable AuditedActionsUpdate auditedActionsUpdates,
             boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException, UnsupportedActionException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException,
+            ExecutionInitiationException {
         if (!isAlreadySent(action.getRecommendationOid(), workflow.getId()) || allowRepeatedAudit) {
             final ActionResponseState oldState;
             final ActionResponseState newState;
@@ -447,7 +457,8 @@ public class ActionAuditSender {
     }
 
     private ActionEvent getActionEvent(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nonnull ActionResponseState oldState, @Nonnull ActionResponseState newState) {
+            @Nonnull ActionResponseState oldState, @Nonnull ActionResponseState newState)
+            throws ExecutionInitiationException {
         final ExecuteActionRequest request =
                 ActionExecutor.createRequest(workflow.getWorkflowInfo().getTargetId(),
                     actionTranslator.translateToSpec(action), Optional.of(workflow),
