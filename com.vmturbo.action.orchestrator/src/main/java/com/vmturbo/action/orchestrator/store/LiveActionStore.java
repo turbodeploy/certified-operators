@@ -44,6 +44,7 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -651,7 +652,7 @@ public class LiveActionStore implements ActionStore {
             // Even if the list is empty, we need ActionAuditSender to update it's book keeping.
             // Previously there was an optimization that checked if the list was non-empty.
             actionAuditSender.sendOnGenerationEvents(newActions, entitiesAndSettingsSnapshot);
-        } catch (CommunicationException | UnsupportedActionException e) {
+        } catch (CommunicationException | UnsupportedActionException | ExecutionInitiationException e) {
             logger.warn(
                     "Failed sending audit event \"on generation event\" for actions " + newActions,
                     e);
