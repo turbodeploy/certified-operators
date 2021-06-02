@@ -147,7 +147,7 @@ public class EntitiesSnapshotFactory {
                     targetTopologyType);
 
             // This will be the case for plans with detached volume actions only.
-            // We need to get the information for these entities from the plan SOURCE topology,
+            // We need to get the information for these entities from the real-time SOURCE topology,
             // as they're not added to the plan projected topology.
             if (!nonProjectedEntities.isEmpty()) {
                 Map<Long, ActionPartialEntity> entityMapNonProjected;
@@ -155,7 +155,7 @@ public class EntitiesSnapshotFactory {
                         .queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
                         .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
 
-                entityMapNonProjected = retrieveOidToEntityMap(nonProjectedEntities, topologyContextId,
+                entityMapNonProjected = retrieveOidToEntityMap(nonProjectedEntities, realtimeTopologyContextId,
                         topologyId, TopologyType.SOURCE);
                 entityMap.putAll(entityMapNonProjected);
             }

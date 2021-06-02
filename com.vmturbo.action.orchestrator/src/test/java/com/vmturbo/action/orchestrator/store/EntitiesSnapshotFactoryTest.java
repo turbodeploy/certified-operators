@@ -19,7 +19,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
@@ -145,13 +144,18 @@ public class EntitiesSnapshotFactoryTest {
 
         doAnswer(invocation -> {
             RetrieveTopologyEntitiesRequest req = invocation.getArgumentAt(0, RetrieveTopologyEntitiesRequest.class);
-            if (req.getTopologyContextId() == planContextId) {
-                return Collections.singletonList(PartialEntityBatch.newBuilder()
-                        .addEntities(PartialEntity.newBuilder()
-                                .setAction(req.getTopologyType() == TopologyType.PROJECTED ? projEntity : srcEntity)
-                                .build())
-                        .build());
-            } return Lists.newArrayList();
+            final ActionPartialEntity e;
+            if (req.getTopologyType() == TopologyType.PROJECTED) {
+                e = projEntity;
+            } else {
+                e = srcEntity;
+            }
+            return Collections.singletonList(PartialEntityBatch.newBuilder()
+                    .addEntities(PartialEntity.newBuilder()
+                            .setAction(e)
+                            .build())
+                    .build());
+
         }).when(repoServiceSpy).retrieveTopologyEntities(any());
 
         when(topologyAvailabilityTracker.queueTopologyRequest(planContextId, 1L)).thenReturn(queuedTopologyRequest);

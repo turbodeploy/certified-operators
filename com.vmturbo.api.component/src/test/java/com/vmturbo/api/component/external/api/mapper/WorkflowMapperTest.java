@@ -114,6 +114,10 @@ public class WorkflowMapperTest {
         workflowApiDTO.setClassName(WORKFLOW_CLASSNAME);
         workflowApiDTO.setUuid(String.valueOf(WORKFLOW_OID));
         workflowApiDTO.setDisplayName(WORKFLOW_1_DISPLAYNAME);
+        workflowApiDTO.setDescription(WORKFLOW_1_DESCRIPTION);
+        workflowApiDTO.setActionType(WORKFLOW_1_ACTION_TYPE_NAME);
+        workflowApiDTO.setActionPhase(WORKFLOW_1_ACTION_PHASE_NAME);
+        workflowApiDTO.setTimeLimitSeconds(WORKFLOW_1_TIME_LIMIT);
         workflowApiDTO.setType(OrchestratorType.WEBHOOK);
         workflowApiDTO.setDiscoveredBy(new TargetApiDTO());
         WebhookApiDTO webhookApiDTO = new WebhookApiDTO();
@@ -142,6 +146,10 @@ public class WorkflowMapperTest {
     public static Workflow createWebhookWorkflow(boolean populateName) {
         final WorkflowDTO.WorkflowInfo.Builder workflowInfo = WorkflowDTO.WorkflowInfo.newBuilder()
             .setDisplayName(WORKFLOW_1_DISPLAYNAME)
+            .setDescription(WORKFLOW_1_DESCRIPTION)
+            .setActionType(ActionType.valueOf(WORKFLOW_1_ACTION_TYPE_NAME))
+            .setActionPhase(ActionPhase.valueOf(WORKFLOW_1_ACTION_PHASE_NAME))
+            .setTimeLimitSeconds(WORKFLOW_1_TIME_LIMIT)
             .setType(WorkflowDTO.OrchestratorType.WEBHOOK)
             .setWebhookInfo(WorkflowDTO.WorkflowInfo.WebhookInfo.newBuilder()
                 .setUrl(WEBHOOK_URL)

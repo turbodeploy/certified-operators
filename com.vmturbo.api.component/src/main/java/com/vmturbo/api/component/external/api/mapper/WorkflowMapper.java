@@ -44,9 +44,7 @@ public class WorkflowMapper {
         answer.setUuid(Long.toString(workflow.getId()));
         WorkflowInfo workflowInfo = workflow.getWorkflowInfo();
         answer.setDisplayName(workflowInfo.getDisplayName());
-        if (workflowInfo.hasDescription()) {
-            answer.setDescription(workflowInfo.getDescription());
-        }
+        answer.setDescription(workflowInfo.getDescription());
         answer.setDiscoveredBy(target);
         // populate the list of parameters for this workflow
         List<InputFieldApiDTO> workflowParameters = workflowInfo.getWorkflowParamList().stream()
@@ -56,18 +54,10 @@ public class WorkflowMapper {
         if (workflowInfo.hasScriptPath()) {
             answer.setScriptPath(workflowInfo.getScriptPath());
         }
-        if (workflowInfo.hasEntityType()) {
-            answer.setEntityType(EntityType.forNumber(workflowInfo.getEntityType()).name());
-        }
-        if (workflowInfo.hasActionType()) {
-            answer.setActionType(workflowInfo.getActionType().name());
-        }
-        if (workflowInfo.hasActionPhase()) {
-            answer.setActionPhase(workflowInfo.getActionPhase().name());
-        }
-        if (workflowInfo.hasTimeLimitSeconds()) {
-            answer.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
-        }
+        answer.setEntityType(EntityType.forNumber(workflowInfo.getEntityType()).name());
+        answer.setActionType(workflowInfo.getActionType().name());
+        answer.setActionPhase(workflowInfo.getActionPhase().name());
+        answer.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
         answer.setType(OrchestratorType.valueOf(workflowInfo.getType().name()));
         if (workflowInfo.getType() == WorkflowDTO.OrchestratorType.WEBHOOK) {
             final WebhookInfo webhookInfo = workflowInfo.getWebhookInfo();
