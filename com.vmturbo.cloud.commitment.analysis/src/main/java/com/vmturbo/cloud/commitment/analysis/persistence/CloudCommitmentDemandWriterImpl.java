@@ -129,8 +129,13 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
             Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
             businessAccount.map(ba -> datapointBuilder.accountOid(ba.getOid()));
 
+            // Set the billing family oid
+            cloudTopology.getBillingFamilyForEntity(entityOid)
+                    .ifPresent(bf -> datapointBuilder.billingFamilyId(bf.group().getId()));
+
             // Set the resource group oid
-            cloudTopology.getResourceGroup(entityOid).ifPresent(rg -> datapointBuilder.resourceGroupOid(rg.group().getId()));
+            cloudTopology.getResourceGroup(entityOid)
+                    .ifPresent(rg -> datapointBuilder.resourceGroupOid(rg.group().getId()));
 
             ComputeTierDemand.Builder computeTierAllocationDemandBuilder = ComputeTierDemand.builder();
 

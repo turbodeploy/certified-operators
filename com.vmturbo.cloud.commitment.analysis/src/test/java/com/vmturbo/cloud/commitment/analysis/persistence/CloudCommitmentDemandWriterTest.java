@@ -99,6 +99,8 @@ public class CloudCommitmentDemandWriterTest {
 
         Mockito.when(cloudTopology.getResourceGroup(vmOid)).thenReturn(Optional.empty());
 
+        Mockito.when(cloudTopology.getBillingFamilyForEntity(vmOid)).thenReturn(Optional.empty());
+
         Mockito.when(cloudTopology.getComputeTier(vmOid)).thenReturn(Optional.of(computeTier));
 
         Mockito.when(cloudTopology.getOwner(vmOid)).thenReturn(Optional.of(businessAccount));

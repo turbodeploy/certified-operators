@@ -48,6 +48,7 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
                                                             long regionOid,
                                                             Optional<Long> availabilityZoneOid,
                                                             long serviceProviderOid,
+                                                            Optional<Long> billingFamilyOid,
                                                             Optional<Long> resourceGroupOid,
                                                             @Nonnull LocalDateTime recordCreationTime) {
 
@@ -59,6 +60,7 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
         cloudScopeRecord.setRegionOid(regionOid);
         availabilityZoneOid.ifPresent(cloudScopeRecord::setAvailabilityZoneOid);
         cloudScopeRecord.setServiceProviderOid(serviceProviderOid);
+        billingFamilyOid.ifPresent(cloudScopeRecord::setBillingFamilyOid);
         resourceGroupOid.ifPresent(cloudScopeRecord::setResourceGroupOid);
         cloudScopeRecord.setCreationTime(recordCreationTime);
 
@@ -81,6 +83,7 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
                             .set(Tables.ENTITY_CLOUD_SCOPE.REGION_OID, record.getRegionOid())
                             .set(Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID, record.getAvailabilityZoneOid())
                             .set(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID, record.getServiceProviderOid())
+                            .set(Tables.ENTITY_CLOUD_SCOPE.BILLING_FAMILY_OID, record.getBillingFamilyOid())
                             .set(Tables.ENTITY_CLOUD_SCOPE.RESOURCE_GROUP_OID, record.getResourceGroupOid()))
                     .collect(ImmutableSet.toImmutableSet())).execute());
 
