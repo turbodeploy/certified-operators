@@ -12,6 +12,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -44,7 +45,10 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -62,10 +66,12 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -85,8 +91,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
@@ -1080,5 +1088,38 @@ public class StatsServiceTest {
         a.setEndDate("-5d");
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         statsService.getStatsByEntityQuery(oid1, a);
+    }
+
+    /**
+     * Test non-admin user getting other user's plan stats cause {@link UserAccessException}.
+     *
+     * @throws Exception thrown if no plan matches marketUuid
+     */
+    @Test(expected = UserAccessException.class)
+    public void testPlanStatsWithDifferentUser() throws Exception {
+        final String planUuid = Long.toString(111);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        doReturn(OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setCreatedByUser("userID1")
+                        .setPlanId(123)
+                        .setProjectedTopologyId(projectedPlanTopologyId)
+                        .setStatus(PlanStatus.SUCCEEDED))
+                .build()).when(planServiceSpy).getPlan(any());
+        StatPeriodApiInputDTO a = new StatPeriodApiInputDTO();
+        a.setStartDate("-3d");
+        a.setEndDate("-5d");
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(
+                        new AuthUserDTO(null, "", "", "", "userID2", "", Collections.EMPTY_LIST,
+                                null), "", Collections.emptySet()));
+        try {
+            statsService.getStatsByEntityQuery(planUuid, a);
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+        }
     }
 }

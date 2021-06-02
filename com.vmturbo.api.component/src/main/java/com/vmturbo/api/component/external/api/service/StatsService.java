@@ -51,6 +51,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
@@ -62,6 +63,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -74,6 +77,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -284,6 +288,12 @@ public class StatsService implements IStatsService {
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
 
+        if (apiId.isPlan()) {
+           final PlanInstance planInstance = getPlanInstance(apiId.oid());
+            if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+                throw new UserAccessException("User does not have access to plan.");
+            }
+        }
         // Create a default Stat period, if one is not specified in the request
         if (inputDto == null) {
             inputDto = getDefaultStatPeriodApiInputDto();
@@ -296,6 +306,19 @@ public class StatsService implements IStatsService {
         return statsQueryExecutor.getAggregateStats(apiId, inputDto);
     }
 
+    private PlanInstance getPlanInstance(final long planId)
+            throws UnknownObjectException, StatusRuntimeException {
+        final OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
+                .setPlanId(planId)
+                .build());
+
+        if (!planResponse.hasPlanInstance()) {
+            throw new UnknownObjectException("Could not locate a plan instance with id: "
+                    + planId);
+        }
+        return planResponse.getPlanInstance();
+    }
+    
     private Optional<PlanInstance> getRequestedPlanInstance(@Nonnull final StatScopesApiInputDTO inputDto) {
         // plan stats request must be the only uuid in the scopes list
         if (inputDto.getScopes().size() != 1) {
