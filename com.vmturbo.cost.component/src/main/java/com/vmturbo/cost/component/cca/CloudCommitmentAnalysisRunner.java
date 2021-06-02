@@ -322,7 +322,7 @@ public class CloudCommitmentAnalysisRunner {
                 if (purchaseProfile != null) {
                     purchaseProfileByRegionMap.put(region.getOid(), purchaseProfile.getRiType());
                 } else {
-                    logger.error("Unable to find purchase constraints for region (Region OID={} SP OID={})",
+                    logger.warn("Unable to find purchase constraints for region (Region OID={} SP OID={})",
                             region.getOid(), serviceProvider.get().getOid());
                 }
             } else {
