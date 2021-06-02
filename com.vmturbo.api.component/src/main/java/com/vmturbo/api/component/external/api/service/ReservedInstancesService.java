@@ -18,6 +18,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
@@ -69,6 +71,11 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class ReservedInstancesService implements IReservedInstancesService {
+
+    /**
+     * Logger.
+     */
+    private static final Logger logger = LogManager.getLogger();
 
     private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService;
 
@@ -374,7 +381,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * of the same type can be added and separated by the pipe character (|). The filterType is also set
      * indicating if the scope id is for Regions, Accounts, Billing Families, Cloud Service providers,
      * Groups or Resource Groups. For Groups, we support only VM Groups and Resource Groups containing VMs.
-     * For all other group types, we throw an Exception.
+     * For all other group types, we log an error and return an empty list.
      *
      * @param filterApiDTOList list of {@link FilterApiDTO}
      * @return list of {@link ReservedInstanceApiDTO}
@@ -385,6 +392,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
+        boolean requestBuilderPopulated = false;
         for (FilterApiDTO filterApiDTO : filterApiDTOList) {
             final String filterType = filterApiDTO.getFilterType();
             final String expVal = filterApiDTO.getExpVal();
@@ -407,18 +415,22 @@ public class ReservedInstancesService implements IReservedInstancesService {
             switch(riFilter) {
                 case RI_BY_REGION:
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(oidList));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_USED:
                     requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_PURCHASED:
                     requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_ALL:
                     requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_AND_PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_USED:
@@ -428,6 +440,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         accountOids.addAll(scope.getScopeOids());
                     }
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_PURCHASED:
@@ -437,6 +450,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         accountOids.addAll(scope.getScopeOids());
                     }
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_ALL:
@@ -446,6 +460,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         accountOids.addAll(scope.getScopeOids());
                     }
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_AND_PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_CLOUD_PROVIDER:
@@ -453,6 +468,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     final Set<Long> regionOids = repositoryApi.expandServiceProvidersToRegions(
                                     new HashSet<>(oidList));
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(regionOids));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_GROUP:
@@ -460,13 +476,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     //Get virtual machines associated with the group.
                     final Set<Long> virtualMachineOids = getVmOids(oidList);
                     if (virtualMachineOids.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any virtual machines.");
+                        logger.error("Group / Resource Group does not contain any virtual machines.");
+                        continue;
                     }
 
                     //Get business accounts associated with the VMs.
                     List<Long> allAccountOids = getAllBusinessAccounts(virtualMachineOids);
                     if (allAccountOids.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any business accounts");
+                        logger.error("Group / Resource Group does not contain any business accounts.");
+                        continue;
                     }
 
                     //Get regions associated with the VMs.
@@ -475,12 +493,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                                     .map(a -> a.getOid())
                                                     .collect(Collectors.toSet());
                     if (regionOidSet.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any regions.");
+                        logger.error("Group / Resource Group does not contain any regions.");
+                        continue;
                     }
 
                     requestBuilder.setAccountFilter(createAccountFilter(allAccountOids,
                             AccountReferenceType.USED_AND_PURCHASED_BY));
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(regionOidSet));
+                    requestBuilderPopulated = true;
                     break;
                 default:
                     final StringBuilder errorMessageBuilder = new StringBuilder("Unsupported filter type. Please pick a valid filter type among the list");
@@ -489,6 +509,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                     errorMessageBuilder.length(), ".");
                     throw new UnsupportedOperationException(errorMessageBuilder.toString());
             };
+        }
+
+        if (requestBuilderPopulated == false) {
+            return Collections.emptyList();
         }
 
         final List<ReservedInstanceBought> reservedInstanceBoughtList =
@@ -523,9 +547,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 vmMembersOptional.get();
                 virtualMachineOids.addAll(staticMembersByType.getMembersList());
             } else {
-                // throw Unsupported Exception
-                final String errorMessage = "Currently we support this call only for Resource Groups which contain VMs and Groups of VMs";
-                throw new UnsupportedOperationException(errorMessage);
+                logger.error("No VMs found in group {}. Currently we support this call only for Resource Groups which contain VMs and Groups of VMs", groupOid);
             }
         }
         return virtualMachineOids;
