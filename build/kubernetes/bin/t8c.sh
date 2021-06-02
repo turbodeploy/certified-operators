@@ -255,6 +255,7 @@ then
   # Perform the initial setup for local storage
   # Local storage should be used when shared storage (Gluster) is not desired.
   # This should *only* be run once, before the installation of the Kubernetes environment (i.e., within t8c.sh).
+  sudo umount ${localStorageDataDirectory}
   sudo /usr/sbin/wipefs -a /dev/sdb
 
   # Format the partition and mount it in the desired data directory
@@ -262,7 +263,10 @@ then
   sudo mkfs.xfs -f ${device}
   sudo mkdir -p $localStorageDataDirectory
   sudo chown -R turbo.turbo $localStorageDataDirectory
-  echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | sudo tee --append /etc/fstab
+  if [ ! grep -q "$localStorageDataDirectory" /etc/fstab ]
+  then
+    echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | sudo tee --append /etc/fstab
+  fi
   sudo mount -a
   # This check needs to be better. But no time right now
   localStatus=$?
