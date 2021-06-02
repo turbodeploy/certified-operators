@@ -4,6 +4,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.AVA
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.REGION_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
@@ -418,17 +419,21 @@ public class PlanTopologyScopeEditor {
      * @throws GroupResolutionException if the pipeline has errors.
      **/
     public TopologyGraph<TopologyEntity> indexBasedScoping(
-            @Nonnull final InvertedIndex<TopologyEntity,
-                    CommoditiesBoughtFromProvider> index,
+            @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index,
+            @Nonnull TopologyInfo topologyInfo,
             @Nonnull final TopologyGraph<TopologyEntity> topology,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final PlanScope planScope,
             PlanProjectType planProjectType) throws GroupResolutionException {
+        final String logPrefix = String.format("%s topology [ID=%d, context=%d, plan=%s]:",
+                topologyInfo.getTopologyType(), topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(), topologyInfo.getPlanInfo().getPlanType());
+
         final Stopwatch stopwatch = Stopwatch.createStarted();
 
-        logger.info("Entering scoping stage for on-prem/container platform topology .....");
+        logger.info("{} Entering scoping stage for on-prem/container platform topology .....", logPrefix);
         // record a count of the number of entities by their entity type in the context.
-        entityCountMsg(topology.entities().collect(Collectors.toSet()));
+        entityCountMsg(topology.entities().collect(Collectors.toSet()), logPrefix);
 
         Map<EntityType, Set<TopologyEntity>> allSeed = getSeedEntities(groupResolver, planScope, topology);
 
@@ -538,11 +543,11 @@ public class PlanTopologyScopeEditor {
                 }
             }
         }
-        logger.info("Completed consumer traversal in {} millis.", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("{} Completed consumer traversal in {} millis.", logPrefix, stopwatch.elapsed(TimeUnit.MILLISECONDS));
         stopwatch.reset();
 
         stopwatch.start();
-        logger.trace("Top level buyers: {}", buyersToSatisfy.lookupSet);
+        logger.trace("{} Top level buyers: {}", logPrefix, buyersToSatisfy.lookupSet);
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
         final TLongSet providersExpanded = new TLongHashSet();
         final TLongSet topLevelBuyers = new TLongHashSet();
@@ -591,7 +596,12 @@ public class PlanTopologyScopeEditor {
                     () -> buyer.getOutboundAssociatedEntities().stream().map(TopologyEntity::getOid)
                         .map(String::valueOf).collect(Collectors.joining(",")));
                 associatedEntities.addAll(buyer.getOutboundAssociatedEntities());
-
+                // To compute costs for cloud VMs we need the BA and Region associated with them in the scope
+                // Azure VMs are not associated with any AZ, so we get Region using the Aggregator relationship
+                if (enableContainerClusterScalingCost && !buyer.getAggregators().isEmpty()) {
+                    buyer.getAggregators().stream().filter(a -> a.getEntityType() == REGION_VALUE)
+                            .forEach(a -> costEntitiesSeeds.tryAdd(a.getOid()));
+                }
                 if (enableContainerClusterScalingCost && buyer.getOwner().isPresent()
                         && buyer.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
                     costEntitiesSeeds.tryAdd(buyer.getOwner().get().getOid());
@@ -619,6 +629,8 @@ public class PlanTopologyScopeEditor {
             } else if (buyer.getEntityType() == AVAILABILITY_ZONE_VALUE) {
                 // We have encountered AZ as a provider, it can serve as the seed to obtain
                 // Region, tiers and service providers to compute costs for entities in the scope
+                // AWS VMs are connected to AZ, Azure VMs are not connected to AZ
+                // so we obtain the Region for those VMs
                 if (enableContainerClusterScalingCost) {
                     costEntitiesSeeds.tryAdd(buyer.getOid());
                 }
@@ -642,8 +654,8 @@ public class PlanTopologyScopeEditor {
                 }
             });
         }
-        logger.trace("Scoped topology entities are - {}", scopedTopologyOIDs);
-        logger.info("Completed buyer traversal in {} millis", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        logger.trace("{} Scoped topology entities are - {}", logPrefix, scopedTopologyOIDs);
+        logger.info("{} Completed buyer traversal in {} millis", logPrefix, stopwatch.elapsed(TimeUnit.MILLISECONDS));
         stopwatch.stop();
 
         // Fetching the entities required for the entity calculations
@@ -668,8 +680,8 @@ public class PlanTopologyScopeEditor {
 
         final TopologyGraph<TopologyEntity> retGraph = graphCreator.build();
 
-        logger.info("Completed scoping stage for on-prem topology. {} scoped entities", retGraph.size());
-        entityCountMsg(new HashSet<>(retGraph.entities().collect(Collectors.toSet())));
+        logger.info("{} Completed scoping stage for on-prem topology. {} scoped entities", logPrefix, retGraph.size());
+        entityCountMsg(new HashSet<>(retGraph.entities().collect(Collectors.toSet())), logPrefix);
         return retGraph;
     }
 
@@ -760,10 +772,10 @@ public class PlanTopologyScopeEditor {
      * A helper method to print the entities by type count in log.
      * @param entities the list of entities
      */
-    private void entityCountMsg(Set<TopologyEntity> entities) {
+    private void entityCountMsg(Set<TopologyEntity> entities, String logPrefix) {
         Map<Integer, Long> originEntityByType = entities.stream()
                 .collect(Collectors.groupingBy(e -> e.getEntityType(), Collectors.counting()));
-        StringBuilder infoMsg = new StringBuilder().append("Entity set contains the following :");
+        StringBuilder infoMsg = new StringBuilder().append(logPrefix).append(" Entity set contains the following :");
         originEntityByType.entrySet().forEach(entry -> infoMsg.append(" Entity type ")
                 .append(EntityType.forNumber(entry.getKey())).append(" count is ").append(entry.getValue()));
         logger.info(infoMsg.toString());
