@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,6 +44,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
@@ -93,8 +96,10 @@ import com.vmturbo.api.pagination.EntityOrderBy;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -1680,6 +1685,55 @@ public class MarketsServiceTest {
         marketsService.renameMarket(planUuid, "");
     }
 
+    /**
+     * Test non-admin user getting other user's plan cause {@link UserAccessException}.
+     *
+     * @throws Exception thrown if no plan matches marketUuid
+     */
+    @Test
+    public void testRetrievePlanWithDifferentUser() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        doReturn(OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setCreatedByUser("userID1")
+                        .setPlanId(123)
+                        .setProjectedTopologyId(projectedPlanTopologyId)
+                        .setStatus(PlanStatus.SUCCEEDED))
+                .build()).when(planBackend).getPlan(any());
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(new UsernamePasswordAuthenticationToken(
+                        new AuthUserDTO(null, "", "", "", "userID2", "", Collections.EMPTY_LIST,
+                                null), "", Collections.emptySet()));
+        try {
+            testUserAccessException(
+                    () -> marketsService.getEntitiesByMarketUuid(planUuid, null, null, null,
+                            new EntityPaginationRequest("1", 2, true, null)));
+            testUserAccessException(() -> marketsService.getMarketByUuid(planUuid));
+            testUserAccessException(
+                    () -> marketsService.getActionsByMarketUuid(planUuid, null, null));
+            testUserAccessException(() -> marketsService.getUnplacedEntitiesByMarketUuid(planUuid));
+            testUserAccessException(() -> marketsService.getActionCountStatsByUuid(planUuid, null));
+            testUserAccessException(
+                    () -> marketsService.getStatsByEntitiesInMarketQuery(planUuid, null, null));
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+        }
+    }
+
+    private void testUserAccessException(final Callable fun) {
+        try {
+            fun.call();
+            fail("should throw UserAccessException.");
+        } catch (UserAccessException ex) {
+            // expected
+        } catch (Exception e) {
+            fail("Should throw UserAccessException.");
+        }
+    }
 
     /**
      * Function to trigger creation or update of a policy.
