@@ -282,6 +282,20 @@ public class SqlEntityStateStoreTest {
                 .entities(memberEntities)
                 .build();
         when(cloudTopology.getResourceGroup(anyLong())).thenReturn(Optional.of(resourceGroup));
+
+        Set<Long> memberAccounts = ImmutableSet.of(7777L, 7778L);
+        final GroupAndMembers billingFamily = ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder()
+                        .setId(555L)
+                        .setDefinition(GroupDefinition.newBuilder()
+                                .setType(GroupType.BILLING_FAMILY)
+                                .build())
+                        .build())
+                .members(memberAccounts)
+                .entities(memberAccounts)
+                .build();
+        when(cloudTopology.getBillingFamilyForEntity(anyLong())).thenReturn(Optional.of(billingFamily));
+
         return cloudTopology;
     }
 

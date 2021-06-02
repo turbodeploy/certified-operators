@@ -882,6 +882,7 @@ public class CostRpcService extends CostServiceImplBase {
                     timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
                     request.getEntityFilter().getEntityIdList(),
                     request.getEntityTypeFilter().getEntityTypeIdList(),
+                    request.getBillingFamilyFilter().getBillingFamilyOidList(),
                     request.getResourceGroupFilter().getResourceGroupOidList());
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
