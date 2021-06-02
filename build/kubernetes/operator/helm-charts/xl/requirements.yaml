@@ -424,6 +424,7 @@ dependencies:
   - name: mediation-webhook
     repository: file://../probes/mediation-webhook
     version: 0.1.0
+    condition: webhook.enabled
   - name: mediation-wmi
     repository: file://../probes/mediation-wmi
     version: 0.1.0
