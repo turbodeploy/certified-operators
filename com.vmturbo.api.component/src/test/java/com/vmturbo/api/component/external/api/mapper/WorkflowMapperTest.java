@@ -98,7 +98,7 @@ public class WorkflowMapperTest {
         WorkflowMapper workflowMapper = new WorkflowMapper();
 
         // ACT
-        Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO);
+        Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, WORKFLOW_1_NAME);
 
         // ASSERT
         assertThat(workflow, equalTo(createWebhookWorkflow()));
@@ -130,15 +130,28 @@ public class WorkflowMapperTest {
      * @return an instance of {@link Workflow}.
      */
     public static Workflow createWebhookWorkflow() {
-        final WorkflowDTO.WorkflowInfo workflowInfo = WorkflowDTO.WorkflowInfo.newBuilder()
+        return createWebhookWorkflow(true);
+    }
+
+    /**
+     * Creates an instance of {@link Workflow} of type webhook.
+     *
+     * @param populateName if true the name in workflow object gets set.
+     * @return an instance of {@link Workflow}.
+     */
+    public static Workflow createWebhookWorkflow(boolean populateName) {
+        final WorkflowDTO.WorkflowInfo.Builder workflowInfo = WorkflowDTO.WorkflowInfo.newBuilder()
             .setDisplayName(WORKFLOW_1_DISPLAYNAME)
             .setType(WorkflowDTO.OrchestratorType.WEBHOOK)
             .setWebhookInfo(WorkflowDTO.WorkflowInfo.WebhookInfo.newBuilder()
                 .setUrl(WEBHOOK_URL)
                 .setHttpMethod(WorkflowDTO.WorkflowInfo.WebhookInfo.HttpMethod.POST)
                 .setTemplate(TEMPLATE)
-                .build())
-            .build();
+                .build());
+        if (populateName) {
+            workflowInfo.setName(WORKFLOW_1_NAME);
+        }
+
         Workflow workflow = Workflow.newBuilder()
             .setId(WORKFLOW_OID)
             .setWorkflowInfo(workflowInfo)

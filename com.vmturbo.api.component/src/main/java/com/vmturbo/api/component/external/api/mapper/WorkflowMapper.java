@@ -84,13 +84,21 @@ public class WorkflowMapper {
         return answer;
     }
 
-    public Workflow fromUiWorkflowApiDTO(@Nonnull WorkflowApiDTO workflowApiDTO) {
+    /**
+     * Converts a workflow received from UI to the protobuf object used for internal communication.
+     *
+     * @param workflowApiDTO the UI object for the workflow.
+     * @param name the name for workflow.
+     * @return the converted object.
+     */
+    public Workflow fromUiWorkflowApiDTO(@Nonnull WorkflowApiDTO workflowApiDTO, String name) {
         Objects.requireNonNull(workflowApiDTO);
         Workflow.Builder convertedWorkflow = Workflow.newBuilder();
         if (workflowApiDTO.getUuid() != null) {
             convertedWorkflow.setId(Long.parseLong(workflowApiDTO.getUuid()));
         }
         WorkflowInfo.Builder workflowInfo = WorkflowInfo.newBuilder();
+        workflowInfo.setName(name);
         workflowInfo.setDisplayName(workflowApiDTO.getDisplayName());
         if (workflowApiDTO.getDescription() != null) {
             workflowInfo.setDescription(workflowApiDTO.getDescription());

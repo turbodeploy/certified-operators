@@ -276,8 +276,13 @@ public class WorkflowsServiceTest {
 
         // ASSERT
         WorkflowMapperTest.verifyWebhookWorkflowEquality(createdWorkflow, workflowApiDTO);
-        assertThat(requestArgumentCaptor.getValue().getWorkflow(),
-            equalTo(WorkflowMapperTest.createWebhookWorkflow()));
+        // the name is random, so let's get rid of the name in the object
+        Workflow requestWorkflow = requestArgumentCaptor.getValue().getWorkflow()
+                .toBuilder()
+                .setWorkflowInfo(requestArgumentCaptor.getValue().getWorkflow().getWorkflowInfo().toBuilder().clearName())
+                .build();
+        assertThat(requestWorkflow,
+            equalTo(WorkflowMapperTest.createWebhookWorkflow(false)));
     }
 
     /**
