@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -121,7 +122,8 @@ public class WorkflowsService implements IWorkflowsService {
                 + "\" cannot be added through API.");
         }
 
-        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO);
+        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
+                UUID.randomUUID().toString());
         final WorkflowDTO.Workflow addedWorkflow =  workflowServiceRpc.createWorkflow(
             WorkflowDTO.CreateWorkflowRequest
                 .newBuilder()
@@ -146,7 +148,8 @@ public class WorkflowsService implements IWorkflowsService {
                 + currentWorkflow.getWorkflowInfo().getType() + "\" cannot be changed.");
         }
 
-        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO);
+        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
+                currentWorkflow.getWorkflowInfo().getName());
         final WorkflowDTO.Workflow updatedWorkflow =  workflowServiceRpc.updateWorkflow(
             WorkflowDTO.UpdateWorkflowRequest
                 .newBuilder()
