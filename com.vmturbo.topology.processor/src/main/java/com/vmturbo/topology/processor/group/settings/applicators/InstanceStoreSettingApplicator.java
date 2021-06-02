@@ -25,7 +25,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -50,6 +52,7 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
     private final InstanceStoreCommoditiesCreator<CommoditySoldDTO.Builder>
                     computeTierCommoditiesCreator;
     private boolean computeTiersCommoditiesCreated;
+    private TopologyInfo topologyInfo;
 
     /**
      * Creates {@link InstanceStoreSettingApplicator} instance.
@@ -60,14 +63,17 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      *                 instance store aware template.
      * @param computeTierCommoditiesCreator creates commodities for tier instances
      *                 which are supporting instance store feature.
+     * @param topologyInfo the topologyInfo associated with topology graph.
      */
     public InstanceStoreSettingApplicator(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
                     @Nonnull InstanceStoreCommoditiesCreator<CommodityBoughtDTO.Builder> vmCommoditiesCreator,
-                    @Nonnull InstanceStoreCommoditiesCreator<CommoditySoldDTO.Builder> computeTierCommoditiesCreator) {
+                    @Nonnull InstanceStoreCommoditiesCreator<CommoditySoldDTO.Builder> computeTierCommoditiesCreator,
+                    @Nonnull TopologyInfo topologyInfo) {
         super(EntitySettingSpecs.InstanceStoreAwareScaling);
         this.topologyGraph = Objects.requireNonNull(topologyGraph);
         this.vmCommoditiesCreator = Objects.requireNonNull(vmCommoditiesCreator);
         this.computeTierCommoditiesCreator = Objects.requireNonNull(computeTierCommoditiesCreator);
+        this.topologyInfo = topologyInfo;
     }
 
     /**
@@ -78,6 +84,14 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
      */
     @Override
     protected void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+        // Currently only AWS VMs with "instance store aware scaling" enabled will be populated
+        // with instance store related commodities including INSTANCE_DISK_SIZE, INSTANCE_DISK_TYPE
+        // and INSTANCE_DISK_COUNT. On prem VMs and Azure VMs do not buy or sell them. Instead of
+        // figuring out the exact cloud migration scenario, we can skip the instance store commodity
+        // creation in all migration cases, e.g: on prem to AWS/Azure, AWS to Azure, Azure to AWS.
+        if (TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
+        return;
+        }
         if (isApplicable(entity, setting)) {
             populateInstanceStoreCommodities(entity);
         }
