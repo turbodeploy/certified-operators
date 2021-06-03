@@ -17,7 +17,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TopologyFilterFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]search[/\\]filter[/\\]TraversalFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]supplychain[/\\]GlobalSupplyChainCalculator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]supplychain[/\\]TraversalRulesLibrary.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]SimpleCloudTopologyUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TestGraphEntity.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]graph[/\\]TopologyEntityTopologyGraphIT.java" />
