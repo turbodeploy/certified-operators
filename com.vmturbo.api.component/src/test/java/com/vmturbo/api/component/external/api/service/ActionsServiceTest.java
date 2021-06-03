@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
@@ -61,6 +62,7 @@ import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
@@ -225,7 +227,8 @@ public class ActionsServiceTest {
      * Tests getting action details for an empty collection of uuids.
      */
     @Test
-    public void testGetActionDetailsByUuidsEmptyUuids() {
+    public void testGetActionDetailsByUuidsEmptyUuids()
+            throws OperationFailedException, IllegalArgumentException {
         ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
         inputDTO.setUuids(Collections.emptyList());
 
@@ -238,7 +241,8 @@ public class ActionsServiceTest {
      * Verifies that when input DTO contains no topologyContextId, the default realtime one is used.
      */
     @Test
-    public void testGetActionDetailsByUuids() {
+    public void testGetActionDetailsByUuids()
+            throws OperationFailedException, IllegalArgumentException {
         long actionIdWithSpec = 10;
         long actionIdNoSpec = 20;
         ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
@@ -289,27 +293,27 @@ public class ActionsServiceTest {
      * Tests getting action details for actions in a specific topology context.
      */
     @Test
-    public void testGetActionDetailsByUuidsInTopologyContext() {
+    public void testGetActionDetailsByUuidsInTopologyContext()
+            throws OperationFailedException, IllegalArgumentException {
         final long actionId = 10;
         final long topologyContextId = 20;
         final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
         inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
         inputDTO.setMarketId(Long.toString(topologyContextId));
 
-        final List<ActionOrchestratorAction> mockActions =
-            Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
-        final ArgumentCaptor<MultiActionRequest> requestCaptor =
-            ArgumentCaptor.forClass(MultiActionRequest.class);
+        final List<ActionOrchestratorAction> mockActions = Collections.singletonList(
+                ActionOrchestratorAction.getDefaultInstance());
+        final ArgumentCaptor<MultiActionRequest> requestCaptor = ArgumentCaptor.forClass(
+                MultiActionRequest.class);
         Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
         dtoMap.put("1", mock(ActionDetailsApiDTO.class));
 
+        ApiTestUtils.mockEntityId("20", uuidMapper);
         when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
 
-        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong()))
-            .thenReturn(dtoMap);
+        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong())).thenReturn(dtoMap);
 
-        final Map<String, ActionDetailsApiDTO> resultDetailMap =
-            actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+        Map<String, ActionDetailsApiDTO> resultDetailMap = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
 
         assertEquals(1, resultDetailMap.size());
         final List<MultiActionRequest> requests = requestCaptor.getAllValues();
@@ -319,6 +323,45 @@ public class ActionsServiceTest {
         assertEquals(1, multiActionRequest.getActionIdsCount());
         assertEquals(actionId, multiActionRequest.getActionIds(0));
     }
+
+    /**
+     * Tests getting action details for actions in a specific topology context.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsWithSetMarketId()
+            throws OperationFailedException, IllegalArgumentException {
+        final long actionId = 10;
+        final String marketId = "Market";
+        final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
+        inputDTO.setMarketId(marketId);
+
+        final List<ActionOrchestratorAction> mockActions =
+                Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
+        final ArgumentCaptor<MultiActionRequest> requestCaptor =
+                ArgumentCaptor.forClass(MultiActionRequest.class);
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put("1", mock(ActionDetailsApiDTO.class));
+
+        ApiTestUtils.mockRealtimeId("Market", 777777, uuidMapper);
+        when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
+
+        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong()))
+                .thenReturn(dtoMap);
+
+        Map<String, ActionDetailsApiDTO> resultDetailMap =
+                actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        assertEquals(1, resultDetailMap.size());
+        final List<MultiActionRequest> requests = requestCaptor.getAllValues();
+        assertEquals(1, requests.size());
+        final MultiActionRequest multiActionRequest = requests.get(0);
+        assertNotEquals(Long.toString(multiActionRequest.getTopologyContextId()),
+                marketId);
+        assertEquals(1, multiActionRequest.getActionIdsCount());
+        assertEquals(actionId, multiActionRequest.getActionIds(0));
+    }
+
 
     /**
      * Test the process of querying for actions based on scope UUIDs.
