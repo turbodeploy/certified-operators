@@ -677,20 +677,6 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     restart: always
 
-  mediation-azuremcabilling-prod:
-    extends:
-      file: common-services.yml
-        service: prod-mediation-component
-      image: turbonomic/com.vmturbo.mediation.azure.mcabilling.component
-      environment:
-        consul_host: consul
-        component_type: mediation-azuremcabilling
-        instance_id: mediation-azuremcabilling-1
-        # overriding the tmpdir location because the cloud probes download large files to temp, and we
-        # don't want these to go to a memory-backed volume like /tmp
-        MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
-      restart: always
-
   mediation-oneview-prod:
     extends:
       file: common-services.yml

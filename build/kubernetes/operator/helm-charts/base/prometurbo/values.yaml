@@ -393,7 +393,6 @@ businessApplications:
       - mediation-azure
       - mediation-azurecost
       - mediation-azureea
-      - mediation-azuremcabilling
       - mediation-azuresp
       - mediation-azurevolumes
       - mediation-gcp
