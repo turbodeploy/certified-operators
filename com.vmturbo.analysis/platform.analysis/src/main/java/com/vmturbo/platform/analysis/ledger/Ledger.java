@@ -349,8 +349,10 @@ public class Ledger {
         // calculate expenses using the quote from every supplier that this trader buys from
         for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
             // skip markets in which the trader in question is unplaced and
-            // not consider expense for this trader in those markets
-            if (sl.getSupplier() != null) {
+            // not consider expense for this trader in those markets.
+            // And calculate expenses only for non-cloud trader where corresponding supplier has
+            // null costFunction.
+            if (sl.getSupplier() != null && sl.getSupplier().getSettings().getCostFunction() == null) {
                 try {
                     double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
                                             , Double.POSITIVE_INFINITY, true).getQuoteValues();
