@@ -1030,10 +1030,6 @@ message CloudCostStatsQuery {
     // get entity cost filter by topology context id
     optional uint64 topology_context_id = 13;
 
-    // If the flag is set, the returned values units will depend on the requested time interval.
-    // E.g., if the requested interval is a month, then the value units will be daily, not hourly.
-    optional bool request_total_values = 14 [default = false];
-
     enum GroupBy {
         COST_CATEGORY = 1;
         ENTITY = 2;
