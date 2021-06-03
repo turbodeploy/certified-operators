@@ -423,11 +423,19 @@ public class ActionExecutorTest {
                 .setId(WORKFLOW_ID)
                 .setWorkflowInfo(WorkflowInfo.newBuilder()
                     .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
+                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
                         .setType("String")
                         .build())
+                    .addWorkflowParam(WorkflowParameter.newBuilder()
+                            .setName(ActionExecutor.URL)
+                            .setType("String")
+                            .build())
+                    .addWorkflowParam(WorkflowParameter.newBuilder()
+                            .setName(ActionExecutor.HTTP_METHOD)
+                            .setType("String")
+                            .build())
                     .addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
+                            .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
                             .setValue("123")
                             .build())
                     .build())
@@ -435,10 +443,12 @@ public class ActionExecutorTest {
         );
 
         Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME, request.getWorkflowInfo().getWorkflowParam(0).getName());
+        Assert.assertEquals(3, request.getWorkflowInfo().getWorkflowParamCount());
+        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowParam(0).getName());
+        Assert.assertEquals(ActionExecutor.URL, request.getWorkflowInfo().getWorkflowParam(1).getName());
+        Assert.assertEquals(ActionExecutor.HTTP_METHOD, request.getWorkflowInfo().getWorkflowParam(2).getName());
         Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowPropertyCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME, request.getWorkflowInfo().getWorkflowProperty(0).getName());
+        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowProperty(0).getName());
         Assert.assertFalse(request.getWorkflowInfo().getWorkflowProperty(0).getValue().isEmpty());
     }
 
@@ -456,15 +466,23 @@ public class ActionExecutorTest {
                 .setId(WORKFLOW_ID)
                 .setWorkflowInfo(WorkflowInfo.newBuilder()
                     .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
+                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
                         .setType("String")
                         .build())
+                    .addWorkflowParam(WorkflowParameter.newBuilder()
+                            .setName(ActionExecutor.URL)
+                            .setType("String")
+                            .build())
+                    .addWorkflowParam(WorkflowParameter.newBuilder()
+                            .setName(ActionExecutor.HTTP_METHOD)
+                            .setType("String")
+                            .build())
                     .addWorkflowParam(WorkflowParameter.newBuilder()
                         .setName("UNRELATED_PARAM")
                         .setType("String")
                         .build())
                         .addWorkflowProperty(WorkflowProperty.newBuilder()
-                                .setName(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME)
+                                .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
                                 .setValue("123")
                                 .build())
                     .build())
@@ -472,11 +490,13 @@ public class ActionExecutorTest {
         );
 
         Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(2, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME, request.getWorkflowInfo().getWorkflowParam(0).getName());
-        Assert.assertEquals("UNRELATED_PARAM", request.getWorkflowInfo().getWorkflowParam(1).getName());
+        Assert.assertEquals(4, request.getWorkflowInfo().getWorkflowParamCount());
+        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowParam(0).getName());
+        Assert.assertEquals(ActionExecutor.URL, request.getWorkflowInfo().getWorkflowParam(1).getName());
+        Assert.assertEquals(ActionExecutor.HTTP_METHOD, request.getWorkflowInfo().getWorkflowParam(2).getName());
+        Assert.assertEquals("UNRELATED_PARAM", request.getWorkflowInfo().getWorkflowParam(3).getName());
         Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowPropertyCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY_PARAM_NAME, request.getWorkflowInfo().getWorkflowProperty(0).getName());
+        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowProperty(0).getName());
         Assert.assertFalse(request.getWorkflowInfo().getWorkflowProperty(0).getValue().isEmpty());
     }
 }

@@ -40,8 +40,8 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -57,7 +57,13 @@ public class ActionExecutor implements ActionExecutionListener {
      * The parameter name of the property that contains the string value of the action details
      * applied to the customer's template.
      */
-    public static final String TEMPLATED_ACTION_BODY_PARAM_NAME = "TEMPLATED_ACTION_BODY";
+    public static final String TEMPLATED_ACTION_BODY = "TEMPLATED_ACTION_BODY";
+
+    /** The URL parameter name for the Webhook workflow. */
+    public static final String URL = "URL";
+
+    /** The HTTP_METHOD parameter name for the Webhook workflow. */
+    public static final String HTTP_METHOD = "HTTP_METHOD";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -201,20 +207,32 @@ public class ActionExecutor implements ActionExecutionListener {
         return executionRequestBuilder.build();
     }
 
-    private static WorkflowInfo fillInProperties(
-        @Nonnull final ActionDTO.ActionSpec action,
-        @Nonnull final WorkflowInfo workflowInfo) throws ExecutionInitiationException {
-        if (workflowInfo.getType().equals(OrchestratorType.WEBHOOK)) {
-            try {
-                return workflowInfo.toBuilder()
-                    .addWorkflowProperty(WorkflowProperty.newBuilder()
-                        .setName(TEMPLATED_ACTION_BODY_PARAM_NAME)
-                        // TODO (OM-71250) Replace action.getRecommendation
-                        .setValue(Velocity.apply(workflowInfo.getWebhookInfo().getTemplate(), action.getRecommendation())))
-                    .build();
-            } catch (ParseException | IOException e) {
-                throw new ExecutionInitiationException("Failed to fill in properties for workflow", e,
-                        Status.INTERNAL.getCode());
+    private static WorkflowInfo fillInProperties( @Nonnull final ActionDTO.ActionSpec action,
+            @Nonnull final WorkflowInfo workflowInfo) throws ExecutionInitiationException {
+        if (workflowInfo.hasWebhookInfo()) {
+            WebhookInfo webhookInfo = workflowInfo.getWebhookInfo();
+            if (webhookInfo.hasHttpMethod() && webhookInfo.hasUrl() && webhookInfo.hasTemplate()) {
+                try {
+                    return workflowInfo.toBuilder()
+                        .addWorkflowProperty(WorkflowProperty.newBuilder()
+                            .setName(HTTP_METHOD)
+                            .setValue(webhookInfo.getHttpMethod().name())
+                            .build())
+                        .addWorkflowProperty(WorkflowProperty.newBuilder()
+                            .setName(URL)
+                            .setValue(webhookInfo.getUrl())
+                            .build())
+                        .addWorkflowProperty(WorkflowProperty.newBuilder()
+                            .setName(TEMPLATED_ACTION_BODY)
+                            // TODO (OM-71250) Replace action.getRecommendation
+                            .setValue(Velocity.apply(webhookInfo.getTemplate(), action.getRecommendation())).build()).build();
+                } catch (ParseException | IOException e) {
+                    throw new ExecutionInitiationException("Failed to fill in properties for Webhook workflow",
+                            e, Status.INTERNAL.getCode());
+                }
+            } else {
+                throw new ExecutionInitiationException("The HTTP METHOD, URL and TEMPLATE are required parameters "
+                        + "for Webhook workflows", Status.INTERNAL.getCode());
             }
         }
 
