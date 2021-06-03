@@ -13,6 +13,7 @@ public class DeleteInfo {
     private Double fileSize;
     private String unit;
     private String filePath;
+    private String lastModifiedTimestamp;
 
     public Double getFileSize() {
         return fileSize;
@@ -36,5 +37,13 @@ public class DeleteInfo {
 
     public void setFilePath(String filePath) {
         this.filePath = filePath;
+    }
+
+    public String getLastModifiedTimestamp() {
+        return lastModifiedTimestamp;
+    }
+
+    public void setLastModifiedTimestamp(String lastModifiedTimestamp) {
+        this.lastModifiedTimestamp = lastModifiedTimestamp;
     }
 }

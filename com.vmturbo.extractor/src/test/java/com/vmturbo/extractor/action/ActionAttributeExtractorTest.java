@@ -13,6 +13,8 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -94,6 +96,7 @@ public class ActionAttributeExtractorTest {
     private static final long computeTier1 = 71L;
     private static final long region1 = 81L;
     private static final long account1 = 91L;
+    private static final OffsetDateTime NOW = OffsetDateTime.now(ZoneOffset.UTC);
 
     private static final ActionDTO.ActionSpec COMPOUND_MOVE = ActionSpec.newBuilder()
         .setRecommendation(ActionDTO.Action.newBuilder()
@@ -212,6 +215,7 @@ public class ActionAttributeExtractorTest {
                             .setFilePath("foo/bar")))
                     .setExplanation(Explanation.newBuilder()
                             .setDelete(DeleteExplanation.newBuilder()
+                                    .setModificationTimeMs(NOW.toInstant().toEpochMilli())
                                     .setSizeKb(Units.NUM_OF_KB_IN_MB * 2))))
             .build();
 
@@ -536,8 +540,12 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testDeleteExtraction() {
-        ActionAttributes actionAttributes = extractSingleActionForReporting(DELETE);
-        validateDeleteInfo(actionAttributes.getDeleteInfo());
+        final ActionAttributes actionAttributes = extractSingleActionForReporting(DELETE);
+        final DeleteInfo deleteInfo = actionAttributes.getDeleteInfo();
+        assertThat(deleteInfo.getFilePath(), is("foo/bar"));
+        assertThat(deleteInfo.getFileSize(), is(2.0));
+        assertThat(deleteInfo.getUnit(), is("MB"));
+        assertThat(deleteInfo.getLastModifiedTimestamp(), is(NOW.toString()));
     }
 
     /**
@@ -664,12 +672,6 @@ public class ActionAttributeExtractorTest {
         assertThat(change.getUnit(), is("KB"));
         assertThat(change.getAttribute(), is("CAPACITY"));
         assertThat(change.getTarget(), nullValue());
-    }
-
-    private void validateDeleteInfo(DeleteInfo deleteInfo) {
-        assertThat(deleteInfo.getFilePath(), is("foo/bar"));
-        assertThat(deleteInfo.getFileSize(), is(2.0));
-        assertThat(deleteInfo.getUnit(), is("MB"));
     }
 
     private void validateImpactedMetric(@Nonnull ImpactedMetric impactedMetric, float beforeUsed, float beforeCapacity, float afterUsed, float afterCapacity) {
