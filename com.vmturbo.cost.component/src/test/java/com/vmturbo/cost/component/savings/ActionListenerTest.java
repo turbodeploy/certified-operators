@@ -299,7 +299,7 @@ public class ActionListenerTest {
 
         Long expirationTime = actionEvent.getExpirationTime().get(); // milliseconds
         Assert.assertEquals("Validating expiration",
-                (long)TimeUnit.HOURS.toMillis(expectedExpiration * 730), (long)expirationTime);
+                TimeUnit.HOURS.toMillis(expectedExpiration * 730), (long)expirationTime);
     }
 
     /**
@@ -334,13 +334,18 @@ public class ActionListenerTest {
                 createActionSpec(5658L, 5658L, ActionInfo.newBuilder().setScale(scale2));
         ActionSpec actionSpec4 =
                 createActionSpec(5154L, 5154L, ActionInfo.newBuilder().setAllocate(allocate));
+        // create "duplicate" action for entity, as can be seen in the case of multi-attach volumes.
+        ActionSpec actionSpec1Duplicate =
+                        createActionSpec(scale1, 1234L, 8417L, System.currentTimeMillis());
+        // only actionId's are likely to be different.
 
         FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSpec1);
         FilteredActionResponse filteredResponse2 = createFilteredActionResponse(actionSpec2);
         FilteredActionResponse filteredResponse3 = createFilteredActionResponse(actionSpec3);
         FilteredActionResponse filteredResponse4 = createFilteredActionResponse(actionSpec4);
+        FilteredActionResponse filteredResponse5 = createFilteredActionResponse(actionSpec1Duplicate);
 
-        doReturn(Arrays.asList(filteredResponse1, filteredResponse2, filteredResponse3, filteredResponse4))
+        doReturn(Arrays.asList(filteredResponse1, filteredResponse2, filteredResponse3, filteredResponse4, filteredResponse5))
                         .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
 
         // Make fake cost response
@@ -378,6 +383,7 @@ public class ActionListenerTest {
 
 
         assertEquals(4, store.size());
+        // Assert that 4 actions , one per entity are added, not the duplicate.
         assertEquals(4, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
 
         List<SavingsEvent> savingsEvents = store.removeAllEvents();
