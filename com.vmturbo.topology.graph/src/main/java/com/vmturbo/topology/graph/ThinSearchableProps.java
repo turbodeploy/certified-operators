@@ -353,7 +353,7 @@ public class ThinSearchableProps implements SearchableProps {
      */
     public static class ThinDatabaseServerProps extends ThinSearchableProps implements DatabaseServerProps {
         private final DatabaseEngine databaseEngine;
-        private final DatabaseEdition databaseEdition;
+        private final String databaseEdition;
         private final String databaseVersion;
 
 
@@ -362,12 +362,19 @@ public class ThinSearchableProps implements SearchableProps {
                                          @Nonnull final TypeSpecificInfo typeSpecificInfo) {
             super(tagIndex, commodities);
             final boolean hasDatabaseEngine = typeSpecificInfo.getDatabase().hasEngine();
-            final boolean hasDatabaseEdition = typeSpecificInfo.getDatabase().hasEdition();
+            final boolean hasDatabaseEdition = typeSpecificInfo.getDatabase().hasEdition()
+                    && typeSpecificInfo.getDatabase().getEdition() != DatabaseEdition.NONE;
+            final boolean hasRawEdition = typeSpecificInfo.getDatabase().hasRawEdition();
             final boolean hasDatabaseVersion = typeSpecificInfo.getDatabase().hasVersion();
             databaseEngine = hasDatabaseEngine ? typeSpecificInfo.getDatabase().getEngine()
                     : DatabaseEngine.UNKNOWN;
-            databaseEdition = hasDatabaseEdition ? typeSpecificInfo.getDatabase().getEdition()
-                    : DatabaseEdition.NONE;
+            if (hasDatabaseEdition) {
+                databaseEdition = typeSpecificInfo.getDatabase().getEdition().name();
+            } else if (hasRawEdition) {
+                databaseEdition = typeSpecificInfo.getDatabase().getRawEdition();
+            } else {
+                databaseEdition = DatabaseEdition.NONE.name();
+            }
             databaseVersion = hasDatabaseVersion ? typeSpecificInfo.getDatabase().getVersion()
                     : UNKNOWN;
         }
@@ -380,7 +387,7 @@ public class ThinSearchableProps implements SearchableProps {
 
         @Nonnull
         @Override
-        public DatabaseEdition getDatabaseEdition() {
+        public String getDatabaseEdition() {
             return databaseEdition;
         }
 
