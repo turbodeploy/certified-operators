@@ -76,7 +76,7 @@ public class ThinSearchablePropsTest {
                             .build()
                 );
         assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
-        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition()));
+        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition().name()));
         assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
     }
 

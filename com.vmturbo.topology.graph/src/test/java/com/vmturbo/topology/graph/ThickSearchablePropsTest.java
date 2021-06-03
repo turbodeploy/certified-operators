@@ -172,9 +172,27 @@ public class ThickSearchablePropsTest {
                 .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setDatabase(dbInfo)));
         assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
-        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition()));
+        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition().name()));
         assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
 
+    }
+
+    /**
+     * DB server Edition when only Raw Edition is specified.
+     */
+    @Test
+    public void testDBServerRawEdition() {
+        DatabaseInfo dbInfo = DatabaseInfo.newBuilder()
+                .setEngine(DatabaseEngine.MARIADB)
+                .setRawEdition("Express")
+                .setVersion("1.0.1")
+                .build();
+        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
+                .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setDatabase(dbInfo)));
+        assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
+        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getRawEdition()));
+        assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
     }
 
     /**

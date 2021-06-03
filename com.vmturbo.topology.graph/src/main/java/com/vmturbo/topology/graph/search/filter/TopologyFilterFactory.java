@@ -352,7 +352,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         DatabaseServerProps.class);
             }
             case SearchableProperties.DB_EDITION: {
-                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getDatabaseEdition().name()),
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getDatabaseEdition()),
                         DatabaseServerProps.class);
             }
             case SearchableProperties.DB_VERSION: {
