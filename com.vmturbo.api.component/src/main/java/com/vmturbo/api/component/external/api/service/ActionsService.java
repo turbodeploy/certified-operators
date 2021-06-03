@@ -521,7 +521,8 @@ public class ActionsService implements IActionsService {
      * @return a map of action uuid to {@link ActionDetailsApiDTO}
      */
     @Override
-    public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto) {
+    public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto)
+            throws OperationFailedException, IllegalArgumentException {
         if (inputDto.getUuids().isEmpty()) {
             return Collections.emptyMap();
         }
@@ -531,7 +532,7 @@ public class ActionsService implements IActionsService {
         // Use marketId field if it is set, otherwise use old deprecated topologyContextId
         final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId())
                 ? inputDto.getTopologyContextId()
-                : inputDto.getMarketId();
+                : Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
                 multiActionRequest(actionIds, inputDtoTopologyContextId));
         Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
