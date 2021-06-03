@@ -323,7 +323,15 @@ public class ActionListener implements ActionsListener {
                                                      ActionDTOUtil.getActionInfoActionType(
                                                                    actionSpec.getRecommendation()),
                                                      actionSpec.getRecommendationTime(), entityId);
-                                newPendingActionsInfoToEntityId.put(new EntityActionInfo(actionSpec, entity), entityId);
+                                try {
+                                    final EntityActionInfo eai = new EntityActionInfo(actionSpec, entity);
+                                    newPendingActionsInfoToEntityId.put(eai, entityId);
+                                } catch (IllegalArgumentException e) {
+                                     logger.warn("Discarding action {} because the entity {} already has an action associated with it. "
+                                                     + "An entity cannot have more than one action at the moment. "
+                                                     + "This could be a duplicate action for a multi-attach volume. {}",
+                                                        actionId, entityId, e.getMessage());
+                                }
                             }
                         } else if (filteredActionResponse.hasPaginationResponse()) {
                             cursor.set(filteredActionResponse.getPaginationResponse().getNextCursor());
