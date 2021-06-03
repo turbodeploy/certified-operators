@@ -233,7 +233,15 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
                 return;
             }
 
-            workflowStore.updateWorkflow(request.getWorkflow().getId(), request.getWorkflow().getWorkflowInfo());
+            workflowStore.updateWorkflow(
+                request.getWorkflow().getId(),
+                request.getWorkflow().getWorkflowInfo().toBuilder()
+                    // The target id should be extracted from the existing workflow and applied to
+                    // the updated workflow. That way the customer does not need to provide the
+                    // target id of the hidden webhook target which can only be found through
+                    // consul.
+                    .setTargetId(existingWorkflowOpt.get().getWorkflowInfo().getTargetId())
+                    .build());
             responseObserver.onNext(UpdateWorkflowResponse.newBuilder()
                 .setWorkflow(request.getWorkflow())
                 .build());

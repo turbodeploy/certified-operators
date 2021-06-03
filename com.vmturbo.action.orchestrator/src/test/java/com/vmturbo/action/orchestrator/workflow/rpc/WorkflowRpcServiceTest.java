@@ -71,6 +71,7 @@ public class WorkflowRpcServiceTest {
     private static final Workflow EXISTING_WORKFLOW = Workflow.newBuilder()
         .setId(123L)
         .setWorkflowInfo(WorkflowInfo.newBuilder()
+            .setTargetId(WEBHOOK_TARGET_ID)
             .setType(OrchestratorType.WEBHOOK)
             .setDisplayName("A unique name for the webhook")
             .setDescription("An old description")
@@ -322,7 +323,13 @@ public class WorkflowRpcServiceTest {
             .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
             .buildPartial(), updateObs);
         verify(workflowStore, times(1))
-            .updateWorkflow(eq(UPDATE_WORKFLOW.getId()), eq(UPDATE_WORKFLOW.getWorkflowInfo()));
+            .updateWorkflow(
+                eq(UPDATE_WORKFLOW.getId()),
+                eq(UPDATE_WORKFLOW.getWorkflowInfo().toBuilder()
+                    // The target id should be extracted from the existing workflow and applied to
+                    // the updated workflow.
+                    .setTargetId(WEBHOOK_TARGET_ID)
+                    .build()));
         verify(updateObs, times(1)).onNext(any());
         verify(updateObs, times(1)).onCompleted();
         verify(updateObs, times(0)).onError(any());
