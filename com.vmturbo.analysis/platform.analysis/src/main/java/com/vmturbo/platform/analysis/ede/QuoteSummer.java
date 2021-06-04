@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -11,6 +12,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -201,11 +203,14 @@ final class QuoteSummer {
             return;
         }
         // consider only active sellers while performing SNM
-        @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
+        @NonNull LinkedHashSet<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
                 .filter(seller -> seller.getState().isActive()
-                    && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
+                        && (seller.getSettings().canAcceptNewCustomers() ||
+                        seller == entry.getKey().getSupplier())).collect(Collectors.toCollection(LinkedHashSet::new));
+        // InitiateQuoteMinimizer takes in sellers as a set. To maintain order this set is created as a
+        // LinkedHashSet whenever possible. This helps with consistent actions.
         QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers,
-                                                    entry.getKey(), cache_, shoppingListIndex_, bestTotalQuote_);
+                                            entry.getKey(), cache_, shoppingListIndex_, bestTotalQuote_);
         Optional<Context> context = minimizer.getBestQuote().getContext();
         if (context.isPresent()) {
             shoppingListContextMap.put(entry.getKey(), minimizer.getBestQuote().getContext());

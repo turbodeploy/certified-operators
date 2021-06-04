@@ -80,7 +80,7 @@ public final class Ede {
         for (ShoppingList shoppingList : shoppingLists) {
             Set<Long> providerList = new HashSet<>();
             for (Trader trader : economy.getMarket(shoppingList)
-                    .getActiveSellersAvailableForPlacement()) {
+                    .getActiveSellersAvailableForPlacementForConsumer(shoppingList)) {
                 if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, couponCommodityBaseType).isFinite()) {
                     providerList.add(trader.getOid());
                 }

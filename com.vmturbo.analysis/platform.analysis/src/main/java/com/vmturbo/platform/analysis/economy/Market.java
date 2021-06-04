@@ -3,9 +3,11 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -13,6 +15,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -121,6 +124,32 @@ public final class Market implements Serializable {
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellersAvailableForPlacement(@ReadOnly Market this) {
         return unmodifiableActiveSellersAvailableForPlacement_;
+    }
+
+    /**
+     * Returns an set of active sellers available for placement that are participating in {@code this} {@code Market}
+     * including the current supplier (if valid).
+     *
+     * <p>
+     *  A {@link Trader} participates in the market as a seller iff he is active and the basket he
+     *  is selling satisfies the one associated with the market.
+     * </p>
+     *
+     */
+    @Pure
+    public @NonNull @ReadOnly HashSet<@NonNull Trader> getActiveSellersAvailableForPlacementForConsumer(
+            @ReadOnly Market this,
+            @ReadOnly ShoppingList shoppingList) {
+        // We return a linkedHashSet in order to maintain the order of traders. Helps with consistent actions.
+        @NonNull LinkedHashSet<@NonNull Trader> sellers =
+                Sets.newLinkedHashSet(getActiveSellersAvailableForPlacement());
+
+        // if the active seller of the consumer is market canAcceptNewCustomers false, it still is a potential provider
+        // for the shoppingList and should be added to "sellers".
+        if (getActiveSellers().contains(shoppingList.getSupplier())) {
+            sellers.add(shoppingList.getSupplier());
+        }
+        return sellers;
     }
 
     /**

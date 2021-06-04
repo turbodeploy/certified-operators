@@ -19,6 +19,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -224,7 +225,7 @@ public class Placement {
      * @return the QuoteMinimizer
      */
     public static QuoteMinimizer initiateQuoteMinimizer(@NonNull Economy economy,
-                                @NonNull List<@NonNull Trader> sellers, ShoppingList shoppingList,
+                                @NonNull Set<@NonNull Trader> sellers, ShoppingList shoppingList,
                                 QuoteCache cache, final int shoppingListIndex, double bestTotalQuote) {
         // If the shopping list's best provider is its current provider then obtain minimizer again
         // without consider the commodities in the unquoted commodities base type list.
@@ -270,11 +271,8 @@ public class Placement {
             if (economy.getForceStop()) {
                 return PlacementResults.empty();
             }
-
-            // if there are no sellers in the market, the buyer is misconfigured
-            final @NonNull List<@NonNull Trader> sellers =
-                            economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
-
+            @NonNull HashSet<@NonNull Trader> sellers =
+                    economy.getMarket(shoppingList).getActiveSellersAvailableForPlacementForConsumer(shoppingList);
             if (logger.isTraceEnabled()) {
                 logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
                 for (Trader trader : sellers) {
@@ -288,6 +286,7 @@ public class Placement {
             if (!shoppingList.isMovable()) {
                 return PlacementResults.empty();
             }
+            // if there are no sellers in the market, the buyer is misconfigured
             if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
                 PlacementResults results = PlacementResults.empty();
                 createReconfigureForEmptySeller(economy, shoppingList, results);
@@ -992,7 +991,7 @@ public class Placement {
         // Compute current total quote.
         double quote = 0;
         for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
-            if (isQuoteInfinity(entry)) {
+            if (isCurrentQuoteInfinite(entry)) {
                 return Double.POSITIVE_INFINITY;
             }
             quote += EdeCommon.quote(economy, entry.getKey(), entry.getKey().getSupplier(),
@@ -1008,10 +1007,9 @@ public class Placement {
      * @param slByMkt shopping list to market mapping
      * @return whether the quote is infinity
      */
-    private static boolean isQuoteInfinity(Entry<@NonNull ShoppingList, @NonNull Market> slByMkt) {
+    private static boolean isCurrentQuoteInfinite(Entry<@NonNull ShoppingList, @NonNull Market> slByMkt) {
         Trader supplier = slByMkt.getKey().getSupplier();
-        return  supplier == null || !supplier.getState().isActive()
-                || !slByMkt.getValue().getBasket().isSatisfiedBy(supplier.getBasketSold());
+        return !slByMkt.getValue().getActiveSellers().contains(supplier);
     }
 
     /**

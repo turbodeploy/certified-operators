@@ -160,8 +160,7 @@ public class Suspension {
                                                 t -> t.getSettings().isSuspendable())) {
                             continue;
                         }
-                        List<Trader> suspensionCandidates = Lists.newArrayList(market.getActiveSellersAvailableForPlacement());
-                        for (Trader seller : suspensionCandidates) {
+                        for (Trader seller : market.getActiveSellers()) {
                             // suspension candidates can be only activeSellers that canAcceptNewCustomers
                             // that are suspendable
                             if (!seller.getSettings().isSuspendable()) {
@@ -327,7 +326,6 @@ public class Suspension {
 
             // Rollback actions if the trader still has customers.  If all of the customers are
             // guaranteed buyers, it's still okay to proceed with the suspend.
-
             if (makeNonDaemonCustomerStream(trader)
                     .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
                 if (logger.isTraceEnabled() || isDebugTrader) {
@@ -345,8 +343,9 @@ public class Suspension {
                     if (Utility.isUnmovableRTSShoppingList(sl)) {
                         continue;
                     }
-                    final @NonNull List<@NonNull Trader> sellers =
-                            economy.getMarket(sl).getActiveSellersAvailableForPlacement();
+                    // consider all valid active sellers to see if the guaranteedBuyer can fit in seller.
+                    final @NonNull Set<@NonNull Trader> sellers =
+                            economy.getMarket(sl).getActiveSellersAvailableForPlacementForConsumer(sl);
                     final QuoteMinimizer minimizer =
                             sellers.stream()
                                     .collect(() -> new QuoteMinimizer(economy, sl),

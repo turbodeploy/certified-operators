@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
@@ -21,6 +22,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -170,6 +172,8 @@ public class BootstrapSupply {
                                     + buyerDebugInfo + ".");
                     }
                     Market mkt = economy.getMarket(sl.getBasket());
+                    // we considered the current provider too and the shoppingList didnt fit. So we evaluate all the
+                    // ActiveSellersAvailableForPlacement to find the best match to clone.
                     List<Trader> sellers = mkt.getCliques().get(cliqueId).stream()
                                     .filter(t -> mkt.getActiveSellersAvailableForPlacement().contains(t))
                                     .collect(Collectors.toList());
@@ -448,10 +452,11 @@ public class BootstrapSupply {
             for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
                 ShoppingList sl = entry.getKey();
                 Market market = entry.getValue();
-                @NonNull List<@NonNull Trader> sellers =
-                        market.getCliques().get(currentClique);
-                // consider just sellersAvailableForPlacement
-                sellers.retainAll(market.getActiveSellersAvailableForPlacement());
+                @NonNull Set<@NonNull Trader> sellers =
+                        Sets.newHashSet(market.getCliques().get(currentClique));
+                // Consider sellersAvailableForPlacement while also Retain active current supplier for the sl in its currentClique.
+                // This is done for safety in cases where the currentSupplier is active but not in activeSellersAvailableForPlacement
+                sellers.retainAll(market.getActiveSellersAvailableForPlacementForConsumer(sl));
                 @NonNull Stream<@NonNull Trader> stream =
                         sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                 ? sellers.stream() : sellers.parallelStream();
@@ -533,7 +538,7 @@ public class BootstrapSupply {
             // those sellers to add supply in bootstrap so that the buying trader will be placed
             // only on sellers associated with this given clique to make sure it is a valid shop
             // together placement.
-            @NonNull List<@NonNull Trader> sellers =
+            @NonNull Set<@NonNull Trader> sellers =
                     market.getCliques().get(commonClique)
                             .stream()
                             // Since we don't actually place the SLs onto the newSuppliers in
@@ -558,10 +563,10 @@ public class BootstrapSupply {
                             // provisioned storage as a potential seller, we force the
                             // provisioning of a new storage.
                             .filter(trader -> !newSuppliersToIgnore.contains(trader))
-                            .collect(Collectors.toList());
+                            .collect(Collectors.toSet());
 
-            // consider just sellersAvailableForPlacement
-            sellers.retainAll(market.getActiveSellersAvailableForPlacement());
+            // consider just sellersAvailableForPlacement including current active provider
+            sellers.retainAll(market.getActiveSellersAvailableForPlacementForConsumer(sl));
             @NonNull Stream<@NonNull Trader> stream =
                     sellers.size() < economy.getSettings().getMinSellersForParallelism()
                             ? sellers.stream() : sellers.parallelStream();
@@ -910,7 +915,8 @@ public class BootstrapSupply {
     private static boolean checkMinimizerQuoteFiniteAndPlace(Economy economy, ShoppingList sl,
         List<Action> actionsList) {
         Market market = economy.getMarket(sl);
-        List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+        // consider all available sellers including valid current provider that might be unavailable for placement
+        Set<Trader> sellers = market.getActiveSellersAvailableForPlacementForConsumer(sl);
         QuoteMinimizer minimizer = (sellers.size() < economy.getSettings().getMinSellersForParallelism()
             ? sellers.stream() : sellers.parallelStream())
                 .collect(() -> new QuoteMinimizer(economy, sl),
@@ -996,7 +1002,7 @@ public class BootstrapSupply {
             if (!shouldConsiderForBootstrap(economy, shoppingList.getBuyer())) {
                 return allActions;
             }
-            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+            Set<Trader> sellers = market.getActiveSellersAvailableForPlacementForConsumer(shoppingList);
             // find the bestQuote
             final QuoteMinimizer minimizer =
                     (sellers.size() < economy.getSettings().getMinSellersForParallelism()
@@ -1082,7 +1088,9 @@ public class BootstrapSupply {
             try {
                 // find the bestQuote
                 Market market = economy.getMarket(sl);
-                List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+                // consider active currentSupplier that satisfies basket along with other sellersAvaileForPlacement to
+                // check if we need a clone.
+                Set<Trader> sellers = market.getActiveSellersAvailableForPlacementForConsumer(sl);
                 final QuoteMinimizer minimizer =
                         (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                 ? sellers.stream() : sellers.parallelStream())
@@ -1090,9 +1098,9 @@ public class BootstrapSupply {
                                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 if (Double.isInfinite(minimizer.getTotalBestQuote())) {
-                    // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                    // clone one of the sellers or reactivate an inactive seller that the VM can fit in
-                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
+                    // on getting an infiniteQuote, provision an activeSellerAvailableForPlacement
+                    // or reactivate an inactive seller that the VM can fit in and move unplaced Trader to it
+                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, market.getActiveSellersAvailableForPlacement(), market, economy, Optional.empty());
                     if (sellerThatFits != null) {
                         Trader provisionedSeller;
                         // Obtain list of commodity specs causing infinite quote for the shopping list
@@ -1392,7 +1400,7 @@ public class BootstrapSupply {
      * @return the any of the candidateSellers that can fit the buyer when cloned, or {@code null}
      * if none is big enough
      */
-    private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
+    private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, Collection<Trader>
                                                   candidateSellers, Market market, Economy economy,
                                                   Optional<Long> clique) {
         // Attempt to Activate traders with the least amount of reconfigurable commodities first.

@@ -6,6 +6,7 @@ import static com.vmturbo.platform.analysis.ede.Placement.initiateQuoteMinimizer
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -594,7 +595,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                                                      Trader destination) {
         // If there are no sellers in the market, the buyer is misconfigured, but this method
         // will not be called in that case.
-        final @NonNull List<@NonNull Trader> sellers = getPeerSellers(economy, destination,
+        final @NonNull Set<@NonNull Trader> sellers = getPeerSellers(economy, destination,
                 shoppingList);
         if (logger.isTraceEnabled()) {
             logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
@@ -617,8 +618,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param buyer is the leader whose peers we need to compute
      * @return peer traders of a given groupLeader
      */
-    static List<Trader> getPeerSellers(Economy economy, Trader seller, ShoppingList buyer) {
-        List<Trader> mutableSellers = new ArrayList<>();
+    static Set<Trader> getPeerSellers(Economy economy, Trader seller, ShoppingList buyer) {
+        Set<Trader> mutableSellers = new HashSet<>();
         mutableSellers.add(seller);
         final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
             shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
