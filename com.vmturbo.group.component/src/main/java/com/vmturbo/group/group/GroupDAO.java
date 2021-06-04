@@ -996,7 +996,7 @@ public class GroupDAO implements IGroupStore {
             }
         }
         for (GroupFilters groupFilter: groupFilters) {
-            final Set<Long> subgroups = getGroupIds(groupFilter);
+            final Collection<Long> subgroups = getGroupIds(groupFilter);
             groupMembers.addAll(subgroups);
         }
         return new GroupMembersPlain(entitiesMembers, groupMembers, entityFilters);
@@ -1215,7 +1215,7 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     @Override
     public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
-        final FilteredIds groupingIds = getGroupIds(filter);
+        final FilteredIds groupingIds = getGroupIds(filter, null);
         return getGroupInternal(groupingIds);
     }
 
@@ -1243,15 +1243,13 @@ public class GroupDAO implements IGroupStore {
      * @param paginationParams the parameters for pagination.
      * @return the ids of the groups, along with info for the next page of the pagination.
      */
-    private NextGroupPageInfo getNextPage(@Nullable GroupDTO.GroupFilter filter,
-            @Nullable PaginationParameters paginationParams) {
-        final Optional<Condition> sqlCondition = filter != null
-                ? createGroupCondition(filter)
-                : Optional.empty();
+    private NextGroupPageInfo getNextPage(@Nonnull GroupDTO.GroupFilter filter,
+            @Nonnull PaginationParameters paginationParams) {
+        final Optional<Condition> sqlCondition = createGroupCondition(filter);
         // get ascending value from input, or default to true
-        final boolean ascendingOrder = paginationParams == null || paginationParams.getAscending();
-        final int cursorValue = getCursorValue(paginationParams);
-        final int paginationLimit = getPaginationLimit(paginationParams);
+        final boolean ascendingOrder = paginationParams.getAscending();
+        final int cursorValue = Integer.parseInt(paginationParams.getCursor());
+        final int paginationLimit = paginationParams.getLimit();
         // Get the ids of the next page
         List<Long> result = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
@@ -1259,6 +1257,8 @@ public class GroupDAO implements IGroupStore {
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
                 .where(sqlCondition.orElse(DSL.noCondition()))
                 .orderBy(createOrderByClause(paginationParams, ascendingOrder),
+                        // place empty groups first or last depending on input. When ordering by
+                        // Severity, we want to stack empty groups together
                         ascendingOrder
                                 ? GROUP_SUPPLEMENTARY_INFO.EMPTY.desc().nullsFirst()
                                 : GROUP_SUPPLEMENTARY_INFO.EMPTY.asc().nullsLast(),
@@ -1284,51 +1284,18 @@ public class GroupDAO implements IGroupStore {
     }
 
     /**
-     * Returns the pagination limit for the query. If the input limit exceeds max pagination limit,
-     * returns the max pagination limit. If there is no pagination limit provided, it returns a
-     * default value.
-     *
-     * @param paginationParams the pagination parameters provided by the user.
-     * @return the pagination limit for the query.
-     */
-    private int getPaginationLimit(final PaginationParameters paginationParams) {
-        if (paginationParams == null || !paginationParams.hasLimit()) {
-            return groupPaginationParams.getGroupPaginationDefaultLimit();
-        }
-        int paginationLimit = paginationParams.getLimit();
-        if (paginationLimit <= 0) {
-            throw new IllegalArgumentException("Invalid limit value provided: '" + paginationLimit
-                    + "'. Limit must be a positive integer.");
-        }
-        final int maxPaginationLimit = groupPaginationParams.getGroupPaginationMaxLimit();
-        if (paginationLimit > maxPaginationLimit) {
-            logger.warn("Client limit " + paginationParams.getLimit() + " exceeds max limit "
-                    + maxPaginationLimit + ". Page size will be reduced to " + maxPaginationLimit
-                    + ".");
-            paginationLimit = maxPaginationLimit;
-        }
-        return paginationLimit;
-    }
-
-    /**
      * Returns the database field that the query should order by, based on the pagination
      * parameters provided in the input.
      *
      * @param paginationParams the pagination parameters provided by the user.
      * @param ascendingOrder whether to return the results in ascending or descending order.
-     * @return The appropriate database field to order by. Defaults to group id if input is empty.
+     * @return The appropriate database field to order by. Defaults to display name on empty input.
      */
-    private OrderField<?> createOrderByClause(PaginationParameters paginationParams,
+    private OrderField<?> createOrderByClause(@Nonnull PaginationParameters paginationParams,
             final boolean ascendingOrder) {
         // Ordering by COST not supported yet (will be added at a later stage of pagination work;
         // see OM-63107)
         // default is name
-        if (paginationParams == null || !paginationParams.hasOrderBy()
-                || !paginationParams.getOrderBy().hasGroupSearch()) {
-            return ascendingOrder
-                    ? GROUPING.DISPLAY_NAME.asc()
-                    : GROUPING.DISPLAY_NAME.desc();
-        }
         switch (paginationParams.getOrderBy().getGroupSearch()) {
             case GROUP_SEVERITY:
                 return ascendingOrder
@@ -1340,27 +1307,6 @@ public class GroupDAO implements IGroupStore {
                         ? GROUPING.DISPLAY_NAME.asc()
                         : GROUPING.DISPLAY_NAME.desc();
         }
-    }
-
-    /**
-     * Extracts the cursor from the pagination parameters, doing some sanity checking.
-     *
-     * @param params the pagination parameters provided by the user.
-     * @return the cursor value if it's a valid one, otherwise 0.
-     */
-    private int getCursorValue(PaginationParameters params) {
-        int cursorValue;
-        if (params != null && params.hasCursor()) {
-            try {
-                cursorValue = Integer.parseInt(params.getCursor());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid cursor value provided: '"
-                        + params.getCursor() + "'.");
-            }
-        } else {
-            cursorValue = 0;
-        }
-        return cursorValue;
     }
 
     /**
@@ -1380,17 +1326,57 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private FilteredIds getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
-        final Optional<Condition> sqlCondition = createGroupCondition(filter);
-        final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
+    @Override
+    public Collection<Long> getEmptyGroupIds() {
+        return dslContext.select(GROUPING.ID)
                 .from(GROUPING)
                 .leftJoin(GROUP_SUPPLEMENTARY_INFO)
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
-                .where(sqlCondition.orElse(DSL.noCondition()))
-                .fetch()
+                .where(GROUP_SUPPLEMENTARY_INFO.EMPTY.eq(true))
+                .fetchInto(Long.class);
+    }
+
+    /**
+     * Retrieves the group ids that conform to the filter provided from the database.
+     * If parameters regarding ordering are provided, the results will be ordered accordingly.
+     *
+     * <p>NOTE: Cursor and limit are ignored in this call; the object is used only to identify the
+     * requested OrderBy and ascending values. This call fetches ALL groups that conform to the
+     * filter, it does not apply actual pagination.</p>
+     *
+     * @param filter used to filter the results. If null, all results will be returned.
+     * @param orderingParams parameters that define how the results should be ordered. If not
+     *                       provided (null), the results will not follow a specific ordering.
+     * @return The uuids of all groups that conform to the input.
+     */
+    @Nonnull
+    private FilteredIds getGroupIds(@Nonnull GroupDTO.GroupFilter filter,
+            @Nullable PaginationParameters orderingParams) {
+        final Optional<Condition> sqlCondition = createGroupCondition(filter);
+        final Select<Record1<Long>> query;
+        SelectConditionStep<Record1<Long>> queryBuilder = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                .where(sqlCondition.orElse(DSL.noCondition()));
+        if (orderingParams != null) {
+            final boolean ascending = orderingParams.getAscending();
+            query = queryBuilder.orderBy(createOrderByClause(orderingParams, ascending),
+                    // place empty groups first or last depending on input. When ordering by
+                    // Severity, we want to stack empty groups together
+                    ascending
+                            ? GROUP_SUPPLEMENTARY_INFO.EMPTY.desc().nullsFirst()
+                            : GROUP_SUPPLEMENTARY_INFO.EMPTY.asc().nullsLast(),
+                    // add last sorting to catch edge cases of duplicate values in both previous
+                    // sortings
+                    ascending ? GROUPING.ID.asc() : GROUPING.ID.desc());
+        } else {
+            query = queryBuilder;
+        }
+        final Collection<Long> groupingIds = query.fetch()
                 .stream()
                 .map(Record1::value1)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
         return new FilteredIds(groupingIds, !sqlCondition.isPresent());
     }
 
@@ -1430,7 +1416,7 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Set<Long> getGroupIds(@Nonnull GroupFilters filters) {
+    public Collection<Long> getGroupIds(@Nonnull GroupFilters filters) {
         if (filters.getGroupFilterCount() == 0) {
             return Collections.unmodifiableSet(dslContext.select(GROUPING.ID)
                     .from(GROUPING)
@@ -1440,13 +1426,20 @@ public class GroupDAO implements IGroupStore {
                     .collect(Collectors.toSet()));
         }
         final Iterator<GroupFilter> iterator = filters.getGroupFilterList().iterator();
-        final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next()).groupIds());
+        final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next(), null).groupIds());
         while (iterator.hasNext()) {
             final GroupFilter additionalFilter = iterator.next();
-            final Collection<Long> anotherSet = getGroupIds(additionalFilter).groupIds();
+            final Collection<Long> anotherSet = getGroupIds(additionalFilter, null).groupIds();
             initialSet.retainAll(anotherSet);
         }
         return Collections.unmodifiableSet(initialSet);
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getOrderedGroupIds(@Nonnull GroupFilter filter,
+        @Nonnull PaginationParameters paginationParameters) {
+        return getGroupIds(filter, paginationParameters).groupIds();
     }
 
     @Nonnull
