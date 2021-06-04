@@ -50,6 +50,16 @@ source /opt/local/etc/turbo.conf
 # Update the yaml files to run offline
 #/opt/local/bin/offlineUpdate.sh
 
+if grep -q "$localStorageDataDirectory" /etc/fstab
+then
+  echo ""
+  echo "Detected existing installation..."
+  echo "exiting......"
+  echo "Please do not re-run t8c.sh on an existing install."
+  echo ""
+  exit 0
+fi
+
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
 then
