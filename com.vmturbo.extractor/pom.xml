@@ -336,5 +336,10 @@
             <artifactId>jackson-dataformat-yaml</artifactId>
             <version>${jackson.dataformat.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cost-calculation</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>
