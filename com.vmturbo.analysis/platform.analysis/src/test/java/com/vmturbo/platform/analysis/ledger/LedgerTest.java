@@ -30,8 +30,10 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utility.ListTests;
 
 import junitparams.JUnitParamsRunner;
@@ -315,6 +317,39 @@ public class LedgerTest {
         IncomeStatement selectedIncomeStatement =
                         ledger.getTraderIncomeStatements().get(economyIndex);
         compareResult(result, selectedIncomeStatement, compareTo, resultType);
+    }
+
+    /**
+     * Test Ledger#calculateExpensesForSeller where expenses calculation is skipped for seller trader
+     * with cloud supplier.
+     */
+    @Test
+    public final void testCalculateExpensesForSellerWithCloudSupplier() {
+        Economy economy = new Economy();
+        Ledger ledger = new Ledger(economy);
+
+        // Create cloud supplier
+        Trader computeTier = economy.addTrader(0, TraderState.ACTIVE, PM_ANY);
+        computeTier.getCommoditiesSold().get(0).setQuantity(4).setPeakQuantity(10).setCapacity(100).setNumConsumers(1);
+        computeTier.getSettings()
+            .setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(ComputeTierCostDTO
+                .newBuilder().setCouponBaseType(82).build()));
+
+        // Create consumer
+        Trader vm = economy.addTrader(1, TraderState.ACTIVE, VM);
+        economy.addBasketBought(vm, PM_ANY)
+            .setQuantity(0, 5).setPeakQuantity(0, 7)
+            .setMovable(true)
+            .move(computeTier);
+
+        ledger.addTraderIncomeStatement(computeTier);
+        ledger.addTraderIncomeStatement(vm);
+        ledger.calculateExpRevForTraderAndGetTopRevenue(economy, vm);
+        IncomeStatement sellerIncomeStatement = ledger.getTraderIncomeStatements().get(vm.getEconomyIndex());
+        assertEquals(0.0, sellerIncomeStatement.getExpenses(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.0, sellerIncomeStatement.getMinDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.0, sellerIncomeStatement.getMaxDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.0, sellerIncomeStatement.getDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     public void compareResult(double result, IncomeStatement selectedIncomeStatement, int compareTo, RESULTYPE resultType){
