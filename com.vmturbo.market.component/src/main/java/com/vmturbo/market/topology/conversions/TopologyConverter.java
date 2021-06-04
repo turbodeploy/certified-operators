@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.commons.analysis.RawMaterialsMap.rawMaterialsMap;
 import static com.vmturbo.market.topology.conversions.MarketAnalysisUtils.ACCESS_COMMODITY_TYPES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
@@ -89,6 +90,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -120,6 +122,7 @@ import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCatego
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -2475,7 +2478,7 @@ public class TopologyConverter {
             final float[] resizedQuantity = calculateResizedQuantity(topologyDTO, histUsed[0],
                     (float)commBought.getUsed(), histPeak[0],
                     (float)commoditySoldDTO.getCapacity(),
-                    (float)commBought.getResizeTargetUtilization(), false, commBought);
+                    (float)commBought.getResizeTargetUtilization(), false, commBought, Optional.empty());
             commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
                     resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0, CommodityLookupType.PROVIDER);
             logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
@@ -2510,31 +2513,12 @@ public class TopologyConverter {
                     new float[]{drivingCommSoldCapacity}};
         }
         final float histUsage;
-        if (commoditySoldDTO.hasHistoricalUsed()
-            && (commoditySoldDTO.getHistoricalUsed().hasPercentile()
-            || commoditySoldDTO.getHistoricalUsed().hasHistUtilization())) {
-            if (commoditySoldDTO.getHistoricalUsed().hasPercentile()
-                && commoditySoldDTO.hasCapacity()) {
-                final float percentile = (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
-                logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
-                        percentile, commoditySoldDTO.getCommodityType().getType(),
-                        topologyDTO.getDisplayName());
-                histUsage = percentile * drivingCommSoldCapacity;
-            } else {
-                // if not then hist utilization which is the historical used value.
-                histUsage =
-                        (float)commoditySoldDTO.getHistoricalUsed().getHistUtilization();
-                logger.debug("Using historical value {} to recalculate capacity for {} in {}",
-                        histUsage, commoditySoldDTO.getCommodityType().getType(),
-                        topologyDTO.getDisplayName());
-            }
-        } else if (commoditySoldDTO.hasUsed()) {
-            // If for a commodity (eg: DBS -> storage amount) we do not have either percentile or historical usage,
-            // we resize based on used values itself. If used values are also NA, we use capacity value.
-            histUsage = (float)commoditySoldDTO.getUsed();
+        Optional<Float> demand = extractDemandFromCommSold(commoditySoldDTO, topologyDTO);
+        if (demand.isPresent()) {
+            histUsage = demand.get();
         } else {
             logger.debug("Returning current capacity of sold commodity as quantity: {}, for "
-                            + "commodity type: {}, entity oid: {} as no used, historical used (percentile or "
+                            + "commodity type: {}, entity oid: {} has no used, historical used (percentile or "
                             + "hist utilization) found.", drivingCommSoldCapacity,
                     commoditySoldDTO.getCommodityType().getType(), topologyDTO.getOid());
             return new float[][]{new float[]{drivingCommSoldCapacity},
@@ -2547,7 +2531,7 @@ public class TopologyConverter {
                 calculateResizedQuantity(topologyDTO, histUsage,
                         (float)commoditySoldDTO.getUsed(), (float)commoditySoldDTO.getPeak(),
                         (float)commoditySoldDTO.getCapacity(),
-                        (float)commoditySoldDTO.getResizeTargetUtilization(), useTargetUtilBand, commBought);
+                        (float)commoditySoldDTO.getResizeTargetUtilization(), useTargetUtilBand, commBought, Optional.of(commoditySoldDTO));
         commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commoditySoldDTO.getCommodityType(),
                 resizedQuantity[0] - drivingCommSoldCapacity > 0, CommodityLookupType.CONSUMER);
         logger.debug(
@@ -2558,6 +2542,103 @@ public class TopologyConverter {
             drivingCommmoditySoldList);
         return new float[][]{new float[]{resizedQuantity[0]},
                 new float[]{resizedQuantity[1]}};
+    }
+
+    private Optional<Float> extractDemandFromCommSold(CommoditySoldDTO commoditySoldDTO,
+                                                           TopologyEntityDTO topologyDTO
+                                                           ) {
+        final float drivingCommSoldCapacity = (float)commoditySoldDTO.getCapacity();
+        final float histUsage;
+        if (commoditySoldDTO.hasHistoricalUsed()
+            && (commoditySoldDTO.getHistoricalUsed().hasPercentile()
+            || commoditySoldDTO.getHistoricalUsed().hasHistUtilization())) {
+            if (commoditySoldDTO.getHistoricalUsed().hasPercentile()
+                && commoditySoldDTO.hasCapacity()) {
+                final float percentile = (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
+                logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
+                    percentile, commoditySoldDTO.getCommodityType().getType(),
+                    topologyDTO.getDisplayName());
+                histUsage = percentile * drivingCommSoldCapacity;
+            } else {
+                // if not then hist utilization which is the historical used value.
+                histUsage =
+                    (float)commoditySoldDTO.getHistoricalUsed().getHistUtilization();
+                logger.debug("Using historical value {} to recalculate capacity for {} in {}",
+                    histUsage, commoditySoldDTO.getCommodityType().getType(),
+                    topologyDTO.getDisplayName());
+            }
+            return Optional.of(histUsage);
+        } else if (commoditySoldDTO.hasUsed()) {
+            // If for a commodity (eg: DBS -> storage amount) we do not have either percentile or historical usage,
+            // we resize based on used values itself. If used values are also NA, we use capacity value.
+            histUsage = (float)commoditySoldDTO.getUsed();
+            return Optional.of(histUsage);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Determines if we need to prevent resize of {@code optCommoditySolByConsumer} based on
+     * raw material usage.
+     * We prevent resize of the commoditySoldByConsumer in 2 cases:
+     * 1. CommoditySoldByConsumer is congested AND any of the raw materials is also highly utilized.
+     * 2. CommoditySoldByConsumer is under utilized AND any of the raw materials is also under utilized.
+     *
+     * To check if a raw material is congested or under-utilized, we compare its historical usage against effective capacity.
+     *
+     * @param topologyDTO the entity which is being resized.
+     * @param optCommoditySolByConsumer commodity sold by consumer.
+     * @param resizeDemand the resize demand.
+     * @param targetUtil the target util.
+     * @param targetBandRadius the target band radius.
+     * @param useTargetUtilBand determines if the commodity uses targetUtilBand for resizing.
+     * @return true if the resize needs to be prevented. False otherwise.
+     */
+    private boolean doesRawMaterialUsagePreventResize(final TopologyEntityDTO topologyDTO,
+                                                      final Optional<CommoditySoldDTO> optCommoditySolByConsumer,
+                                                      final float resizeDemand,
+                                                      final float targetUtil,
+                                                      final float targetBandRadius,
+                                                      final boolean useTargetUtilBand) {
+        if (!optCommoditySolByConsumer.isPresent()) {
+            return false;
+        }
+        CommoditySoldDTO commoditySoldDTO = optCommoditySolByConsumer.get();
+        RawMaterialInfo rawMaterialInfo = rawMaterialsMap.get(commoditySoldDTO.getCommodityType().getType());
+        if (Objects.isNull(rawMaterialInfo)) {
+            return false;
+        }
+        Set<Integer> rawMaterials = rawMaterialInfo.getRawMaterials().stream()
+            .map(rm -> rm.getRawMaterial()).collect(Collectors.toSet());
+        if (rawMaterials.isEmpty()) {
+            return false;
+        }
+        float radius = useTargetUtilBand ? targetBandRadius : 0;
+        boolean isCongested = resizeDemand / commoditySoldDTO.getCapacity() > targetUtil + radius;
+        boolean isUnderUtilized = resizeDemand / commoditySoldDTO.getCapacity() < targetUtil - radius;
+        if (!isCongested && !isUnderUtilized) {
+            return false;
+        }
+        Set<CommoditySoldDTO> soldRawMaterials =
+            topologyDTO.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() != commoditySoldDTO.getCommodityType().getType()
+                            && rawMaterials.contains(c.getCommodityType().getType()))
+                .collect(Collectors.toSet());
+        for (CommoditySoldDTO soldRawMaterial : soldRawMaterials) {
+            if (!soldRawMaterial.hasEffectiveCapacityPercentage()) {
+                continue;
+            }
+            Optional<Float> demand = extractDemandFromCommSold(soldRawMaterial, topologyDTO);
+            if (!demand.isPresent()) {
+                continue;
+            }
+            float usage = demand.get();
+            float effectiveCapacity = (float)(soldRawMaterial.getEffectiveCapacityPercentage() / 100 * soldRawMaterial.getCapacity());
+            if (isCongested && usage >= effectiveCapacity || isUnderUtilized && usage < effectiveCapacity) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2664,7 +2745,8 @@ public class TopologyConverter {
                                              float used, float peak, float capacity,
                                              float targetUtil,
                                              boolean useTargetUtilBand,
-                                             final CommodityBoughtDTO commodityBoughtDTO) {
+                                             final CommodityBoughtDTO commodityBoughtDTO,
+                                             final Optional<CommoditySoldDTO> commoditySoldDTO) {
         if (targetUtil <= 0.0) {
             targetUtil = EntitySettingSpecs.UtilTarget.getSettingSpec()
                     .getNumericSettingValueType()
@@ -2683,7 +2765,9 @@ public class TopologyConverter {
         // We only use the quantity values inside M2
         final float peakQuantity = Math.max(used, peak) / targetUtil;
         final float quantity;
-        if (!useTargetUtilBand || resizeDemandOutsideTargetBand) {
+        if ((!useTargetUtilBand || resizeDemandOutsideTargetBand) &&
+            !doesRawMaterialUsagePreventResize(topologyDTO, commoditySoldDTO, resizeDemand,
+                targetUtil, targetBandRadius, useTargetUtilBand)) {
             quantity = resizeDemand / targetUtil;
         } else {
             quantity = capacity;
