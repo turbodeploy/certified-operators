@@ -80,6 +80,9 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * scalingFactors set multiple times during the updating process. Rather than always overwriting
      * the scalingFator for these entities with whatever host gets updated last, these entities
      * should get the LARGEST scaling factor of any host they are connected to.
+     * <p/>
+     * Entity types in this category should also skip updates to their consumers. This prevents
+     * triggering updates that do nothing too frequently for the same consumers of these entity types.
      */
     private static final Set<Integer> ENTITY_TYPES_REQUIRING_MAX = ImmutableSet.of(
         EntityType.WORKLOAD_CONTROLLER_VALUE,
@@ -167,11 +170,12 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
         final long soldModified = updateScalingFactorForSoldCommodities(entityToUpdate, scalingFactor);
         final long boughtModified = updateScalingFactorForBoughtCommodities(entityToUpdate, scalingFactor);
         boolean firstAdded = updatedSet.add(entityToUpdate.getOid());
+        boolean shouldUpdateConsumers = firstAdded && !ENTITY_TYPES_REQUIRING_MAX.contains(entityToUpdate.getEntityType());
         // If we updated any sold commodities, go up to the consumers and make sure their respective
         // bought commodities are updated. To prevent infinite recursion along ENTITY_TYPES_REQUIRING_MAX,
         // we only permit recursive updates on consumer connections if this is the first time we saw
         // an entity.
-        if (soldModified > 0 && firstAdded) {
+        if (soldModified > 0 && shouldUpdateConsumers) {
             entityToUpdate.getConsumers().forEach(consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet));
         }
 
@@ -202,11 +206,11 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     private long updateScalingFactorForSoldCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-                .getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().stream()
+            .getTopologyEntityDtoBuilder()
+            .getCommoditySoldListBuilderList().stream()
             .filter(commoditySold -> commodityTypeShouldScale(commoditySold.getCommodityType()))
             .peek(commSold -> updateCommSoldScalingFactor(entityToUpdate, commSold, scalingFactor))
-                .count();
+            .count();
     }
 
     /**
@@ -220,14 +224,14 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     private long updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-                .getTopologyEntityDtoBuilder()
+            .getTopologyEntityDtoBuilder()
             .getCommoditiesBoughtFromProvidersBuilderList().stream()
             .flatMap(commoditiesBoughtFromProvider ->
                 commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
             .filter(commodityBoughtFromProvider ->
                 commodityTypeShouldScale(commodityBoughtFromProvider.getCommodityType()))
             .peek(commBought -> updateCommBoughtScalingFactor(entityToUpdate, commBought, scalingFactor))
-                .count();
+            .count();
     }
 
     /**
