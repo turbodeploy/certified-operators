@@ -26,6 +26,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -151,8 +152,7 @@ public class EntitySettingsApplicator {
                         CommodityType.NET_THROUGHPUT),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.SwappingUtilization,
                         CommodityType.SWAPPING),
-                new UtilizationThresholdApplicator(EntitySettingSpecs.ReadyQueueUtilization,
-                        CommodityType.QN_VCPU),
+                new ReadyQueueUtilizationThresholdApplicator(),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.StorageAmountUtilization,
                         CommodityType.STORAGE_AMOUNT),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.StorageProvisionedUtilization,
@@ -900,6 +900,33 @@ public class EntitySettingsApplicator {
                     commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
+        }
+    }
+
+    /**
+     * Applies the CPU Ready Queue Utilization threshold setting to all the relevant commodities.
+     */
+    @ThreadSafe
+    private static class ReadyQueueUtilizationThresholdApplicator extends SingleSettingApplicator {
+
+        private static final Set<Integer> allQueueCommodities = ImmutableSet.of(
+                CommodityType.Q1_VCPU_VALUE, CommodityType.Q2_VCPU_VALUE,
+                CommodityType.Q3_VCPU_VALUE, CommodityType.Q4_VCPU_VALUE,
+                CommodityType.Q5_VCPU_VALUE, CommodityType.Q6_VCPU_VALUE,
+                CommodityType.Q7_VCPU_VALUE, CommodityType.Q8_VCPU_VALUE,
+                CommodityType.Q16_VCPU_VALUE, CommodityType.Q32_VCPU_VALUE,
+                CommodityType.Q64_VCPU_VALUE, CommodityType.QN_VCPU_VALUE);
+
+        private ReadyQueueUtilizationThresholdApplicator() {
+            super(EntitySettingSpecs.ReadyQueueUtilization);
+        }
+
+        @Override
+        protected void apply(@NotNull Builder entity, @NotNull Setting setting) {
+            final float settingValue = setting.getNumericSettingValue().getValue();
+            entity.getCommoditySoldListBuilderList().stream()
+                    .filter(commodity -> allQueueCommodities.contains(commodity.getCommodityType().getType()))
+                    .forEach(commodity -> commodity.setEffectiveCapacityPercentage(settingValue));
         }
     }
 
