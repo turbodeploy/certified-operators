@@ -161,7 +161,8 @@ public class RpcConfig {
                 transactionProvider(), identityProviderConfig.identityProvider(),
                 targetService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
                 cachingMemberCalculator(), groupRetrievePermitsSize, groupLoadTimeoutSec,
-                groupConfig.groupEnvironmentTypeResolver(), groupConfig.groupSeverityCalculator());
+                groupConfig.groupEnvironmentTypeResolver(), groupConfig.groupSeverityCalculator(),
+                groupPaginationConfig.groupPaginationParams());
     }
 
     /**

@@ -204,4 +204,10 @@ public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
         }
         return memberOids;
     }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getEmptyGroupIds(@Nonnull IGroupStore groupStore) {
+        return groupStore.getEmptyGroupIds();
+    }
 }

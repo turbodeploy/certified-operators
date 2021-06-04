@@ -438,6 +438,14 @@ public class GroupDaoTest {
         GetPaginatedGroupsResponse resp =  groupStore.getPaginatedGroups(GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .addDirectMemberTypes(memberType))
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setCursor("0")
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_NAME)
+                                .build())
+                        .setLimit(100)
+                        .setAscending(true)
+                        .build())
                 .build());
 
         assertThat(resp.getGroupsList().stream()
@@ -1217,6 +1225,7 @@ public class GroupDaoTest {
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setCursor("0")
                         .setAscending(true)
                         .setLimit(1)
                         .build())
@@ -1317,6 +1326,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setOrderBy(OrderBy.newBuilder()
                                 .setGroupSearch(OrderBy.GroupOrderBy.GROUP_NAME)
                                 .build())
@@ -1394,6 +1404,7 @@ public class GroupDaoTest {
                         .build())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1465,6 +1476,7 @@ public class GroupDaoTest {
                         .build())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(1)
                         .build())
                 .build();
@@ -1522,6 +1534,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(4)
                         .build())
                 .build();
@@ -1544,6 +1557,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(5)
                         .build())
                 .build();
@@ -1586,6 +1600,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1647,6 +1662,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1690,6 +1706,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1754,6 +1771,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1794,6 +1812,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(1)
                         .build())
                 .build();
@@ -1892,6 +1911,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(3)
                         .build())
                 .build();
@@ -1960,6 +1980,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(3)
                         .build())
                 .build();
@@ -2029,6 +2050,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(3)
                         .build())
                 .build();
@@ -2074,6 +2096,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(3)
                         .build())
                 .build();
@@ -2140,6 +2163,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(3)
                         .build())
                 .build();
@@ -2180,6 +2204,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(false)
+                        .setCursor("0")
                         .setOrderBy(OrderBy.newBuilder()
                                 .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
                                 .build())
@@ -2249,6 +2274,8 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(false)
+                        .setCursor("0")
+                        .setLimit(10)
                         .setOrderBy(OrderBy.newBuilder()
                                 .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
                                 .build())

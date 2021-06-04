@@ -61,4 +61,13 @@ public interface GroupMemberCalculator {
     Map<Long, Set<Long>> getEntityGroups(@Nonnull IGroupStore groupStore, Set<Long> entityIds,
                                          Set<CommonDTO.GroupDTO.GroupType> groupTypes)
         throws StoreOperationException;
+
+    /**
+     * Returns the groups that are empty.
+     *
+     * @param groupStore group store to execute queries (used in non-caching implementation)
+     * @return a set with the ids of the empty groups.
+     */
+    @Nonnull
+    Collection<Long> getEmptyGroupIds(@Nonnull IGroupStore groupStore);
 }

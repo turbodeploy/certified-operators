@@ -13,6 +13,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -176,6 +177,27 @@ public interface IGroupStore {
      */
     @Nonnull
     Collection<Long> getGroupIds(@Nonnull GroupFilters groupFilter);
+
+    /**
+     * Returns an ordered collection of group ids, conforming to the filter and ordering provided.
+     *
+     * @param groupFilter requested filters to filter groups by. If the filter is null or empty, the
+     *                    response will contain all the group ids existing in the component.
+     * @param paginationParameters parameters that contain oderBy & ascending values. If null or
+     *                             empty, defaults will be used.
+     * @return a collection of groups
+     */
+    @Nonnull
+    Collection<Long> getOrderedGroupIds(@Nonnull GroupDTO.GroupFilter groupFilter,
+            @Nonnull PaginationParameters paginationParameters);
+
+    /**
+     * Returns the groups that are empty.
+     *
+     * @return a list with the ids of the empty groups.
+     */
+    @Nonnull
+    Collection<Long> getEmptyGroupIds();
 
     /**
      * Deletes the group specified by id.

@@ -365,6 +365,11 @@ message DeleteGroupResponse {
 message GetPaginatedGroupsRequest {
     optional GroupFilter group_filter = 1;
     optional common.PaginationParameters pagination_parameters = 2;
+    // list of scopes used to filter the groups, all returned groups will be within the given list
+    // of scopes: All members of a group in the response will be within the range of entities
+    // which are accessible through supply chain traversal starting from these scopes.
+    // for example: limit the Clusters to be in a DataCenter scope.
+    repeated int64 scopes = 3;
 }
 
 message GetPaginatedGroupsResponse {
@@ -560,6 +565,12 @@ service GroupService {
 
     // Get groups based on the query in a paginated response
     rpc GetPaginatedGroups(GetPaginatedGroupsRequest) returns (GetPaginatedGroupsResponse);
+
+    // Get groups based on the query in a paginated response
+    // This is a temporary testing endpoint that supports paginated queries which require scope
+    // filtering. It will be removed in OM-70603, after being merged with to the original endpoint.
+    rpc GetPaginatedGroupsForScopedUser(GetPaginatedGroupsRequest) returns
+    (GetPaginatedGroupsResponse);
 
     // Count groups matching a particular request.
     rpc CountGroups (GetGroupsRequest) returns (CountGroupsResponse);
