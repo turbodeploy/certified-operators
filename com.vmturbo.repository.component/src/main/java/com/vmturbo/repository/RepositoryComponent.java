@@ -232,6 +232,7 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new PlanStatsService(paginationParamsFactory(),
             entityStatsPaginator(),
             repositoryComponentConfig.partialEntityConverter(),
+            userSessionConfig.userSessionContext(),
             maxEntitiesPerChunk);
     }
 
@@ -245,7 +246,7 @@ public class RepositoryComponent extends BaseVmtComponent {
             repositoryComponentConfig.partialEntityConverter(),
             maxEntitiesPerChunk,
             repositoryComponentConfig.mySQLPlanEntityStore(),
-            new PlanEntityFilterConverter());
+            new PlanEntityFilterConverter(), userSessionConfig.userSessionContext());
 
         // Return a topology-graph backed rpc service, which will fall back to arango for
         // non-realtime queries.

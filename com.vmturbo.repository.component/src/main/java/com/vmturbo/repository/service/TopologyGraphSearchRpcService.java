@@ -229,7 +229,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         try {
             final Stream<RepoGraphEntity> searchResults = gatedSearchResolver.search(request.getEntityOidList(), searchQuery);
-            final Stream<PartialEntity> entities = partialEntityConverter.createPartialEntities(searchResults, request.getReturnType());
+            final Stream<PartialEntity> entities = partialEntityConverter.createPartialEntities(searchResults, request.getReturnType(), userSessionContext);
 
             // send the results in batches, if needed
             Iterators.partition(entities.iterator(), maxEntitiesPerChunk)
@@ -293,7 +293,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             final SearchEntitiesResponse.Builder respBuilder = SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(paginatedResults.paginationResponse());
             List<RepoGraphEntity> nextPageEntities = paginatedResults.nextPageEntities();
-            partialEntityConverter.createPartialEntities(nextPageEntities.stream(), request.getReturnType())
+            partialEntityConverter.createPartialEntities(nextPageEntities.stream(), request.getReturnType(), userSessionContext)
                     .forEach(respBuilder::addEntities);
             responseObserver.onNext(respBuilder.build());
             responseObserver.onCompleted();
@@ -581,7 +581,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         if (query.hasReturnType()) {
             response.putAllEntities(allChildren.stream()
                     .collect(toMap(RepoGraphEntity::getOid,
-                            entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), query.getReturnType()))));
+                            entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), query.getReturnType(),
+                                    userSessionContext))));
         }
 
         // call the child queries recursively.
@@ -632,7 +633,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         if (request.hasReturnType()) {
             Set<PartialEntity> entities = seeds.stream()
-                    .map(entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), request.getReturnType()))
+                    .map(entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), request.getReturnType(),
+                            userSessionContext))
                     .collect(Collectors.toSet());
             response.addAllEntities(entities);
         }
