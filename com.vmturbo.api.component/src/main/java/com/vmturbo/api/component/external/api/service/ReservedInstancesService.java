@@ -401,6 +401,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final String[] splitOids = expVal.split("\\|");
             final List<Long> oidList = Arrays.asList(splitOids).stream().map(a -> Long.parseLong(a.trim()))
                             .collect(Collectors.toList());
+            if (oidList.isEmpty()) {
+                return Collections.emptyList();
+            }
 
             List<Long> accountOids = new ArrayList<>();
             final Optional<RIFilter> riFilterOptional = RIFilter.valueOfRIFilter(filterType);
@@ -434,31 +437,21 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     break;
 
                 case RI_BY_BILLING_FAMILY_USED:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
+                    //Aggregate list of Account oids within a Billing Family.
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_BY));
                     requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_PURCHASED:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
+                    //Aggregate list of Account oids within a Billing Family.
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.PURCHASED_BY));
                     requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_ALL:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
                     requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_AND_PURCHASED_BY));
                     requestBuilderPopulated = true;
                     break;
@@ -481,7 +474,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     }
 
                     //Get business accounts associated with the VMs.
-                    List<Long> allAccountOids = getAllBusinessAccounts(virtualMachineOids);
+                    List<Long> allAccountOids = getAllBusinessAccountsForVMs(virtualMachineOids);
                     if (allAccountOids.size() == 0) {
                         logger.error("Group / Resource Group does not contain any business accounts.");
                         continue;
@@ -523,6 +516,45 @@ public class ReservedInstancesService implements IReservedInstancesService {
         return buildReservedInstanceApiDTO(reservedInstanceBoughtList);
     }
 
+    private List<Long> aggrgegateAccountOidsForBillingFamily(List<Long> oidList) {
+        List<Long> aggregatedAccountOids = new ArrayList<>();
+        // First check if the oids we have is that of billing family or account oids
+        if (isBillingFamily(oidList)) {
+            //dealing with a billing family
+            //For every billing family, get all it's account OIDs and aggregate them.
+            for (Long billingFamilyOid : oidList) {
+                final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
+                aggregatedAccountOids.addAll(scope.getScopeOids());
+            }
+        } else {
+            // dealing with an account
+            aggregatedAccountOids.addAll(getAllBusinessAccounts(oidList.stream().collect(Collectors.toSet())));
+        }
+        return aggregatedAccountOids;
+    }
+
+    /**
+     * Given a list of oids, we check the first oid to determine if this list contains a list of billing family oids or
+     * business account oids. Please note that the list is expected to contain a homogenous list of oids. i.e they should
+     * all be either billing family oids or business account oids. A mix of billing family oids or business account oids
+     * is not handled.
+     *
+     * @param oidList a homogenous list of billing family oids or business account oids.
+     * @return boolean indicating if oid list contains billingFamily oids or not. A false indicates it conatins business account oids.
+     */
+    private boolean isBillingFamily(List<Long> oidList) {
+        Long oid = oidList.get(0);
+        logger.info("Using the first oid in the list {} to determine if oid is a billing family or a business account", oid);
+        Optional<Grouping> group = groupExpander.getGroup(Long.toString(oid));
+        if (group.isPresent() && CommonDTO.GroupDTO.GroupType.BILLING_FAMILY  == group.get().getDefinition().getType()) {
+            logger.info("Oid {} is a Billing Family", oid);
+            return true;
+        } else {
+            logger.info("Oid {} is a Business Account", oid);
+            return false;
+        }
+    }
+
     private Set<Long> getVmOids(List<Long> oidList) {
         final Set<Long> virtualMachineOids = new HashSet<>();
         for (Long groupOid : oidList) {
@@ -553,13 +585,16 @@ public class ReservedInstancesService implements IReservedInstancesService {
         return virtualMachineOids;
     }
 
-
-    private List<Long> getAllBusinessAccounts(Set<Long> virtualMachineOids) {
+    private List<Long> getAllBusinessAccountsForVMs (Set<Long> virtualMachineOids) {
         // Given a Set of vm oids, get the billing family that they belong to and return all business accounts within the BF
         // For every VM, get a list of the Business Accounts associated with them
-        List<Long> accountOids = new ArrayList<>();
         final Set<Long> businessAccountOids = repositoryApi.getOwningBusinessAccount(virtualMachineOids)
-                        .getEntities().map(a -> a.getOid()).collect(Collectors.toSet());
+                .getEntities().map(a -> a.getOid()).collect(Collectors.toSet());
+        return getAllBusinessAccounts(businessAccountOids);
+    }
+
+    private List<Long> getAllBusinessAccounts(Set<Long> businessAccountOids) {
+        List<Long> accountOids = new ArrayList<>();
 
         // For every account, get the billing family that it belongs to
         final GroupDTO.GetGroupsForEntitiesResponse groupsForEntitiesResponse = groupServiceBlockingStub.getGroupsForEntities(
