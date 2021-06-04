@@ -24,9 +24,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -35,6 +32,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
@@ -1665,6 +1665,35 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.DTUUtilization);
         testUtilizationSettings(EntityType.DATABASE_SERVER, CommodityType.STORAGE_AMOUNT,
                 EntitySettingSpecs.ResizeTargetUtilizationStorageAmount);
+    }
+
+    /**
+     * Tests application of RQ utilization setting.
+     */
+    @Test
+    public void testReadyQueueUtilizationThresholdSetting() {
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q1_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q2_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q3_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q4_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q5_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q6_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q7_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q8_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q16_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q32_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
+        testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.Q64_VCPU,
+                EntitySettingSpecs.ReadyQueueUtilization);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
