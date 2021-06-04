@@ -222,7 +222,8 @@ public class RepositoryComponentConfig {
     @Bean
     public MySQLPlanEntityStore mySQLPlanEntityStore() {
         return new MySQLPlanEntityStore(repositoryDBConfig.dsl(), partialEntityConverter(),
-            new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize);
+            new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize,
+                userSessionConfig.userSessionContext());
     }
 
     /**

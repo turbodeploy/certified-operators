@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 import javaslang.control.Either;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
@@ -92,6 +93,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
     private final PlanEntityFilterConverter planEntityFilterConverter;
 
+    private final UserSessionContext userSessionContext;
+
     public ArangoRepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
                                       @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                       @Nonnull final GraphDBService graphDBService,
@@ -99,7 +102,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                                       @Nonnull final PartialEntityConverter partialEntityConverter,
                                       final int maxEntitiesPerChunk,
                                       @Nonnull final PlanEntityStore planEntityStore,
-                                      @Nonnull final PlanEntityFilterConverter planEntityFilterConverter) {
+                                      @Nonnull final PlanEntityFilterConverter planEntityFilterConverter,
+                                      @Nonnull final UserSessionContext userSessionContext) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
         this.graphDBService = Objects.requireNonNull(graphDBService);
@@ -108,6 +112,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
         this.planEntityStore = planEntityStore;
         this.planEntityFilterConverter = planEntityFilterConverter;
+        this.userSessionContext = userSessionContext;
     }
 
     private boolean validateDeleteTopologyRequest(DeleteTopologyRequest request,
@@ -214,7 +219,8 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                     final RepositoryDTO.RetrieveTopologyResponse.Builder responseChunkBuilder =
                         RepositoryDTO.RetrieveTopologyResponse.newBuilder();
                     chunk.forEach(e -> responseChunkBuilder.addEntities(
-                        partialEntityConverter.createPartialEntity(e.getEntity(), topologyRequest.getReturnType())));
+                        partialEntityConverter.createPartialEntity(e.getEntity(), topologyRequest.getReturnType(),
+                                userSessionContext)));
                     responseObserver.onNext(responseChunkBuilder.build());
                 }
             }
@@ -303,7 +309,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         Iterators.partition(filteredEntities.iterator(), maxEntitiesPerChunk).forEachRemaining(chunk -> {
             PartialEntityBatch.Builder batch = PartialEntityBatch.newBuilder();
             chunk.forEach(e -> batch.addEntities(
-                partialEntityConverter.createPartialEntity(e, request.getReturnType())));
+                partialEntityConverter.createPartialEntity(e, request.getReturnType(), userSessionContext)));
 
             logger.debug("Sending entity batch of {} items", batch.getEntitiesCount());
             responseObserver.onNext(batch.build());

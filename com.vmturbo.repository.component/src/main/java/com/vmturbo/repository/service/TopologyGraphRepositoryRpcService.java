@@ -100,7 +100,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                     .map(topo -> {
                         Stream<RepoGraphEntity> entities = filterEntityByType(request, topo.entityGraph()
                                 .getEntities(ImmutableSet.copyOf(request.getEntityOidsList())));
-                        return partialEntityConverter.createPartialEntities(entities, request.getReturnType());
+                        return partialEntityConverter.createPartialEntities(entities, request.getReturnType(), userSessionContext);
                     })
                     .orElse(Stream.empty());
             } else {
@@ -109,7 +109,8 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                     .map(projectedTopo -> projectedTopo.getEntities(
                             ImmutableSet.copyOf(request.getEntityOidsList()),
                             ImmutableSet.copyOf(request.getEntityTypeList()))
-                        .map(topoEntity -> partialEntityConverter.createPartialEntity(topoEntity, request.getReturnType())))
+                        .map(topoEntity -> partialEntityConverter.createPartialEntity(topoEntity, request.getReturnType(),
+                                userSessionContext)))
                     .orElse(Stream.empty());
             }
 

@@ -28,6 +28,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityAndCombinedStats;
@@ -60,7 +61,6 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
 import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**
@@ -117,6 +117,8 @@ public class PlanStatsService {
      */
     private final int maxEntitiesPerChunk;
 
+    private final UserSessionContext userSessionContext;
+
     /**
      * Create a service for retrieving plan entity stats.
      *
@@ -129,10 +131,12 @@ public class PlanStatsService {
     public PlanStatsService(@Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
                             @Nonnull final EntityStatsPaginator entityStatsPaginator,
                             @Nonnull final PartialEntityConverter partialEntityConverter,
+                            @Nonnull final UserSessionContext userSessionContext,
                             final int maxEntitiesPerChunk) {
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
         this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
+        this.userSessionContext = userSessionContext;
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
     }
 
@@ -230,7 +234,8 @@ public class PlanStatsService {
                     final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
                     final PlanEntityStats planEntityStat = PlanEntityStats.newBuilder()
                         .setPlanEntity(partialEntityConverter
-                            .createPartialEntity(entityAndStats.entity.getEntity(), entityReturnType))
+                            .createPartialEntity(entityAndStats.entity.getEntity(), entityReturnType,
+                                    userSessionContext))
                         .setPlanEntityStats(entityAndStats.stats).build();
                     planEntityStatsChunkBuilder.addEntityStats(planEntityStat);
                 });
@@ -613,14 +618,16 @@ public class PlanStatsService {
                         combinedStatsBuilder.mergeFrom(sourceEntityAndStats.stats.build());
                         planEntityAndCombinedStatsBuilder
                             .setPlanSourceEntity(partialEntityConverter
-                                .createPartialEntity(sourceEntityAndStats.entity.getEntity(), returnType))
+                                .createPartialEntity(sourceEntityAndStats.entity.getEntity(), returnType,
+                                        userSessionContext))
                             .setPlanCombinedStats(combinedStatsBuilder);
                     }
                     if (projectedEntityAndStats != null) {
                         combinedStatsBuilder.mergeFrom(projectedEntityAndStats.stats.build());
                         planEntityAndCombinedStatsBuilder
                             .setPlanProjectedEntity(partialEntityConverter
-                                .createPartialEntity(projectedEntityAndStats.entity.getEntity(), returnType))
+                                .createPartialEntity(projectedEntityAndStats.entity.getEntity(), returnType,
+                                        userSessionContext))
                             .setPlanCombinedStats(combinedStatsBuilder);
                     }
                     planEntityAndCombinedStatsChunkBuilder

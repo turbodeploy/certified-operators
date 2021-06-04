@@ -24,6 +24,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Record1;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -62,6 +63,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
     private final int insertionChunkSize;
     private final int deletionChunkSize;
     private final SupplyChainCalculator supplyChainCalculator;
+    private final UserSessionContext userSessionContext;
 
     /**
      * Public constructor; should be called from a Spring configuration.
@@ -74,17 +76,20 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
      *     store for plans are calculated using the same rules we have in realtime.
      * @param insertionChunkSize Batch insert chunk size for ingestion.
      * @param deletionChunkSize Batch delete chunk size for plan deletion.
+     * @param userSessionContext the session of the user.
      */
     public MySQLPlanEntityStore(final DSLContext dsl,
             final PartialEntityConverter partialEntityConverter,
             final SupplyChainCalculator supplyChainCalculator,
             final int insertionChunkSize,
-            final int deletionChunkSize) {
+            final int deletionChunkSize,
+            final UserSessionContext userSessionContext) {
         this.dsl = dsl;
         this.partialEntityConverter = partialEntityConverter;
         this.insertionChunkSize = insertionChunkSize;
         this.deletionChunkSize = deletionChunkSize;
         this.supplyChainCalculator = supplyChainCalculator;
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -241,7 +246,7 @@ public class MySQLPlanEntityStore implements PlanEntityStore {
 
         // TODO - for minimal types we can keep info out of the blobs.
         return getEntities(conditions)
-            .map(e -> partialEntityConverter.createPartialEntity(e, partialEntityType));
+            .map(e -> partialEntityConverter.createPartialEntity(e, partialEntityType, userSessionContext));
     }
 
     @Nonnull

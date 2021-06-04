@@ -22,6 +22,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -132,8 +133,8 @@ public class MySQLPlanEntityStoreTest {
     @Before
     public void setup() {
         planEntityStore = new MySQLPlanEntityStore(dbConfig.getDslContext(), partialEntityConverter,
-                supplyChainCalculator, 1, 1);
-        when(partialEntityConverter.createPartialEntity(any(), any())).thenAnswer(invocationOnMock -> {
+                supplyChainCalculator, 1, 1, mock(UserSessionContext.class));
+        when(partialEntityConverter.createPartialEntity(any(), any(), any())).thenAnswer(invocationOnMock -> {
             TopologyEntityDTOOrBuilder dto = invocationOnMock.getArgumentAt(0, TopologyEntityDTOOrBuilder.class);
             if (dto instanceof TopologyEntityDTO.Builder) {
                 return PartialEntity.newBuilder()

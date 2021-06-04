@@ -33,6 +33,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -89,10 +90,16 @@ public class PlanStatsServiceTest {
     private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(liveTopologyStore);
 
     /**
+     * The session of the user.
+     */
+    private UserSessionContext userSessionContext =  mock(UserSessionContext.class);
+
+    /**
      * The class under test.
      */
     private PlanStatsService planStatsService =
-        new PlanStatsService(paginationParamsFactory, entityStatsPaginator, partialEntityConverter, 10);
+        new PlanStatsService(paginationParamsFactory, entityStatsPaginator, partialEntityConverter,
+                userSessionContext, 10);
 
     /**
      * Allow certain unit tests to declare expected exceptions.
@@ -194,7 +201,7 @@ public class PlanStatsServiceTest {
         assertThat(returnedPaginationResponse, is(paginationResponse));
         assertThat(returnedPlanEntityStats, is(Collections.singletonList(PlanEntityStats.newBuilder()
             .setPlanEntity(partialEntityConverter
-                .createPartialEntity(originalEntity.getEntity(), entityReturnType))
+                .createPartialEntity(originalEntity.getEntity(), entityReturnType, userSessionContext))
             .setPlanEntityStats(statsBuilder)
             .build())));
     }
@@ -290,7 +297,7 @@ public class PlanStatsServiceTest {
         assertThat(returnedPaginationResponse, is(paginationResponse));
         assertThat(returnedPlanEntityStats, is(Collections.singletonList(PlanEntityStats.newBuilder()
             .setPlanEntity(partialEntityConverter
-                .createPartialEntity(topologyEntityDTO.getEntity(), entityReturnType))
+                .createPartialEntity(topologyEntityDTO.getEntity(), entityReturnType, userSessionContext))
             .setPlanEntityStats(statsBuilder)
             .build())));
     }
