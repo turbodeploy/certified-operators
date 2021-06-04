@@ -498,6 +498,12 @@ public class ReservedInstanceServiceTest {
                         Cost.GetReservedInstanceBoughtByFilterResponse.newBuilder()
                                         .addReservedInstanceBoughts(riBought).build();
 
+        GroupDTO.GroupDefinition groupDefinition = GroupDTO.GroupDefinition.newBuilder().setType(CommonDTO.GroupDTO.GroupType.BILLING_FAMILY).build();
+        Grouping grouping = Grouping.newBuilder().setDefinition(groupDefinition).addExpectedTypes(
+                GroupDTO.MemberType.newBuilder().setEntity(EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .build()).build();
+        Mockito.when(groupExpander.getGroup(Long.toString(bfOid))).thenReturn(Optional.of(grouping));
+
         final ApiId apiId = Mockito.mock(ApiId.class);
         Mockito.when(apiId.getScopeOids()).thenReturn(Collections.singleton(baOid));
         Mockito.when(uuidMapper.fromOid(bfOid)).thenReturn(apiId);
