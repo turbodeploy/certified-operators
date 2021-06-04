@@ -88,7 +88,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private static final TraxNumber FULL = traxConstant(1.0, "100%");
 
-    private static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
+    public static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
                                         EntityType.VIRTUAL_MACHINE_VALUE,
                                         EntityType.DATABASE_SERVER_VALUE,
                                         EntityType.DATABASE_VALUE,
