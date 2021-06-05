@@ -43,7 +43,9 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
@@ -127,7 +129,11 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                         .thenReturn(Collections.singletonList(ucsTarget));
         when(targetStore.getProbeTargets(vcProbeId))
                         .thenReturn(Collections.singletonList(ucsVcenterTarget));
-        when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
+        when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.FABRIC.getCategory())
+                .setUiProbeCategory(ProbeCategory.FABRIC_AND_NETWORK.getCategory())
+                .setProbeType(SDKProbeType.UCS.getProbeType())
+                .build()));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.FABRIC))
                         .thenReturn(Collections.singletonList(ucsProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))

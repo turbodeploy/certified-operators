@@ -247,7 +247,7 @@ public class StitchingOperationStoreTest {
     }
 
     /**
-     * Add two kubernetes probes with stitchingMergeKuberenetesProbeTypes set to true. Make sure
+     * Add two kubernetes probes with stitchingMergeKubernetesProbeTypes set to true. Make sure
      * that the set of operations gets created only once .
      * This special behavior should go away once OM-70926 is implemented.
      * @throws ProbeException exceptions thrown by the stitching library
@@ -276,7 +276,7 @@ public class StitchingOperationStoreTest {
     }
 
     /**
-     * Add two kubernetes probes with stitchingMergeKuberenetesProbeTypes set to false. Make sure
+     * Add two kubernetes probes with stitchingMergeKubernetesProbeTypes set to false. Make sure
      * that the set of operations gets created each time a new probe is added.
      * @throws ProbeException exceptions thrown by the stitching library
      */

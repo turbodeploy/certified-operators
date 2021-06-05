@@ -26,8 +26,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
@@ -237,6 +239,16 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
                 .thenReturn(Collections.singletonList(customProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.CLOUD_NATIVE))
                 .thenReturn(Collections.singletonList(kubernetesProbeId));
+        when(probeStore.getProbe(customProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setUiProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setProbeType(SDKProbeType.UDT.getProbeType())
+                .build()));
+        when(probeStore.getProbe(kubernetesProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setUiProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setProbeType(SDKProbeType.KUBERNETES.getProbeType())
+                .build()));
     }
 
     private Map<Long, TopologyEntityDTO.Builder> stitch(StitchingContext stitchingContext) {
