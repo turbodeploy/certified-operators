@@ -16,7 +16,15 @@ fi
 # generated nginx.conf file. This controls the number of worker processes spawned by nginx.
 # This defaults to 1 (the nginx default value), if $WORKER_PROCESSES is not set.
 if [ "$WORKER_PROCESSES" == "" ]; then
-    export WORKER_PROCESSES=1
+    export WORKER_PROCESSES=2
+fi
+
+if [ "$SSL_PROTOCOLS" == "" ]; then
+    export SSL_PROTOCOLS='TLSv1.2'
+fi
+
+if [ "$SSL_CIPHERS" == "" ]; then
+    export SSL_CIPHERS='EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4'
 fi
 
 if [ "$DNS_RESOLVER" == "" ]; then
@@ -35,7 +43,7 @@ if [ "$UI" == "" ]; then
     export UI=unset
 fi
 
-envsubst '${API} ${UI} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
+envsubst '${API} ${UI} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS} ${SSL_PROTOCOLS} ${SSL_CIPHERS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
 
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
