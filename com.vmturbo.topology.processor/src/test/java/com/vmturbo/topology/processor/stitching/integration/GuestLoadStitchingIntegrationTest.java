@@ -33,7 +33,9 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityOid;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
@@ -118,6 +120,11 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         when(targetStore.getProbeTargets(vcProbeId))
                 .thenReturn(Collections.singletonList(vcTarget));
         when(probeStore.getProbe(apmProbeId)).thenReturn(Optional.empty());
+        when(probeStore.getProbe(apmProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.APPLICATION_SERVER.getCategory())
+                .setUiProbeCategory(ProbeCategory.APPLICATION_SERVER.getCategory())
+                .setProbeType("APM")
+                .build()));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.GUEST_OS_PROCESSES))
                 .thenReturn(Collections.singletonList(apmProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))

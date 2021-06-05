@@ -15,8 +15,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.Builder;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
@@ -31,7 +31,8 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * - A match is based on the VM id
  */
 
-public class AwsBillingStitchingOperation implements StitchingOperation<String, String> {
+public class AwsBillingStitchingOperation extends
+        AbstractExternalSignatureCachingStitchingOperation<String, String> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -62,7 +63,7 @@ public class AwsBillingStitchingOperation implements StitchingOperation<String, 
     }
 
     @Override
-    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
         return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
