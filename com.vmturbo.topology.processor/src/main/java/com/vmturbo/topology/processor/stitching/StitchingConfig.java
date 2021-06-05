@@ -105,8 +105,8 @@ public class StitchingConfig {
     /**
      * Feature flag for caching stitching operations for kubernetes probes
      */
-    @Value("${stitchingMergeKuberenetesProbeTypes:false}")
-    private boolean stitchingMergeKuberenetesProbeTypes;
+    @Value("${stitchingMergeKubernetesProbeTypes:true}")
+    private boolean stitchingMergeKubernetesProbeTypes;
 
     @Autowired
     private ClockConfig clockConfig;
@@ -130,7 +130,7 @@ public class StitchingConfig {
 
     @Bean
     public StitchingOperationStore stitchingOperationStore() {
-        return new StitchingOperationStore(stitchingOperationLibrary(), stitchingMergeKuberenetesProbeTypes);
+        return new StitchingOperationStore(stitchingOperationLibrary(), stitchingMergeKubernetesProbeTypes);
     }
 
     @Bean

@@ -1,6 +1,7 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -43,6 +44,18 @@ import com.vmturbo.stitching.journal.JournalableOperation;
  */
 public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
     extends JournalableOperation {
+
+    /**
+     * Called once for each operation when StitchingStage is started. Gives operation a chance to
+     * do anything needed once per stitching stage like clearing caches and setting up any
+     * internal bookkeeping needed for generating signatures, for example.
+     *
+     * @param stitchingScopeFactory factory that provides access to entities in the
+     * stitching context.
+     */
+    void initializeOperationBeforeStitching(@Nonnull StitchingScopeFactory<StitchingEntity>
+            stitchingScopeFactory);
+
     /**
      * Get the scope for this {@link StitchingOperation}. The {@link StitchingScope} returned determines
      * which entities are provided as input to the {@link #stitch(Collection, StitchingChangesBuilder)}
@@ -62,6 +75,23 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      */
     @Nonnull
     Optional<StitchingScope<StitchingEntity>> getScope(
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId);
+
+    /**
+     * Return a Map of external signature to a collection of StitchingEntities that have that
+     * signature. The expectation is that the caller will call this method once per operation
+     * during main stitching and avoid having to recompute the external signatures for each target
+     * being stitched, which is wasteful.
+     *
+     * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
+     *                                {@link StitchingOperation}.
+     * @param targetId the target id of the internal target we are trying to stitch.
+     * @return Map of external signatures to Collections of StitchingEntities that match the
+     * signatures.
+     */
+    @Nonnull
+    Map<EXTERNAL_SIGNATURE_TYPE, Collection<StitchingEntity>> getExternalSignatures(
             @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
             long targetId);
 
@@ -108,26 +138,6 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      *         this entity during matching.
      */
     Collection<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull StitchingEntity internalEntity);
-
-    /**
-     * Get the external signature for an external entity. External signatures will be matched against
-     * internal signatures using a map from signature to internal entity to identify entities that
-     * should be stitched with each other.
-     *
-     * The {@link EntityType} of the external entity will be guaranteed to match the entity type returned
-     * by {@link #getExternalEntityType()}. If {@link #getExternalEntityType()} returned {@link Optional#empty()},
-     * this method will never be called.
-     *
-     * External entities are defined as the entities discovered by targets other than the target
-     * that invoked the stitching operation.
-     *
-     * Return {@link Optional#empty()} to skip considering this entity during matching.
-     *
-     * @param externalEntity The external entity whose signature should be retrieved.
-     * @return The signature for the external entity. Return {@link Optional#empty()} to skip considering
-     *         this entity during matching.
-     */
-    Collection<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull StitchingEntity externalEntity);
 
     /**
      * Stitch a collection of {@link StitchingPoint}s.

@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
@@ -30,7 +30,8 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *   matches the ID or the IP address of the discovered VM
  */
 
-public class IaasVMStitchingOperation implements StitchingOperation<String, String> {
+public class IaasVMStitchingOperation extends
+        AbstractExternalSignatureCachingStitchingOperation<String, String> {
     private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -79,7 +80,7 @@ public class IaasVMStitchingOperation implements StitchingOperation<String, Stri
     }
 
     @Override
-    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
         return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
