@@ -90,8 +90,6 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
                 Collections.singletonList(VC_PROBE_ID));
         when(probeStore.getProbeIdForType(SDKProbeType.VCENTER.getProbeType())).thenReturn(
                 Optional.of(VC_PROBE_ID));
-        when(probeStore.getProbeIdForType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType()))
-                .thenReturn(Optional.of(VDI_TARGET_ID));
 
         journalStringBuilder = new StringBuilder(2048);
 

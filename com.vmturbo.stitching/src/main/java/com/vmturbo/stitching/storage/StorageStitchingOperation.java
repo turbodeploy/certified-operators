@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
@@ -47,8 +47,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *                       SC
  */
 @Deprecated
-public class StorageStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+public class StorageStitchingOperation implements StitchingOperation<String, String> {
     private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -78,7 +77,7 @@ public class StorageStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+    public Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
         return getInternalSignature(externalEntity);
     }
 

@@ -47,8 +47,8 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
  *                                 (server) side.
  */
 public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT>
-                extends AbstractExternalSignatureCachingStitchingOperation<InternalSignatureT,
-        ExternalSignatureT> {
+                implements
+                StitchingOperation<InternalSignatureT, ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
     private static final String INTERNAL = "internal";
@@ -84,14 +84,6 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         initReplacementEntityMap();
     }
 
-    @Override
-    protected boolean isCachingEnabled() {
-        // Caching should be disabled if and only if a scope is defined and that scope is PARENT
-        // scope
-        return matchingInformation.getStitchingScope().map(scope -> scope.getScopeType()
-                != StitchingScopeType.PARENT).orElse(true);
-    }
-
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
@@ -104,14 +96,14 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                 == StitchingScopeType.PARENT) {
             logger.trace("Returning parent scope for stitching operation with target {}",
                     targetId);
-            return getExternalEntityType().map(externalEntityType -> stitchingScopeFactory
-                    .parentTargetEntityType(externalEntityType, targetId));
+            return Optional.of(stitchingScopeFactory
+                    .parentTargetEntityType(getExternalEntityType().get(), targetId));
         }
         if (categoriesToStitchWith.isEmpty()) {
             return Optional.empty();
         }
-        return getExternalEntityType().map(externalEntityType ->stitchingScopeFactory
-                .multiProbeCategoryEntityTypeScope(categoriesToStitchWith, externalEntityType));
+        return Optional.of(stitchingScopeFactory
+                .multiProbeCategoryEntityTypeScope(categoriesToStitchWith, getExternalEntityType().get()));
     }
 
     /**
@@ -168,7 +160,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     }
 
     @Override
-    protected Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
         return getSignatures(entity, matchingInformation::getExternalMatchingData, EXTERNAL);
     }
 

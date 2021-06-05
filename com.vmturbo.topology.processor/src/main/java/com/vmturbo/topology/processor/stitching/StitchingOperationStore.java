@@ -61,14 +61,14 @@ public class StitchingOperationStore {
     /**
      * Creates an instance of a StitchingOperationStore
      * @param stitchingOperationLibrary A library of stitching operations.
-     * @param stitchingMergeKubernetesProbeTypes Whether or not to cache stitching operations for
+     * @param stitchingMergeKuberenetesProbeTypes Whether or not to cache stitching operations for
      *                                   kubernetes probes
      */
     public StitchingOperationStore(@Nonnull final StitchingOperationLibrary stitchingOperationLibrary,
-                                   final boolean stitchingMergeKubernetesProbeTypes) {
+                                   final boolean stitchingMergeKuberenetesProbeTypes) {
         this.stitchingOperationLibrary = Objects.requireNonNull(stitchingOperationLibrary);
         this.cachedStitchingOperations =
-            new CachedStitchingOperations(stitchingMergeKubernetesProbeTypes);
+            new CachedStitchingOperations(stitchingMergeKuberenetesProbeTypes);
     }
 
     /**
@@ -282,17 +282,17 @@ public class StitchingOperationStore {
 
         private static final String KUBERNETES = "Kubernetes";
 
-        private final boolean stitchingMergeKubernetesProbeTypes;
+        private final boolean stitchingMergeKuberenetesProbeTypes;
         private final Map<String, List<StitchingOperation<?, ?>>> cachedOperationsPerProbeType =
             new HashMap<>();
 
-        CachedStitchingOperations(final boolean stitchingMergeKubernetesProbeTypes) {
-            this.stitchingMergeKubernetesProbeTypes = stitchingMergeKubernetesProbeTypes;
+        CachedStitchingOperations(final boolean stitchingMergeKuberenetesProbeTypes) {
+            this.stitchingMergeKuberenetesProbeTypes = stitchingMergeKuberenetesProbeTypes;
         }
 
         List<StitchingOperation<?, ?>> createOrGetCachedStitchingOperationsFromProbeInfo(@Nonnull final ProbeInfo probeInfo,
                                                                               @Nonnull final Set<ProbeCategory> probeScope) {
-            if (probeInfo.getProbeType().startsWith(KUBERNETES) && stitchingMergeKubernetesProbeTypes) {
+            if (probeInfo.getProbeType().startsWith(KUBERNETES) && stitchingMergeKuberenetesProbeTypes) {
                 return createStitchingOpsForKubernetes(probeInfo, probeScope);
             }
             return createStitchingOperationsFromProbeInfo(probeInfo, probeScope);

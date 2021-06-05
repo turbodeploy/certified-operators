@@ -18,9 +18,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.DTOFieldSpecImpl;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
@@ -46,8 +46,7 @@ import com.vmturbo.topology.graph.OwnershipGraph;
  * up-to-date. For example, if AWS says BA1 owns BA2, but AWS Billing says no one owns BA2, we
  * assume AWS is correct, and in the final topology BA1 will own BA2.
  */
-public class AwsBillingBusinessAccountStitchingOperation extends
-        AbstractExternalSignatureCachingStitchingOperation<String, String> {
+public class AwsBillingBusinessAccountStitchingOperation implements StitchingOperation<String, String> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -78,7 +77,7 @@ public class AwsBillingBusinessAccountStitchingOperation extends
     }
 
     @Override
-    protected Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
         return Collections.singleton(externalEntity.getLocalId());
     }
 

@@ -31,7 +31,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -46,7 +45,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.AbstractExternalSignatureCachingStitchingOperation;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -213,66 +211,6 @@ public class StitchingManagerTest {
         assertEquals("updated-bar", vmBar.getDisplayName());
     }
 
-    /**
-     * Test that when we have a stitching operation with two internal targets both targets stitch
-     * properly.
-     */
-    @Test
-    public void testStitchTwoInternalTargetsWithExternalEntities() {
-        final long thirdTargetId = 9013L;
-        final long stitchingProbeId = 2424L;
-        final Target target2 = mock(Target.class);
-        final Target target3 = mock(Target.class);
-        final Map<String, StitchingEntityData> entityDataLocal =
-                ImmutableMap.<String, StitchingEntityData>builder()
-                        .put(vmFoo.getId(), nextEntity(vmFoo, firstTargetId))
-                        .put(vmBar.getId(), nextEntity(vmBar, firstTargetId))
-                        .put(otherFoo.getId(), nextEntity(otherFoo, secondTargetId))
-                        .put(otherBar.getId(), nextEntity(otherBar, thirdTargetId))
-                .build();
-        final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestNameWithScope();
-        when(stitchingOperationStore.getAllOperations())
-                .thenReturn(Collections.singletonList(new ProbeStitchingOperation(stitchingProbeId,
-                        stitchingOperation)));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(4,
-                targetStore).setIdentityProvider(mock(IdentityProviderImpl.class));
-        entityDataLocal.values()
-                .forEach(entity -> contextBuilder.addEntity(entity, entityDataLocal));
-        final StitchingContext stitchingContext = spy(contextBuilder.build());
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
-
-        when(targetStore.getTarget(firstTargetId)).thenReturn(Optional.of(target));
-        when(targetStore.getTarget(secondTargetId)).thenReturn(Optional.of(target2));
-        when(targetStore.getTarget(thirdTargetId)).thenReturn(Optional.of(target3));
-        when(targetStore.getProbeTargets(stitchingProbeId)).thenReturn(Lists.newArrayList(target2,
-                target3));
-        when(target2.getId()).thenReturn(secondTargetId);
-        when(target3.getId()).thenReturn(thirdTargetId);
-        when(probeStore.getProbe(stitchingProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
-                .setProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE.getCategory())
-                .setUiProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE.getCategory())
-                .setProbeType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType())
-                .build()));
-        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
-                .thenReturn(Collections.singletonList(probeId));
-
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore,
-                targetStore, cpuCapacityStore);
-
-        stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor
-                .capture());
-
-        final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
-                .map(StitchingEntity::getLocalId)
-                .collect(Collectors.toList());
-
-        assertThat(removedEntities, containsInAnyOrder(vmFoo.getId(), vmBar.getId()));
-        assertEquals("updated-other-foo", otherFoo.getDisplayName());
-        assertEquals("updated-other-bar", otherBar.getDisplayName());
-    }
-
     @Test
     public void testPreStitching() {
         when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
@@ -363,26 +301,12 @@ public class StitchingManagerTest {
             this.vmToUpdate = Objects.requireNonNull(vmToUpdate);
         }
 
-        @Override
-        public void initializeOperationBeforeStitching(
-                @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
-
-        }
-
         @Nonnull
         @Override
         public Optional<StitchingScope<StitchingEntity>> getScope(
                 @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
                 long targetId) {
             return Optional.empty();
-        }
-
-        @Nonnull
-        @Override
-        public Map<Void, Collection<StitchingEntity>> getExternalSignatures(
-                @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
-                long targetId) {
-            return Collections.emptyMap();
         }
 
         @Nonnull
@@ -402,6 +326,11 @@ public class StitchingManagerTest {
             return Collections.singleton(internalEntity.getLocalId());
         }
 
+        @Override
+        public Collection<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Collections.emptySet();
+        }
+
         @Nonnull
         @Override
         public TopologicalChangelog<StitchingEntity> stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
@@ -419,8 +348,7 @@ public class StitchingManagerTest {
         }
     }
 
-    public static class StitchVmsByGuestName extends
-            AbstractExternalSignatureCachingStitchingOperation<String, String> {
+    public static class StitchVmsByGuestName implements StitchingOperation<String, String> {
         @Nonnull
         @Override
         public Optional<StitchingScope<StitchingEntity>> getScope(
@@ -448,7 +376,7 @@ public class StitchingManagerTest {
         }
 
         @Override
-        protected Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+        public Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
             return Collections.singleton(externalEntity.getEntityBuilder().getVirtualMachineData()
                             .getGuestName());
         }
@@ -464,17 +392,6 @@ public class StitchingManagerTest {
             });
 
             return result.build();
-        }
-    }
-
-    public static class StitchVmsByGuestNameWithScope extends StitchVmsByGuestName {
-        @Nonnull
-        @Override
-        public Optional<StitchingScope<StitchingEntity>> getScope(
-                @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
-                long targetId) {
-            return Optional.of(stitchingScopeFactory.probeCategoryEntityTypeScope(
-                    ProbeCategory.HYPERVISOR, EntityType.VIRTUAL_MACHINE));
         }
     }
 
