@@ -21,7 +21,9 @@ import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
@@ -77,7 +79,11 @@ public class CloudfoundryStitchingIntegrationTest extends StitchingIntegrationTe
                 .thenReturn(Collections.singletonList(apmTarget));
         when(targetStore.getProbeTargets(vcProbeId))
                 .thenReturn(Collections.singletonList(vcTarget));
-        when(probeStore.getProbe(cloudFoundryProbeId)).thenReturn(Optional.empty());
+        when(probeStore.getProbe(cloudFoundryProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setUiProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setProbeType(SDKProbeType.CLOUD_FOUNDRY.getProbeType())
+                .build()));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.PAAS))
                 .thenReturn(Collections.singletonList(cloudFoundryProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))

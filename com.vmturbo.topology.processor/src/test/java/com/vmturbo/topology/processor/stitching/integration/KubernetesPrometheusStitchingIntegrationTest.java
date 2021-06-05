@@ -28,6 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
@@ -321,7 +322,11 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .thenReturn(Collections.singletonList(kubernetesTarget));
         when(targetStore.getProbeTargets(prometheusProbeId))
             .thenReturn(Collections.singletonList(prometheusTarget));
-        when(probeStore.getProbe(prometheusProbeId)).thenReturn(Optional.empty());
+        when(probeStore.getProbe(prometheusProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setUiProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setProbeType("Prometheus")
+                .build()));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.GUEST_OS_PROCESSES))
             .thenReturn(Collections.singletonList(prometheusProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.CLOUD_NATIVE))
