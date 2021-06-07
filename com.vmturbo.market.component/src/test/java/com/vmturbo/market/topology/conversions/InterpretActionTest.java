@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
@@ -51,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -554,6 +557,7 @@ public class InterpretActionTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         CloudTopology cloudTopology = mock(CloudTopology.class);
+        TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
         when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
@@ -606,7 +610,7 @@ public class InterpretActionTest {
                                 .setPerformance(Performance.getDefaultInstance())))
                 .build();
         final List<Action> actionList = topologyConverter.interpretAction(actionTO, projectedTopology,
-                originalCloudTopology, Collections.emptyMap(), null);
+                originalCloudTopology, Collections.emptyMap(), topologyCostCalculator);
         assertEquals(1, actionList.size());
         Action action = actionList.get(0);
         assertNotNull(action);
@@ -1086,6 +1090,8 @@ public class InterpretActionTest {
             }
         }
 
+        EntityReservedInstanceCoverage ricovergae = EntityReservedInstanceCoverage
+                .newBuilder().putCouponsCoveredByRi(123L, 4).setEntityCouponCapacity(6d).build();
         MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
         MarketTier destMarketTier = new OnDemandMarketTier(m1Medium);
         when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
@@ -1094,6 +1100,7 @@ public class InterpretActionTest {
         when(mockCloudTc.isMarketTier(2l)).thenReturn(true);
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(true))).thenReturn(Optional.of(m1Large.getOid()));
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(false))).thenReturn(Optional.of(m1Medium.getOid()));
+        when(mockCloudTc.getRiCoverageForEntity(anyLong())).thenReturn(Optional.of(ricovergae));
 
         ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
                         null, null, Arrays.asList());
@@ -1102,7 +1109,7 @@ public class InterpretActionTest {
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(0d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
         // Total Source cost = 20
@@ -1153,8 +1160,8 @@ public class InterpretActionTest {
 
         assertTrue(!actions.isEmpty());
         Action action = actions.get(0);
-        // Savings = 19 - 17 = 2
-        assertEquals(2, action.getSavingsPerHour().getAmount(), 0.0001);
+        // Savings = 17 - 16 = 1
+        assertEquals(1, action.getSavingsPerHour().getAmount(), 0.0001);
         assertThat(action.getInfo().getScale().getChanges(0).getSource().getId(), is(m1Large.getOid()));
         assertThat(action.getInfo().getScale().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
         assertThat(action.getInfo().getScale().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
@@ -1166,6 +1173,15 @@ public class InterpretActionTest {
         assertThat(action.getInfo().getScale().getTarget().getId(), is(vm.getOid()));
         assertThat(action.getInfo().getScale().getTarget().getType(), is(vm.getEntityType()));
         assertThat(action.getInfo().getScale().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
+
+        //cloud savings details
+        assertEquals(16, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
+        assertEquals(11, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
+        assertEquals(17, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
+        assertEquals(13, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
+        assertEquals(6, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getCapacity().getCoupons(), 0.0001);
+        assertEquals(4, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getUsed().getCoupons(), 0.0001);
+
         verify(sourceCostJournal, never()).getHourlyCostFilterEntries(eq(CostCategory.STORAGE), any());
     }
 
@@ -1288,7 +1304,7 @@ public class InterpretActionTest {
 
         Action action = actions.get(0);
         assertEquals(action.getSavingsPerHour(),
-                CurrencyAmount.newBuilder().setAmount(19.0).build());
+                CurrencyAmount.newBuilder().setAmount(17.0).build());
     }
 
     /**
@@ -1340,7 +1356,6 @@ public class InterpretActionTest {
         // Destination compute cost = 9 + 1 + 2 + 5 = 19
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
                 eq(CostJournal.CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER))).thenReturn(trax(10d));
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
 
@@ -1413,7 +1428,7 @@ public class InterpretActionTest {
 
         Action action = actions.get(0);
         assertEquals(action.getSavingsPerHour(),
-                        CurrencyAmount.newBuilder().setAmount(-19.0).build());
+                        CurrencyAmount.newBuilder().setAmount(-17.0).build());
     }
 
     @Test
@@ -1460,7 +1475,6 @@ public class InterpretActionTest {
         CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         // Destination compute cost = 9 + 1 + 2 + 5 = 19
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(0d));
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(0d));
 
@@ -1543,6 +1557,6 @@ public class InterpretActionTest {
 
         Action action = actions.get(0);
         assertEquals(action.getSavingsPerHour(),
-                CurrencyAmount.newBuilder().setAmount(-19.0).build());
+                CurrencyAmount.newBuilder().setAmount(-17.0).build());
     }
 }

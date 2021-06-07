@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -268,7 +269,8 @@ public class CloudCostCalculatorTest {
         when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
 
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(businessAccount.getId(), accountPricingData);
-        cloudCostData.entityUptimePercentageByEntityId.put(DEFAULT_VM_ID, 80D);
+        cloudCostData.entityUptimeByEntityId.put(DEFAULT_VM_ID,
+                EntityUptimeDTO.newBuilder().setUptimePercentage(80D).build());
         when(topology.getConnectedRegion(DEFAULT_VM_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(DEFAULT_VM_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(DEFAULT_VM_ID)).thenReturn(Optional.of(storageTier));
@@ -357,7 +359,8 @@ public class CloudCostCalculatorTest {
                                 .setType(ReservedInstanceType.newBuilder().setTermYears(1).build()).build()).build())
                 , Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty());
 
-        cloudCostData.entityUptimePercentageByEntityId.put(DEFAULT_VM_ID, 80D);
+        cloudCostData.entityUptimeByEntityId.put(DEFAULT_VM_ID,
+                EntityUptimeDTO.newBuilder().setUptimePercentage(80D).build());
         when(topology.getConnectedRegion(DEFAULT_VM_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(DEFAULT_VM_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(DEFAULT_VM_ID)).thenReturn(Optional.of(storageTier));
