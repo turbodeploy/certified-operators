@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -59,6 +60,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -66,6 +68,7 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
@@ -770,6 +773,74 @@ public class GroupDaoTest {
         group3Tags.values().forEach(group3TagValues::addAll);
         Assert.assertEquals(Sets.newHashSet(tagName3), group3TagNames);
         Assert.assertEquals(Sets.newHashSet(tagValue31, tagValue32), group3TagValues);
+    }
+
+    /**
+     * Tests how groups are filtered in queries that contain "non-equals" tag filters.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetGroupIdsFilteredByTagsNotEqualCase() throws StoreOperationException {
+        // GIVEN
+        final Origin origin = createUserOrigin();
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final String tagName3 = "tag3";
+        final String tagValue11 = "tag1-1";
+        final String tagValue12 = "tag1-2";
+        final String tagValue2 = "tag2";
+        final String tagValue31 = "tag3-1";
+        final String tagValue32 = "tag3-2";
+        final Map<String, Collection<String>> tagNameToTagValues = ImmutableMap.of(
+                tagName1, ImmutableSet.of(tagValue11, tagValue12),
+                tagName2, Collections.singleton(tagValue2),
+                tagName3, ImmutableSet.of(tagValue31, tagValue32));
+        final GroupDefinition groupDefinition1 = createGroupDefinitionWithTags(
+                ImmutableSet.of(tagName1, tagName2), tagNameToTagValues);
+        final GroupDefinition groupDefinition2 =
+                createGroupDefinitionWithTags(Collections.singleton(tagName3), tagNameToTagValues);
+        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, true);
+
+        // WHEN (regex case)
+        Collection<Long> resultGroupIds = getGroupIdsByMapPropertyFilterNotEquals(
+                mpf -> mpf.setRegex(tagName1 + "=" + tagValue11));
+        // THEN
+        Assert.assertEquals(1, resultGroupIds.size());
+        Assert.assertEquals(OID2, resultGroupIds.iterator().next().longValue());
+
+        // WHEN (exact case)
+        resultGroupIds = getGroupIdsByMapPropertyFilterNotEquals(
+                mpf -> mpf.setKey(tagName1).addValues(tagValue11));
+        // THEN
+        Assert.assertEquals(1, resultGroupIds.size());
+        Assert.assertEquals(OID2, resultGroupIds.iterator().next().longValue());
+    }
+
+    @Nonnull
+    private GroupDefinition createGroupDefinitionWithTags(Collection<String> tagNames,
+            Map<String, Collection<String>> tagNameToTagValues) {
+        final Tags.Builder tagsBuilder = Tags.newBuilder();
+        tagNames.forEach(tagName -> tagsBuilder.putTags(tagName, TagValuesDTO.newBuilder()
+                .addAllValues(tagNameToTagValues.getOrDefault(tagName, Collections.emptySet()))
+                .build()));
+        return GroupDefinition.newBuilder(createGroupDefinition()).setTags(tagsBuilder.build())
+                .build();
+    }
+
+    @Nonnull
+    private Collection<Long> getGroupIdsByMapPropertyFilterNotEquals(
+            Function<MapFilter.Builder, MapFilter.Builder> mapFilterPopulator) {
+        final MapFilter mapFilter =
+                mapFilterPopulator.apply(MapFilter.newBuilder().setPositiveMatch(false)).build();
+        final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+                .setPropertyName(StringConstants.TAGS_ATTR)
+                .setMapFilter(mapFilter)
+                .build();
+        return groupStore.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
+                .build());
     }
 
     /**

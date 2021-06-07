@@ -1656,9 +1656,7 @@ public class GroupDAO implements IGroupStore {
             // string key=value must match the regex
             final Field<String> stringToMatch =
                     DSL.concat(GROUP_TAGS.TAG_KEY, DSL.val("="), GROUP_TAGS.TAG_VALUE);
-            tagCondition = filter.getPositiveMatch()
-                                    ? stringToMatch.likeRegex(filter.getRegex())
-                                    : stringToMatch.notLikeRegex(filter.getRegex());
+            tagCondition = stringToMatch.likeRegex(filter.getRegex());
         } else {
             // key is present in the filter
             // key must match and value must satisfy a specific predicate
@@ -1674,15 +1672,17 @@ public class GroupDAO implements IGroupStore {
                 // no restriction on the value
                 tagValueCondition = DSL.trueCondition();
             }
-            if (filter.getPositiveMatch()) {
-                tagCondition = tagKeyCondition.and(tagValueCondition);
-            } else {
-                tagCondition = tagKeyCondition.and(tagValueCondition.not());
-            }
+            tagCondition = tagKeyCondition.and(tagValueCondition);
         }
-        return GROUPING.ID.in(DSL.select(GROUP_TAGS.GROUP_ID)
-                                 .from(GROUP_TAGS)
-                                 .where(tagCondition));
+        Select<Record1<Long>> tagSubQuery = DSL.select(GROUP_TAGS.GROUP_ID)
+                .from(GROUP_TAGS)
+                .where(tagCondition);
+        if (filter.getPositiveMatch()) {
+            return GROUPING.ID.in(tagSubQuery);
+        } else {
+            return GROUPING.ID.notIn(tagSubQuery);
+        }
+
     }
 
     @Nonnull
