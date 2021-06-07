@@ -160,7 +160,10 @@ public class Suspension {
                                                 t -> t.getSettings().isSuspendable())) {
                             continue;
                         }
-                        for (Trader seller : market.getActiveSellers()) {
+                        // when we suspend a trader we remove it from activeSellers. To avoid concurrent modification,
+                        // we create a new list with candidates.
+                        List<Trader> suspensionCandidates = Lists.newArrayList(market.getActiveSellers());
+                        for (Trader seller : suspensionCandidates) {
                             // suspension candidates can be only activeSellers that canAcceptNewCustomers
                             // that are suspendable
                             if (!seller.getSettings().isSuspendable()) {
