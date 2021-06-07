@@ -211,6 +211,9 @@ public class CostJournal<ENTITY_CLASS> {
         CostSourceFilter EXCLUDE_BUY_RI_DISCOUNT_FILTER =
                 costSource -> costSource != CostSource.BUY_RI_DISCOUNT;
 
+        CostSourceFilter ON_DEMAND_RATE =
+                costSource -> costSource == CostSource.ON_DEMAND_RATE;
+
         CostSourceFilter INCLUDE_ALL = (cs) -> true;
 
         CostSourceFilter EXCLUDE_UPTIME = (cs) -> cs != CostSource.ENTITY_UPTIME_DISCOUNT;

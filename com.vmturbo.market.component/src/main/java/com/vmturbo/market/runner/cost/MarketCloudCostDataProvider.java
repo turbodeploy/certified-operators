@@ -163,7 +163,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
             // retrieve all entity uptime data
             GetEntityUptimeByFilterResponse entityUptimeResponse =
-                    entityUptimeServiceClient.getEntityUptimeByFilter(GetEntityUptimeByFilterRequest.newBuilder().build());;Map<Long, EntityUptimeDTO> uptimeByOidMap = entityUptimeResponse.getEntityUptimeByOidMap();
+                    entityUptimeServiceClient.getEntityUptimeByFilter(GetEntityUptimeByFilterRequest.newBuilder().build());
+            Map<Long, EntityUptimeDTO> uptimeByOidMap = entityUptimeResponse.getEntityUptimeByOidMap();
 
             Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
             if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType() ) {
@@ -181,16 +182,13 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                                     .filter(entry -> vmOidsSet.contains(entry.getKey()))
                                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
             }
-            final Map<Long, Double> entityUptimePercentageByOid = new HashMap<>();
-            uptimeByOidMap.entrySet().forEach(entry ->
-                    entityUptimePercentageByOid.put(entry.getKey(), entry.getValue().getUptimePercentage()));
 
             //We still use the unfiltered entity coverage map here to find the filteredCoverageMap as MCP needs this so that we can calculate the usage of RIs correctly.
             final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
                 filterCouponsCoveredByRi(coverageResponse.getCoverageByEntityIdMap(), riBoughtById.keySet());
 
-            final Optional<Double> defaultUptimePercentage = entityUptimeResponse.hasDefaultUptime() ?
-                    Optional.of(entityUptimeResponse.getDefaultUptime().getUptimePercentage())
+            final Optional<EntityUptimeDTO> defaultUptime = entityUptimeResponse.hasDefaultUptime() ?
+                    Optional.of(entityUptimeResponse.getDefaultUptime())
                     : Optional.empty();
 
             return new CloudCostData<>(coverageListMap,
@@ -198,7 +196,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     riBoughtById,
                     riSpecsById,
                     buyRIBoughtById, accountPricingDataByBusinessAccountOid,
-                    entityUptimePercentageByOid, defaultUptimePercentage);
+                    uptimeByOidMap, defaultUptime);
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }
