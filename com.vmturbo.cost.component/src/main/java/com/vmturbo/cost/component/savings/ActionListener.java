@@ -109,7 +109,8 @@ public class ActionListener implements ActionsListener {
      * Pending Action MODES. (Maybe we need to check if executable ? )
      */
     private final ImmutableSet<ActionMode> pendingActionModes = ImmutableSet.of(ActionMode.MANUAL,
-                                                                                ActionMode.RECOMMEND);
+                                                                                ActionMode.RECOMMEND,
+                                                                                ActionMode.AUTOMATIC);
     /**
      * Pending Action Entity Types.
      */
