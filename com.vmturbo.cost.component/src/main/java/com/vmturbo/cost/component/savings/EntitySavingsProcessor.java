@@ -33,6 +33,8 @@ class EntitySavingsProcessor {
 
     private final Clock clock;
 
+    private final DataRetentionProcessor dataRetentionProcessor;
+
     /**
      * Logger.
      */
@@ -47,19 +49,22 @@ class EntitySavingsProcessor {
      * @param entitySavingsStore entity savings store
      * @param entityEventsJournal entity events journal
      * @param clock clock
+     * @param dataRetentionProcessor stats retention processor.
      */
     EntitySavingsProcessor(@Nonnull EntitySavingsTracker entitySavingsTracker,
             @Nonnull TopologyEventsPoller topologyEventsPoller,
             @Nonnull RollupSavingsProcessor rollupProcessor,
             @Nonnull EntitySavingsStore entitySavingsStore,
             @Nonnull EntityEventsJournal entityEventsJournal,
-            @Nonnull final Clock clock) {
+            @Nonnull final Clock clock,
+            @Nonnull final DataRetentionProcessor dataRetentionProcessor) {
         this.topologyEventsPoller = topologyEventsPoller;
         this.entitySavingsTracker = entitySavingsTracker;
         this.rollupProcessor = rollupProcessor;
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.clock = clock;
+        this.dataRetentionProcessor = dataRetentionProcessor;
     }
 
     /**
@@ -101,6 +106,8 @@ class EntitySavingsProcessor {
 
             logger.info("Invoking RollupSavingsProcessor to process rollup.");
             rollupProcessor.process(hourlyStatsTimes);
+
+            dataRetentionProcessor.process(false);
 
             logger.info("END: Processing savings/investment. {} Hourly stats.",
                     hourlyStatsTimes.size());

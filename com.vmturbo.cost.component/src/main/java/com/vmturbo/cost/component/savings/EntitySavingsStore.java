@@ -116,6 +116,30 @@ public interface EntitySavingsStore {
             throws EntitySavingsException;
 
     /**
+     * Deletes stats records older than the given timestamp from the relevant hourly table.
+     *
+     * @param timestamp Min epoch millis for hourly stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanHourly(long timestamp);
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant daily table.
+     *
+     * @param timestamp Min epoch millis for daily stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanDaily(long timestamp);
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant monthly table.
+     *
+     * @param timestamp Min epoch millis for monthly stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanMonthly(long timestamp);
+
+    /**
      * Get metadata about last time rollup was done.
      *
      * @return Last rollup times.

@@ -102,6 +102,12 @@ public class EntitySavingsConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    /**
+     * How often to run the retention processor, default 24 hours.
+     */
+    @Value("${entitySavingsRetentionProcessorFrequencyHours:24}")
+    private Long retentionProcessorFrequencyHours;
+
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
@@ -234,7 +240,8 @@ public class EntitySavingsConfig {
     public EntitySavingsProcessor entitySavingsProcessor() {
         EntitySavingsProcessor entitySavingsProcessor =
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
-                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock());
+                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock(),
+                        dataRetentionProcessor());
 
         if (isEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();
@@ -247,6 +254,17 @@ public class EntitySavingsConfig {
         }
 
         return entitySavingsProcessor;
+    }
+
+    /**
+     * Gets the processor that cleans up old stats/audit data.
+     *
+     * @return DataRetentionProcessor.
+     */
+    @Bean
+    public DataRetentionProcessor dataRetentionProcessor() {
+        return new DataRetentionProcessor(entitySavingsStore(), auditLogWriter(),
+                getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours);
     }
 
     /**

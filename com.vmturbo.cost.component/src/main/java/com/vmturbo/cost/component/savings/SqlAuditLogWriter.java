@@ -114,7 +114,10 @@ public class SqlAuditLogWriter implements AuditLogWriter {
                     int[] insertCounts = batch.execute();
                     int totalInserted = IntStream.of(insertCounts).sum();
                     if (totalInserted < batch.size()) {
-                        logger.warn("Entity savings audit: Could only insert {} out of "
+                        // This message is common as ActionListener sends exact same action events
+                        // when those events are already present in the audit log, so change it
+                        // from warn to trace.
+                        logger.trace("Entity savings audit: Could only insert {} out of "
                                         + "batch size of {}. Total input entry count: {}. "
                                         + "Chunk size: {}", totalInserted, batch.size(),
                                 events.size(), chunkSize);
@@ -125,6 +128,14 @@ public class SqlAuditLogWriter implements AuditLogWriter {
             logger.warn("Could not write {} entity savings event audit entries to DB.",
                     events.size(), e);
         }
+    }
+
+    @Override
+    public int deleteOlderThan(long timestamp) {
+        final LocalDateTime minDate = SavingsUtil.getLocalDateTime(timestamp, clock);
+        return dsl.deleteFrom(ENTITY_SAVINGS_AUDIT_EVENTS)
+                .where(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TIME.lt(minDate))
+                .execute();
     }
 
     /**
