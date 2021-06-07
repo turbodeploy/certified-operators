@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -12,6 +13,7 @@ import javax.sql.DataSource;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -31,9 +33,11 @@ import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
 import org.mariadb.jdbc.MariaDbDataSource;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
@@ -42,6 +46,9 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
+import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
 
 /**
  * Configuration for interaction with database.
@@ -52,6 +59,7 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
  */
 @Configuration
 @EnableTransactionManagement
+@Import({DbMonitorConfig.class})
 public abstract class SQLDatabaseConfig {
 
     // hardcoded temp db user for checking root user GRANT permissions.
@@ -112,6 +120,8 @@ public abstract class SQLDatabaseConfig {
      * @return The name of the schema.
      */
     public abstract String getDbSchemaName();
+
+    public abstract String getDbUsername();
 
     @Bean
     @Primary
@@ -556,6 +566,45 @@ public abstract class SQLDatabaseConfig {
             return isSecureDBConnectionRequested ? urlBuilder
                     .queryParam("useSSL", "true")
                     .queryParam("trustServerCertificate", "true")  : urlBuilder;
+        }
+    }
+
+    @Autowired
+    private ProcessListClassifier processListClassifier;
+
+    /** Seconds between reports logged by DbMonitor. */
+    @Value("${dbMonitorIntervalSec:60}")
+    private int dbMonitorIntervalSec;
+
+    /**
+     * Time threshold for a process to be considered long-running.
+     *
+     * <p>Once the process is in that category at least two consecutive cycles, it will be logged
+     * individually.</p>
+     */
+    @Value("${longRunningQueryThresholdSecs:300}")
+    private int longRunningQueryThresholdSecs;
+
+    @Bean
+    public DbMonitor dbMonitorLoop() {
+        return new DbMonitor(processListClassifier, dsl(), dbMonitorIntervalSec,
+                longRunningQueryThresholdSecs, getDbSchemaName(), getDbUsername());
+    }
+
+    public void startDbMonitor() {
+        logger.info("Starting Database monitor");
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("db-monitor-%d")
+                .setDaemon(true)
+                .build();
+        threadFactory.newThread(this::runDbMonitor).start();
+    }
+
+    private void runDbMonitor() {
+        try {
+            dbMonitorLoop().run();
+        } catch (InterruptedException e) {
+            logger.error("Monitoring interrupted; db monitoring suspended");
         }
     }
 }

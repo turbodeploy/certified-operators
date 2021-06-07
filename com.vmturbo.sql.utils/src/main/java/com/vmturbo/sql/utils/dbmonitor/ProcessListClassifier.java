@@ -1,4 +1,4 @@
-package com.vmturbo.history.dbmonitor;
+package com.vmturbo.sql.utils.dbmonitor;
 
 import java.util.Map;
 import java.util.Map.Entry;
@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
  * <p>Classifying records can make them more understandable in the logs, and also permits summary
  * logging of multiple similar threads.</p>
  */
-class ProcessListClassifier {
+public class ProcessListClassifier {
     private static Logger logger = LogManager.getLogger();
     private final Classification classification;
 

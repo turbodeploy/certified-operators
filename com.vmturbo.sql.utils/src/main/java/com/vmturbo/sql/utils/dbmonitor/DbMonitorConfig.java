@@ -1,23 +1,18 @@
-package com.vmturbo.history.dbmonitor;
+package com.vmturbo.sql.utils.dbmonitor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-
-import com.vmturbo.history.db.HistoryDbConfig;
 
 /**
  * Main component configuration for the Group Component. Manages groups and policies.
  */
 @Configuration("dbMonitor")
-@Import({HistoryDbConfig.class})
 public class DbMonitorConfig {
 
     /**
@@ -63,14 +58,6 @@ public class DbMonitorConfig {
     @Value("${processListClassification:}")
     public String processListClassification;
 
-    /** Seconds between reports logged by DbMonitor. */
-    @Value("${dbMonitorIntervalSec:60}")
-    public int dbMonitorIntervalSec;
-
-    /** Whether DbMonitor reports should be produced at all. */
-    @Value("${dbMonitorEnabled:true}")
-    public boolean dbMonitorEnabled;
-
     /**
      * This is potentially helpful when trying to create new classifications, since the default
      * classification is prone to including disparate queries in a single classification.
@@ -81,40 +68,17 @@ public class DbMonitorConfig {
     public boolean dbMonitorDisableDefaultClassifications;
 
     /**
-     * Time threshold for a process to be considered long-running.
+     * Process list classifier.
      *
-     * <p>Once the process is in that category at least two consecutive cycles, it will be logged
-     * individually.</p>
-     */
-    @Value("${longRunningQueryThresholdSecs:300}")
-    public int longRunningQueryThresholdSecs;
-
-    @Autowired
-    HistoryDbConfig historyDbConfig;
-
-    /**
-     * A {@link DbMonitorConfig} instance ot be started after component startup has completed.
-     *
-     * @return the instance
-     * @throws JsonProcessingException if there's a problem parsing the configured classification
-     *                                 specification
+     * @return an instance of ProcessListClassifier
+     * @throws JsonProcessingException exception
      */
     @Bean
-    public DbMonitor dbMonitorLoop() throws JsonProcessingException {
-        return new DbMonitor(processListClassifier(), historyDbConfig.dsl(),
-                dbMonitorIntervalSec, longRunningQueryThresholdSecs);
-    }
-
-    @Bean
-    ProcessListClassifier processListClassifier() throws JsonProcessingException {
+    public ProcessListClassifier processListClassifier() throws JsonProcessingException {
         String classification = processListClassification;
         if (Strings.isNullOrEmpty(processListClassification)) {
             classification = DEFAULT_CLASSIFICATION;
         }
         return new ProcessListClassifier(classification, dbMonitorDisableDefaultClassifications);
-    }
-
-    public boolean isEnabled() {
-        return dbMonitorEnabled;
     }
 }

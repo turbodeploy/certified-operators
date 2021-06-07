@@ -83,6 +83,10 @@
             <artifactId>value</artifactId>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
         <!-- END Database-related dependencies -->
     </dependencies>
 </project>

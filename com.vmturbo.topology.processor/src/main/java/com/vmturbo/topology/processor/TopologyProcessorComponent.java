@@ -136,6 +136,10 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             topologyProcessorDBConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.messageProducerHealthMonitor());
+
+        if (topologyProcessorDBConfig.isDbMonitorEnabled()) {
+            topologyProcessorDBConfig.startDbMonitor();
+        }
     }
 
     @Override

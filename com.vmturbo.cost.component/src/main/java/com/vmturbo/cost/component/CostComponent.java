@@ -157,6 +157,10 @@ public class CostComponent extends BaseVmtComponent {
             .build(),
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
+
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     /**

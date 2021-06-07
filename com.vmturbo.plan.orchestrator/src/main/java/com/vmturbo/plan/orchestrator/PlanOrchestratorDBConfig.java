@@ -60,8 +60,21 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
         return new ReservationDaoImpl(super.dsl());
     }
 
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
     @Override
     public String getDbSchemaName() {
         return dbSchemaName;
+    }
+
+    @Override
+    public String getDbUsername() {
+        return planDbUsername;
     }
 }

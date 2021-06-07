@@ -45,6 +45,19 @@ public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
         return dbSchemaName;
     }
 
+    @Override
+    public String getDbUsername() {
+        return actionDbUsername;
+    }
+
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
     @Bean
     @Override
     public DataSource dataSource() {

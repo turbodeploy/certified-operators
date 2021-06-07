@@ -84,6 +84,10 @@ public class GroupComponent extends BaseVmtComponent {
         logger.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             dbConfig.dataSource()::getConnection));
+
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     @Override
