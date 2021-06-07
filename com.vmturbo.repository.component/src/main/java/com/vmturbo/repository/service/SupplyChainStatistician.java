@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -364,7 +365,8 @@ public class SupplyChainStatistician {
                     return groupsForEntities.getEntityGroupMap()
                             .entrySet()
                             .stream()
-                            .collect(Collectors.toMap(el -> el.getKey(),
+                            .filter(el -> !el.getValue().getGroupIdList().isEmpty())
+                            .collect(Collectors.toMap(Entry::getKey,
                                     el -> el.getValue().getGroupIdList().get(0)));
                 } else {
                     logger.trace("There is no resource groups for {} entities",
