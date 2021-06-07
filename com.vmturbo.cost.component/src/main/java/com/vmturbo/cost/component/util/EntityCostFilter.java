@@ -64,18 +64,19 @@ public class EntityCostFilter extends CostFilter {
     @Nullable
     private final CostGroupBy costGroupBy;
 
-
     /**
      * Preserve the group by enums received in the RPC request.
      */
     private final List<GroupBy> requestedGroupByEnums;
+
+    private final boolean totalValuesRequested;
 
     EntityCostFilter(@Nullable final Set<Long> entityFilters,
                      @Nullable final Set<Integer> entityTypeFilters,
                      @Nullable final Long startDateMillis,
                      @Nullable final Long endDateMillis,
                      @Nullable final TimeFrame timeFrame,
-                     @Nonnull Set<String> groupByFields,
+                     @Nonnull final Set<String> groupByFields,
                      final boolean excludeCostSources,
                      @Nullable final Set<CostSource> costSources,
                      @Nullable final CostCategoryFilter costCategoryFilter,
@@ -84,8 +85,9 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final Set<Long> regionIds,
                      final boolean latestTimeStampRequested,
                      @Nullable final Long topologyContextId,
-                     long realtimeTopologyContextId,
-                     final List<GroupBy> requestedGroupByEnums) {
+                     final long realtimeTopologyContextId,
+                     final List<GroupBy> requestedGroupByEnums,
+                     final boolean totalValuesRequested) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
             CREATED_TIME, latestTimeStampRequested, topologyContextId, realtimeTopologyContextId);
         this.excludeCostSources = excludeCostSources;
@@ -97,6 +99,7 @@ public class EntityCostFilter extends CostFilter {
         this.costGroupBy = createGroupByFieldString(groupByFields);
         this.conditions = generateConditions();
         this.requestedGroupByEnums = requestedGroupByEnums;
+        this.totalValuesRequested = totalValuesRequested;
     }
 
     /**
@@ -141,6 +144,7 @@ public class EntityCostFilter extends CostFilter {
             builder.endDateMillis = endDateMillis;
         }
         builder.latestTimestampRequested(latestTimeStampRequested);
+        builder.totalValuesRequested(totalValuesRequested);
 
         return builder;
     }
@@ -320,6 +324,17 @@ public class EntityCostFilter extends CostFilter {
                 && !getCostSources().isPresent();
     }
 
+    /**
+     * Gets the flag indicating to return values and their units depending on the requested time
+     * interval.
+     *
+     * @return the flag indicating to return values and their units depending on the requested time
+     *         interval.
+     */
+    public boolean isTotalValuesRequested() {
+        return totalValuesRequested;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
@@ -330,7 +345,8 @@ public class EntityCostFilter extends CostFilter {
                 && Objects.equals(accountIds, other.accountIds)
                 && Objects.equals(availabilityZoneIds, other.availabilityZoneIds)
                 && Objects.equals(regionIds, other.regionIds)
-                && Objects.equals(topologyContextId, other.topologyContextId);
+                && Objects.equals(topologyContextId, other.topologyContextId)
+                && totalValuesRequested == other.totalValuesRequested;
         }
         return false;
     }
@@ -342,7 +358,7 @@ public class EntityCostFilter extends CostFilter {
         return Objects.hash(setHashCode.apply(costSources),
             costCategoryFilter,
             excludeCostSources, setHashCode.apply(accountIds), setHashCode.apply(availabilityZoneIds),
-            setHashCode.apply(regionIds), super.hashCode());
+            setHashCode.apply(regionIds), super.hashCode(), totalValuesRequested);
     }
 
     @Override
@@ -370,6 +386,8 @@ public class EntityCostFilter extends CostFilter {
             builder.append(
                     conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
         }
+        builder.append("\n total values requested: ");
+        builder.append(totalValuesRequested);
         return builder.toString();
     }
 
@@ -430,6 +448,7 @@ public class EntityCostFilter extends CostFilter {
         private Set<Long> regionIds = null;
         private Long topologyContextId = null;
         private List<GroupBy> requestedGroupBy = null;
+        private boolean totalValuesRequested = false;
 
         private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame,
                 long realtimeTopologyContextId) {
@@ -449,15 +468,14 @@ public class EntityCostFilter extends CostFilter {
             return new EntityCostFilterBuilder(timeFrame, realtimeTopologyContextId);
         }
 
-
-
         @Override
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
-                    endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
-                    accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
-                    topologyContextId, realtimeTopologyContextId, requestedGroupBy);
+                    endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources,
+                    costCategoryFilter, accountIds, availabilityZoneIds, regionIds,
+                    latestTimeStampRequested, topologyContextId, realtimeTopologyContextId,
+                    requestedGroupBy, totalValuesRequested);
         }
 
         /**
@@ -542,6 +560,20 @@ public class EntityCostFilter extends CostFilter {
         @Nonnull
         public EntityCostFilterBuilder topologyContextId(long topologyContextId) {
             this.topologyContextId = topologyContextId;
+            return this;
+        }
+
+        /**
+         * Set the flag indicating to return values and their units depending on the requested time
+         * interval.
+         *
+         * @param totalValuesRequested the flag indicating to return values and their units
+         *         depending on the requested time interval.
+         * @return this builder
+         */
+        @Nonnull
+        public EntityCostFilterBuilder totalValuesRequested(final boolean totalValuesRequested) {
+            this.totalValuesRequested = totalValuesRequested;
             return this;
         }
     }

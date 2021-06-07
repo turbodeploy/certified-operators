@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -109,7 +110,10 @@ public class InMemoryEntityCostStore extends AbstractProjectedEntityCostStore {
      */
     @Nonnull
     public Collection<StatRecord> getEntityCostStatRecords(@Nonnull final EntityCostFilter filter) {
-        return EntityCostToStatRecordConverter.convertEntityToStatRecord(getEntityCosts(filter).values());
+        final TimeFrame timeFrame =
+                filter.isTotalValuesRequested() ? filter.getTimeFrame() : TimeFrame.HOUR;
+        return EntityCostToStatRecordConverter.convertEntityToStatRecord(
+                getEntityCosts(filter).values(), timeFrame);
     }
 
     /**
@@ -220,12 +224,17 @@ public class InMemoryEntityCostStore extends AbstractProjectedEntityCostStore {
                 && !entityCostFilter.getCostGroupBy().getGroupByFields().isEmpty(), "GroupBy list should not be empty.");
         Map<Long, EntityCost> costSnapshot = getEntityCosts(entityCostFilter);
         Collection<StatRecord>  result = Lists.newArrayList();
-        if (groupByList.size() > 2 ) {
+        final TimeFrame timeFrame =
+                entityCostFilter.isTotalValuesRequested() ? entityCostFilter.getTimeFrame()
+                        : TimeFrame.HOUR;
+        if (groupByList.size() > 2) {
             // because groupBy > 2 is actually all the rows.
-            return EntityCostToStatRecordConverter.convertEntityToStatRecord(costSnapshot.values());
+            return EntityCostToStatRecordConverter.convertEntityToStatRecord(costSnapshot.values(),
+                    timeFrame);
         } else {
             for (final EntityCost value : costSnapshot.values()) {
-                result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(value));
+                result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(value,
+                        timeFrame));
             }
             result = aggregateByGroup(groupByList, result);
         }

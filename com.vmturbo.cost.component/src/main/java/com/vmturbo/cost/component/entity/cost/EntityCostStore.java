@@ -9,9 +9,10 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.component.util.CostFilter;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -44,7 +45,8 @@ public interface EntityCostStore extends MultiStoreDiagnosable {
      * @return Map with entry (timestamp -> List of {@link StatRecord}).
      * @throws DbException if anything goes wrong in the database
      */
-    Map<Long, Collection<StatRecord>> getEntityCostStats(@Nonnull CostFilter filter) throws DbException;
+    Map<Long, Collection<StatRecord>> getEntityCostStats(@Nonnull EntityCostFilter filter)
+            throws DbException;
 
     /**
      * Get entity costs based on the the entity cost filter .

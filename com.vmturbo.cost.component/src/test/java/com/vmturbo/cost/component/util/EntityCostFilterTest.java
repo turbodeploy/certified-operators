@@ -9,10 +9,11 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -201,5 +202,33 @@ public class EntityCostFilterTest {
         // Include the plan ID, which makes plan_id valid
         filter = builder.topologyContextId(2116L).build();
         assertEquals(3, filter.getCostGroupBy().getGroupByFields().size());
+    }
+
+    /**
+     * Test for {@link EntityCostFilterBuilder#totalValuesRequested(boolean)}.
+     */
+    @Test
+    public void testTotalValuesRequested() {
+        Stream.of(true, false).forEach(isTotalValuesRequested -> {
+            final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(
+                    TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).totalValuesRequested(
+                    isTotalValuesRequested).build();
+            Assert.assertEquals(isTotalValuesRequested, entityCostFilter.isTotalValuesRequested());
+        });
+        final EntityCostFilter defaultEntityCostFilter = EntityCostFilterBuilder.newBuilder(
+                TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).build();
+        Assert.assertFalse(defaultEntityCostFilter.isTotalValuesRequested());
+    }
+
+    /**
+     * Test for {@link EntityCostFilter#toNewBuilder()}.
+     */
+    @Test
+    public void testToNewBuilder() {
+        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(
+                TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).totalValuesRequested(true).build();
+        final EntityCostFilter newCostFilter = entityCostFilter.toNewBuilder().build();
+        Assert.assertNotSame(newCostFilter, entityCostFilter);
+        Assert.assertTrue(newCostFilter.isTotalValuesRequested());
     }
 }

@@ -10,13 +10,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
@@ -25,7 +29,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
@@ -188,20 +191,57 @@ public class PlanProjectedEntityCostStoreTest {
     @Test
     public void testGetPlanProjectedStatRecordsByGroup() {
         final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
-        final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST,
-                RT_TOPO_CONTEXT_ID)
-                        .latestTimestampRequested(true)
-                        .entityIds(Arrays.asList(7L, 8L))
-                        .costCategoryFilter(CostCategoryFilter.newBuilder().addCostCategory(CostCategory.STORAGE)
-                                        .build())
-                        .build();
-        final List<GroupBy> groupByList = Arrays.asList(GroupBy.ENTITY_TYPE, GroupBy.COST_CATEGORY);
-        final Collection<StatRecord> records = store.getPlanProjectedStatRecordsByGroup(groupByList, filter, PLAN_ID);
-        assertEquals(1, records.size());
-        StatRecord record = records.iterator().next();
-        assertEquals(8L, record.getAssociatedEntityId());
-        assertEquals(CostCategory.STORAGE, record.getCategory());
-        assertEquals(50, record.getValues().getAvg(), DELTA);
-        assertEquals(StringConstants.DOLLARS_PER_HOUR, record.getUnits());
+
+        final TriConsumer<String, Double, Collection<StatRecord>> checkResult =
+                (String expectedUnits, Double expectedAmount, Collection<StatRecord> entityCostStatRecords) -> {
+                    Assert.assertEquals(1, entityCostStatRecords.size());
+                    final StatRecord statRecord = entityCostStatRecords.iterator().next();
+                    final StatValue values = statRecord.getValues();
+                    Assert.assertEquals(8L, statRecord.getAssociatedEntityId());
+                    Assert.assertEquals(CostCategory.STORAGE, statRecord.getCategory());
+                    Assert.assertEquals(expectedUnits, statRecord.getUnits());
+                    Assert.assertEquals(expectedAmount, values.getMax(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getMin(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getTotal(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getAvg(), DELTA);
+                };
+
+        final Object[][] testCases = {
+                {TimeFrame.LATEST, 50D, true},
+                {TimeFrame.HOUR, 50D, true},
+                {TimeFrame.DAY, 1200D, true},
+                {TimeFrame.MONTH, 36500D, true},
+                {TimeFrame.YEAR, 438000D, true},
+                {TimeFrame.LATEST, 50D, false},
+                {TimeFrame.HOUR, 50D, false},
+                {TimeFrame.DAY, 50D, false},
+                {TimeFrame.MONTH, 50D, false},
+                {TimeFrame.YEAR, 50D, false}
+        };
+
+        Stream.of(testCases).forEach(data -> {
+            final TimeFrame timeFrame = (TimeFrame)data[0];
+            final double amount = (double)data[1];
+            final boolean totalValuesRequested = (boolean)data[2];
+
+            final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(timeFrame,
+                    RT_TOPO_CONTEXT_ID)
+                    .latestTimestampRequested(true)
+                    .entityIds(Arrays.asList(7L, 8L))
+                    .totalValuesRequested(totalValuesRequested)
+                    .costCategoryFilter(CostCategoryFilter.newBuilder()
+                            .addCostCategory(CostCategory.STORAGE)
+                            .build())
+                    .build();
+            final List<GroupBy> groupByList = Arrays.asList(GroupBy.ENTITY_TYPE,
+                    GroupBy.COST_CATEGORY);
+            final Collection<StatRecord> records = store.getPlanProjectedStatRecordsByGroup(
+                    groupByList, filter, PLAN_ID);
+
+            final String units =
+                    totalValuesRequested ? timeFrame.getUnits() : TimeFrame.HOUR.getUnits();
+
+            checkResult.accept(units, amount, records);
+        });
     }
 }

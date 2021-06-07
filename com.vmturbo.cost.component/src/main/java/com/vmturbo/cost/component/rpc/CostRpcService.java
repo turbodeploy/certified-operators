@@ -820,6 +820,8 @@ public class CostRpcService extends CostServiceImplBase {
             filterBuilder.requestedGroupByEnums(request.getGroupByList());
         }
 
+        filterBuilder.totalValuesRequested(request.getRequestTotalValues());
+
         return filterBuilder;
     }
 

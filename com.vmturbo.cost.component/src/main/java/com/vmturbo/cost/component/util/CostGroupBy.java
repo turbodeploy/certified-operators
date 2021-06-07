@@ -130,4 +130,9 @@ public class CostGroupBy {
             return Tables.ENTITY_COST_BY_MONTH;
         }
     }
+
+    @Nonnull
+    public TimeFrame getTimeFrame() {
+        return timeFrame;
+    }
 }
