@@ -344,6 +344,8 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
             final EntityCost entityCost = entry.getValue();
             Double computeRate = null;
             Double licenseRate = null;
+            double entityUptimeOnDemandDiscount = 0d;
+            double entityUptimeLicenceDiscount = 0d;
             boolean hasRiDiscount = false;
             for (ComponentCost cc : entityCost.getComponentCostList()) {
                 if (!cc.hasCategory() || !cc.hasCostSource()) {
@@ -355,7 +357,14 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
                 if (cc.getCategory() == CostCategory.ON_DEMAND_COMPUTE
                         && cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
                     computeRate = cc.getAmount().getAmount();
+                } else if (cc.getCategory() == CostCategory.ON_DEMAND_COMPUTE
+                        && cc.getCostSource() == CostSource.ENTITY_UPTIME_DISCOUNT) {
+                    entityUptimeOnDemandDiscount = cc.getAmount().getAmount();
                 } else if (cc.getCategory() == CostCategory.ON_DEMAND_LICENSE
+                        && cc.getCostSource() == CostSource.ENTITY_UPTIME_DISCOUNT) {
+                    entityUptimeLicenceDiscount = cc.getAmount().getAmount();
+                }
+                else if (cc.getCategory() == CostCategory.ON_DEMAND_LICENSE
                         && cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
                     licenseRate = cc.getAmount().getAmount();
                 }
@@ -376,11 +385,11 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
             final EntityCost.Builder newCostBuilder = EntityCost.newBuilder(entityCost);
             if (computeRate != null) {
                 updateRiDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, totalCoupons, usedCoupons,
-                        newCostBuilder, computeRate);
+                        newCostBuilder, computeRate + entityUptimeOnDemandDiscount);
             }
             if (licenseRate != null && shouldRiDiscountLicenseCost) {
                 updateRiDiscountedCost(CostCategory.ON_DEMAND_LICENSE, totalCoupons, usedCoupons,
-                        newCostBuilder, licenseRate);
+                        newCostBuilder, licenseRate + entityUptimeLicenceDiscount);
             }
             entityCostsToUpdate.put(entityId, newCostBuilder.build());
         }
