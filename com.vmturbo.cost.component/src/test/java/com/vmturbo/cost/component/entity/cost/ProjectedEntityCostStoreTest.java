@@ -1,29 +1,34 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -57,6 +62,7 @@ public class ProjectedEntityCostStoreTest {
     private static final long VM2_OID = 8L;
     private static final long DB1_OID = 9L;
     private static final long realTimeContextId = 777777L;
+    private static final double DELTA = 0.001;
 
     private static final ComponentCost VM1_ON_DEM_COST = ComponentCost.newBuilder()
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
@@ -374,6 +380,71 @@ public class ProjectedEntityCostStoreTest {
         assertThat(store.isStoreReady(), is(false));
         store.updateEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
         assertThat(store.isStoreReady(), is(true));
+    }
+
+    /**
+     * Test getting entity cost stat records for specific time frame.
+     */
+    @Test
+    public void testGetEntityCostStatRecordsForTimeframe() {
+        store.updateEntityCosts(Collections.singletonList(VM1_COST));
+
+        final TriConsumer<String, Double, Collection<StatRecord>> checkResult =
+                (String expectedUnits, Double expectedAmount, Collection<StatRecord> entityCostStatRecords) -> {
+                    Assert.assertEquals(1, entityCostStatRecords.size());
+                    final StatRecord statRecord = entityCostStatRecords.iterator().next();
+                    final StatValue values = statRecord.getValues();
+                    Assert.assertEquals(expectedUnits, statRecord.getUnits());
+                    Assert.assertEquals(expectedAmount, values.getMax(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getMin(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getTotal(), DELTA);
+                    Assert.assertEquals(expectedAmount, values.getAvg(), DELTA);
+                };
+
+        final Object[][] testCases = {
+                {TimeFrame.LATEST, 100D, true},
+                {TimeFrame.HOUR, 100D, true},
+                {TimeFrame.DAY, 2400D, true},
+                {TimeFrame.MONTH, 73000D, true},
+                {TimeFrame.YEAR, 876000D, true},
+                {TimeFrame.LATEST, 100D, false},
+                {TimeFrame.HOUR, 100D, false},
+                {TimeFrame.DAY, 100D, false},
+                {TimeFrame.MONTH, 100D, false},
+                {TimeFrame.YEAR, 100D, false}
+        };
+
+        Stream.of(testCases).forEach(data -> {
+            final TimeFrame timeFrame = (TimeFrame)data[0];
+            final double amount = (double)data[1];
+            final boolean totalValuesRequested = (boolean)data[2];
+
+            final String units =
+                    totalValuesRequested ? timeFrame.getUnits() : TimeFrame.HOUR.getUnits();
+
+            checkResult.accept(units, amount,
+                    store.getEntityCostStatRecords(EntityCostFilterBuilder.newBuilder(timeFrame,
+                            realTimeContextId).totalValuesRequested(totalValuesRequested).build()));
+
+            checkResult.accept(units, amount, store.getEntityCostStatRecordsByGroup(
+                    Collections.singletonList(GroupBy.ENTITY_TYPE),
+                    EntityCostFilterBuilder.newBuilder(timeFrame, realTimeContextId)
+                            .totalValuesRequested(totalValuesRequested)
+                            .groupByFields(Collections.singleton(
+                                    ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()))
+                            .build()));
+
+            // "Because groupBy > 2 is actually all the rows" branch.
+            checkResult.accept(units, amount, store.getEntityCostStatRecordsByGroup(
+                    Arrays.asList(GroupBy.ENTITY_TYPE, GroupBy.COST_CATEGORY, GroupBy.ENTITY),
+                    EntityCostFilterBuilder.newBuilder(timeFrame, realTimeContextId)
+                            .totalValuesRequested(totalValuesRequested)
+                            .groupByFields(
+                                    ImmutableSet.of(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName(),
+                                            ENTITY_COST.COST_TYPE.getName(),
+                                            ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()))
+                            .build()));
+        });
     }
 
     /**

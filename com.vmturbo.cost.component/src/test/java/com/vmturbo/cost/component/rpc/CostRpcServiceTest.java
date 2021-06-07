@@ -93,7 +93,6 @@ import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.savings.EntitySavingsStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
-import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -681,7 +680,7 @@ public class CostRpcServiceTest {
                 entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
             .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .latestTimestampRequested(true)
@@ -731,8 +730,8 @@ public class CostRpcServiceTest {
                 .addAvailabilityZoneId(77L))
             .build()).build();
 
-        ArgumentCaptor<CostFilter> argumentCaptor =
-            ArgumentCaptor.forClass(CostFilter.class);
+        ArgumentCaptor<EntityCostFilter> argumentCaptor =
+            ArgumentCaptor.forClass(EntityCostFilter.class);
         when(entityCostStore.getEntityCostStats(argumentCaptor.capture()))
             .thenReturn(Collections.emptyMap());
 
@@ -767,13 +766,13 @@ public class CostRpcServiceTest {
         accountIdToExpenseMap.put(2L, entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         final Map<Long, EntityCost> projectedEntityCostMap =
                 ImmutableMap.of(3L, entityCost);
         given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getEntityCostStatRecords(any(EntityCostFilter.class)))
                 .willReturn(EntityCostToStatRecordConverter
-                        .convertEntityToStatRecord(projectedEntityCostMap.values()));
+                        .convertEntityToStatRecord(projectedEntityCostMap.values(), TimeFrame.HOUR));
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
@@ -799,20 +798,23 @@ public class CostRpcServiceTest {
                         .setQueryId(0L)
                         .setEndDate(TIME)
                         .setRequestProjected(true)
+                        .setRequestTotalValues(true)
                         .build()).build();
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
             .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(TIME, TIME)
+            .totalValuesRequested(true)
             .build())).willReturn(snapshotToAccountExpensesMap);
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
             .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .latestTimestampRequested(true)
+            .totalValuesRequested(true)
             .build()
         )).willReturn(snapshotToAccountExpensesMap);
 
@@ -847,14 +849,14 @@ public class CostRpcServiceTest {
         final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(TIME, TIME)
                 .build())).willReturn(snapshotToAccountExpensesMap);
         final Map<Long, Collection<StatRecord>> latestEntityCostMap = new HashMap<>();
         latestEntityCostMap.put(MID_TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
                 .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .latestTimestampRequested(true)
@@ -890,7 +892,7 @@ public class CostRpcServiceTest {
         final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(EntityCostFilterBuilder
             .newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
             .duration(TIME, TIME)
@@ -981,12 +983,12 @@ public class CostRpcServiceTest {
         accountIdToExpenseMap.put(2L, entityCost);
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap.values(), TimeFrame.HOUR));
         final Map<Long, EntityCost> projectedEntityCostMap =
                 ImmutableMap.of(3L, entityCost);
         given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getEntityCostStatRecords(any(EntityCostFilter.class)))
-            .willReturn(EntityCostToStatRecordConverter.convertEntityToStatRecord(projectedEntityCostMap.values()));
+            .willReturn(EntityCostToStatRecordConverter.convertEntityToStatRecord(projectedEntityCostMap.values(), TimeFrame.HOUR));
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
@@ -1083,9 +1085,9 @@ public class CostRpcServiceTest {
 
         final Map<Long, Collection<StatRecord>> snapshotToAccountExpensesMap = new HashMap<>();
         snapshotToAccountExpensesMap.put(TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap1.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap1.values(), TimeFrame.HOUR));
         snapshotToAccountExpensesMap.put(MID_TIME, EntityCostToStatRecordConverter
-                .convertEntityToStatRecord(accountIdToExpenseMap2.values()));
+                .convertEntityToStatRecord(accountIdToExpenseMap2.values(), TimeFrame.HOUR));
         given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToAccountExpensesMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
@@ -1389,7 +1391,7 @@ public class CostRpcServiceTest {
         InMemoryEntityCostStore projectedEntityCostStore = new InMemoryEntityCostStore(repositoryClient, serviceBlockingStub,
             RT_TOPO_CONTEXT_ID);
         for (EntityCost entityCost : entityCosts) {
-            result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCost));
+            result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCost, TimeFrame.HOUR));
         }
         return projectedEntityCostStore.aggregateByGroup(Collections.singleton(GroupBy.COST_CATEGORY),
                 result);

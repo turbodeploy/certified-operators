@@ -15,8 +15,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep3;
@@ -29,6 +27,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
@@ -39,8 +38,6 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
  */
 public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements
         TableDiagsRestorable<Void, PlanProjectedEntityCostRecord> {
-
-    private static final  Logger logger = LogManager.getLogger();
 
     private static final String planEntityCostDumpFile = "planEntityCost_dump";
 
@@ -152,11 +149,13 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     public Collection<StatRecord> getPlanProjectedStatRecordsByGroup(@Nonnull final List<GroupBy> groupByList,
         @Nonnull final EntityCostFilter filter, long planId) {
         final Set<EntityCost> entityCosts = getPlanProjectedEntityCosts(planId);
+        final TimeFrame timeFrame =
+                filter.isTotalValuesRequested() ? filter.getTimeFrame() : TimeFrame.HOUR;
         final Collection<StatRecord> records = EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCosts.stream()
                 .map(entityCost -> applyFilter(entityCost, filter))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toSet()));
+                .collect(Collectors.toSet()), timeFrame);
         if (groupByList.isEmpty()) {
             return records;
         }

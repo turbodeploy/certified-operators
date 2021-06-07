@@ -1,31 +1,30 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.trax.Trax.trax;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollection;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.*;
 import java.util.stream.Collectors;
-
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -38,6 +37,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
@@ -48,7 +48,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSource
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.Stitching.JournalEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -57,6 +56,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -65,10 +65,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
-
-import static com.vmturbo.trax.Trax.trax;
 
 
 public class SqlEntityCostStoreTest {
@@ -89,8 +86,6 @@ public class SqlEntityCostStoreTest {
     private static final long ID2 = 2L;
     private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
     private static final int ASSOCIATED_ENTITY_TYPE2 = 2;
-    private static final EntityType ENTITY_TYPE1 = EntityType.forNumber(1);
-    private static final EntityType ENTITY_TYPE2 = EntityType.forNumber(2);
     private static final long ACCOUNT1_ID = 10;
     private static final long ACCOUNT2_ID = 11;
     private static final long REGION1_ID = 20;
@@ -98,6 +93,7 @@ public class SqlEntityCostStoreTest {
     private static final long AZ1_ID = 31;
     private static final long AZ2_ID = 32;
     private static final long RT_TOPO_CONTEXT_ID = 777777L;
+    private static final double DELTA = 0.001;
 
     private static final int DEFAULT_CURRENCY = CurrencyAmount.getDefaultInstance().getCurrency();
 
@@ -145,6 +141,7 @@ public class SqlEntityCostStoreTest {
             .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE2)
             .build();
 
+    private InMemoryEntityCostStore inMemoryStore;
     private SqlEntityCostStore store;
     private SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private GrpcTestServer testServer = GrpcTestServer.newServer(supplyChainServiceMole);
@@ -165,8 +162,8 @@ public class SqlEntityCostStoreTest {
         when(repositoryClient.getEntitiesByTypePerScope(any(), any())).thenCallRealMethod();
         when(repositoryClient.parseSupplyChainResponseToEntityOidsMap(any())).thenCallRealMethod();
 
-        InMemoryEntityCostStore inMemoryStore = new InMemoryEntityCostStore(repositoryClient,
-                supplyChainService, RT_TOPO_CONTEXT_ID);
+        inMemoryStore = new InMemoryEntityCostStore(repositoryClient, supplyChainService,
+                RT_TOPO_CONTEXT_ID);
         store = new SqlEntityCostStore(dsl, clock, MoreExecutors.newDirectExecutorService(),
                 1, inMemoryStore);
     }
@@ -701,6 +698,99 @@ public class SqlEntityCostStoreTest {
                 CoreMatchers.is(entityCost.toBuilder().build()));
 
         store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
+    /**
+     * Test getting entity cost stat records for specific time frame.
+     *
+     * @throws Exception when failed
+     */
+    @Test
+    public void testGetEntityCostStatRecordsForTimeframe() throws Exception {
+        // ARRANGE
+        inMemoryStore.updateEntityCosts(Collections.singletonList(EntityCost.newBuilder()
+                .setAssociatedEntityId(ID1)
+                .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addComponentCost(ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                                .setCostSource(CostSource.ON_DEMAND_RATE)
+                                .build())
+                        .setAmount(CurrencyAmount.newBuilder().setAmount(100).setCurrency(1))
+                        .build())
+                .build()));
+
+        dsl.insertInto(Tables.ENTITY_COST).values(1L, LocalDateTime.of(2000, 1, 1, 1, 1, 1), 1, 1,
+                1, BigDecimal.valueOf(100), 1, 1L, 1L, 1L).execute();
+
+        final Object[] values = {1L, LocalDateTime.of(2000, 1, 1, 1, 1, 1), 1, 1, 1,
+                BigDecimal.valueOf(100), 1, 1L, 1L, 1L};
+        Stream.of(Tables.ENTITY_COST_BY_HOUR, Tables.ENTITY_COST_BY_DAY,
+                Tables.ENTITY_COST_BY_MONTH).forEach(table -> dsl.insertInto(table)
+                .values(values)
+                .execute());
+
+        // ASSERT
+        final TriConsumer<String, Double, Map<Long, Collection<StatRecord>>> checkResult =
+                (String expectedUnits, Double expectedAmount, Map<Long, Collection<StatRecord>> entityCostStatRecords) -> {
+                    Assert.assertEquals(1, entityCostStatRecords.size());
+                    final Collection<StatRecord> statRecords =
+                            entityCostStatRecords.values().iterator().next();
+                    Assert.assertEquals(1, statRecords.size());
+                    final StatRecord statRecord = statRecords.iterator().next();
+                    Assert.assertEquals(expectedUnits, statRecord.getUnits());
+                    final StatValue v = statRecord.getValues();
+                    Assert.assertEquals(expectedAmount, v.getMax(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getMin(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getTotal(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getAvg(), DELTA);
+                };
+
+        final Object[][] testCases = {
+                {TimeFrame.LATEST, 100D, true},
+                {TimeFrame.HOUR, 100D, true},
+                {TimeFrame.DAY, 2400D, true},
+                {TimeFrame.MONTH, 73000D, true},
+                {TimeFrame.YEAR, 876000D, true},
+                {TimeFrame.LATEST, 100D, false},
+                {TimeFrame.HOUR, 100D, false},
+                {TimeFrame.DAY, 100D, false},
+                {TimeFrame.MONTH, 100D, false},
+                {TimeFrame.YEAR, 100D, false}
+        };
+
+        for (final Object[] data : testCases) {
+            final TimeFrame timeFrame = (TimeFrame)data[0];
+            final double amount = (double)data[1];
+            final boolean totalValuesRequested = (boolean)data[2];
+
+            final String units =
+                    totalValuesRequested ? timeFrame.getUnits() : TimeFrame.HOUR.getUnits();
+
+            // ACT
+            checkResult.accept(units, amount,
+                    store.getEntityCostStats(EntityCostFilterBuilder.newBuilder(timeFrame,
+                            RT_TOPO_CONTEXT_ID)
+                            .entityIds(Collections.singleton(ID1))
+                            .requestedGroupByEnums(Collections.singletonList(GroupBy.COST_CATEGORY))
+                            .totalValuesRequested(totalValuesRequested)
+                            .build()));
+
+            // ACT. Group by branch.
+            checkResult.accept(units, amount,
+                    store.getEntityCostStats(EntityCostFilterBuilder.newBuilder(timeFrame,
+                            RT_TOPO_CONTEXT_ID)
+                            .entityIds(Collections.singleton(ID1))
+                            .groupByFields(Collections.singleton(
+                                    ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()))
+                            .requestedGroupByEnums(Collections.singletonList(GroupBy.ENTITY_TYPE))
+                            .totalValuesRequested(totalValuesRequested)
+                            .build()));
+        }
+
+        // CLEANUP
+        Stream.of(Tables.ENTITY_COST, Tables.ENTITY_COST_BY_HOUR, Tables.ENTITY_COST_BY_DAY,
+                Tables.ENTITY_COST_BY_MONTH).forEach(table -> dsl.deleteFrom(table).execute());
     }
 
     /**
