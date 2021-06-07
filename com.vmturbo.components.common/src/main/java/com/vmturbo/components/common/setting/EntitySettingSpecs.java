@@ -78,14 +78,14 @@ public enum EntitySettingSpecs {
      */
     ResizeVmemMinThreshold("resizeVmemMinThreshold", "VMEM Resize Min Threshold (in MB)",
             Collections.emptyList(), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 512), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 100000000, 512), true),
 
     /**
      * The maximum number of vmem cores which is the threshold to decide automation mode.
      */
     ResizeVmemMaxThreshold("resizeVmemMaxThreshold", "VMEM Resize Max Threshold (in MB)",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 100000000, 131072), true),
 
     /**
      * The minimum number of VCPU request millicores which is the threshold to decide automation mode.
