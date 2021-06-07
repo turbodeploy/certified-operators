@@ -1360,6 +1360,7 @@ public class EntitySettingsApplicatorTest {
      * Checks that when instance store aware scaling setting is enabled than compute tier instance
      * which has instance store disks, will have 3 additional commodities after setting
      * application.
+     * Check with the same setting, VMs in MCP do not have those additional commodities.
      */
     @Test
     public void checkComputeTierInstanceStoreSettings() {
@@ -1405,6 +1406,30 @@ public class EntitySettingsApplicatorTest {
                                         == CommodityType.INSTANCE_DISK_TYPE_VALUE)
                         .getCommodityType().getKey();
         Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+
+        // assume that this is a MCP topology
+        final Builder entity2 = createComputeTier(2L);
+        final long entityOid2 = entity2.getOid();
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider2 =
+                CommoditiesBoughtFromProvider.newBuilder().setProviderId(entityOid)
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                        .build();
+        final TopologyEntityDTO.Builder vm2 = TopologyEntityDTO.newBuilder().setOid(1234567890L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        final long vmOid2 = vm.getOid();
+        final TopologyGraph<TopologyEntity> graph2 = TopologyEntityTopologyGraphCreator
+                .newGraph(ImmutableMap.of(vmOid2, topologyEntityBuilder(vm2), entity2.getOid(),
+                        topologyEntityBuilder(entity2)));
+        final Map<Long, EntitySettings> entitySettings2 = ImmutableMap.of(vmOid,
+                createSettings(vmOid2, INSTANCE_STORE_AWARE_SCALING_SETTING), entityOid2,
+                createSettings(entityOid2, INSTANCE_STORE_AWARE_SCALING_SETTING));
+        applySettings(graph2, TopologyInfo.newBuilder()
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name()))
+                .setTopologyType(TopologyType.PLAN)
+                .build(), entitySettings2);
+        assertTrue(entity2.getCommoditySoldListBuilderList().isEmpty());
     }
 
     private void applySettings(TopologyGraph<TopologyEntity> graph, TopologyInfo topologyInfo,
