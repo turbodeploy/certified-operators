@@ -29,7 +29,7 @@ public class EntitySavingsProcessorTest {
 
     private EntitySavingsProcessor entitySavingsProcessor = Mockito.spy(new EntitySavingsProcessor(
             entitySavingsTracker, topologyEventsPoller, rollupSavingsProcessor, entitySavingsStore,
-            entityEventsJournal, clock));
+            entityEventsJournal, clock, Mockito.mock(DataRetentionProcessor.class)));
 
     /**
      * Start time is 9:00. End time is 10:00.

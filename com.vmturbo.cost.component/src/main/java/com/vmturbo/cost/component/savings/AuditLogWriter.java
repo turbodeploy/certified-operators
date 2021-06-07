@@ -16,4 +16,12 @@ public interface AuditLogWriter {
      * @param events Set of events to persist.
      */
     void write(@Nonnull List<SavingsEvent> events);
+
+    /**
+     * Deletes all records older than the given timestamp.
+     *
+     * @param timestamp Epoch millis for timestamp, any older records are removed.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThan(long timestamp);
 }

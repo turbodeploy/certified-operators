@@ -2,10 +2,8 @@ package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -31,7 +29,6 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.springframework.scheduling.TaskScheduler;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
@@ -40,7 +37,6 @@ import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
@@ -80,12 +76,6 @@ public class SqlEntitySavingsStoreTest {
     private final DSLContext dsl = dbConfig.getDslContext();
 
     /**
-     * Cloud scope store
-     */
-    private final SQLCloudScopeStore cloudScopeStore = new SQLCloudScopeStore(
-            dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
-
-    /**
      * For double checks.
      */
     private static final double EPSILON_PRECISION = 0.0000001d;
@@ -99,21 +89,6 @@ public class SqlEntitySavingsStoreTest {
      * ID of VM 2.
      */
     private static final long vm2Id = 200L;
-
-    /**
-     * Account id.
-     */
-    private static final long account1Id = 301L;
-
-    /**
-     * Region.
-     */
-    private static final long region1Id = 401L;
-
-    /**
-     * CSP scope.
-     */
-    private static final long csp1Id = 501L;
 
     /**
      * Realized savings test value.

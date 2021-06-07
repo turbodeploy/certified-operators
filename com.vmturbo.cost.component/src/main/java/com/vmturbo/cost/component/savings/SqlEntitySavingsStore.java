@@ -255,6 +255,39 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     }
 
     @Override
+    public int deleteOlderThanHourly(long timestamp) {
+        return deleteOlderThan(timestamp, ENTITY_SAVINGS_BY_HOUR,
+                ENTITY_SAVINGS_BY_HOUR.STATS_TIME);
+    }
+
+    @Override
+    public int deleteOlderThanDaily(long timestamp) {
+        return deleteOlderThan(timestamp, ENTITY_SAVINGS_BY_DAY,
+                ENTITY_SAVINGS_BY_DAY.STATS_TIME);
+    }
+
+    @Override
+    public int deleteOlderThanMonthly(long timestamp) {
+        return deleteOlderThan(timestamp, ENTITY_SAVINGS_BY_MONTH,
+                ENTITY_SAVINGS_BY_MONTH.STATS_TIME);
+    }
+
+    /**
+     * Util method to delete old entries from stats tables.
+     *
+     * @param timestamp Timestamp stats older than which will get cleaned up.
+     * @param table Table ref.
+     * @param field Field ref.
+     * @return Count of deleted rows.
+     */
+    private int deleteOlderThan(long timestamp, Table<?> table, TableField<?, LocalDateTime> field) {
+        final LocalDateTime minDate = SavingsUtil.getLocalDateTime(timestamp, clock);
+        return dsl.deleteFrom(table)
+                .where(field.lt(minDate))
+                .execute();
+    }
+
+    @Override
     @Nonnull
     public LastRollupTimes getLastRollupTimes() {
         final LastRollupTimes rollupTimes = new LastRollupTimes();
