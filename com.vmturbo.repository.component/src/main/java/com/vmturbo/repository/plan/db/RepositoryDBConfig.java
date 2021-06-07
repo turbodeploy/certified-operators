@@ -40,6 +40,19 @@ public class RepositoryDBConfig extends SQLDatabaseConfig {
         return dbSchemaName;
     }
 
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
+    @Override
+    public String getDbUsername() {
+        return repoDbUsername;
+    }
+
     @Bean
     @Override
     public DataSource dataSource() {

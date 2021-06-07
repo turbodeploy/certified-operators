@@ -112,6 +112,10 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(planConfig.messageProducerHealthMonitor());
+
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     /**

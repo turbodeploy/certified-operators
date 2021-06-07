@@ -89,6 +89,10 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.messageProducerHealthMonitor());
+
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     @Override

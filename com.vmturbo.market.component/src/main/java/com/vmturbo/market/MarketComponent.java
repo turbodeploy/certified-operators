@@ -68,6 +68,10 @@ public class MarketComponent extends BaseVmtComponent {
 
     @Value("${defaultTraxCalculationsTrackedPerDay:360}")
     private int defaultTraxCalculationsTrackedPerDay;
+
+    @Autowired
+    private MarketDBConfig marketDbConfig;
+
     /**
      * Starts the component.
      *
@@ -89,6 +93,10 @@ public class MarketComponent extends BaseVmtComponent {
             .build(),
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
+
+        if (marketDbConfig.isDbMonitorEnabled()) {
+            marketDbConfig.startDbMonitor();
+        }
     }
 
     @Nonnull

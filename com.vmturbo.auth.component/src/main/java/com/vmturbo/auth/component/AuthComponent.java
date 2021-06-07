@@ -88,6 +88,10 @@ public class AuthComponent extends BaseVmtComponent {
                     // the "handler", until the "updateLicenseSummaryPeriodically" logic kicked in,
                     // which is everyday at midnight. OM-46416 is opened to fix the monitor.
                     // .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
+
+        if (authDBConfig.isDbMonitorEnabled()) {
+            authDBConfig.startDbMonitor();
+        }
     }
 
     /**

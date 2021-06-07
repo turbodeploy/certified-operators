@@ -207,6 +207,10 @@ public class RepositoryComponent extends BaseVmtComponent {
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
         // previous versions.
         setForceRetryMigrations(true);
+
+        if (repositoryDBConfig.isDbMonitorEnabled()) {
+            repositoryDBConfig.startDbMonitor();
+        }
     }
 
     @Bean

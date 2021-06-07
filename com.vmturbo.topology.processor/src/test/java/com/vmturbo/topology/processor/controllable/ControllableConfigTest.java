@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+
 import org.jooq.DSLContext;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -14,6 +16,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 
 /**
@@ -51,6 +54,11 @@ public class ControllableConfigTest {
                 mock(TopologyProcessorDBConfig.class);
             when(topologyProcessorDBConfig.dsl()).thenReturn(mock(DSLContext.class));
             return topologyProcessorDBConfig;
+        }
+
+        @Bean
+        public ProcessListClassifier processListClassifier() throws JsonProcessingException {
+            return mock(ProcessListClassifier.class);
         }
 
         /**

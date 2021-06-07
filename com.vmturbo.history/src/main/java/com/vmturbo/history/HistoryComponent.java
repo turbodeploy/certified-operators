@@ -5,14 +5,10 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ThreadFactory;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
@@ -37,10 +33,10 @@ import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterFactory;
-import com.vmturbo.history.dbmonitor.DbMonitorConfig;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.stats.StatsConfig;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 
 /**
  * Spring configuration for history component.
@@ -53,8 +49,7 @@ import com.vmturbo.history.stats.StatsConfig;
         HistoryApiConfig.class,
         ApiSecurityConfig.class,
         SpringSecurityConfig.class,
-        HistoryDiagnosticsConfig.class,
-        DbMonitorConfig.class
+        HistoryDiagnosticsConfig.class
 })
 public class HistoryComponent extends BaseVmtComponent {
 
@@ -76,7 +71,7 @@ public class HistoryComponent extends BaseVmtComponent {
     private HistoryDiagnosticsConfig diagnosticsConfig;
 
     @Autowired
-    private DbMonitorConfig dbMonitorConfig;
+    private DbMonitor dbMonitorLoop;
 
     /**
      * This gives us access to the TopologyCoordinator instance, which manages ingestion and
@@ -153,9 +148,9 @@ public class HistoryComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds, historyDbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(historyApiConfig.messageProducerHealthMonitor());
-        if (dbMonitorConfig.isEnabled()) {
-            log.info("Starting Database monitor");
-            startDbMonitor();
+
+        if (historyDbConfig.isDbMonitorEnabled()) {
+            historyDbConfig.startDbMonitor();
         }
     }
 
@@ -170,24 +165,6 @@ public class HistoryComponent extends BaseVmtComponent {
                 DBConnectionPool.instance.getInternalPool().close(true);
             }
             DBConnectionPool.instance.shutdown();
-        }
-    }
-
-    private void startDbMonitor() {
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
-                .setNameFormat("db-monitor-%d")
-                .setDaemon(true)
-                .build();
-        threadFactory.newThread(() -> runDbMonitor()).start();
-    }
-
-    private void runDbMonitor() {
-        try {
-            dbMonitorConfig.dbMonitorLoop().run();
-        } catch (InterruptedException e) {
-            log.error("Monitoring interrupted; db monitoring suspended");
-        } catch (JsonProcessingException e) {
-            log.error("Malformed processListClassification value; db monitoring disabled", e.getMessage());
         }
     }
 

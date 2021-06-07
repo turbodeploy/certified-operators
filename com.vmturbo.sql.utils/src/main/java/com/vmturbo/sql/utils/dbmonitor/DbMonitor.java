@@ -1,6 +1,5 @@
-package com.vmturbo.history.dbmonitor;
+package com.vmturbo.sql.utils.dbmonitor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,8 +20,8 @@ import org.jooq.Record2;
 import org.jooq.exception.DataAccessException;
 import org.jooq.types.ULong;
 
-import com.vmturbo.history.SharedMetrics;
-import com.vmturbo.history.dbmonitor.ProcessListClassifier.ProcessListRecord;
+import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier.ProcessListRecord;
 
 /**
  * This class periodically logs information about state of the database, to provide information
@@ -41,6 +40,35 @@ public class DbMonitor {
 
     private Map<Long, String> priorLongRunning = new HashMap<>();
 
+    private final String dbSchemaName;
+    private final String dbUsername;
+
+    /**
+     * Prometheus metric to capture connection counts collected by {@link DbMonitor}.
+     */
+    private static final DataMetricGauge CONNECTION_COUNTS = DataMetricGauge.builder()
+            .withName("db_connections")
+            .withHelp("Connection counts reported by database")
+            .withLabelNames("schema", "category")
+            .build()
+            .register();
+
+    /** connection count category for active connections of all variety. */
+    private static final String CONNECTION_COUNT_ACTIVE = "active";
+    /** connection count category for available connections (max - active). */
+    private static final String CONNECTION_COUNT_AVAILABLE = "available";
+    /** connection count category for max allowed connections (db config value). */
+    private static final String CONNECTION_COUNT_MAX = "max_allowed";
+    /** connection count category for long-running connections. */
+    private static final String CONNECTION_COUNT_LONG_RUNNING = "long_running";
+
+    /**
+     * Data metric scope: GLOBAL
+     * Database Prometheus metrics has two labels: schema and category. DB connection counts
+     * are not specific to a schema and the "GLOBAL" scope will be used.
+     */
+    private static final String METRIC_SCOPE_GLOBAL = "GLOBAL";
+
     /**
      * Create a new instance of the monitor.
      *
@@ -51,14 +79,18 @@ public class DbMonitor {
      * @param intervalSec              interval in seconds to wait between polling operations
      * @param longRunningThresholdSecs time beyond which a non-idle connection is considered
      *                                 long-running and will be logged explicitly
+     * @param dbSchemaName             database schema name
+     * @param dbUsername               database username
      */
     public DbMonitor(
             ProcessListClassifier processListClassifier, DSLContext dsl, int intervalSec,
-            int longRunningThresholdSecs) {
+            int longRunningThresholdSecs, String dbSchemaName, String dbUsername) {
         this.processListClassifier = processListClassifier;
         this.dsl = dsl;
         this.intervalSec = intervalSec;
         this.longRunningThresholdSecs = longRunningThresholdSecs;
+        this.dbSchemaName = dbSchemaName;
+        this.dbUsername = dbUsername;
     }
 
     /**
@@ -84,29 +116,29 @@ public class DbMonitor {
         }
     }
 
-
     private void logConnectionCounts() {
-        final String sql = "SELECT count(*), @@GLOBAL.max_connections FROM information_schema.processlist";
+        final String sql = "SELECT variable_value, @@GLOBAL.max_connections "
+                + "FROM information_schema.global_status WHERE variable_name = 'Threads_connected'";
         try {
-            final Record2<Long, ULong> counts = (Record2<Long, ULong>)dsl.fetchOne(sql);
+            final Record2<String, ULong> counts = (Record2<String, ULong>)dsl.fetchOne(sql);
             if (counts != null) {
-                logger.info("Connection count {}/{}", counts.value1(), counts.value2());
-                SharedMetrics.CONNECTION_COUNTS.labels(SharedMetrics.CONNECTION_COUNT_ACTIVE)
-                        .setData(counts.value1().doubleValue());
-                SharedMetrics.CONNECTION_COUNTS.labels(SharedMetrics.CONNECTION_COUNT_MAX)
+                final Double threadConnected = Double.valueOf(counts.value1());
+                logger.info("Global connection count {}/{}", counts.value1(), counts.value2());
+                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_ACTIVE)
+                        .setData(threadConnected);
+                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_MAX)
                         .setData(counts.value2().doubleValue());
-                SharedMetrics.CONNECTION_COUNTS.labels(SharedMetrics.CONNECTION_COUNT_AVALABLE)
-                        .setData(counts.value2().doubleValue() - counts.value1().doubleValue());
+                CONNECTION_COUNTS.labels(METRIC_SCOPE_GLOBAL, CONNECTION_COUNT_AVAILABLE)
+                        .setData(counts.value2().doubleValue() - threadConnected);
             } else {
-                throw new DataAccessException("No record returned from query");
+                throw new DataAccessException("No record returned from query: " + sql);
             }
-        } catch (DataAccessException e) {
-            logger.warn("Failed to retrieve connection counts: {}", e);
+        } catch (DataAccessException | NumberFormatException e) {
+            logger.warn("Failed to retrieve connection counts:", e);
         }
     }
 
     private void logConnectionsByClassification(List<ProcessListRecord> proceses) {
-        final List<ProcessListRecord> longRunningQueries = new ArrayList<>();
         final ListMultimap<Object, ProcessListRecord> byClassification =
                 ListMultimapBuilder.linkedHashKeys().arrayListValues().build();
         for (final ProcessListRecord record : proceses) {
@@ -120,7 +152,7 @@ public class DbMonitor {
         }
         for (final Object classification : byClassification.keySet()) {
             logger.info("{}: {}", classification, summarize(byClassification.get(classification)));
-            SharedMetrics.CONNECTION_COUNTS.labels(classification.toString())
+            CONNECTION_COUNTS.labels(dbSchemaName, classification.toString())
                     .setData((double)byClassification.get(classification).size());
         }
     }
@@ -140,7 +172,7 @@ public class DbMonitor {
                 }
             }
         }
-        SharedMetrics.CONNECTION_COUNTS.labels(SharedMetrics.CONNECTION_COUNT_LONG_RUNNING)
+        CONNECTION_COUNTS.labels(dbSchemaName, CONNECTION_COUNT_LONG_RUNNING)
                 .setData((double)currentLongRunning.size());
         this.priorLongRunning = currentLongRunning;
     }
@@ -154,7 +186,8 @@ public class DbMonitor {
     private List<ProcessListRecord> getCurrentProcessList() {
         try {
             final String sql = "SELECT id, db, command, time, state, info "
-                    + "FROM information_schema.processlist ORDER BY id";
+                    + "FROM information_schema.processlist WHERE user = '"
+                    + dbUsername + "' ORDER BY id";
             final List<ProcessListRecord> processes = dsl.fetch(sql).into(ProcessListRecord.class);
             if (processes == null) {
                 throw new DataAccessException("Null results object from query");
