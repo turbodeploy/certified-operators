@@ -66,6 +66,7 @@ public class AccumulatedCommodityTest {
         commodity.recordSoldCommodity(soldCommodity);
         commodity.recordSoldCommodity(soldCommodity);
 
+        StatValue usage = StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -83,8 +84,12 @@ public class AccumulatedCommodityTest {
                                                 .getApiParameterName())
                                 .setUsage(PERCENTILE_USAGE)
                                 .setCapacity(TWO_VALUE_STAT))
+                .addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed
+                                .getApiParameterName())
+                        .setUsage(usage)
+                        .setCapacity(TWO_VALUE_STAT))
                                 .build();
-
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
@@ -104,6 +109,7 @@ public class AccumulatedCommodityTest {
         commodity.recordBoughtCommodity(boughtComm, 1L, 5);
         commodity.recordBoughtCommodity(boughtComm, 2L, 5);
 
+        StatValue usage = StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -120,7 +126,12 @@ public class AccumulatedCommodityTest {
                                 .setType(HistoryUtilizationType.Percentile
                                                 .getApiParameterName())
                                 .setUsage(PERCENTILE_USAGE)
-                                .setCapacity(TWO_VALUE_STAT)).build();
+                                .setCapacity(TWO_VALUE_STAT))
+                .addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed
+                                .getApiParameterName())
+                        .setUsage(usage)
+                        .setCapacity(TWO_VALUE_STAT)).build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
