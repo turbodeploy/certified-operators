@@ -1,8 +1,10 @@
 package com.vmturbo.extractor.models;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
@@ -65,6 +67,27 @@ public class Constants {
                 .add(CommodityType.VSTORAGE)
                 .add(CommodityType.DTU)
                 .build();
+
+    /**
+     * Whitelist of bought commodities that we track for before/after metrics in action attributes,
+     * See: {@link com.vmturbo.extractor.schema.json.common.ActionImpactedEntity}, grouped by
+     * entity type and provider type.
+     *
+     * <p/>Hand-picked by looking through the commodities the UI requests for different action types.
+     * Currently only cloud scale action shows affected bought commodities.
+     */
+    public static final Map<Integer, Map<Integer, Set<Integer>>>
+            ACTION_IMPACT_BOUGHT_COMMODITIES_WHITELIST = ImmutableMap.of(
+                    EntityType.VIRTUAL_MACHINE_VALUE, ImmutableMap.of(
+                            EntityType.COMPUTE_TIER_VALUE, ImmutableSet.of(
+                                    CommodityType.STORAGE_ACCESS_VALUE,
+                                    CommodityType.STORAGE_AMOUNT_VALUE,
+                                    CommodityType.IO_THROUGHPUT_VALUE,
+                                    CommodityType.NET_THROUGHPUT_VALUE,
+                                    CommodityType.NUM_DISK_VALUE
+                            )
+                    )
+    );
 
     /**
      * Default whitelisted commodity types for reporting.

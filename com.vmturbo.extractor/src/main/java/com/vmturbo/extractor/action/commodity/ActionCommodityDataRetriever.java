@@ -1,5 +1,7 @@
 package com.vmturbo.extractor.action.commodity;
 
+import static com.vmturbo.extractor.action.ActionAttributeExtractor.ACTION_TYPES_TO_POPULATE_TARGET_IMPACT;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -38,6 +43,7 @@ import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.extractor.action.commodity.PercentileSettingsRetriever.PercentileSettings;
 import com.vmturbo.extractor.action.commodity.PercentileSettingsRetriever.PercentileSettings.PercentileSetting;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.CommodityPercentileChange;
 import com.vmturbo.extractor.topology.DataProvider;
@@ -69,6 +75,8 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
     private volatile TopologyActionCommodityData sourceTopologyActionCommodityData = null;
 
     private volatile TopologyActionCommodityData newSourceTopologyActionCommodityData = null;
+
+    private volatile PercentileSettings percentileSettings = null;
 
     /**
      * Construct a new decorator.
@@ -104,11 +112,32 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
                             commSold);
                 }
             }
+
+            // we don't want to process all the bought commodities, since most of them are not useful
+            // currently only the bought commodities of VM from compute tier is needed, since they
+            // are shown when scale vm action is expanded in UI
+            final Map<Integer, Set<Integer>> boughtCommoditiesByProviderType =
+                    Constants.ACTION_IMPACT_BOUGHT_COMMODITIES_WHITELIST.get(entity.getEntityType());
+            if (boughtCommoditiesByProviderType != null) {
+                entity.getCommoditiesBoughtFromProvidersList().forEach(commoditiesBoughtFromProvider -> {
+                    Set<Integer> boughtCommodities = boughtCommoditiesByProviderType.get(
+                            commoditiesBoughtFromProvider.getProviderEntityType());
+                    if (boughtCommodities != null) {
+                        commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO -> {
+                            if (boughtCommodities.contains(commodityBoughtDTO.getCommodityType().getType())) {
+                                newSourceTopologyActionCommodityData.processBoughtCommodity(
+                                        entity.getOid(), commoditiesBoughtFromProvider.getProviderId(), commodityBoughtDTO);
+                            }
+                        });
+                    }
+                });
+            }
         };
     }
 
     @Override
     public int finish(DataProvider dataProvider) {
+        newSourceTopologyActionCommodityData.populateCapacityForBoughtCommodities();
         this.sourceTopologyActionCommodityData = newSourceTopologyActionCommodityData;
         this.sourceTopologyActionCommodityData.finish();
         logger.debug("Extracted percentile and commodity data from topology: {}",
@@ -134,6 +163,7 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
                     new ActionPercentileData(Long2ObjectMaps.emptyMap()));
         }
         final LongSet entitiesToRetrieve = new LongOpenHashSet();
+        final LongSet projectedProvidersToRetrieve = new LongOpenHashSet();
         final IntSet commoditiesToRetrieve = sourceCommData.getCommodityTypes();
         actionSpecs.forEach(actionSpec -> {
             visitCommodityData(actionSpec, (entity, commodityType) -> {
@@ -142,16 +172,24 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
             }, (entity) -> {
                 entitiesToRetrieve.add(entity.getId());
             });
+
+            // only need to get bought commodities from the providers in scale actions
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(
+                    actionSpec.getRecommendation());
+            if (actionType == ActionType.SCALE) {
+                ActionDTOUtil.getChangeProviderList(actionSpec.getRecommendation())
+                        .forEach(change -> projectedProvidersToRetrieve.add(change.getDestination().getId()));
+            }
         });
         logger.debug("Retrieving percentile data for {} actions. {} target entities, {} total commodities",
             actionSpecs.size(), entitiesToRetrieve.size(), commoditiesToRetrieve.size());
 
         final MultiStageTimer timer = new MultiStageTimer(logger);
         timer.start("Retrieving percentile settings");
-        final PercentileSettings percentileSettings = percentileSettingsRetriever.getPercentileSettingsData(entitiesToRetrieve);
+        this.percentileSettings = percentileSettingsRetriever.getPercentileSettingsData(entitiesToRetrieve);
         timer.start("Retrieving projected commodities");
         final TopologyActionCommodityData projectedCommData = projectedTopologyCommodityDataRetriever
-                .fetchProjectedCommodityData(entitiesToRetrieve, commoditiesToRetrieve);
+                .fetchProjectedCommodityData(entitiesToRetrieve, commoditiesToRetrieve, projectedProvidersToRetrieve);
         timer.stop();
         timer.info(FormattedString.format("Retrieved percentile and commodity data for {} actions", actionSpecs.size()), Detail.STAGE_SUMMARY);
 
@@ -186,6 +224,16 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
                     final String commTypeStr = ExportUtils.getCommodityTypeJsonKey(commType);
                     if (src != null && proj != null && commTypeStr != null) {
                         final ImpactedMetric impactedMetric = new ImpactedMetric();
+                        // add before/after percentile data for commodity (ignoring key)
+                        final Optional<Double> srcPercentile = sourceCommData.getSoldPercentile(
+                                entityId, CommodityType.newBuilder().setType(commType).build());
+                        final Optional<Double> projPercentile = projectedCommData.getSoldPercentile(
+                                entityId, CommodityType.newBuilder().setType(commType).build());
+                        // percentile before/after action
+                        if (srcPercentile.isPresent()) {
+                            src.setPercentileUtilization(srcPercentile.get());
+                            projPercentile.ifPresent(proj::setPercentileUtilization);
+                        }
                         impactedMetric.setBeforeActions(src);
                         impactedMetric.setAfterActions(proj);
                         commodityChanges.computeIfAbsent(entityId, v -> new Object2ObjectOpenHashMap<>())
@@ -203,6 +251,18 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
         logger.info("Retrieved action commodities for {} entities across {} actions. Percentiles for {} entities.",
                 commodityChanges.size(), actionSpecs.size(), retMap.size());
         return commData;
+    }
+
+    /**
+     * Get percentile settings for the given entity.
+     *
+     * @param entityId entity oid
+     * @param entityType type of entity
+     * @return optional percentile settings
+     */
+    public Optional<PercentileSetting> getPercentileSetting(long entityId, int entityType) {
+        return Optional.ofNullable(percentileSettings).flatMap(setting ->
+                setting.getEntitySettings(entityId, ApiEntityType.fromType(entityType)));
     }
 
     /**
@@ -226,6 +286,7 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
             @Nonnull final PercentileVisitor percentileVisitor,
             @Nonnull final CommodityVisitor commodityVisitor) {
         final ActionInfo actionInfo = actionSpec.getRecommendation().getInfo();
+        final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
         // TODO (roman, Feb 12 2021): Handle percentiles for move/scale actions.
         //
         // When we add support for percentiles for move (and maybe scale) actions, we need to
@@ -254,8 +315,13 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
                     commodityVisitor.visit(changeProvider.getSource());
                 }
             });
-        } else if (actionInfo.hasScale()) {
-            commodityVisitor.visit(actionInfo.getScale().getTarget());
+        } else if (ACTION_TYPES_TO_POPULATE_TARGET_IMPACT.contains(actionType)) {
+            try {
+                commodityVisitor.visit(ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()));
+            } catch (UnsupportedActionException e) {
+                // this should not happen
+                logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
+            }
         }
     }
 }
