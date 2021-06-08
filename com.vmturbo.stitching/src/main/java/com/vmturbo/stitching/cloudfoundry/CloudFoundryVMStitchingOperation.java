@@ -78,7 +78,8 @@ public class CloudFoundryVMStitchingOperation extends StringsToStringsDataDriven
                 .addCommoditiesSoldMetadata(CommoditySoldMetadata.newBuilder()
                     .setCommodityType(CommodityType.CLUSTER))
             .build()),
-            ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT));
+            ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT),
+                ProbeCategory.PAAS);
     }
 
     @Nonnull

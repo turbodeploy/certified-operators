@@ -108,7 +108,8 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                         .build();
         return new StringsToStringsDataDrivenStitchingOperation(
                 new StringsToStringsStitchingMatchingMetaData(EntityType.PHYSICAL_MACHINE,
-                        fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
+                        fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR),
+                ProbeCategory.FABRIC);
     }
 
     private StitchingContext prepareStitchingContext(Map<Long, EntityDTO> ucsEntities,

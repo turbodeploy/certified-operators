@@ -240,7 +240,7 @@ public class AbstractExternalSignatureCachingStitchingOperationTest {
      */
     public static class NonCachingOperation extends OperationWithScopeAndCaching {
         @Override
-        protected boolean isCachingEnabled() {
+        public boolean isCachingEnabled() {
             return false;
         }
     }

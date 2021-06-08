@@ -187,20 +187,23 @@ public class StitchingOperationStore {
     private static List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
                     @Nonnull final ProbeInfo probeInfo,
                     @Nonnull final Set<ProbeCategory> probeScope) {
+        final ProbeCategory probeCategory = ProbeCategory.create(probeInfo.getProbeCategory());
         return probeInfo.getSupplyChainDefinitionSetList().stream()
                     .filter(TemplateDTO::hasMergedEntityMetaData)
-                    .map(tDTO -> createStitchingOperation(tDTO, probeScope))
+                    .map(tDTO -> createStitchingOperation(tDTO, probeScope, probeCategory))
                     .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Nullable
     private static StitchingOperation<?, ?> createStitchingOperation(
                     @Nonnull final TemplateDTO templateDTO,
-                    @Nonnull final Set<ProbeCategory> probeScope) {
+                    @Nonnull final Set<ProbeCategory> probeScope,
+                    @Nonnull ProbeCategory probeCategory) {
         final MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
         return new StringsToStringsDataDrivenStitchingOperation(
                         new StringsToStringsStitchingMatchingMetaData(
-                                        templateDTO.getTemplateClass(), memd), probeScope);
+                                        templateDTO.getTemplateClass(), memd), probeScope,
+                probeCategory);
     }
 
     @VisibleForTesting

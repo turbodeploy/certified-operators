@@ -93,7 +93,7 @@ public class StitchingOperationLibrary {
                 return Collections.singletonList(new IaasVMStitchingOperation());
             case GUEST_OS_PROCESSES:
             case CUSTOM:
-                return Collections.singletonList(new ServiceSLOStitchingOperation());
+                return Collections.singletonList(new ServiceSLOStitchingOperation(probeCategory));
             case BILLING:
                 if (probeType.equals(SDKProbeType.AWS_BILLING.getProbeType())) {
                     return Arrays.asList(new AwsBillingStitchingOperation(),

@@ -388,8 +388,9 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .build();
         // Making sure stitching operation for Service is before that for ApplicationComponent
         return ImmutableList.of(
-                new ServiceSLOStitchingOperation(),
+                new ServiceSLOStitchingOperation(ProbeCategory.CUSTOM),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE));
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.GUEST_OS_PROCESSES));
     }
 }
