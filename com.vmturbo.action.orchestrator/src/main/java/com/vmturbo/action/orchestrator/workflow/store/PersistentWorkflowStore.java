@@ -210,13 +210,6 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 : Optional.empty();
     }
 
-	@Override
-	public Optional<WorkflowDTO.Workflow> getWorkflowByDisplayName(String displayName)
-            throws WorkflowStoreException {
-        // TODO (alexp): Get the workflow by display name from the database, when available
-        return Optional.empty();
-    }
-
     @Override
     public long insertWorkflow(@Nonnull final WorkflowInfo workflowInfo) throws WorkflowStoreException {
         try {
@@ -338,5 +331,4 @@ public class PersistentWorkflowStore implements WorkflowStore {
         }
         return condBuilder.build();
     }
-
 }

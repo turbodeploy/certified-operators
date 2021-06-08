@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowResponse;
@@ -72,7 +70,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Error while fetching the workflow with ID: " + workflowRequest.getId(), e);
+            logger.error("exception fetching workflow: " + workflowRequest.getId(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
@@ -121,7 +119,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Error while fetching workflows: ", e);
+            logger.error("exception fetching workflows: ", e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
 
@@ -185,19 +183,8 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             final @Nonnull CreateWorkflowRequest request,
             final @Nonnull StreamObserver<CreateWorkflowResponse> responseObserver,
             final long targetId) {
-        WorkflowInfo workflowInfo = request.getWorkflow().getWorkflowInfo();
         try {
-            if (workflowStore.getWorkflowByDisplayName(workflowInfo.getDisplayName()).isPresent()) {
-                responseObserver.onError(
-                        Status.INVALID_ARGUMENT
-                            .withDescription(
-                                "Another workflow with " + workflowInfo.getDisplayName()
-                                    + " display name already exists in the system")
-                            .asException());
-                    return;
-            }
-
-            final WorkflowInfo workflowInfoWithTarget = workflowInfo.toBuilder()
+            final WorkflowInfo workflowInfoWithTarget = request.getWorkflow().getWorkflowInfo().toBuilder()
                 .setTargetId(targetId)
                 .build();
             long workflowId = workflowStore.insertWorkflow(workflowInfoWithTarget);
@@ -208,8 +195,10 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
                 .build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Cannot create the workflow: " + workflowInfo.getDisplayName()
-                    + " with type " + workflowInfo.getType(), e);
+            logger.error(
+                "exception creating workflow: "
+                    + request.getWorkflow().getWorkflowInfo().getDisplayName()
+                    + " with type " + request.getWorkflow().getWorkflowInfo().getType(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
@@ -218,52 +207,29 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
     public void updateWorkflow(
             @Nonnull final UpdateWorkflowRequest request,
             @Nonnull final StreamObserver<UpdateWorkflowResponse> responseObserver) {
-        Workflow currentWorkflow = request.getWorkflow();
-        WorkflowInfo currentWorkflowInfo = currentWorkflow.getWorkflowInfo();
-        if (checkDiscoveredWorkflow(currentWorkflow, responseObserver)) {
+        if (checkDiscoveredWorkflow(request.getWorkflow(), responseObserver)) {
             return;
         }
-        if (!currentWorkflow.hasId()) {
+        if (!request.getWorkflow().hasId()) {
             responseObserver.onError(
                 Status.INVALID_ARGUMENT
                     .withDescription(
                         "The id must be provided if you're updating the workflow."
-                            + currentWorkflowInfo.getDisplayName()
-                            + " with type " + currentWorkflowInfo.getType())
+                            + request.getWorkflow().getWorkflowInfo().getDisplayName()
+                            + " with type " + request.getWorkflow().getWorkflowInfo().getType())
                     .asException());
             return;
         }
 
         try {
-            Optional<Workflow> workflow = workflowStore.getWorkflowByDisplayName(
-                    currentWorkflowInfo.getDisplayName());
-            if (workflow.isPresent() && workflow.get().getId() != currentWorkflow.getId()) {
-                responseObserver.onError(
-                        Status.INVALID_ARGUMENT
-                            .withDescription(
-                                "Another workflow with " + currentWorkflowInfo.getDisplayName()
-                                    + " display name already exists in the system")
-                            .asException());
-                    return;
-            }
-
             Optional<Workflow> existingWorkflowOpt = workflowStore.fetchWorkflow(request.getId());
             if (!existingWorkflowOpt.isPresent()) {
                 responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Workflow with ID: " + request.getId() + " has not been found")
+                    .withDescription("workflow id: " + request.getId() + " not found")
                     .asException());
                 return;
             }
-
-            Workflow existingWorkflow = existingWorkflowOpt.get();
-            WorkflowInfo existingWorkflowInfo = existingWorkflow.getWorkflowInfo();
-
-            if (immutableWorkflowParamsHaveChanged(currentWorkflowInfo, existingWorkflowInfo,
-                    responseObserver, request.getId())) {
-                return;
-            }
-
-            if (checkDiscoveredWorkflow(existingWorkflow, responseObserver)) {
+            if (checkDiscoveredWorkflow(existingWorkflowOpt.get(), responseObserver)) {
                 return;
             }
 
@@ -277,11 +243,11 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
                     .setTargetId(existingWorkflowOpt.get().getWorkflowInfo().getTargetId())
                     .build());
             responseObserver.onNext(UpdateWorkflowResponse.newBuilder()
-                .setWorkflow(currentWorkflow)
+                .setWorkflow(request.getWorkflow())
                 .build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Cannot update the workflow with ID: " + currentWorkflow.getId(), e);
+            logger.error("exception updating workflow: " + request.getWorkflow().getId(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
@@ -294,7 +260,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             Optional<Workflow> workflowOpt = workflowStore.fetchWorkflow(request.getId());
             if (!workflowOpt.isPresent()) {
                 responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Workflow with ID: " + request.getId() + " has not been found")
+                    .withDescription("workflow id: " + request.getId() + " not found")
                     .asException());
                 return;
             }
@@ -307,7 +273,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
                 .build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Cannot delete the workflow with ID: " + request.getId(), e);
+            logger.error("exception deleting workflow: " + request.getId(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
@@ -318,61 +284,4 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             .map(ThinTargetInfo::oid)
             .findAny();
     }
-
-    /**
-     * Returns true if any of the immutable workflow parameters have changed, false otherwise.
-     * The immutable parameters are: type, action type and action phase.
-     *
-     * @param currentWorkflow The current workflow info.
-     * @param existingWorkflow The existing workflow info in the system.
-     * @param responseObserver The input response observer for workflow update.
-     * @param workflowId The input workflow id.
-     *
-     * @return true if any of the immutable workflow parameters have changed, false otherwise.
-     */
-    private boolean immutableWorkflowParamsHaveChanged(WorkflowInfo currentWorkflow, WorkflowInfo existingWorkflow,
-            @Nonnull final StreamObserver<UpdateWorkflowResponse> responseObserver, long workflowId) {
-        OrchestratorType currentWorkflowType = currentWorkflow.getType();
-        OrchestratorType existingWorkflowType = existingWorkflow.getType();
-        if (currentWorkflowType != existingWorkflowType) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("For workflow id: " + workflowId
-                            + " the type can't be changed. It must match the existing one: "
-                            + " current workflow type = " + currentWorkflowType.name()
-                            + " existing workflow type = " + existingWorkflowType.name())
-                    .asException());
-            return true;
-        }
-
-        if (currentWorkflow.hasActionType()) {
-            ActionType currentWorkflowActionType = currentWorkflow.getActionType();
-            ActionType existingWorkflowActionType = existingWorkflow.getActionType();
-            if (currentWorkflowActionType != existingWorkflowActionType) {
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription("For workflow id: " + workflowId
-                                + " the action type can't be changed. It must match the existing one: "
-                                + " current workflow action type = " + currentWorkflowActionType.name()
-                                + " existing workflow action type = " + existingWorkflowActionType.name())
-                        .asException());
-                return true;
-            }
-        }
-
-        if (currentWorkflow.hasActionPhase()) {
-            ActionPhase currentWorkflowActionPhase = currentWorkflow.getActionPhase();
-            ActionPhase existingWorkflowActionPhase = existingWorkflow.getActionPhase();
-            if (currentWorkflowActionPhase != existingWorkflowActionPhase) {
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription("For workflow id: " + workflowId
-                                + " the action phase can't be changed. It must match the existing one: "
-                                + " current workflow action phase = " + currentWorkflowActionPhase.name()
-                                + " existing workflow action phase = " + existingWorkflowActionPhase.name())
-                        .asException());
-                return true;
-            }
-        }
-
-        return false;
-    }
-
 }

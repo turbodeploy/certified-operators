@@ -30,7 +30,6 @@
         <grpc.version>1.29.0</grpc.version>
         <jackson.version>2.11.4</jackson.version>
         <commons-lang3.version>3.8.1</commons-lang3.version>
-        <surefire.version>3.0.0-M4</surefire.version>
         <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
         https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->
         <wireMockVersion>2.27.2</wireMockVersion>
