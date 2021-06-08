@@ -78,7 +78,7 @@ public class ConsistentScalingHelper {
      * Initializes the consistent resizer.  The market component expects that the CSM will only add
      * entities to a scaling group that are eligible for placement (e.g., non-controllable entities
      * will not be added to scaling groups).
-     * - Queries the group component for scaling group membership
+     * - Queries the group component for scaling group membership. Or iterate the ControlledBy relationship
      * - Initializes top usage tracker. As each topology entity is processed, the top usage for each
      *   group will be updated.
      * @param topology map of OID to topology entity
@@ -92,55 +92,16 @@ public class ConsistentScalingHelper {
                 // Skip empty scaling groups.
                 .filter(esg -> esg.getEntityOidsList().size() > 0)
                 .collect(Collectors.toList());
+        entitySettingGroups.forEach(v -> populateConsistentScalingGroup(topology, v.getSetting().getStringSettingValue().getValue(), v.getEntityOidsList()));
 
-        for (EntitySettingGroup esg : entitySettingGroups) {
-            // EntitySettingGroup contains the setting name, which represents the scaling group
-            // name.  This name represents the concatenation of the user groups contributed to
-            // the group.  This name will serve as the scaling group ID that is in the Trader.
-            final String groupName = esg.getSetting().getStringSettingValue().getValue();
-            ScalingGroup group = new ScalingGroup(groupName);
-            if (logger.isDebugEnabled()) {
-                logger.debug("Created scaling group {}", groupName);
-            }
-            int groupFactor = 0;
-            for (Long oid : esg.getEntityOidsList()) {
-                TopologyEntityDTO entity = topology.get(oid);
-                if (entity == null) {
-                    // Invalid OID, so skip
-                    continue;
-                }
-                group.addMember(oid);
-                groupFactor++;
-                if (groupFactor == 1) {
-                    // The first leader candidate is the group leader
-                    group.setGroupLeader(entity);
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Scaling group leader for {} is {}", groupName,
-                            entity.getDisplayName());
-                    }
-                }
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Adding {} to scaling group {}", entity.getDisplayName(),
-                        groupName);
-                }
-            }
-            if (logger.isDebugEnabled()) {
-                logger.debug("Group factor for {} is {}", groupName, groupFactor);
-            }
-            group.setGroupFactor(groupFactor);
-            // If there is no group leader, then the scaling group is not valid at this time,
-            // so discard it.
-            if (group.getGroupLeader() != null) {
-                for (Long oid : esg.getEntityOidsList()) {
-                    oidToGroup.put(oid, group);
-                }
-                groups.put(groupName, group);
-            } else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Group {} has no group leader - discarding", groupName);
-                }
-            }
-        }
+        // Iterate the topology and form the oid2MembersMap through the CONTROLLED_BY_CONNECTION
+        // oid2MembersMap is the map with key == controller oid, value == List<controlled entity oids>
+        Map<Long, Set<Long>> controllerOid2MembersMap = new HashMap<>();
+        topology.forEach((oid, topoDTO) -> topoDTO.getConnectedEntityListList().stream()
+                .filter(connectedEntity -> connectedEntity.getConnectionType() == TopologyEntityDTO.ConnectedEntity.ConnectionType.CONTROLLED_BY_CONNECTION)
+                .forEach(connectedEntity -> controllerOid2MembersMap.computeIfAbsent(connectedEntity.getConnectedEntityId(), s -> new HashSet<>()).add(topoDTO.getOid())));
+        // Populate the scaling groups. The scaling group name will be CSG-<controller_oid>
+        controllerOid2MembersMap.forEach((controllerId, members) -> populateConsistentScalingGroup(topology, "CSG-" + controllerId, members));
         logger.info("ConsistentScalingHelper initialization complete");
     }
 
@@ -168,6 +129,52 @@ public class ConsistentScalingHelper {
             return new HashSet<>();
         }
         return group.getMembers();
+    }
+
+    private void populateConsistentScalingGroup(final Map<Long, TopologyEntityDTO> topology, String groupName, Collection<Long> oidsList) {
+        ScalingGroup group = new ScalingGroup(groupName);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Created scaling group {}", groupName);
+        }
+        int groupFactor = 0;
+        for (Long oid : oidsList) {
+            TopologyEntityDTO entity = topology.get(oid);
+            if (entity == null) {
+                // Invalid OID, so skip
+                continue;
+            }
+            group.addMember(oid);
+            groupFactor++;
+            if (groupFactor == 1) {
+                // The first leader candidate is the group leader
+                group.setGroupLeader(entity);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Scaling group leader for {} is {}", groupName,
+                            entity.getDisplayName());
+                }
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug("Adding {} to scaling group {}", entity.getDisplayName(),
+                        groupName);
+            }
+        }
+        if (logger.isDebugEnabled()) {
+            logger.debug("Group factor for {} is {}", groupName, groupFactor);
+        }
+        group.setGroupFactor(groupFactor);
+        // If there is no group leader, then the scaling group is not valid at this time,
+        // so discard it.
+        if (group.getGroupLeader() != null) {
+            for (Long oid : oidsList) {
+                oidToGroup.put(oid, group);
+            }
+            groups.put(groupName, group);
+        } else {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Group {} has no group leader - discarding", groupName);
+            }
+        }
+
     }
 
     /**

@@ -127,6 +127,38 @@ public class ConsistentScalingHelperTest {
     }
 
     @Test
+    public void testControlledConnection() {
+        createEntity(50L);
+        createEntityWithController(51L, 50L);
+        ConsistentScalingHelper csh = consistentScalingHelperFactory
+                .newConsistentScalingHelper(null, null);
+        csh.initialize(topology);
+        // Get group members
+        Assert.assertEquals(new HashSet<>(Arrays.asList(51L)), csh.getGroupMembers("CSG-" + 50L));
+    }
+
+    private TopologyEntityDTO createEntityWithController(long oid, long controlleroid) {
+        TopologyEntityDTO.Builder te = TopologyEntityDTO.newBuilder()
+                .setDisplayName("Entity-" + oid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(poweredOffOids.contains(oid)
+                        ? EntityState.POWERED_OFF
+                        : EntityState.POWERED_ON)
+                .setOid(oid)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(controlleroid)
+                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setConnectionType(TopologyEntityDTO.ConnectedEntity.ConnectionType.CONTROLLED_BY_CONNECTION));
+        if (!onPremOids.contains(oid)) {
+            te.setEnvironmentType(EnvironmentType.CLOUD);
+        }
+        TopologyEntityDTO entity = te.build();
+        if (!invalidOids.contains(oid)) {
+            topology.put(oid, entity);
+        }
+        return entity;
+    }
+
+    @Test
     public void testGetScalingGroup() {
         // Create test groups: Group-1: VM-1, VM-2, Group-2, VM-3
         long[][] membership = {

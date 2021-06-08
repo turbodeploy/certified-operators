@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -57,17 +58,19 @@ public class ActionMergeSpecsRepositoryTest {
     private static final long TERRAFORM_PROBE_ID = 2L;
 
     private static ActionMergePolicyDTO kubeTurboMergePolicy;
+    private static ActionMergePolicyDTO kubeTurboMergePolicyNew;
     private static ActionMergePolicyDTO terraformMergePolicy;
 
-    private static TopologyGraph<TopologyEntity> graph;
     private static TopologyGraph<TopologyEntity> terraformGraph;
 
     /**
      * Create a test {@link ActionMergePolicyDTO} for the kubernetes probe environment.
      *
+     * @param connectionType the connectionType between container and containerSpec
      * @return ActionMergePolicyDTO
      */
-    private static ActionMergePolicyDTO createKubernetesPolicyDTO() {
+    private static ActionMergePolicyDTO createKubernetesPolicyDTO(
+            final CommonDTO.ConnectedEntity.ConnectionType connectionType) {
         // Target which is determined using set of connections
         ChainedActionMergeTargetData mergeTargetData
                 = ChainedActionMergeTargetData.newBuilder()
@@ -75,7 +78,7 @@ public class ActionMergeSpecsRepositoryTest {
                         .setMergeTarget(ActionMergeTargetData.newBuilder()
                                 .setRelatedTo(EntityType.CONTAINER_SPEC)
                                 .setRelatedBy(EntityRelationship.newBuilder()
-                                        .setConnectionType(CommonDTO.ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION))
+                                        .setConnectionType(connectionType))
                         )
                         .setDeDuplicate(true)
                 )
@@ -88,7 +91,7 @@ public class ActionMergeSpecsRepositoryTest {
                 )
                 .build();
 
-        kubeTurboMergePolicy = ActionMergePolicyDTO.newBuilder()
+        return ActionMergePolicyDTO.newBuilder()
                 .setEntityType(EntityType.CONTAINER)
                 .addExecutionTargets(ActionMergeExecutionTarget.newBuilder()
                         .setChainedMergeTarget(mergeTargetData).build())
@@ -98,8 +101,6 @@ public class ActionMergeSpecsRepositoryTest {
                         .addCommodityData(CommodityMergeData.newBuilder()
                                 .setCommodityType(CommodityDTO.CommodityType.VCPU)))
                 .build();
-
-        return kubeTurboMergePolicy;
     }
 
     /**
@@ -161,9 +162,11 @@ public class ActionMergeSpecsRepositoryTest {
      * Construct a test topology graph of a typical Kubernetes probe
      * containing containers, container specs and workload controllers.
      *
+     * @param connectionType the connectionType between container and containerSpec
      * @return TopologyGraph
      */
-    private static TopologyGraph<TopologyEntity> constructKubernetesTopology() {
+    private static TopologyGraph<TopologyEntity> constructKubernetesTopology(
+            final ConnectionType connectionType) {
         final Map<Long, Builder> topology = new HashMap<>();
 
         topology.put(1L, buildTopologyEntity(1L,
@@ -211,12 +214,12 @@ public class ActionMergeSpecsRepositoryTest {
         container1.getEntityBuilder()
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectionType(connectionType)
                         .build());
         container2.getEntityBuilder()
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(31L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectionType(connectionType)
                         .build());
 
 
@@ -227,12 +230,12 @@ public class ActionMergeSpecsRepositoryTest {
         container3.getEntityBuilder()
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(32L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectionType(connectionType)
                         .build());
         container4.getEntityBuilder()
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(32L)
-                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectionType(connectionType)
                         .build());
 
         final TopologyEntity.Builder controller = buildTopologyEntity(41L,
@@ -254,9 +257,7 @@ public class ActionMergeSpecsRepositoryTest {
         topology.put(32L, spec2);
         topology.put(41L, controller);
 
-        graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
-
-        return graph;
+        return TopologyEntityTopologyGraphCreator.newGraph(topology);
     }
 
     /**
@@ -387,9 +388,11 @@ public class ActionMergeSpecsRepositoryTest {
      */
     @org.junit.Before
     public void setUp() {
-        constructKubernetesTopology();
+        kubeTurboMergePolicy = createKubernetesPolicyDTO(
+                CommonDTO.ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION);
+        kubeTurboMergePolicyNew = createKubernetesPolicyDTO(
+                CommonDTO.ConnectedEntity.ConnectionType.CONTROLLED_BY_CONNECTION);
         constructTerraformTopology();
-        createKubernetesPolicyDTO();
         createTerraformPolicyDTO();
     }
 
@@ -412,14 +415,16 @@ public class ActionMergeSpecsRepositoryTest {
                         .addCommodityData(CommodityMergeData.newBuilder().setCommodityType(CommodityDTO.CommodityType.VCPU).build())
                         .build())
                 .build();
-
-        Optional<TopologyEntity> containerOpt = graph.getEntity(21L);
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
+        Optional<TopologyEntity> containerOpt = kubernetesGraph.getEntity(21L);
         final TopologyEntity container1 = containerOpt.get();
 
-        containerOpt = graph.getEntity(22L);
+        containerOpt = kubernetesGraph.getEntity(22L);
         final TopologyEntity container2 = containerOpt.get();
 
-        ActionMergeSpecsBuilder specsBuilder = new ActionMergeSpecsBuilder(KUBERNETES_TARGET_ID, graph);
+        ActionMergeSpecsBuilder specsBuilder = new ActionMergeSpecsBuilder(KUBERNETES_TARGET_ID,
+                                                                           kubernetesGraph);
 
         ActionExecutionTarget executionTarget1 = specsBuilder.getActionExecutionTarget(container1, mergePolicy);
         Assert.assertEquals(container1, executionTarget1.actionAggregationEntity());
@@ -437,28 +442,31 @@ public class ActionMergeSpecsRepositoryTest {
 
         System.out.println(kubeTurboMergePolicy);
         System.out.println(terraformMergePolicy);
-        Optional<TopologyEntity> containerOpt = graph.getEntity(21L);
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
+        Optional<TopologyEntity> containerOpt = kubernetesGraph.getEntity(21L);
         final TopologyEntity container1 = containerOpt.get();
 
-        containerOpt = graph.getEntity(22L);
+        containerOpt = kubernetesGraph.getEntity(22L);
         final TopologyEntity container2 = containerOpt.get();
 
-        containerOpt = graph.getEntity(11L);
+        containerOpt = kubernetesGraph.getEntity(11L);
         final TopologyEntity container3 = containerOpt.get();
 
-        containerOpt = graph.getEntity(12L);
+        containerOpt = kubernetesGraph.getEntity(12L);
         final TopologyEntity container4 = containerOpt.get();
 
-        Optional<TopologyEntity> entityOpt = graph.getEntity(41L);
+        Optional<TopologyEntity> entityOpt = kubernetesGraph.getEntity(41L);
         final TopologyEntity controller = entityOpt.get();
 
-        entityOpt = graph.getEntity(31L);
+        entityOpt = kubernetesGraph.getEntity(31L);
         final TopologyEntity containerSpec1 = entityOpt.get();
 
-        entityOpt = graph.getEntity(32L);
+        entityOpt = kubernetesGraph.getEntity(32L);
         final TopologyEntity containerSpec2 = entityOpt.get();
 
-        ActionMergeSpecsBuilder specsBuilder = new ActionMergeSpecsBuilder(KUBERNETES_TARGET_ID, graph);
+        ActionMergeSpecsBuilder specsBuilder = new ActionMergeSpecsBuilder(KUBERNETES_TARGET_ID,
+                                                                           kubernetesGraph);
 
         ActionExecutionTarget executionTarget1 = specsBuilder.getActionExecutionTarget(container1, kubeTurboMergePolicy);
         Assert.assertNotNull(executionTarget1);
@@ -547,10 +555,11 @@ public class ActionMergeSpecsRepositoryTest {
 
         ActionMergeSpecsRepository repo = new ActionMergeSpecsRepository();
         repo.setPoliciesForProbe(1L, probeInfo);
-
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
                                                                     KUBERNETES_TARGET_ID,
-                                                                    graph);
+                                                                    kubernetesGraph);
         Assert.assertEquals(2, specs.size());
 
         List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
@@ -610,5 +619,95 @@ public class ActionMergeSpecsRepositoryTest {
                 spec -> Assert.assertEquals(31L,
                                     spec.getResizeSpec().getDeDuplicationTarget().getEntity().getId())
         );
+    }
+
+    /**
+     * Test new actionMergePolicy (i.e., using controlledBy relation) works with old topology
+     * (i.e. using aggregatedBy relation in supply chain).
+     */
+    @Test
+    public void testNewActionMergePolicyWithOldTopology() {
+        ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory("cat")
+                .setProbeType("Kubernetes")
+                .addTargetIdentifierField("field")
+                .addActionMergePolicy(kubeTurboMergePolicyNew)
+                .build();
+
+        ActionMergeSpecsRepository repo = new ActionMergeSpecsRepository();
+        repo.setPoliciesForProbe(1L, probeInfo);
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
+        List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
+                                                                    KUBERNETES_TARGET_ID,
+                                                                    kubernetesGraph);
+        Assert.assertEquals(2, specs.size());
+        List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
+        for (AtomicActionSpec mergeSpec : specs) {
+            Assert.assertEquals(41L, mergeSpec.getAggregateEntity().getEntity().getId());
+            Assert.assertTrue(mergeSpec.hasResizeSpec());
+            Assert.assertTrue(mergeSpec.getResizeSpec().hasDeDuplicationTarget());
+            Assert.assertTrue(deDuplicationTargetIds.contains(mergeSpec.getResizeSpec().getDeDuplicationTarget().getEntity().getId()));
+        }
+    }
+
+    /**
+     * Test old actionMergePolicy (i.e., using aggregatedBy relation) works with new topology
+     * (i.e. using controlledBy relation in supply chain).
+     */
+    @Test
+    public void testOldActionMergePolicyWithNewTopology() {
+        ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory("cat")
+                .setProbeType("Kubernetes")
+                .addTargetIdentifierField("field")
+                .addActionMergePolicy(kubeTurboMergePolicy)
+                .build();
+
+        ActionMergeSpecsRepository repo = new ActionMergeSpecsRepository();
+        repo.setPoliciesForProbe(1L, probeInfo);
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.CONTROLLED_BY_CONNECTION);
+        List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
+                                                                    KUBERNETES_TARGET_ID,
+                                                                    kubernetesGraph);
+        Assert.assertEquals(2, specs.size());
+        List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
+        for (AtomicActionSpec mergeSpec : specs) {
+            Assert.assertEquals(41L, mergeSpec.getAggregateEntity().getEntity().getId());
+            Assert.assertTrue(mergeSpec.hasResizeSpec());
+            Assert.assertTrue(mergeSpec.getResizeSpec().hasDeDuplicationTarget());
+            Assert.assertTrue(deDuplicationTargetIds.contains(mergeSpec.getResizeSpec().getDeDuplicationTarget().getEntity().getId()));
+        }
+    }
+
+    /**
+     * Test new actionMergePolicy (i.e., using controlledBy relation) works with new topology
+     * (i.e. using controlledBy relation in supply chain).
+     */
+    @Test
+    public void testNewActionMergePolicyWithNewTopology() {
+        ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory("cat")
+                .setProbeType("Kubernetes")
+                .addTargetIdentifierField("field")
+                .addActionMergePolicy(kubeTurboMergePolicyNew)
+                .build();
+
+        ActionMergeSpecsRepository repo = new ActionMergeSpecsRepository();
+        repo.setPoliciesForProbe(1L, probeInfo);
+        final TopologyGraph<TopologyEntity> kubernetesGraph =
+                constructKubernetesTopology(ConnectionType.CONTROLLED_BY_CONNECTION);
+        List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
+                                                                    KUBERNETES_TARGET_ID,
+                                                                    kubernetesGraph);
+        Assert.assertEquals(2, specs.size());
+        List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
+        for (AtomicActionSpec mergeSpec : specs) {
+            Assert.assertEquals(41L, mergeSpec.getAggregateEntity().getEntity().getId());
+            Assert.assertTrue(mergeSpec.hasResizeSpec());
+            Assert.assertTrue(mergeSpec.getResizeSpec().hasDeDuplicationTarget());
+            Assert.assertTrue(deDuplicationTargetIds.contains(mergeSpec.getResizeSpec().getDeDuplicationTarget().getEntity().getId()));
+        }
     }
 }

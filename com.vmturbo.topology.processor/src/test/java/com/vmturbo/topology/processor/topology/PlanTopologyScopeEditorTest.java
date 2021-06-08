@@ -261,7 +261,7 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder vdcInDc1 = createHypervisorTopologyEntity(100001L, "vdcInDc1", EntityType.VIRTUAL_DATACENTER, commBoughtByVDCinDC1, basketSoldByVDCinDC1);
     private final TopologyEntity.Builder pod1 = createHypervisorTopologyEntity(200001L, "pod1", EntityType.CONTAINER_POD, commBoughtByPod, Arrays.asList(VCPU, VMPM_ACCESS));
     private final TopologyEntity.Builder cntSpec1 = createHypervisorTopologyEntity(200003L, "cntSpec1", EntityType.CONTAINER_SPEC, Collections.emptyMap(), Collections.emptyList());
-    private final TopologyEntity.Builder cnt1 = addAggregatedByConnection(
+    private final TopologyEntity.Builder cnt1 = addControlledByConnection(
         createHypervisorTopologyEntity(200002L, "cnt1", EntityType.CONTAINER, commBoughtByCntFromPod, Collections.singletonList(VCPU)),
         cntSpec1.getOid());
     private final TopologyEntity.Builder podVV = createHypervisorTopologyEntity(200004L, "podVV", EntityType.VIRTUAL_VOLUME, Collections.emptyMap(), Collections.singletonList(ST_AMT));
@@ -501,7 +501,7 @@ public class PlanTopologyScopeEditorTest {
             = createCloudNativeTopologyEntity(25L, "kubePod1", EntityType.CONTAINER_POD,
                                                 commBoughtByKubePod, Arrays.asList(VCPU, VCPUREQ_QUOTA, VMPM_ACCESS_KUBEPOD));
 
-    private final TopologyEntity.Builder kubeCnt1 = addAggregatedByConnection(
+    private final TopologyEntity.Builder kubeCnt1 = addControlledByConnection(
             createCloudNativeTopologyEntity(26L, "kubeCnt1", EntityType.CONTAINER,
                                             commBoughtByCnt, Collections.singletonList(VCPU)),
                                             kubeCntSpec1.getOid());
@@ -1538,6 +1538,22 @@ public class PlanTopologyScopeEditorTest {
             .setConnectedEntityId(aggregatorId)
             .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
 
+        return entity;
+    }
+
+    /**
+     * Make this entity controlled by the controller
+     *
+     * @param entity The entity
+     * @param controllerId The ID of the controller
+     * @return The entity
+     */
+    private static TopologyEntity.Builder addControlledByConnection(@Nonnull final TopologyEntity.Builder entity,
+                                                                    final long controllerId) {
+        entity.getEntityBuilder().addConnectedEntityList(
+                ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(controllerId)
+                        .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
         return entity;
     }
 

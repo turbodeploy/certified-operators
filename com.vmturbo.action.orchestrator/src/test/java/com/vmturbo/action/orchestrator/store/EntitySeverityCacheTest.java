@@ -631,16 +631,16 @@ public class EntitySeverityCacheTest {
             makeEntity(EntityType.APPLICATION_COMPONENT, application6b2Oid, graphCreator, container6b2Oid);
 
             makeEntity(EntityType.CONTAINER, container6a1Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
+                    newConnectedEntity(ConnectionType.CONTROLLED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
                     containerPod6aOid);
             makeEntity(EntityType.CONTAINER, container6a2Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
+                    newConnectedEntity(ConnectionType.CONTROLLED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
                     containerPod6aOid);
             makeEntity(EntityType.CONTAINER, container6b1Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
+                    newConnectedEntity(ConnectionType.CONTROLLED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
                     containerPod6bOid);
             makeEntity(EntityType.CONTAINER, container6b2Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
+                    newConnectedEntity(ConnectionType.CONTROLLED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
                     containerPod6bOid);
 
             makeEntity(EntityType.CONTAINER_POD, containerPod6aOid, graphCreator, virtualMachine1Oid, workloadController6Oid);

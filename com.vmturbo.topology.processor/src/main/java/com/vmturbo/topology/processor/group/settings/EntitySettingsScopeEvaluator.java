@@ -61,12 +61,12 @@ public class EntitySettingsScopeEvaluator {
     }
 
     /**
-     * Returns the seed entity and all containers aggregated by that seed entity.
+     * Returns the seed entity and all containers aggregated and controlled by that seed entity.
      */
-    private static final ImplicitApplicationScope SELF_AND_AGGREGATED_CONTAINERS = (graph, seedOid) ->
+    private static final ImplicitApplicationScope SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS = (graph, seedOid) ->
         graph.getEntity(seedOid)
-            .map(entity -> Stream.concat(entity.getAggregatedEntities().stream()
-                .filter(aggregation -> aggregation.getEntityType() == EntityType.CONTAINER_VALUE)
+            .map(entity -> Stream.concat(entity.getAggregatedAndControlledEntities().stream()
+                .filter(e -> e.getEntityType() == EntityType.CONTAINER_VALUE)
                 .map(TopologyEntity::getOid), Stream.of(seedOid)))
         .orElse(Stream.empty());
 
@@ -76,25 +76,25 @@ public class EntitySettingsScopeEvaluator {
     private static final Map<Integer, Map<String, ImplicitApplicationScope>> IMPLICIT_SCOPES =
         ImmutableMap.of(EntityType.CONTAINER_SPEC_VALUE,
             ImmutableMap.<String, ImplicitApplicationScope>builder()
-                .put(ConfigurableActionSettings.Resize.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ContainerSpecVcpuIncrement.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ContainerSpecVmemIncrement.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.RateOfResize.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.PercentileAggressivenessContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.MinObservationPeriodContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.MaxObservationPeriodContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVcpuRequestMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVcpuLimitMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVmemRequestMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVmemLimitMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(EntitySettingSpecs.ResizeVmemLimitMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
-                .put(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.Resize.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ContainerSpecVcpuIncrement.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ContainerSpecVmemIncrement.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.RateOfResize.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.PercentileAggressivenessContainerSpec.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.MinObservationPeriodContainerSpec.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.MaxObservationPeriodContainerSpec.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuRequestMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuLimitMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemRequestMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemLimitMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemLimitMaxThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold.getSettingName(), SELF_AGGREGATED_AND_CONTROLLED_CONTAINERS)
                 .build()
         );
 

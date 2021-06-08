@@ -73,11 +73,11 @@ public class EntitySettingsScopeEvaluatorTest {
     private final TopologyEntity.Builder containerSpec2 = entity(CONTAINER_SPEC_ID_2, EntityType.CONTAINER_SPEC);
     private final TopologyEntity.Builder containerSpec3 = entity(CONTAINER_SPEC_ID_3, EntityType.CONTAINER_SPEC);
 
-    private final TopologyEntity.Builder container1 = entityAggregators(CONTAINER_ID_1,
+    private final TopologyEntity.Builder container1 = entityControllers(CONTAINER_ID_1,
         EntityType.CONTAINER, containerSpec1);
-    private final TopologyEntity.Builder container2 = entityAggregators(CONTAINER_ID_2,
+    private final TopologyEntity.Builder container2 = entityControllers(CONTAINER_ID_2,
         EntityType.CONTAINER, containerSpec2);
-    private final TopologyEntity.Builder container3 = entityAggregators(CONTAINER_ID_3,
+    private final TopologyEntity.Builder container3 = entityControllers(CONTAINER_ID_3,
         EntityType.CONTAINER, containerSpec2);
 
     private final TopologyEntity.Builder vm1 = entity(VM_ID_1, EntityType.VIRTUAL_MACHINE);
@@ -141,10 +141,10 @@ public class EntitySettingsScopeEvaluatorTest {
     }
 
     /**
-     * testEvaluateWithImplicitScopeMultipleAggregations.
+     * testEvaluateWithImplicitScopeMultipleControlledEntities.
      */
     @Test
-    public void testEvaluateWithImplicitScopeMultipleAggregations() {
+    public void testEvaluateWithImplicitScopeMultipleControlledEntities() {
         final ResolvedGroup group = group(GROUP_ID_1, containerSpec2);
         final SettingPolicy sp = settingPolicy(EntityType.CONTAINER_SPEC_VALUE,
             EntitySettingSpecs.ContainerSpecVcpuIncrement,
@@ -297,6 +297,20 @@ public class EntitySettingsScopeEvaluatorTest {
                 .setConnectedEntityType(agg.getEntityType())
                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
             entity.addAggregatedEntity(agg);
+        }
+        return entity;
+    }
+
+    private TopologyEntity.Builder entityControllers(final long oid,
+                                                     final EntityType entityType,
+                                                     final TopologyEntity.Builder... controllers) {
+        final TopologyEntity.Builder entity = entity(oid, entityType);
+        for (TopologyEntity.Builder controller : controllers) {
+            entity.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(controller.getOid())
+                    .setConnectedEntityType(controller.getEntityType())
+                    .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION));
+            entity.addControlledEntity(controller);
         }
         return entity;
     }
