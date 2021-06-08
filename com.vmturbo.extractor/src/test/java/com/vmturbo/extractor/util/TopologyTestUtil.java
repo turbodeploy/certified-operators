@@ -665,12 +665,18 @@ public class TopologyTestUtil {
      * @return new file descriptor
      */
     public static VirtualVolumeFileDescriptor file(String fileName, VirtualMachineFileType fileType,
-            long fileSize, long lastModificationTime) {
-        return VirtualVolumeFileDescriptor.newBuilder()
-                .setPath(fileName)
-                .setSizeKb(fileSize)
-                .setModificationTimeMs(lastModificationTime)
-                .setType(fileType)
-                .build();
+            Long fileSize, Long lastModificationTime) {
+        VirtualVolumeFileDescriptor.Builder virtualVolumeFileDescriptorBldr =
+                        VirtualVolumeFileDescriptor.newBuilder()
+                        .setPath(fileName)
+                        .setType(fileType);
+        if (fileSize != null) {
+            virtualVolumeFileDescriptorBldr.setSizeKb(fileSize.longValue());
+        }
+        if (lastModificationTime != null ) {
+            virtualVolumeFileDescriptorBldr
+                .setModificationTimeMs(lastModificationTime.longValue());
+        }
+        return virtualVolumeFileDescriptorBldr.build();
     }
 }
