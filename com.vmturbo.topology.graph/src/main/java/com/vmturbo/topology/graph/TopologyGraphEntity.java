@@ -226,6 +226,46 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
+     * Get all aggregators and controllers of this entity.
+     * This is needed to ensure backwards compatibility of reported relationship between
+     * containers and container specs.
+     * After https://vmturbo.atlassian.net/browse/OM-71015 is released it can happen that there
+     * are k8s probes which report older relationships ie. AggregatedBy and newer probes which
+     * report ControlledBy between containers and containerspecs. We need to account for both.
+     * As of now the probe would report one or the other, so its ok to get a union of both sets.
+     *
+     * TODO: Remove this and its respective usage when all users move to newer versions.
+     *
+     * @return all aggregators and controllers of this entity
+     */
+    @Nonnull
+    default List<E> getAggregatorsAndControllers() {
+        return Stream.of(getAggregators(), getControllers())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all aggregated and controlled entities.
+     * This is needed to ensure backwards compatibility of reported relationship between
+     * containers and container specs.
+     * After https://vmturbo.atlassian.net/browse/OM-71015 is released it can happen that there
+     * are k8s probes which report older relationships ie. AggregatedBy and newer probes which
+     * report ControlledBy between containers and containerspecs. We need to account for both.
+     * As of now the probe would report one or the other, so its ok to get a union of both sets.
+     *
+     * TODO: Remove this and its respective usage when all users move to newer versions.
+     *
+     * @return all aggregated and controlled entities
+     */
+    @Nonnull
+    default List<E> getAggregatedAndControlledEntities() {
+        return Stream.of(getAggregatedEntities(), getControlledEntities())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get all aggregators of this entity, including the owner.
      *
      * @return all aggregators of this entity

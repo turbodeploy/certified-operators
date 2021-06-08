@@ -148,6 +148,8 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
             TopologyGraph::getProviders,
             // aggregated entities carry references to their aggregators
             TopologyGraph::getAggregators,
+            // controlled entities carry references to their controllers
+            TopologyGraph::getControllers,
             // owners carry references to their owned entities
             TopologyGraph::getOwnedEntities,
             // normal connections are considered outbound in the referncing entity, and inbound
@@ -302,6 +304,26 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
     @Nonnull
     public Stream<E> getOwnersOrAggregators(@Nonnull final E topologyEntity) {
         return Stream.concat(topologyEntity.getAggregators().stream(), getOwner(topologyEntity));
+    }
+
+    /**
+     * Get all aggregators and controllers of this entity.
+     * This is needed to ensure backwards compatibility of reported relationship between
+     * containers and container specs.
+     * After https://vmturbo.atlassian.net/browse/OM-71015 is released it can happen that there
+     * are k8s probes which report older relationships ie. AggregatedBy and newer probes which
+     * report ControlledBy between containers and container specs. We need to account for both.
+     * As of now the probe would report one or the other, so its ok to get a union of both sets.
+     * TODO: Remove this and its respective usage when all users move to version 8.2.3+ of
+     *   Turbonomic and Kubeturbo in ALL of their environments.
+     *
+     * @param topologyEntity the {@link TopologyGraphEntity} whose aggregators and controllers
+     *                       should be retrieved.
+     * @return all aggregator and controller entities
+     */
+    @Nonnull
+    public Stream<E> getAggregatorsAndControllers(@Nonnull final E topologyEntity) {
+        return topologyEntity.getAggregatorsAndControllers().stream();
     }
 
     /**

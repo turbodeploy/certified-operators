@@ -330,10 +330,14 @@ public class ActionMergeSpecsRepository {
             ConnectionType connection = targetData.getRelatedBy().getConnectionType();
 
             Stream<TopologyEntity> connectedEntities;
-            if (connection == ConnectionType.AGGREGATED_BY_CONNECTION) {
-                connectedEntities = topologyGraph.getAggregators(entity);
-            } else if (connection == ConnectionType.CONTROLLED_BY_CONNECTION) {
-                connectedEntities = topologyGraph.getControllers(entity);
+            if (connection == ConnectionType.AGGREGATED_BY_CONNECTION
+                    || connection == ConnectionType.CONTROLLED_BY_CONNECTION) {
+                // Due to a change of relationship between container and containerSpec from
+                // aggregatedBy to controlledBy in the actionMergePolicy, we may get either
+                // aggregatedBy or controlledBy relationship from probeInfo when there are both
+                // old and new kubeturbo registering probe info. As a result, we need to check
+                // both connections to maintain backward compatibility.
+                connectedEntities = topologyGraph.getAggregatorsAndControllers(entity);
             } else if (connection == ConnectionType.OWNS_CONNECTION) {
                 connectedEntities = topologyGraph.getOwner(entity);
             } else {

@@ -409,7 +409,9 @@ public class EntitySeverityCache {
                 if (!traversalConfig.connectedEntities.isEmpty()) {
                     final Set<ActionGraphEntity> connectedEntitiesToCheck = new HashSet<>();
                     connectedEntitiesToCheck.addAll(entity.getOutboundAssociatedEntities());
-                    connectedEntitiesToCheck.addAll(entity.getAggregators());
+                    // Containers are either controlled by or aggregated by ContainerSpecs
+                    connectedEntitiesToCheck.addAll(entity.getAggregatorsAndControllers());
+
                     for (ActionGraphEntity connectedEntity : connectedEntitiesToCheck) {
                         if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
                             severityBreakdown.combine(temporarySeverities.get(connectedEntity.getOid()));

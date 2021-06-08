@@ -624,8 +624,12 @@ public class PlanTopologyScopeEditor {
             } else if (buyer.getEntityType() == CONTAINER_VALUE) {
                 // Because container history is actually stored on ContainerSpec entities, we need to ensure
                 // that we pull in the related ContainerSpecs even though they don't have any buy/sell
-                // relations to the entities in plan scope. ContainerSpecs are aggregators for Containers.
+                // relations to the entities in plan scope.
+                // ContainerSpecs are aggregators of Containers for kubeturbo 8.2.0 and before
+                // ContainerSpecs are controllers of Containers for kubeturbo 8.2.1 and after
+                // We check both connections here to maintain backward compatibility
                 associatedEntities.addAll(buyer.getAggregators());
+                associatedEntities.addAll(buyer.getControllers());
             } else if (buyer.getEntityType() == AVAILABILITY_ZONE_VALUE) {
                 // We have encountered AZ as a provider, it can serve as the seed to obtain
                 // Region, tiers and service providers to compute costs for entities in the scope

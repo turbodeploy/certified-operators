@@ -196,7 +196,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
     private void injectMinThresholdsFromUsage(@Nonnull final TopologyEntity entity,
                                               @Nonnull final InjectionStats stats) {
         final Map<Integer, Double> commodityTypeToMaxUsageMap = new HashMap<>();
-        entity.getAggregatedEntities().forEach(container ->
+        entity.getAggregatedAndControlledEntities().forEach(container ->
             container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
                 // Update min thresholds only for limit and request commodities.
                 .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
@@ -206,7 +206,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
                     comm.getCommodityType().getType(), (k, v) -> v == null ? comm.getUsed()
                         : Math.max(v, comm.getUsed()));
             }));
-        entity.getAggregatedEntities().forEach(container -> {
+        entity.getAggregatedAndControlledEntities().forEach(container -> {
             container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
                 .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
                     || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
