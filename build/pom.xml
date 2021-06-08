@@ -2215,11 +2215,6 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.external-api-stubs</artifactId>
-                <version>${com.vmturbo.api.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.clustermgr.api</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -2445,7 +2440,7 @@
                 <version>${lz4.version}</version>
             </dependency>
 
-            <!-- Dependencies from MT -->
+            <!-- Dependencies from API -->
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.api</artifactId>
@@ -2476,8 +2471,20 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.proactivesupport</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
+                <version>${com.vmturbo.api.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.branding</artifactId>
+                <version>${com.vmturbo.api.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.external-api-stubs</artifactId>
+                <version>${com.vmturbo.api.version}</version>
+            </dependency>
+
+            <!-- Dependencies from MT -->
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.UX</artifactId>
