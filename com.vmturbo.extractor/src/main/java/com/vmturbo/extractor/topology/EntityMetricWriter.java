@@ -469,11 +469,15 @@ public class EntityMetricWriter extends TopologyWriterBase {
         volumeInfo.getFilesList().forEach(file -> {
             Record wastedFileRecord = new Record(WASTED_FILE_TABLE);
             wastedFileRecord.set(FILE_PATH, file.getPath());
-            wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
-            wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+            if (file.hasSizeKb()) {
+                wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
+            }
+            if (file.hasModificationTimeMs()) {
+                wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+            }
             wastedFileRecord.set(STORAGE_OID, storageId);
             // storage name will be added later in finish stage
-            wastedFileRecordsByStorageId.computeIfAbsent((long)storageId, k -> new ArrayList<>())
+            wastedFileRecordsByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>())
                     .add(wastedFileRecord);
         });
     }
@@ -604,7 +608,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         Double capacity = record.hasCapacity() ? (double)record.getCapacity().getAvg() : null;
         Double current = record.hasCapacity() && record.hasUsed()
-                ? capacity - (double)record.getUsed().getAvg() : null;
+                ? capacity - record.getUsed().getAvg() : null;
         Double utilization = null;
         if (capacity != null && current != null) {
             utilization = capacity == 0 ? 0 : current / capacity;
