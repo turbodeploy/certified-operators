@@ -248,8 +248,8 @@ public class MarketStatsAccumulatorTest {
     @Test
     public void testRecordsParametersSoldCommodity() throws InterruptedException, VmtDbException {
         final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
-        final CommoditySoldDTO soldCpu = StatsTestUtils.q1_vcpu(3.14);
-        commoditiesSold.add(soldCpu);
+        commoditiesSold.add(StatsTestUtils.cpu(3.14));
+        commoditiesSold.add(StatsTestUtils.q1_vcpu(3.14));
         marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
         final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
             ArgumentCaptor.forClass(HistUtilizationRecord.class);
@@ -328,14 +328,14 @@ public class MarketStatsAccumulatorTest {
             final boolean isTimeslot = historyUtilizationType == HistoryUtilizationType.Timeslot;
             final int newPropertySlot = isTimeslot ? propertySlot++ : 0;
             final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) / capacity
-                    : historicalUsed.getPercentile();
+                    : historicalUsed.hasPercentile() ? historicalUsed.getPercentile() : historicalUsed.getHistUtilization() / capacity;
             checkParametersRecord(oid, checkProviderId, record, commodityType, capacity,
                     historyUtilizationType, newPropertySlot, value);
         }
     }
 
     private void checkParametersRecord(long oid, Long providerId, HistUtilizationRecord record,
-                                       CommodityType commodityType, double capacity, HistoryUtilizationType percentile,
+                                       CommodityType commodityType, double capacity, HistoryUtilizationType historyType,
                                        int propertySlot, double utilization) {
         Assert.assertThat(record.getOid(), Matchers.is(oid));
         Assert.assertEquals(providerId, record.getProducerOid());
@@ -343,7 +343,7 @@ public class MarketStatsAccumulatorTest {
         Assert.assertThat(PropertySubType.Utilization.ordinal(),
             Matchers.is(record.getPropertySubtypeId()));
         Assert.assertEquals(commodityType.getKey(), record.getCommodityKey());
-        Assert.assertThat(percentile.ordinal(), Matchers.is(record.getValueType()));
+        Assert.assertThat(historyType.ordinal(), Matchers.is(record.getValueType()));
         Assert.assertThat(propertySlot, Matchers.is(record.getPropertySlot()));
         Assert.assertEquals(BigDecimal.valueOf(utilization), record.getUtilization());
         Assert.assertThat(capacity, Matchers.is(record.getCapacity()));

@@ -186,6 +186,10 @@ message StatsFilter {
 
         // If present, limit the ServiceEntities processed to the given type.
         optional string related_entity_type = 4;
+
+        // type of history to query the histUtilization table with
+        optional string history_type = 5;
+
     }
 
     // a filter to implment the equivalent of 'where <property> = <value>'

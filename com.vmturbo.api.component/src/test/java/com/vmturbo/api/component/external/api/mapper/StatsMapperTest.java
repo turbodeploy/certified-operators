@@ -542,7 +542,7 @@ public class StatsMapperTest {
         List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
         // The API caller is requesting stats for a DATACENTER
         statistics.add(new StatApiInputDTO(CommodityType.CPU_ALLOCATION.name(),
-            ApiEntityType.DATACENTER.apiStr(), null, null));
+            ApiEntityType.DATACENTER.apiStr(), null, null, null));
         statPeriodApiInputDTO.setStatistics(statistics);
         // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
         StatsFilter filter =

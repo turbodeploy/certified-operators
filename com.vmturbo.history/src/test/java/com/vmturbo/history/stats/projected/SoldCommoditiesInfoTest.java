@@ -28,6 +28,7 @@ import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -132,6 +133,7 @@ public class SoldCommoditiesInfoTest {
 
         final List<StatRecord> records = info.getAccumulatedRecords(COMMODITY, Collections.emptySet());
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -141,9 +143,12 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(TWO_VALUE_STAT).build())
                 .build();
 
         assertEquals(expectedStatRecord, records.get(0));
@@ -161,7 +166,7 @@ public class SoldCommoditiesInfoTest {
 
         final List<StatRecord> records =
                 info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(1L, 2L));
-
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -171,9 +176,12 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(TWO_VALUE_STAT).build())
                 .build();
         assertEquals(expectedStatRecord, records.get(0));
     }
@@ -181,6 +189,7 @@ public class SoldCommoditiesInfoTest {
     @Test
     public void testSoldCommoditiesDuplicateDifferentKey() {
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(5).setMax(6).setMin(5).setTotal(5).setTotalMax(6).setTotalMin(5).build();
         final StatRecord expectedStatRecordWithKey = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 .setStatKey(COMMODITY)
@@ -190,11 +199,15 @@ public class SoldCommoditiesInfoTest {
                 // the average
                 .setCurrentValue(5.0F)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(5).setMax(6).setMin(5).setTotal(5).setTotalMax(6).setTotalMin(5).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(5).setMax(6).setMin(5).setTotal(5).setTotalMax(6).setTotalMin(5).build())
                 .setPeak(StatValue.newBuilder().setAvg(5).setMax(6).setMin(5).setTotal(5).setTotalMax(6).setTotalMin(5).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(new StatsAccumulator().record(7).toStatValue()).build())
                 .build();
 
+        usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build();
         final StatRecord expectedStatRecordWithoutKey = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 .setCapacity(new StatsAccumulator().record(4).toStatValue())
@@ -203,9 +216,12 @@ public class SoldCommoditiesInfoTest {
                 // the average
                 .setCurrentValue(2.0F)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(new StatsAccumulator().record(4).toStatValue()).build())
                 .build();
 
         List<StatRecord> statRecords =
@@ -227,6 +243,7 @@ public class SoldCommoditiesInfoTest {
     @Test
     public void testSoldCommoditiesDuplicateNoKey() {
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build();
         // the values are from the first record persisted; the second record is ignored.
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -235,9 +252,12 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue(4)).build())
                 .build();
         List<StatRecord> statRecords = testAddTwoCommodities(COMMODITY_TYPE, COMMODITY_TYPE);
         assertEquals(1, statRecords.size());
@@ -251,6 +271,7 @@ public class SoldCommoditiesInfoTest {
     @Test
     public void testSoldCommoditiesDuplicateSameKey() {
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build();
         // the values are from the first record persisted; the second record is ignored.
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -260,9 +281,12 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue(4)).build())
                 .build();
         List<StatRecord> statRecords = testAddTwoCommodities(COMMODITY_TYPE_WITH_KEY, COMMODITY_TYPE_WITH_KEY);
         assertEquals(1, statRecords.size());

@@ -70,6 +70,13 @@ abstract class AccumulatedCommodity {
                             .setType(HistoryUtilizationType.Percentile.getApiParameterName())
                             .setUsage(percentileUsage.toStatValue()).setCapacity(capacityStatValue)
                             .build());
+        } else {
+            // if the percentile number is not present, return AverageUtilization
+            // this is used in actionImpact for commodities that do not use percentile.
+            builder.addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                    .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                    .setUsage(statValue).setCapacity(capacityStatValue)
+                    .build());
         }
 
         final String commodityTypeUnit = CommodityTypeUnits.unitFromString(commodityName);
