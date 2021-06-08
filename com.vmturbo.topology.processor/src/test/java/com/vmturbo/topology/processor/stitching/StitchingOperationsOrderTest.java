@@ -103,9 +103,11 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     public void testStitchingAppFirst() throws Exception {
         init(ImmutableList.of(
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE),
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES),
                 createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE)));
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES)));
         testStitching();
     }
 
@@ -120,9 +122,11 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     public void testStitchingVirtualMachineFirst() throws Exception {
         init(ImmutableList.of(
                 createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE),
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE)));
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES)));
         testStitching();
     }
 
@@ -137,13 +141,17 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     public void testStitchingBillingFirst() throws Exception {
         init(ImmutableList.of(
             createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE),
+                EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
             createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                EntityType.VIRTUAL_MACHINE, ProbeCategory.CUSTOM),
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CUSTOM,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
             createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                EntityType.VIRTUAL_MACHINE, ProbeCategory.GUEST_OS_PROCESSES),
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.GUEST_OS_PROCESSES,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
             createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE)));
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES)));
         testStitching();
     }
 

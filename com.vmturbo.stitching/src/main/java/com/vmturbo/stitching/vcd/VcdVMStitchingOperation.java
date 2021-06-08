@@ -42,6 +42,6 @@ public class VcdVMStitchingOperation extends StringsToStringsDataDrivenStitching
                 .addPatchedProperties(EntityPropertyName.newBuilder()
                         .setPropertyName(SupplyChainConstants.LOCAL_NAME).build())
             .build()),
-            ImmutableSet.of(ProbeCategory.HYPERVISOR));
+            ImmutableSet.of(ProbeCategory.HYPERVISOR), ProbeCategory.CLOUD_MANAGEMENT);
     }
 }

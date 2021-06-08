@@ -42,7 +42,8 @@ public abstract class VDIStitchingOperation extends StringsToStringsDataDrivenSt
                         .addAllCommoditiesSold(soldCommodityTypes)
                         .addAllCommoditiesBought(boughtMetaDataList)
                         .build()),
-                Collections.singleton(ProbeCategory.HYPERVISOR));
+                Collections.singleton(ProbeCategory.HYPERVISOR),
+                ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE);
     }
 
     public VDIStitchingOperation(EntityType entityType, Set<CommodityType> soldCommodityTypes) {

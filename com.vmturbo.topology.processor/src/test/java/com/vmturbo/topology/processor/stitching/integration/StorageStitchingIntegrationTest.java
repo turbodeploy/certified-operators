@@ -105,7 +105,8 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
                         .build();
         return new StringsToStringsDataDrivenStitchingOperation(
                 new StringsToStringsStitchingMatchingMetaData(EntityType.STORAGE,
-                        storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
+                        storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR),
+                ProbeCategory.STORAGE);
     }
 
     @Test

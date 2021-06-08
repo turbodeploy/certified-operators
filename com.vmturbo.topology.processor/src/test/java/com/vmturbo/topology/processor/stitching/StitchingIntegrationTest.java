@@ -116,11 +116,11 @@ public abstract class StitchingIntegrationTest {
     @Nonnull
     protected static StringsToStringsDataDrivenStitchingOperation createDataDrivenStitchingOperation(
                     MergedEntityMetadata mergedEntityMetadata, EntityType entityType,
-                    ProbeCategory probeCategory) {
+                    ProbeCategory probeCategoryToStitchWith, ProbeCategory probeCategory) {
         return new StringsToStringsDataDrivenStitchingOperation(
                         new StringsToStringsStitchingMatchingMetaData(entityType,
                                         mergedEntityMetadata),
-                        Collections.singleton(probeCategory));
+                        Collections.singleton(probeCategoryToStitchWith), probeCategory);
     }
 
     protected void setOperationsForProbe(final long probeId,

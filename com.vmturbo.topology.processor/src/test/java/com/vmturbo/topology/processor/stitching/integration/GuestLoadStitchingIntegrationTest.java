@@ -85,9 +85,11 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
                         .build();
 
         return ImmutableList.of(createDataDrivenStitchingOperation(guestLoadVMMergeEntityMetadata,
-                        EntityType.VIRTUAL_MACHINE, ProbeCategory.HYPERVISOR),
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.HYPERVISOR,
+                ProbeCategory.APPLICATIONS_AND_DATABASES),
                         createDataDrivenStitchingOperation(guestLoadAppMergeEntityMetadata,
-                                        EntityType.APPLICATION_COMPONENT, ProbeCategory.HYPERVISOR));
+                                        EntityType.APPLICATION_COMPONENT, ProbeCategory.HYPERVISOR,
+                                ProbeCategory.APPLICATIONS_AND_DATABASES));
     }
 
 

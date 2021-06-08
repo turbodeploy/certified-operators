@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -81,7 +82,8 @@ public abstract class AbstractExternalSignatureCachingStitchingOperation<Interna
         return externalSignatureToStitchingEntityMap;
     }
 
-    protected boolean isCachingEnabled() {
+    @VisibleForTesting
+    public boolean isCachingEnabled() {
         return true;
     }
 }
