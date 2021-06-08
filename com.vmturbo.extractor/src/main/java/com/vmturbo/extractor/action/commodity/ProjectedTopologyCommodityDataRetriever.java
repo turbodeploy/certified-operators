@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.history.schema.RelationType;
 
 /**
  * Responsible for retrieving projected percentile values from the history component.
@@ -40,7 +41,7 @@ class ProjectedTopologyCommodityDataRetriever {
 
     @Nonnull
     TopologyActionCommodityData fetchProjectedCommodityData(@Nonnull final LongSet entityIds,
-                                               @Nonnull final IntSet commodityTypes) {
+            @Nonnull final IntSet commodityTypes, @Nonnull final LongSet projectedProviders) {
         // Pagination is mandatory on the getProjectedEntityStats call.
         // TODO: Allow streaming, to avoid unnecessary sorting + RPC calls in large environments.
         String nextCursor = "";
@@ -53,13 +54,16 @@ class ProjectedTopologyCommodityDataRetriever {
                 PaginationParameters params =
                         nextCursor.isEmpty() ? PaginationParameters.getDefaultInstance() : PaginationParameters.newBuilder().setCursor(nextCursor).build();
                 ProjectedEntityStatsResponse response = statsService.getProjectedEntityStats(
-                        ProjectedEntityStatsRequest.newBuilder().setScope(EntityStatsScope.newBuilder()
-                                .setEntityList(EntityList.newBuilder()
-                                        .addAllEntities(entityIds)))
+                        ProjectedEntityStatsRequest.newBuilder()
+                                .setScope(EntityStatsScope.newBuilder()
+                                        .setEntityList(EntityList.newBuilder().addAllEntities(entityIds)))
                                 .addAllCommodityName(commodityTypes.stream()
-                                .map(UICommodityType::fromType)
-                                .map(UICommodityType::apiStr)
-                                .collect(Collectors.toList())).setPaginationParams(params).build());
+                                        .map(UICommodityType::fromType)
+                                        .map(UICommodityType::apiStr)
+                                        .collect(Collectors.toList()))
+                                // only request bought commodities for given providers
+                                .addAllProviders(projectedProviders)
+                                .setPaginationParams(params).build());
                 response.getEntityStatsList().forEach(entityStats -> addCommodityDataForEntity(data, entityStats));
                 nextCursor = response.getPaginationResponse().getNextCursor();
             } while (!nextCursor.isEmpty() && maxNumIterations-- > 0);
@@ -87,30 +91,38 @@ class ProjectedTopologyCommodityDataRetriever {
                     commTypeBldr.setKey(statRecord.getStatKey());
                 }
                 final CommodityType commType = commTypeBldr.build();
+                // most StatRecord has providerUuid set, but some not (only relation is set)
+                final boolean isBought = statRecord.hasProviderUuid()
+                        || statRecord.getRelation().equals(RelationType.COMMODITIESBOUGHT.getLiteral());
 
                 if (statRecord.hasUsed() && statRecord.getUsed().hasTotal()
                         && statRecord.hasCapacity() && statRecord.getCapacity().hasTotal()) {
-                    commodityData.putSoldCommodity(oid, commType,
-                            statRecord.getUsed().getTotal(),
-                            statRecord.getCapacity().getTotal());
+                    if (isBought) {
+                        commodityData.putBoughtCommodity(oid, commType,
+                                statRecord.getUsed().getTotal(), statRecord.getCapacity().getTotal());
+                    } else {
+                        commodityData.putSoldCommodity(oid, commType,
+                                statRecord.getUsed().getTotal(),
+                                statRecord.getCapacity().getTotal());
+                    }
                 }
 
-                if (statRecord.getProviderUuid().isEmpty()) {
-                    statRecord.getHistUtilizationValueList().stream()
-                        .filter(histValue -> histValue.getType()
-                                .equalsIgnoreCase(StringConstants.PERCENTILE))
-                        .findFirst()
-                        .ifPresent(percentileUtilization -> {
-                            final float capacity = percentileUtilization.getCapacity().getTotal();
-                            final float usage = percentileUtilization.getUsage().getTotal();
-                            if (capacity > 0) {
-                                final float projectedPercentile = usage / capacity;
-                                // Sold
-                                commodityData.putSoldPercentile(oid, commType,
-                                        projectedPercentile);
+                statRecord.getHistUtilizationValueList().stream()
+                    .filter(histValue -> histValue.getType()
+                            .equalsIgnoreCase(StringConstants.PERCENTILE))
+                    .findFirst()
+                    .ifPresent(percentileUtilization -> {
+                        final float capacity = percentileUtilization.getCapacity().getTotal();
+                        final float usage = percentileUtilization.getUsage().getTotal();
+                        if (capacity > 0) {
+                            final float projectedPercentile = usage / capacity;
+                            if (isBought) {
+                                commodityData.putBoughtPercentile(oid, commType, projectedPercentile);
+                            } else {
+                                commodityData.putSoldPercentile(oid, commType, projectedPercentile);
                             }
-                        });
-                }
+                        }
+                    });
             });
         });
     }

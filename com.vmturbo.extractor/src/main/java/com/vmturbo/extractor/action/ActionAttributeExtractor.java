@@ -8,11 +8,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -41,9 +44,11 @@ import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
+import com.vmturbo.extractor.schema.json.common.EntitySettings;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
@@ -57,6 +62,13 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class ActionAttributeExtractor {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Set of action types for which the impacted metrics for target entity will be populated.
+     */
+    public static final Set<ActionType> ACTION_TYPES_TO_POPULATE_TARGET_IMPACT = ImmutableSet.of(
+            ActionType.START, ActionType.ACTIVATE, ActionType.SCALE, ActionType.PROVISION,
+            ActionType.DELETE);
 
     private final ActionCommodityDataRetriever actionCommodityDataRetriever;
 
@@ -155,8 +167,7 @@ public class ActionAttributeExtractor {
         try {
             ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
             final boolean populateTargetImpact = populateImpact
-                    && (actionType == ActionType.START || actionType == ActionType.ACTIVATE
-                    || actionType == ActionType.SCALE || actionType == ActionType.PROVISION);
+                    && ACTION_TYPES_TO_POPULATE_TARGET_IMPACT.contains(actionType);
             ActionImpactedEntity targetEntity = buildImpactedEntity(primaryEntity,
                     populateTargetImpact, topologyGraph, actionCommodityData);
             actionOrAttributes.setTarget(targetEntity);
@@ -190,7 +201,7 @@ public class ActionAttributeExtractor {
                 return Collections.singletonList(actionOrAttributes);
             // add additional info for other action types if needed
             default:
-                return Collections.emptyList();
+                return Collections.singletonList(actionOrAttributes);
         }
     }
 
@@ -223,7 +234,20 @@ public class ActionAttributeExtractor {
                     .ifPresent(e -> entity.setName(e.getDisplayName()));
         }
         if (populateImpact) {
-            entity.setAffectedMetrics(actionCommodityData.getEntityImpact(actionEntity.getId()));
+            final Map<String, ImpactedMetric> entityImpact = actionCommodityData.getEntityImpact(actionEntity.getId());
+            entity.setAffectedMetrics(entityImpact);
+            // add percentile settings to the target entity level if any of the affected metrics has percentile data
+            if (entityImpact != null && entityImpact.values().stream()
+                    .anyMatch(impactedMetric -> impactedMetric.getBeforeActions() != null
+                            && impactedMetric.getBeforeActions().getPercentileUtilization() != null)) {
+                actionCommodityDataRetriever.getPercentileSetting(actionEntity.getId(), actionEntity.getType())
+                        .ifPresent(percentileSetting -> {
+                            EntitySettings entitySettings = new EntitySettings();
+                            entitySettings.setPercentileAggressiveness(percentileSetting.getAggresiveness());
+                            entitySettings.setPercentileObservationPeriodDays(percentileSetting.getObservationPeriod());
+                            entity.setSettings(entitySettings);
+                        });
+            }
         }
         return entity;
     }

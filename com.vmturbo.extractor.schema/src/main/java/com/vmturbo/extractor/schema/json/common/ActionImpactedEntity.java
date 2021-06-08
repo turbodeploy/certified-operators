@@ -23,6 +23,8 @@ public class ActionImpactedEntity extends ActionEntity {
      */
     private Map<String, ImpactedMetric> affectedMetrics;
 
+    private EntitySettings settings;
+
     @Nullable
     public Map<String, ImpactedMetric> getAffectedMetrics() {
         return affectedMetrics;
@@ -30,6 +32,14 @@ public class ActionImpactedEntity extends ActionEntity {
 
     public void setAffectedMetrics(Map<String, ImpactedMetric> affectedMetrics) {
         this.affectedMetrics = affectedMetrics;
+    }
+
+    public EntitySettings getSettings() {
+        return settings;
+    }
+
+    public void setSettings(EntitySettings settings) {
+        this.settings = settings;
     }
 
     /**
@@ -66,6 +76,7 @@ public class ActionImpactedEntity extends ActionEntity {
     public static class ActionCommodity {
         private float used = 0.0f;
         private float capacity = 0.0f;
+        private Double percentileUtilization;
 
         /**
          * Add to the used value of this commodity.
@@ -114,6 +125,14 @@ public class ActionImpactedEntity extends ActionEntity {
             }
 
             return Math.round(used / capacity * 10000.0f) / 100.00f;
+        }
+
+        public Double getPercentileUtilization() {
+            return percentileUtilization;
+        }
+
+        public void setPercentileUtilization(Double percentileUtilization) {
+            this.percentileUtilization = percentileUtilization;
         }
     }
 }

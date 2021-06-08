@@ -77,7 +77,7 @@ public class ProjectedTopologyActionCommodityDataRetrieverTest {
         commInput.add(UICommodityType.VCPU.typeNumber());
 
         final TopologyActionCommodityData projData =
-                projectedTopologyCommodityDataRetriever.fetchProjectedCommodityData(input, commInput);
+                projectedTopologyCommodityDataRetriever.fetchProjectedCommodityData(input, commInput, new LongOpenHashSet());
         ActionCommodity e1Comm = projData.getSoldCommms(1L).get((short)UICommodityType.VMEM.typeNumber());
         assertThat(e1Comm.getUsed(), is(10.0f));
         ActionCommodity e1VcpuComm = projData.getSoldCommms(1L).get((short)UICommodityType.VCPU.typeNumber());

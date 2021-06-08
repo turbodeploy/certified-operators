@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectMaps;
 
@@ -111,7 +112,7 @@ public class ActionCommodityDataRetrieverTest {
         final TopologyActionCommodityData projPercentileData = mock(TopologyActionCommodityData.class);
         when(projPercentileData.getSoldPercentile(vm.getOid(), commType)).thenReturn(Optional.of(projPercentile));
         when(projPercentileData.getSoldCommms(vm.getOid())).thenReturn(Short2ObjectMaps.singleton((short)UICommodityType.VMEM.typeNumber(), actionCommodity));
-        when(projectedTopologyDataRetriever.fetchProjectedCommodityData(any(), any())).thenReturn(projPercentileData);
+        when(projectedTopologyDataRetriever.fetchProjectedCommodityData(any(), any(), any())).thenReturn(projPercentileData);
 
         final PercentileSettings percentileSettings = mock(PercentileSettings.class);
         final PercentileSetting entitySetting = mock(PercentileSetting.class);
@@ -155,7 +156,8 @@ public class ActionCommodityDataRetrieverTest {
 
         verify(percentileSettingsRetriever).getPercentileSettingsData(LongSets.singleton(vm.getOid()));
         verify(projectedTopologyDataRetriever).fetchProjectedCommodityData(LongSets.singleton(vm.getOid()),
-                new IntOpenHashSet(Collections.singleton(UICommodityType.VMEM.typeNumber())));
+                new IntOpenHashSet(Collections.singleton(UICommodityType.VMEM.typeNumber())),
+                new LongOpenHashSet());
     }
 
     /**
