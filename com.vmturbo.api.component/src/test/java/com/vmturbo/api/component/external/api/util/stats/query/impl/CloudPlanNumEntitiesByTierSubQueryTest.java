@@ -214,7 +214,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         Mockito.when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(builder);
         final StatApiInputDTO requestedStats =
                                              new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
-                                                                 null, null, null);
+                                                                 null, null, null, null);
         final PlanInstance planInstance = PlanInstance.newBuilder()
             .setStartTime(BEFORE_TIME)
             .setEndTime(AFTER_TIME)
@@ -248,7 +248,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         final Stream<MinimalEntity> projectedTierEntities = createTiersEntities(3, STORAGE_TIER_IO);
         final StatApiInputDTO requestedStats =
                 new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
-                        null, null, null);
+                        null, null, null, null);
         final PlanInstance planInstance = PlanInstance.newBuilder()
                 .setProjectType(PlanProjectType.CLOUD_MIGRATION)
                 .setStartTime(BEFORE_TIME)

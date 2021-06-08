@@ -140,15 +140,19 @@ public class AccumulatedCommodityTest {
         commodity.recordBoughtCommodity(boughtComm, TopologyCommoditiesSnapshot.NO_PROVIDER_ID, 0);
         commodity.recordBoughtCommodity(boughtComm, TopologyCommoditiesSnapshot.NO_PROVIDER_ID, 0);
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
             .setCapacity(StatsAccumulator.singleStatValue(0))
             .setUnits(COMMODITY_UNITS)
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(3)
-            .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
+            .setUsed(usageStat)
             .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
             .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(3).setTotal(6).setTotalMax(8).setTotalMin(6).build())
+            .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                    .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                    .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue(0)).build())
             .build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());

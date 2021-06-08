@@ -21,7 +21,12 @@ public enum HistoryUtilizationType {
     /**
      * Marks values aggregated using time slot function.
      */
-    Timeslot("timeslot");
+    Timeslot("timeslot"),
+    /**
+     * Marks values aggregated using historical smoothing.
+     */
+    Smoothed("smoothed");
+
     private final String apiParameterName;
 
     HistoryUtilizationType(@Nonnull String apiParameterName) {

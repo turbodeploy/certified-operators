@@ -157,7 +157,9 @@ public class StatsTestUtils {
         return TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(CPU_COMMODITY_TYPE)
                 .setUsed(used)
-                .setCapacity(CPU_CAPACITY).build();
+                .setCapacity(CPU_CAPACITY)
+                .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(used))
+                .build();
     }
 
     public static TopologyDTO.CommoditySoldDTO dspma(double used) {
