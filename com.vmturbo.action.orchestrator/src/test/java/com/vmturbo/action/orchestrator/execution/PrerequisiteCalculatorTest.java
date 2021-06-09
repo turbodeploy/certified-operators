@@ -26,6 +26,7 @@ import org.junit.Test;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
@@ -33,7 +34,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -73,8 +73,8 @@ public class PrerequisiteCalculatorTest {
         when(snapshot.getSettingsForEntity(VM1)).thenReturn(settingMap);
     }
 
-    private Action buildMoveAction(final long sourceId, final long destinationId, boolean isMigrate) {
-        Move.Builder moveBuilder = Move.newBuilder()
+    private Action buildScaleAction(final long sourceId, final long destinationId) {
+        ActionDTO.Scale.Builder scaleBuilder = ActionDTO.Scale.newBuilder()
                 .setTarget(ActionEntity.newBuilder().setId(VM1)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .addChanges(ChangeProvider.newBuilder()
@@ -84,13 +84,27 @@ public class PrerequisiteCalculatorTest {
                                 .setId(destinationId).setType(EntityType.COMPUTE_TIER_VALUE)
                         ));
 
-        if (isMigrate) {
-            moveBuilder.addChanges(ChangeProvider.newBuilder()
-                    .setSource(ActionEntity.newBuilder().setId(region1)
+        Action.Builder actionBuilder = Action.newBuilder().setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder().setScale(scaleBuilder))
+                .setExplanation(Explanation.getDefaultInstance());
+
+        return actionBuilder.build();
+    }
+
+    private Action buildMigrateAction(final long sourceId, final long destinationId) {
+        ActionDTO.Move.Builder moveBuilder = ActionDTO.Move.newBuilder()
+                .setTarget(ActionEntity.newBuilder().setId(VM1)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder()
+                                .setId(sourceId).setType(EntityType.COMPUTE_TIER_VALUE))
+                        .setDestination(ActionEntity.newBuilder()
+                                .setId(destinationId).setType(EntityType.COMPUTE_TIER_VALUE)))
+                .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder().setId(region1)
                             .setType(EntityType.REGION_VALUE))
-                    .setDestination(ActionEntity.newBuilder().setId(region2)
+                        .setDestination(ActionEntity.newBuilder().setId(region2)
                             .setType(EntityType.REGION_VALUE)));
-        }
 
         Action.Builder actionBuilder = Action.newBuilder().setId(0).setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder().setMove(moveBuilder))
@@ -171,7 +185,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesEna() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.ENA);
         final ActionPartialEntity destination =
             buildGeneralComputeTierActionPartialEntity(PrerequisiteType.ENA);
@@ -190,7 +204,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesNVMe() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.NVME);
         final ActionPartialEntity destination =
             buildGeneralComputeTierActionPartialEntity(PrerequisiteType.NVME);
@@ -216,7 +230,7 @@ public class PrerequisiteCalculatorTest {
         when(snapshot.getSettingsForEntity(VM1)).thenReturn(settingMap);
 
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.NVME);
         final ActionPartialEntity destination =
             buildGeneralComputeTierActionPartialEntity(PrerequisiteType.NVME);
@@ -233,7 +247,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesArchitecture() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.ARCHITECTURE);
         final ActionPartialEntity destination =
             buildGeneralComputeTierActionPartialEntity(PrerequisiteType.ARCHITECTURE);
@@ -252,7 +266,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesVirtualizationType() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target =
             buildGeneralVMActionPartialEntity(PrerequisiteType.VIRTUALIZATION_TYPE);
         final ActionPartialEntity destination =
@@ -272,7 +286,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesLocks() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.LOCKS);
         final ActionPartialEntity destination =
                 buildGeneralComputeTierActionPartialEntity(PrerequisiteType.LOCKS);
@@ -293,7 +307,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesMultiplePrerequisites() {
         final long destinationId = 1;
-        final Action action = buildMoveAction(2, destinationId, false);
+        final Action action = buildScaleAction(2, destinationId);
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.ENA,
             PrerequisiteType.NVME, PrerequisiteType.ARCHITECTURE, PrerequisiteType.VIRTUALIZATION_TYPE);
         final ActionPartialEntity destination =
@@ -319,7 +333,7 @@ public class PrerequisiteCalculatorTest {
         final long destinationId = 1;
         doReturn(Optional.empty()).when(snapshot).getEntityFromOid(destinationId);
         assertTrue(PrerequisiteCalculator.calculateGeneralPrerequisites(
-            buildMoveAction(2, destinationId, false),
+            buildScaleAction(2, destinationId),
             buildGeneralVMActionPartialEntity(PrerequisiteType.ENA),
             snapshot,
             ProbeCategory.CLOUD_MANAGEMENT).isEmpty());
@@ -361,7 +375,7 @@ public class PrerequisiteCalculatorTest {
     @Test
     public void testCalculateGeneralPrerequisitesReturnsEmptyWithoutVirtualMachineInfo() {
         assertTrue(PrerequisiteCalculator.calculateGeneralPrerequisites(
-            buildMoveAction(3, 0, false),
+            buildScaleAction(3, 0),
             ActionPartialEntity.newBuilder().setOid(2)
                 .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.getDefaultInstance()).build(),
             snapshot,
@@ -374,8 +388,8 @@ public class PrerequisiteCalculatorTest {
      */
     @Test
     public void testCalculateGeneralPrerequisitesForMigrationActions() {
-        Action action = buildMoveAction(3, 0, true);
-        final long destinationId = 1;
+        Action action = buildMigrateAction(3, 0);
+        final long destinationId = 0;
         final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.ENA,
                 PrerequisiteType.NVME, PrerequisiteType.ARCHITECTURE, PrerequisiteType.VIRTUALIZATION_TYPE);
         final ActionPartialEntity destination =
@@ -507,7 +521,7 @@ public class PrerequisiteCalculatorTest {
         final long destinationId = 2;
         final long businessAccountId = 3;
 
-        final Action action = buildMoveAction(sourceId, destinationId, false);
+        final Action action = buildScaleAction(sourceId, destinationId);
         final ActionPartialEntity target = buildCoreQuotaVMActionPartialEntity(regionId);
         final ActionPartialEntity source =
             buildCoreQuotaComputeTierActionPartialEntity(sourceNumCores, sourceFamily);
