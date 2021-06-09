@@ -41,9 +41,10 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 
 public class StitchingOperationStoreTest {
 
+    private static final String KUBERNETES = "Kubernetes";
     final StitchingOperationLibrary library = Mockito.mock(StitchingOperationLibrary.class);
 
-    final StitchingOperationStore store = new StitchingOperationStore(library);
+    final StitchingOperationStore store = new StitchingOperationStore(library, false);
 
     final StitchingOperation<?, ?> firstOperation = mock(StitchingOperation.class);
     final StitchingOperation<?, ?> secondOperation = mock(StitchingOperation.class);
@@ -245,4 +246,59 @@ public class StitchingOperationStoreTest {
 
     }
 
+    /**
+     * Add two kubernetes probes with stitchingMergeKubernetesProbeTypes set to true. Make sure
+     * that the set of operations gets created only once .
+     * This special behavior should go away once OM-70926 is implemented.
+     * @throws ProbeException exceptions thrown by the stitching library
+     */
+    @Test
+    public void testAddK8sProbesWithFlagEnabled() throws ProbeException {
+        final int probeId1 = 4321;
+        final int probeId2 = 5432;
+        final StitchingOperationStore store = new StitchingOperationStore(library, true);
+        final MediationMessage.ProbeInfo probe1Info = createProbeInfo(KUBERNETES + "-cluster-1",
+            createTemplateDTO(EntityType.STORAGE));
+        final MediationMessage.ProbeInfo probe2Info = createProbeInfo(KUBERNETES + "-cluster-2",
+            createTemplateDTO(EntityType.STORAGE));
+
+        store.setOperationsForProbe(probeId1, probe1Info, Sets.newHashSet());
+        store.setOperationsForProbe(probeId2, probe2Info, Sets.newHashSet());
+
+        List<StitchingOperation<?, ?>> operationsProbe1 = store.getOperationsForProbe(probeId1).get();
+        List<StitchingOperation<?, ?>> operationsProbe2 = store.getOperationsForProbe(probeId2).get();
+
+        Assert.assertEquals(2, store.getAllOperations().size());
+
+        for (int i = 0; i < operationsProbe1.size(); i++) {
+            Assert.assertSame(operationsProbe1.get(i), operationsProbe2.get(i));
+        }
+    }
+
+    /**
+     * Add two kubernetes probes with stitchingMergeKubernetesProbeTypes set to false. Make sure
+     * that the set of operations gets created each time a new probe is added.
+     * @throws ProbeException exceptions thrown by the stitching library
+     */
+    @Test
+    public void testAddK8sProbesWithFlagDisabled() throws ProbeException {
+        final int probeId1 = 4321;
+        final int probeId2 = 5432;
+        final MediationMessage.ProbeInfo probe1Info = createProbeInfo(KUBERNETES + "-cluster-1",
+            createTemplateDTO(EntityType.STORAGE));
+        final MediationMessage.ProbeInfo probe2Info = createProbeInfo(KUBERNETES + "-cluster-2",
+            createTemplateDTO(EntityType.STORAGE));
+
+        store.setOperationsForProbe(probeId1, probe1Info, Sets.newHashSet());
+        store.setOperationsForProbe(probeId2, probe2Info, Sets.newHashSet());
+
+        List<StitchingOperation<?, ?>> operationsProbe1 = store.getOperationsForProbe(probeId1).get();
+        List<StitchingOperation<?, ?>> operationsProbe2 = store.getOperationsForProbe(probeId2).get();
+
+        Assert.assertEquals(2, store.getAllOperations().size());
+
+        for (int i = 0; i < operationsProbe1.size(); i++) {
+            Assert.assertNotSame(operationsProbe1.get(i), operationsProbe2.get(i));
+        }
+    }
 }

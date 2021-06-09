@@ -221,7 +221,7 @@ public class EnvironmentTypeInjectorTest {
     /**
      * Test traversing aggregates relationships. The graph here looks like:
      * <p/>
-     *        Provides          Provides        AggregatedBy
+     *        Provides          Provides        ControlledBy
      * AWS_VM <-- k8s_ContainerPod <-- k8s_Container --> k8s_ContainerSpec
      */
     @Test
@@ -248,7 +248,7 @@ public class EnvironmentTypeInjectorTest {
                         .setEntityType(EntityType.CONTAINER_VALUE)
                         .setOid(CONTAINER_OID)
                         .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
-                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
                                 .setConnectedEntityId(containerSpec.getOid())
                                 .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)));
 

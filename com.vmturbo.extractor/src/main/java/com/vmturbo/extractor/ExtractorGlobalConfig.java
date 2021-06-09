@@ -42,6 +42,18 @@ public class ExtractorGlobalConfig {
     private boolean enableDataExtraction;
 
     /**
+     * Configuration used to enable/disable bottom-up entity cost ingestion.
+     */
+    @Value("${enableEntityCost:false}")
+    private boolean enableEntityCost;
+
+    /**
+     * Configuration used to enable/disable top-up billing account cost ingestion.
+     */
+    @Value("${enableBillingCost:false}")
+    private boolean enableBillingCost;
+
+    /**
      * Clock for the component.
      *
      * @return The clock.
@@ -58,10 +70,12 @@ public class ExtractorGlobalConfig {
      */
     @Bean
     public ExtractorFeatureFlags featureFlags() {
-        return new ExtractorFeatureFlags(enableSearchApi,
+        return new ExtractorFeatureFlags(
+                enableSearchApi,
                 enableReporting,
                 enableActionIngestion,
-                enableDataExtraction);
+                enableDataExtraction,
+                enableBillingCost);
     }
 
     /**
@@ -82,12 +96,19 @@ public class ExtractorGlobalConfig {
         private final boolean enableReportActionIngestion;
         private final boolean enableExtraction;
 
+        /**
+         * Whether billing cost data collection and reporting is enabled.
+         */
+        private final boolean enableBillingCost;
+
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
-                boolean enableReportActionIngestion, boolean enableExtraction) {
+                boolean enableReportActionIngestion, boolean enableExtraction,
+                boolean enableBillingCost) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
+            this.enableBillingCost = enableBillingCost;
         }
 
         public boolean isSearchEnabled() {
@@ -106,14 +127,24 @@ public class ExtractorGlobalConfig {
             return enableExtraction;
         }
 
+        public boolean isBillingCostEnabled() {
+            return enableBillingCost;
+        }
+
+        public boolean isBillingCostReportingEnabled() {
+            return isBillingCostEnabled() && isReportingEnabled();
+        }
+
         @Override
         public String toString() {
             return FormattedString.format("Flags:\n"
-                + "Report Ingestion: {}\n"
-                + "Report Action Ingestion {}\n"
-                + "Search Ingestion {}\n"
-                + "Data Extraction {}", isReportingEnabled(),
-                    isReportingActionIngestionEnabled(), isSearchEnabled(), isExtractionEnabled());
+                            + "Report Ingestion: {}\n"
+                            + "Report Action Ingestion {}\n"
+                            + "Search Ingestion {}\n"
+                            + "Data Extraction {}\n"
+                            + "Billing Cost Ingestion {}",
+                    isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
+                    isExtractionEnabled(), isBillingCostEnabled());
         }
     }
 }

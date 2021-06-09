@@ -118,7 +118,8 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
-                    TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                    TopologyDTO.CommoditySoldDTO.Builder commSold,
+                    TopologyInfo topoInfo) {
         return ENABLED_TIMESLOT_COMMODITY_TYPES
             .contains(CommodityType.forNumber(commSold.getCommodityType().getType()));
     }
@@ -272,7 +273,7 @@ public class TimeSlotEditor extends
             for (final List<EntityCommodityReference> partitionedOutdatedRefs : partitions) {
                 final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
                     createLoadingTask(Pair.create(startMs, endMs))
-                        .load(partitionedOutdatedRefs, getConfig());
+                        .load(partitionedOutdatedRefs, getConfig(), null);
                 for (Entry<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> refToData : outdatedRecords
                     .entrySet()) {
                     final EntityCommodityFieldReference reference = refToData.getKey();

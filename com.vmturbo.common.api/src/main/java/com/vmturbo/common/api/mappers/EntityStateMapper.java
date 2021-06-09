@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 
 /**
- * Utility for mapping been ENUMs com.vmturbo.api.enums.EntityState and com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState.
+ * Utility for mapping been ENUMs {@link com.vmturbo.api.enums.EntityState} and {@link EntityState}.
  */
 public class EntityStateMapper {
 
@@ -32,7 +32,7 @@ public class EntityStateMapper {
     private EntityStateMapper(){}
 
     /**
-     * Get the {@link com.vmturbo.api.enums.EntityState} associated with a {@link com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState}.
+     * Get the {@link com.vmturbo.api.enums.EntityState} associated with a {@link EntityState}.
      *
      * @param entityState The {@link EntityState}.
      * @return The associated {@link com.vmturbo.api.enums.EntityState},

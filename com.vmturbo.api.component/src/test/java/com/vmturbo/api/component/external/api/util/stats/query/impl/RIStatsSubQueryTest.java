@@ -6,11 +6,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -40,6 +43,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
@@ -48,7 +52,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsReq
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceBoughtServiceMole;
@@ -651,5 +654,54 @@ public class RIStatsSubQueryTest {
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_VOLUME)));
 
         riStatsSubQuery.createRICostRequest(context);
+    }
+
+    /**
+     * Test the coverage request creation with a group oid.
+     */
+    @Test
+    public void internalCreateCoverageRequest() throws Exception {
+        // 1. StatsQueryContext context
+        Mockito.when(context.getInputScope().isGlobalTempGroup()).thenReturn(true);
+
+        StatApiInputDTO inputDto = new StatApiInputDTO();
+        com.vmturbo.api.dto.statistic.StatFilterApiDTO filters = new com.vmturbo.api.dto.statistic.StatFilterApiDTO();
+        filters.setType("CSP");
+        filters.setValue("AWS");
+        inputDto.setFilters(java.util.Collections.singletonList(filters));
+        Set<StatApiInputDTO> inputDtoSet = Collections.singleton(inputDto);
+
+        Mockito.when(context.getRequestedStats()).thenReturn(inputDtoSet);
+        // 2. create Mockito for searching all CSPs in the system
+        //    return a list of MinimalEntity ("AWS", "Azure")
+        RepositoryApi.SearchRequest req = Mockito.mock(RepositoryApi.SearchRequest.class);
+        Mockito.when(repositoryApi.newSearchRequest(org.mockito.Matchers.any(Search.SearchParameters.class))).thenReturn(req);
+        TopologyDTO.PartialEntity.MinimalEntity vm1 = TopologyDTO.PartialEntity.MinimalEntity.newBuilder()
+                .setOid(73908949686632l)
+                .setDisplayName("AWS")
+                .build();
+        TopologyDTO.PartialEntity.MinimalEntity vm2 = TopologyDTO.PartialEntity.MinimalEntity.newBuilder()
+                .setOid(73908951582788l)
+                .setDisplayName("Azure")
+                .build();
+        Mockito.when(req.getMinimalEntities()).thenReturn(Stream.<TopologyDTO.PartialEntity.MinimalEntity>builder().add(vm1).add(vm2).build());
+
+        // 3. scopeEntitiesByType
+        Mockito.when(scope.getScopeEntitiesByType()).thenReturn(ImmutableMap.of(ApiEntityType.SERVICE_PROVIDER, SCOPE_ENTITIES));
+
+        // 5. setRegionFilter
+
+        GetReservedInstanceCoverageStatsRequest reqBuilder = GetReservedInstanceCoverageStatsRequest.newBuilder()
+                                                            .setStartDate(1616904000000l)
+                                                            .setEndDate(1620411826701l)
+                                                            .setIncludeBuyRiCoverage(false)
+                                                            .build();
+        Set<Long> scopeOids = Collections.singleton(73908949686632l);
+        Set<Long> allCspRegionIdsSet = ImmutableSet.of(7L, 77L);
+        Mockito.when(repositoryApi.expandServiceProvidersToRegions(scopeOids)).thenReturn(allCspRegionIdsSet);
+
+        // 4. test method
+        GetReservedInstanceCoverageStatsRequest result = riStatsSubQuery.internalCreateCoverageRequest(context, GetReservedInstanceCoverageStatsRequest.newBuilder());
+        Assert.assertEquals(java.util.Arrays.asList(7l,77l), result.getRegionFilter().getRegionIdList());
     }
 }

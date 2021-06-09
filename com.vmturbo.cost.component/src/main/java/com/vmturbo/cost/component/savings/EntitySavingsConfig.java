@@ -25,16 +25,15 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -49,11 +48,11 @@ import com.vmturbo.topology.event.library.TopologyEventProvider;
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
         CostComponentGlobalConfig.class,
-        CostClientConfig.class,
         TopologyProcessorListenerConfig.class,
         RepositoryClientConfig.class,
         GroupClientConfig.class,
-        CloudCommitmentAnalysisStoreConfig.class})
+        CloudCommitmentAnalysisStoreConfig.class,
+        EntityCostConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -68,9 +67,6 @@ public class EntitySavingsConfig {
     private CostComponentGlobalConfig costComponentGlobalConfig;
 
     @Autowired
-    private CostClientConfig costClientConfig;
-
-    @Autowired
     private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
 
     @Autowired
@@ -78,6 +74,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
 
     /**
      * Chunk size configuration.
@@ -98,19 +97,16 @@ public class EntitySavingsConfig {
     private Long entitySavingsEventLogRetentionHours;
 
     /**
-     * Action expiration durations in hours.  These must be integral values.
-     */
-    @Value("${deleteVolumeActionLifetimeHours:8760}") // Default is 365 days (approximately 1 year)
-    private Long deleteVolumeActionLifetimeHours;
-
-    @Value("${defaultActionLifetimeHours:17520}")     // Default is 730 days (approximately 2 years)
-    private Long actionLifetimeHours;
-
-    /**
      * Real-Time Context Id.
      */
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    /**
+     * How often to run the retention processor, default 24 hours.
+     */
+    @Value("${entitySavingsRetentionProcessorFrequencyHours:24}")
+    private Long retentionProcessorFrequencyHours;
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
@@ -136,7 +132,8 @@ public class EntitySavingsConfig {
     /**
      * Types of actions we currently support Savings feature for.
      */
-    private static final Set<ActionType> supportedActionTypes = ImmutableSet.of(ActionType.SCALE);
+    private static final Set<ActionType> supportedActionTypes =
+            ImmutableSet.of(ActionType.SCALE, ActionType.DELETE, ActionType.ALLOCATE);
 
     /**
      * Return whether entity savings tracking is enabled.
@@ -147,37 +144,23 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Return how long to retain events in the internal event log.  As external action and topology
-     * events are handled, they are added to the internal event log.  After the events are
-     * processed, they are retained for a configurable number of minutes.  The events are no longer
-     * needed after they are processed, and a configured retention amount of 0 will cause them to be
-     * purged immediately after they are processed.
+     * Gets Settings Service Client.
      *
-     * @return Amount of time in minutes to retain internal events.
+     * @return Settings Service Client.
      */
-    public Long getEntitySavingsEventLogRetentionMinutes() {
-        return this.entitySavingsEventLogRetentionHours;
+    @Bean
+    public SettingServiceGrpc.SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**
-     * Get the configured action lifetime in milliseconds. All active actions except for volume
-     * delete actions will remain active until it is reversed by a subsequent action or the
-     * configured interval passes, whichever comes first.
+     * Get savings retention configuration.
      *
-     * @return maximum number of milliseconds that an action can stay active.
+     * @return Action executed lifetime configuration information.
      */
-    public Long getActionLifetimeMs() {
-        return TimeUnit.HOURS.toMillis(this.actionLifetimeHours);
-    }
-
-    /**
-     * Get the configured volume delete action lifetime in milliseconds.  The volume delete action
-     * will remain active until the configured interval passes.
-     *
-     * @return maximum number of milliseconds that delete volume action can stay active.
-     */
-    public Long getDeleteVolumeActionLifetimeMs() {
-        return TimeUnit.HOURS.toMillis(this.deleteVolumeActionLifetimeHours);
+    @Bean
+    public EntitySavingsRetentionConfig getEntitySavingsRetentionConfig() {
+        return new EntitySavingsRetentionConfig(settingServiceClient());
     }
 
     /**
@@ -207,10 +190,13 @@ public class EntitySavingsConfig {
      */
     @Bean
     public ActionListener actionListener() {
-        ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
-                costService(), realtimeTopologyContextId,
-                supportedEntityTypes, supportedActionTypes,
-                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+        ActionListener actionListener =
+                                      new ActionListener(entityEventsJournal(), actionsService(),
+                                                     entityCostConfig.entityCostStore(),
+                                                     entityCostConfig.projectedEntityCostStore(),
+                                                     realtimeTopologyContextId,
+                                                     supportedEntityTypes, supportedActionTypes,
+                                                     getEntitySavingsRetentionConfig());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -229,7 +215,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
-                entityEventsJournal(), getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+                entityEventsJournal());
     }
 
     /**
@@ -241,7 +227,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
         return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                getClock(), auditLogWriter(), cloudTopologyFactory(), repositoryClient,
+                getClock(), cloudTopologyFactory(), repositoryClient,
                 realtimeTopologyContextId, persistEntityCostChunkSize);
     }
 
@@ -254,7 +240,8 @@ public class EntitySavingsConfig {
     public EntitySavingsProcessor entitySavingsProcessor() {
         EntitySavingsProcessor entitySavingsProcessor =
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
-                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock());
+                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock(),
+                        dataRetentionProcessor());
 
         if (isEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();
@@ -267,6 +254,17 @@ public class EntitySavingsConfig {
         }
 
         return entitySavingsProcessor;
+    }
+
+    /**
+     * Gets the processor that cleans up old stats/audit data.
+     *
+     * @return DataRetentionProcessor.
+     */
+    @Bean
+    public DataRetentionProcessor dataRetentionProcessor() {
+        return new DataRetentionProcessor(entitySavingsStore(), auditLogWriter(),
+                getEntitySavingsRetentionConfig(), getClock(), retentionProcessorFrequencyHours);
     }
 
     /**
@@ -306,23 +304,13 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Gets Cost information.
-     *
-     * @return CostServiceBlockingStub.
-     */
-    @Bean
-    public CostServiceBlockingStub costService() {
-        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
-    }
-
-    /**
      * Gets access to events store.
      *
      * @return Events store.
      */
     @Bean
     public EntityEventsJournal entityEventsJournal() {
-        return new InMemoryEntityEventsJournal();
+        return new InMemoryEntityEventsJournal(auditLogWriter());
     }
 
     /**
@@ -333,7 +321,7 @@ public class EntitySavingsConfig {
     @Bean
     public EventInjector eventInjector() {
         EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal(),
-                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+                getEntitySavingsRetentionConfig());
         injector.start();
         return injector;
     }

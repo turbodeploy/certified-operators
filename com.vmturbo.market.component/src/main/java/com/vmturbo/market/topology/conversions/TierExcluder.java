@@ -17,7 +17,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -233,67 +232,67 @@ public class TierExcluder {
      */
     void computeReasonSettings(List<ActionTO> m2Actions,
                                   CloudTopology<TopologyEntityDTO> originalCloudTopology) {
-        // Filter out the tier exclusion actions and find the setting policies to fetch
-        Set<ActionTO> tierExclusionActions = Sets.newHashSet();
-        Set<Long> settingPoliciesToFetch = Sets.newHashSet();
-        m2Actions.stream().filter(this::isTierExclusionAction)
-            .peek(tierExclusionActions::add)
-            .filter(m2Action -> m2Action.getActionTypeCase() != ActionTypeCase.RECONFIGURE)
-            .map(this::getActionTarget)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .map(consumerOidToTierExclusionSettings::get)
-            .forEach(settingPoliciesToFetch::addAll);
+        try {
+            // Filter out the tier exclusion actions and find the setting policies to fetch
+            Set<ActionTO> tierExclusionActions = Sets.newHashSet();
+            Set<Long> settingPoliciesToFetch = Sets.newHashSet();
+            m2Actions.stream().filter(this::isTierExclusionAction)
+                    .peek(tierExclusionActions::add)
+                    .filter(m2Action -> m2Action.getActionTypeCase() != ActionTypeCase.RECONFIGURE)
+                    .forEach(m2Action -> updateSettingsPoliciesToFetch(settingPoliciesToFetch, m2Action));
 
-        // Fetch the setting policies
-        Map<Long, Set<Long>> settingPolicyToExcludedTemplates = Maps.newHashMap();
-        settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-            .addAllIdFilter(settingPoliciesToFetch).build())
-            .forEachRemaining(sp -> {
-                Optional<List<Long>> excludedTiers = sp.getInfo().getSettingsList().stream()
-                    .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.ExcludedTemplates.getSettingName()))
-                    .findFirst()
-                    .map(Setting::getSortedSetOfOidSettingValue)
-                    .map(SortedSetOfOidSettingValue::getOidsList);
-                if (excludedTiers.isPresent() && !excludedTiers.get().isEmpty()) {
-                    settingPolicyToExcludedTemplates.put(sp.getId(), Sets.newHashSet(excludedTiers.get()));
+            // Fetch the setting policies
+            Map<Long, Set<Long>> settingPolicyToExcludedTemplates = Maps.newHashMap();
+            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                    .addAllIdFilter(settingPoliciesToFetch).build())
+                    .forEachRemaining(sp -> {
+                        Optional<List<Long>> excludedTiers = sp.getInfo().getSettingsList().stream()
+                                .filter(s -> s.getSettingSpecName().equals(EntitySettingSpecs.ExcludedTemplates.getSettingName()))
+                                .findFirst()
+                                .map(Setting::getSortedSetOfOidSettingValue)
+                                .map(SortedSetOfOidSettingValue::getOidsList);
+                        if (excludedTiers.isPresent() && !excludedTiers.get().isEmpty()) {
+                            settingPolicyToExcludedTemplates.put(sp.getId(), Sets.newHashSet(excludedTiers.get()));
+                        }
+                    });
+            // Find the reason setting for all the tier exclusion actions
+            for (ActionTO tierExclusionAction : tierExclusionActions) {
+                final ShoppingListInfo slInfo = getActionShoppingListInfo(tierExclusionAction).orElse(null);
+                if (slInfo == null) {
+                    continue;
                 }
-            });
-        // Find the reason setting for all the tier exclusion actions
-        for (ActionTO tierExclusionAction : tierExclusionActions) {
-            final ShoppingListInfo slInfo = getActionShoppingListInfo(tierExclusionAction).orElse(null);
-            if (slInfo == null) {
-                continue;
+                final long actionTarget = slInfo.getCollapsedBuyerId().isPresent()
+                        ? slInfo.getCollapsedBuyerId().get() : slInfo.getBuyerId();
+                final Optional<Integer> originalProviderType = slInfo.getSellerEntityType();
+                // For cloud volume shopping, get storageTier as providerTier. And storageTier is not primary tier.
+                Optional<TopologyEntityDTO> providerTier = originalProviderType.isPresent()
+                        && TopologyDTOUtil.isStorageEntityType(originalProviderType.get())
+                        ? originalCloudTopology.getStorageTier(actionTarget) : originalCloudTopology.getPrimaryTier(actionTarget);
+                if (providerTier.isPresent()) {
+                    Set<Long> candidateReasonSettings = consumerOidToTierExclusionSettings.get(actionTarget);
+                    // The candidateReasonSettings which exclude the source tier of the consumer
+                    // are the reason settings we want.
+                    Set<Long> reasonSettings;
+                    if (tierExclusionAction.getActionTypeCase() == ActionTypeCase.RECONFIGURE) {
+                        reasonSettings = candidateReasonSettings;
+                    } else {
+                        reasonSettings = candidateReasonSettings.stream()
+                                .filter(setting -> {
+                                    Set<Long> tiersExcludedByCandidateReasonSetting =
+                                            settingPolicyToExcludedTemplates.get(setting);
+                                    return tiersExcludedByCandidateReasonSetting != null &&
+                                            tiersExcludedByCandidateReasonSetting.contains(providerTier.get().getOid());
+                                }).collect(Collectors.toSet());
+                    }
+
+                    if (!reasonSettings.isEmpty()) {
+                        m2ActionsToReasonSettings.put(tierExclusionAction, reasonSettings);
+                    }
+                }
+
             }
-            final long actionTarget = slInfo.getCollapsedBuyerId().isPresent()
-                    ? slInfo.getCollapsedBuyerId().get() : slInfo.getBuyerId();
-            final Optional<Integer> originalProviderType = slInfo.getSellerEntityType();
-            // For cloud volume shopping, get storageTier as providerTier. And storageTier is not primary tier.
-            Optional<TopologyEntityDTO> providerTier = originalProviderType.isPresent()
-                    && TopologyDTOUtil.isStorageEntityType(originalProviderType.get())
-                    ? originalCloudTopology.getStorageTier(actionTarget) : originalCloudTopology.getPrimaryTier(actionTarget);
-            if (providerTier.isPresent()) {
-                Set<Long> candidateReasonSettings = consumerOidToTierExclusionSettings.get(actionTarget);
-                // The candidateReasonSettings which exclude the source tier of the consumer
-                // are the reason settings we want.
-                Set<Long> reasonSettings;
-                if (tierExclusionAction.getActionTypeCase() == ActionTypeCase.RECONFIGURE) {
-                    reasonSettings = candidateReasonSettings;
-                } else {
-                    reasonSettings = candidateReasonSettings.stream()
-                            .filter(setting -> {
-                                Set<Long> tiersExcludedByCandidateReasonSetting =
-                                    settingPolicyToExcludedTemplates.get(setting);
-                                return tiersExcludedByCandidateReasonSetting != null &&
-                                    tiersExcludedByCandidateReasonSetting.contains(providerTier.get().getOid());
-                            }).collect(Collectors.toSet());
-                }
-
-                if (!reasonSettings.isEmpty()) {
-                    m2ActionsToReasonSettings.put(tierExclusionAction, reasonSettings);
-                }
-            }
-
+        } catch (Exception e) {
+            logger.error("Exception while trying to get the tier exclusion policies that cause the Actions", e);
         }
     }
 
@@ -452,7 +451,15 @@ public class TierExcluder {
                 targetSlOid = m2Action.getReconfigure().getConsumer().getShoppingListToReconfigure();
                 break;
             case COMPOUND_MOVE:
-                targetSlOid = m2Action.getCompoundMove().getMovesList().get(0).getShoppingListToMove();
+                Optional<MoveTO> moveTO = m2Action.getCompoundMove().getMovesList().stream()
+                        .filter(m -> isMoveForTierExclusion(m)).findAny();
+                if (moveTO.isPresent()) {
+                    targetSlOid = moveTO.get().getShoppingListToMove();
+                } else {
+                    logger.error("No shoppingListInfo of tier exclusion action in a given"
+                            + " CompoundMove -> {}.", m2Action);
+                    return Optional.empty();
+                }
                 break;
             default:
                 logger.error("Trying to find shoppingListInfo of tier exclusion action. Action type {} not supported.",
@@ -573,6 +580,26 @@ public class TierExcluder {
                     commodityConverter,
                     shoppingListOidToInfos);
             }
+        }
+    }
+
+    /**
+     * Update the list of Setting Policies with the Exclusion Settings of the Target of the Action.
+     *
+     * @param settingPolicies - list of policies to update
+     * @param m2Action - action used to extract the target
+     */
+    private void updateSettingsPoliciesToFetch(@Nonnull Set<Long> settingPolicies, @Nonnull ActionTO m2Action) {
+        try {
+            Optional<Long> target = getActionTarget(m2Action);
+            if (target.isPresent()) {
+                Set<Long> tierExclusionSettings = consumerOidToTierExclusionSettings
+                        .getOrDefault(target.get(), Sets.newHashSet());
+                settingPolicies.addAll(tierExclusionSettings);
+            }
+        } catch (Exception e) {
+            logger.error("Error during update of Settings Policies for Action: {}, exception: {}",
+                    m2Action, e.getMessage());
         }
     }
 }

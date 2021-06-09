@@ -23,6 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.opentracing.Tracer;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap.Entry;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ShortOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongConsumer;
@@ -455,6 +456,20 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
             if (groups.isEmpty()) {
                 memberParents.remove(removedMemberId);
             }
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getEmptyGroupIds(@Nonnull IGroupStore groupStore) {
+        lock.readLock().lock();
+        try {
+            return cachedMembers.long2ObjectEntrySet().stream()
+                    .filter(e -> e.getValue().size() == 0)
+                    .map(Entry::getLongKey)
+                    .collect(Collectors.toSet());
+        } finally {
+            lock.readLock().unlock();
         }
     }
 

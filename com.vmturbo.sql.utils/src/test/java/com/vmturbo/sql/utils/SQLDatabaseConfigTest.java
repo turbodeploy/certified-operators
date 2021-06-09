@@ -118,6 +118,11 @@ public class SQLDatabaseConfigTest {
             public String getDbSchemaName() {
                 return "test";
             }
+
+            @Override
+            public String getDbUsername() {
+                return "test";
+            }
         };
         DBPasswordUtil dbPasswordUtil = mock(DBPasswordUtil.class);
         testSQLDataBseConfig.setDbPasswordUtil(dbPasswordUtil);
@@ -173,6 +178,11 @@ public class SQLDatabaseConfigTest {
         @Override
         public String getDbSchemaName() {
             return "vmtdb";
+        }
+
+        @Override
+        public String getDbUsername() {
+            return "history";
         }
     }
 

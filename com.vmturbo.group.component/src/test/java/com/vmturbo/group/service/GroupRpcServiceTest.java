@@ -23,9 +23,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +71,10 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.GroupOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -85,6 +90,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -134,7 +140,7 @@ import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TemporaryGroupCache;
-import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
@@ -175,6 +181,7 @@ public class GroupRpcServiceTest {
     private DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
     private DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
     private GroupMemberCalculator groupMemberCalculatorSpy;
+    private final GroupPaginationParams groupPaginationParams = new GroupPaginationParams(100, 500);
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -241,7 +248,8 @@ public class GroupRpcServiceTest {
                 groupMemberCalculatorSpy,
                 2, 120,
                 groupEnvironmentTypeResolver,
-                groupSeverityCalculator);
+                groupSeverityCalculator,
+                groupPaginationParams);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -340,7 +348,7 @@ public class GroupRpcServiceTest {
         // WHEN
         groupRpcService.getPaginatedGroups(request, mockPaginatedResponseObserver);
         // THEN
-        Mockito.verify(groupStoreDAO, Mockito.times(1)).getPaginatedGroups(request);
+        Mockito.verify(groupStoreDAO, Mockito.times(1)).getPaginatedGroups(any());
         final ArgumentCaptor<GroupDTO.GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GroupDTO.GetPaginatedGroupsResponse.class);
         Mockito.verify(mockPaginatedResponseObserver, Mockito.times(1)).onNext(captor.capture());
@@ -349,6 +357,490 @@ public class GroupRpcServiceTest {
         Assert.assertNotNull(captor.getValue().getPaginationResponse());
         Assert.assertEquals("1", captor.getValue().getPaginationResponse().getNextCursor());
         Assert.assertEquals(2, captor.getValue().getPaginationResponse().getTotalRecordCount());
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle user scoping limitations.
+     */
+    @Test
+    public void testGetPaginatedGroupsForScopedUser() throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final List<Long> groupIds = new ArrayList<>();
+        groupIds.add(group1Id);
+        groupIds.add(group2Id);
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Collections.singletonList(group1MemberId)),
+                        null);
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, Collections.singleton(group1Id));
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(Collections.emptySet()).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(1, paginationResponse.getTotalRecordCount());
+        assertFalse(paginationResponse.hasNextCursor());
+        List<Grouping> groupingList = response.getGroupsList();
+        assertEquals(1, groupingList.size());
+        assertEquals(group1Id, groupingList.get(0).getId());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle query scope limitations.
+     */
+    @Test
+    public void testGetPaginatedGroupsForScopedRequest() throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final List<Long> groupIds = new ArrayList<>();
+        groupIds.add(group1Id);
+        groupIds.add(group2Id);
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(Collections.singleton(group1Id), null,
+                        new ArrayOidSet(Collections.singletonList(group1MemberId)),
+                        null);
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .addScopes(group1Id)
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        when(userSessionContext.getAccessScope(Collections.singletonList(group1Id)))
+                .thenReturn(accessScope);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, Collections.singleton(group1Id));
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(Collections.emptySet()).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(1, paginationResponse.getTotalRecordCount());
+        assertFalse(paginationResponse.hasNextCursor());
+        List<Grouping> groupingList = response.getGroupsList();
+        assertEquals(1, groupingList.size());
+        assertEquals(group1Id, groupingList.get(0).getId());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle the combination of user and query
+     * scope limitations, as well as empty groups.
+     * Test has 5 groups: user scope contains groups 1 & 2, request scope contains groups 2 & 3,
+     * and group5 is empty (so implicitly part of any scope)
+     */
+    @Test
+    public void testGetPaginatedGroupsForComplexScopedCases() throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final long group3Id = 3L;
+        final long group4Id = 4L;
+        final long group5Id = 5L;
+        final long requestScopeId = 100L;
+        final List<Long> groupIds = new ArrayList<>();
+        groupIds.add(group1Id);
+        groupIds.add(group2Id);
+        groupIds.add(group3Id);
+        groupIds.add(group4Id);
+        groupIds.add(group5Id);
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final long group3MemberId = 33L;
+        final long group4MemberId = 44L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        final Set<Long> group3Members = Collections.singleton(group3MemberId);
+        final Set<Long> group4Members = Collections.singleton(group4MemberId);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        final Grouping grouping3 = createGrouping(group3Id, group3Members);
+        final Grouping grouping4 = createGrouping(group4Id, group4Members);
+        // group5 is empty
+        final Grouping grouping5 = createGrouping(group5Id, Collections.emptySet());
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        groupStoreDAO.addGroup(grouping3);
+        groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MAJOR);
+        groupStoreDAO.addGroup(grouping4);
+        groupStoreDAO.createGroupSupplementaryInfo(group4Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.CRITICAL);
+        groupStoreDAO.addGroup(grouping5);
+        groupStoreDAO.createGroupSupplementaryInfo(group5Id, true,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        final EntityAccessScope userAccessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Arrays.asList(group1MemberId, group2MemberId)),
+                        null);
+        final EntityAccessScope requestAccessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Arrays.asList(group2MemberId, group3MemberId)),
+                        null);
+        PaginationParameters.Builder paginationParameters = PaginationParameters.newBuilder()
+                .setLimit(1);
+        GetPaginatedGroupsRequest.Builder requestBuilder = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .addScopes(requestScopeId)
+                .setPaginationParameters(paginationParameters);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(userAccessScope);
+        when(userSessionContext.getAccessScope(Collections.singletonList(requestScopeId)))
+                .thenReturn(requestAccessScope);
+        Set<Long> groupsInScope = new HashSet<>();
+        groupsInScope.add(group1Id);
+        groupsInScope.add(group2Id);
+        groupsInScope.add(group3Id);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, groupsInScope);
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(group3Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group3Id), true);
+        doReturn(Collections.singleton(group5Id)).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(requestBuilder.build(), mockObserver);
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(2, paginationResponse.getTotalRecordCount());
+        assertEquals("1", paginationResponse.getNextCursor());
+        List<Grouping> groupingList = response.getGroupsList();
+        assertEquals(1, groupingList.size());
+        assertEquals(group2Id, groupingList.get(0).getId());
+        verify(mockObserver).onCompleted();
+
+        // PREPARATION FOR NEXT CALL
+        paginationParameters.setCursor("1");
+        requestBuilder.setPaginationParameters(paginationParameters);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(requestBuilder.build(), mockObserver);
+        // THEN
+        verify(mockObserver, times(2)).onNext(captor.capture());
+        response = captor.getValue();
+        paginationResponse = response.getPaginationResponse();
+        assertEquals(2, paginationResponse.getTotalRecordCount());
+        assertFalse(paginationResponse.hasNextCursor());
+        groupingList = response.getGroupsList();
+        assertEquals(1, groupingList.size());
+        assertEquals(group5Id, groupingList.get(0).getId());
+        verify(mockObserver, times(2)).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle user scoping limitations, including
+     * the case where there are nested groups that the user is allowed to see.
+     */
+    @Test
+    public void testGetPaginatedGroupsForScopedUserWithNestedGroups()
+            throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final long group3Id = 3L;
+        final List<Long> groupIds = new ArrayList<>();
+        groupIds.add(group1Id);
+        groupIds.add(group2Id);
+        groupIds.add(group3Id);
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        // group 3 is nested; it contains group1
+        final Set<Long> group3Members = Collections.singleton(group1Id);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        final Grouping grouping3 = createGrouping(group3Id, group3Members);
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        groupStoreDAO.addGroup(grouping3);
+        groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Collections.singletonList(group1MemberId)),
+                        null);
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, Collections.singleton(group1Id));
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group3Id), true);
+        doReturn(Collections.emptySet()).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        // 2nd call, for nested groups
+        Map<Long, Set<Long>> parentGroups = new HashMap<>();
+        parentGroups.put(0L, Collections.singleton(group3Id));
+        doReturn(parentGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group3Members, Collections.emptySet());
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(2, paginationResponse.getTotalRecordCount());
+        assertFalse(paginationResponse.hasNextCursor());
+        List<Grouping> groupingList = response.getGroupsList();
+        assertEquals(2, groupingList.size());
+        assertEquals(group1Id, groupingList.get(0).getId());
+        assertEquals(group3Id, groupingList.get(1).getId());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle user scoping limitations when the
+     * user requests for specific group(s) which belong to the scope.
+     */
+    @Test
+    public void testGetPaginatedGroupsForScopedUserWithSpecificGroupIdsRequested()
+            throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final long group3Id = 3L;
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final long group3MemberId = 33L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        final Set<Long> group3Members = Collections.singleton(group3MemberId);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        final Grouping grouping3 = createGrouping(group3Id, group3Members);
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        groupStoreDAO.addGroup(grouping3);
+        groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MAJOR);
+        // group1 & group3 in scope
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Arrays.asList(group1MemberId, group3MemberId)),
+                        null);
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        // user requests for group3
+                        .addId(group3Id)
+                        .build())
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, Collections.singleton(group1Id));
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(group3Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group3Id), true);
+        doReturn(Collections.emptySet()).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any()))
+                .thenReturn(Collections.singletonList(group3Id));
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(1, paginationResponse.getTotalRecordCount());
+        assertFalse(paginationResponse.hasNextCursor());
+        List<Grouping> groupingList = response.getGroupsList();
+        assertEquals(1, groupingList.size());
+        assertEquals(group3Id, groupingList.get(0).getId());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for groups correctly handle user scoping limitations when the
+     * user requests for specific group(s) that doesn't have access to.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testGetPaginatedGroupsForScopedUserWithRequestedGroupIdsOutOfScope()
+            throws StoreOperationException {
+        // GIVEN
+        final long group1Id = 1L;
+        final long group2Id = 2L;
+        final long group3Id = 3L;
+        final long group1MemberId = 11L;
+        final long group2MemberId = 22L;
+        final long group3MemberId = 33L;
+        final Set<Long> group1Members = Collections.singleton(group1MemberId);
+        final Set<Long> group2Members = Collections.singleton(group2MemberId);
+        final Set<Long> group3Members = Collections.singleton(group3MemberId);
+        final Grouping grouping1 = createGrouping(group1Id, group1Members);
+        final Grouping grouping2 = createGrouping(group2Id, group2Members);
+        final Grouping grouping3 = createGrouping(group3Id, group3Members);
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreDAO.addGroup(grouping2);
+        groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MINOR);
+        groupStoreDAO.addGroup(grouping3);
+        groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.MAJOR);
+        // group1 in scope
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Collections.singletonList(group1MemberId)), null);
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        // user requests for group1 and group3, but group3 is out of scope
+                        .addId(group1Id)
+                        .addId(group3Id)
+                        .build())
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Map<Long, Set<Long>> entityGroups = new HashMap<>();
+        entityGroups.put(0L, Collections.singleton(group1Id));
+        doReturn(entityGroups).when(groupMemberCalculatorSpy).getEntityGroups(groupStoreDAO,
+                group1Members, Collections.emptySet());
+        doReturn(group1Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group1Id), true);
+        doReturn(group2Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group2Id), true);
+        doReturn(group3Members).when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(group3Id), true);
+        doReturn(Collections.emptySet()).when(groupMemberCalculatorSpy)
+                .getEmptyGroupIds(groupStoreDAO);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any()))
+                .thenReturn(Arrays.asList(group1Id, group3Id));
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+        // WHEN
+        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        // THEN
+        // exception expected
     }
 
     /**
@@ -1625,7 +2117,8 @@ public class GroupRpcServiceTest {
         final long oid1 = 100001L;
         final long oid2 = 100002L;
         final DiscoveredGroup discoveredGroup2 = new DiscoveredGroup(oid2, group2.getDefinition(),
-                group2.getSourceIdentifier(), Collections.singleton(TARGET1), Collections.singleton(
+                group2.getSourceIdentifier(), group2.getStitchAcrossTargets(),
+                Collections.singleton(TARGET1), Collections.singleton(
                 MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()), true);
         final byte[] hash = DiscoveredGroupHash.hash(discoveredGroup2);
         Mockito.when(
@@ -1714,6 +2207,9 @@ public class GroupRpcServiceTest {
                                         .newBuilder()
                                         .setEntity(2))
                         .setSupportsMemberReverseLookup(true)
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .setCloudType(CloudType.UNKNOWN_CLOUD)
+                        .setSeverity(Severity.MINOR)
                         .build())
                 .build());
         verify(mockObserver).onCompleted();
@@ -1832,9 +2328,12 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
+                        .setEnvironmentType(EnvironmentType.HYBRID)
+                        .setCloudType(CloudType.AZURE)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
+        when(temporaryGroupCache.create(eq(group), eq(origin), eq(expectedTypes), any()))
                                 .thenReturn(grouping);
 
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
@@ -1848,7 +2347,7 @@ public class GroupRpcServiceTest {
 
         groupRpcService.createGroup(groupRequest, mockObserver);
 
-        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(temporaryGroupCache).create(eq(group), eq(origin), eq(expectedTypes), any());
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(grouping)
                 .build());
@@ -1984,9 +2483,12 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
+                        .setEnvironmentType(EnvironmentType.CLOUD)
+                        .setCloudType(CloudType.AZURE)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
+        when(temporaryGroupCache.create(eq(group), eq(origin), eq(expectedTypes), any()))
                                 .thenReturn(grouping);
 
         final StreamObserver<CreateGroupResponse> mockObserver =
@@ -1997,7 +2499,7 @@ public class GroupRpcServiceTest {
                 .setOrigin(origin)
                 .build(), mockObserver);
 
-        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(temporaryGroupCache).create(eq(group), eq(origin), eq(expectedTypes), any());
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(grouping)
                 .build());
@@ -2030,49 +2532,6 @@ public class GroupRpcServiceTest {
                 .setGroupDefinition(group)
                 .setOrigin(origin)
                 .build(), mockObserver);
-    }
-
-    /**
-     * Tests the case a scoped user group tries to create a group which has invalid definition.
-     * @throws Exception if something goes wrong.
-     */
-    @Test
-    public void testCreateInvalidTempGroup() throws Exception {
-        GroupDefinition group = GroupDefinition
-                        .newBuilder(testGrouping)
-                        .setIsTemporary(true)
-                        .build();
-
-        final Set<MemberType> expectedTypes =  new HashSet<>();
-
-        expectedTypes.add(MemberType
-                        .newBuilder()
-                        .setEntity(2)
-                        .build());
-
-        when(temporaryGroupCache.create(group, origin, expectedTypes))
-                                .thenThrow(new InvalidTempGroupException(Collections
-                                                .singletonList("ERR1")));
-
-        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        CreateGroupRequest groupRequest = CreateGroupRequest
-                        .newBuilder()
-                        .setGroupDefinition(group)
-                        .setOrigin(origin)
-                        .build();
-
-        groupRpcService.createGroup(groupRequest, mockObserver);
-
-        //Verify we send the error response
-        final ArgumentCaptor<StatusException> exceptionCaptor =
-                        ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
-
-        final StatusException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ABORTED)
-                .descriptionContains("ERR1"));
     }
 
     /**
@@ -2133,6 +2592,9 @@ public class GroupRpcServiceTest {
                         .setDefinition(group)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(true)
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .setCloudType(CloudType.UNKNOWN_CLOUD)
+                        .setSeverity(Severity.MINOR)
                         .build();
 
         UpdateGroupRequest groupRequest = UpdateGroupRequest

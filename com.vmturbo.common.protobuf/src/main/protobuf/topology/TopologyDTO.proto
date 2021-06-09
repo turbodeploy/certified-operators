@@ -154,6 +154,9 @@ message TypeSpecificInfo {
 
         // Flag to indicate RI support status.
         optional bool riSupported = 4;
+
+        // Account type: Standard, Government_US, etc.
+        optional common_dto.EntityDTO.BusinessAccountData.AccountType account_type = 6;
     }
 
     // Specific data for region
@@ -288,6 +291,9 @@ message TypeSpecificInfo {
 
         // Raw DB edition
         optional string rawEdition = 6;
+
+        // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
+        repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
     }
 
     // specific data for virtual volume
@@ -1703,4 +1709,26 @@ service TopologyService {
     // Request that the topology processor broadcast the latest topology to all its listeners AND
     // return the topology to the caller as a stream of Topology messages.
     rpc BroadcastAndReturnTopology(TopologyBroadcastRequest) returns (stream Topology);
+}
+
+// Reservation Mode specification to determine what the type of behavior Placement entities should
+// take.
+enum ReservationMode {
+
+    // Entities of the same reservation may be placed across multiple ReservationGroupings.
+    NO_GROUPING = 1;
+
+    // Entities of the same reservation will be placed within the same ReservationGrouping.
+    AFFINITY = 2;
+}
+
+// Reservation Grouping specification to determine what group type entities should be placed on
+// corresponding to the Mode of the reservation.
+enum ReservationGrouping {
+
+    // Do not restrict ReservationMode behavior on a specific grouping level.
+    NONE = 1;
+
+    // Restrict ReservationMode behavior on a Cluster level.
+    CLUSTER = 2;
 }

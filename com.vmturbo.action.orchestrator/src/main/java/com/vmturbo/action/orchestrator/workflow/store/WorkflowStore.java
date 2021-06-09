@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 /**
  * Store for Workflow items.
  * Implementations may choose whether to provide persistence.
- **/
+ */
 public interface WorkflowStore {
 
     /**
@@ -38,6 +38,34 @@ public interface WorkflowStore {
     void persistWorkflows(long targetId, List<WorkflowInfo> worflowInfos)
             throws WorkflowStoreException;
 
+    /**
+     * Create a single user defined workflow. These differ from persistWorkflows because they are not
+     * discovered by probes. Any user-created workflows (e.g. webhook workflows) created by
+     * insertWorkflow will not be removed by persistWorkflows.
+     *
+     * @param workflowInfo the info of the user-created workflow.
+     * @return the id of the created workflow.
+     */
+    long insertWorkflow(WorkflowInfo workflowInfo) throws WorkflowStoreException ;
+
+    /**
+     * Updates a user defined workflow. Updates through persistWorkflows differs because persistWorkflows
+     * are discovered by probes.
+     *
+     * @param workflowId the id of the workflow to update.
+     * @param workflowInfo the details of the workflow that will replace the existing details.
+     */
+    void updateWorkflow(long workflowId, WorkflowInfo workflowInfo) throws WorkflowStoreException ;
+
+    /**
+     * Deletes a user created workflow. Probe discovered workflows cannot be deleted. Probe
+     * discovered workflows will be deleted by persistWorkflows when they are no longer submitted
+     * by the probe.
+     *
+     * @param workflowId the id of a user created workflow.
+     */
+    void deleteWorkflow(long workflowId) throws WorkflowStoreException ;
+    
     /**
      * Return the workflows that match the given filter. If there are no restrictions in the filter
      * then all workflows will be returned.

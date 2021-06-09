@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.EntityUptime;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -84,8 +85,8 @@ public interface CloudCostDataProvider {
         /**
          * Map to hold each entity's uptime percentage.
          */
-        public final Map<Long, Double> entityUptimePercentageByEntityId;
-        private final Double defaultEntityUptimePercentage;
+        public final Map<Long, EntityUptimeDTO> entityUptimeByEntityId;
+        private final EntityUptimeDTO defaultEntityUptime;
 
 
         public CloudCostData(@Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
@@ -95,8 +96,8 @@ public interface CloudCostDataProvider {
                              @Nonnull final Map<Long, ReservedInstanceBought> buyRIBoughtById,
                              @Nonnull final Map<Long, AccountPricingData<T>>
                                      accountPricingDataByBusinessAccountOid,
-                             @Nonnull final Map<Long, Double> entityUptimeByEntityId,
-                             @Nonnull final Optional<Double> defaultEntityUptimePercentage) {
+                             @Nonnull final Map<Long, EntityUptimeDTO> entityUptimeByEntityId,
+                             @Nonnull final Optional<EntityUptimeDTO> defaultEntityUptime) {
             this.riCoverageByEntityId = Objects.requireNonNull(riCoverageByEntityId);
             this.accountPricingDataByBusinessAccountOid = Objects.requireNonNull(accountPricingDataByBusinessAccountOid);
             this.filteredRiCoverageByEntityId = Objects.requireNonNull(filteredRiCoverageByEntityId);
@@ -109,9 +110,9 @@ public interface CloudCostDataProvider {
                     .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
                     .map(riBought -> new ReservedInstanceData(riBought, riSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())))
                     .collect(Collectors.toMap(riData -> riData.getReservedInstanceBought().getId(), Function.identity()));
-            this.entityUptimePercentageByEntityId = entityUptimeByEntityId;
-
-            this.defaultEntityUptimePercentage = defaultEntityUptimePercentage.orElse(100D);
+            this.entityUptimeByEntityId = entityUptimeByEntityId;
+            this.defaultEntityUptime = defaultEntityUptime.orElse(
+                    EntityUptimeDTO.newBuilder().setUptimePercentage(100D).build());
         }
 
 
@@ -234,8 +235,20 @@ public interface CloudCostDataProvider {
          */
         @Nonnull
         public Double getEntityUptimePercentage(final long entityOid) {
-            return entityUptimePercentageByEntityId
-                    .getOrDefault(entityOid, defaultEntityUptimePercentage);
+            EntityUptimeDTO entityUptimeDTO = entityUptimeByEntityId
+                    .getOrDefault(entityOid, defaultEntityUptime);
+            return entityUptimeDTO.getUptimePercentage();
+        }
+
+        /**
+         * Get the entity uptime for a given entity id.
+         * @param entityOid The entity OID
+         * @return EntityUptime
+         */
+        @Nonnull
+        public EntityUptimeDTO getEntityUptime(final long entityOid) {
+            return entityUptimeByEntityId
+                    .getOrDefault(entityOid, defaultEntityUptime);
         }
 
     }

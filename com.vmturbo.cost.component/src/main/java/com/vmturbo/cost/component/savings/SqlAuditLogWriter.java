@@ -4,20 +4,21 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_AUDIT_EVENTS;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
-import com.google.protobuf.util.JsonFormat.Printer;
 
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +29,11 @@ import org.jooq.InsertReturningStep;
 import org.jooq.impl.DSL;
 import org.jooq.tools.StringUtils;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsAuditEventsRecord;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
@@ -109,7 +114,10 @@ public class SqlAuditLogWriter implements AuditLogWriter {
                     int[] insertCounts = batch.execute();
                     int totalInserted = IntStream.of(insertCounts).sum();
                     if (totalInserted < batch.size()) {
-                        logger.warn("Entity savings audit: Could only insert {} out of "
+                        // This message is common as ActionListener sends exact same action events
+                        // when those events are already present in the audit log, so change it
+                        // from warn to trace.
+                        logger.trace("Entity savings audit: Could only insert {} out of "
                                         + "batch size of {}. Total input entry count: {}. "
                                         + "Chunk size: {}", totalInserted, batch.size(),
                                 events.size(), chunkSize);
@@ -120,6 +128,14 @@ public class SqlAuditLogWriter implements AuditLogWriter {
             logger.warn("Could not write {} entity savings event audit entries to DB.",
                     events.size(), e);
         }
+    }
+
+    @Override
+    public int deleteOlderThan(long timestamp) {
+        final LocalDateTime minDate = SavingsUtil.getLocalDateTime(timestamp, clock);
+        return dsl.deleteFrom(ENTITY_SAVINGS_AUDIT_EVENTS)
+                .where(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TIME.lt(minDate))
+                .execute();
     }
 
     /**
@@ -184,13 +200,7 @@ public class SqlAuditLogWriter implements AuditLogWriter {
         /**
          * Any additional JSON metadata about the event.
          */
-        private String eventInfo;
-
-        /**
-         * For printing protobuf to json.
-         */
-        private static final Printer jsonPrinter = JsonFormat.printer()
-                .omittingInsignificantWhitespace();
+        private final String eventInfo;
 
         /**
          * Create a new entry.
@@ -203,32 +213,101 @@ public class SqlAuditLogWriter implements AuditLogWriter {
             this.entityOid = event.getEntityId();
             this.eventTime = event.getTimestamp();
 
-            final Optional<TopologyEvent> optionalTopologyEvent = event.getTopologyEvent();
-            if (optionalTopologyEvent.isPresent()) {
-                final TopologyEvent topologyEvent = optionalTopologyEvent.get();
-                this.eventType = topologyEvent.getType().getNumber();
-                if (topologyEvent.hasEventInfo() && topologyEvent.getEventInfo().hasVendorEventId()) {
-                    this.eventId = topologyEvent.getEventInfo().getVendorEventId();
-                }
-                this.eventInfo = jsonPrinter.print(topologyEvent);
-            } else {
-                final Optional<ActionEvent> optionalActionEvent = event.getActionEvent();
-                if (optionalActionEvent.isPresent()) {
-                    final ActionEvent actionEvent = optionalActionEvent.get();
-                    this.eventType = actionEvent.getEventType().getTypeCode();
-                    this.eventId = String.valueOf(actionEvent.getActionId());
-                    this.eventInfo = StringUtils.EMPTY;
-                    Optional<EntityPriceChange> priceChange = event.getEntityPriceChange();
-                    priceChange.ifPresent(entityPriceChange -> this.eventInfo =
-                            gson.toJson(entityPriceChange));
-                }
-            }
-            // Verify eventId and info String fields are never null, as they are NOT NULL in DB.
+            final Map<String, Object> jsonData = new HashMap<>();
+
+            final Optional<EntityPriceChange> priceChange = event.getEntityPriceChange();
+
+            final Optional<TopologyEvent> topologyEvent = event.getTopologyEvent();
+            topologyEvent.ifPresent(te -> serializeTopologyEvent(jsonData, te));
+
+            final Optional<ActionEvent> actionEvent = event.getActionEvent();
+            actionEvent.ifPresent(ae -> serializeActionEvent(jsonData, ae,
+                    priceChange.orElse(null)));
+
+            this.eventInfo = gson.toJson(jsonData);
             if (this.eventId == null) {
-                this.eventId = String.format("NA-%d", System.currentTimeMillis());
+                // Use event id as checksum for the json message, always positive, tamper proof!
+                // Get rid of that old confusing 'NA-<timestamp>' format.
+                this.eventId = String.format("%d", eventInfo.hashCode() & 0xfffffff);
             }
-            if (this.eventInfo == null || this.eventInfo.isEmpty()) {
-                this.eventInfo = "{}";
+        }
+
+        /**
+         * Updates useful fields in TopologyEvent into the json map to be serialized to DB.
+         *
+         * @param jsonData Map to be updated.
+         * @param topologyEvent Event containing data to serialize.
+         */
+        private void serializeTopologyEvent(final Map<String, Object> jsonData,
+                @Nonnull final TopologyEvent topologyEvent) {
+            this.eventType = topologyEvent.getType().getNumber();
+            if (!topologyEvent.hasEventInfo()) {
+                return;
+            }
+            final TopologyEventInfo eventInfo = topologyEvent.getEventInfo();
+            if (eventInfo.hasVendorEventId()) {
+                // Vendor id may not be present in most cases.
+                this.eventId = eventInfo.getVendorEventId();
+            }
+            if (eventInfo.hasStateChange()) {
+                EntityStateChangeDetails stateChange = eventInfo.getStateChange();
+                if (stateChange.hasSourceState() && stateChange.getSourceState()
+                        != TopologyDTO.EntityState.UNKNOWN) {
+                    jsonData.put("ss", stateChange.getSourceState()
+                            == TopologyDTO.EntityState.POWERED_ON ? 1 : 0);
+                }
+                if (stateChange.hasDestinationState() && stateChange.getDestinationState()
+                        != TopologyDTO.EntityState.UNKNOWN) {
+                    jsonData.put("ds", stateChange.getDestinationState()
+                            == TopologyDTO.EntityState.POWERED_ON ? 1 : 0);
+                }
+            } else if (eventInfo.hasProviderChange()) {
+                ProviderChangeDetails providerChange = eventInfo.getProviderChange();
+                if (providerChange.hasSourceProviderOid()
+                        && !providerChange.hasUnknownSourceProvider()) {
+                    jsonData.put("so", providerChange.getSourceProviderOid());
+                }
+                if (providerChange.hasDestinationProviderOid()
+                        && !providerChange.hasUnknownDestinationProvider()) {
+                    jsonData.put("do", providerChange.getDestinationProviderOid());
+                }
+            }
+        }
+
+        /**
+         * Serializes action event and price change. Updates input json map.
+         *
+         * @param jsonData Map to be updated with values for DB json.
+         * @param actionEvent Action event to read settings from.
+         * @param priceChange Price change to be stored to jsonData.
+         */
+        private void serializeActionEvent(final Map<String, Object> jsonData,
+                @Nonnull final ActionEvent actionEvent,
+                @Nullable final EntityPriceChange priceChange) {
+
+            this.eventType = actionEvent.getEventType().getTypeCode();
+            this.eventId = String.valueOf(actionEvent.getActionId());
+
+            jsonData.put("et", actionEvent.getEntityType());
+            jsonData.put("at", actionEvent.getActionType());
+            jsonData.put("ac", actionEvent.getActionCategory());
+            jsonData.put("t", actionEvent.getDescription());
+
+            if (priceChange == null) {
+                return;
+            }
+            jsonData.put("sc", priceChange.getSourceCost());
+            jsonData.put("dc", priceChange.getDestinationCost());
+            double diff = priceChange.getDelta();
+            jsonData.put("d", diff);
+
+            long srcOid = priceChange.getSourceOid().orElse(0L);
+            long dstOid = priceChange.getDestinationOid().orElse(0L);
+            if (srcOid != dstOid) {
+                jsonData.put("so", srcOid);
+                jsonData.put("do", dstOid);
+            } else {
+                jsonData.put("po", srcOid);
             }
         }
 

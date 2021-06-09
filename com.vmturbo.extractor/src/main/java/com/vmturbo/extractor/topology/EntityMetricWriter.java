@@ -65,6 +65,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
+import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
@@ -75,6 +78,7 @@ import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
@@ -125,29 +129,33 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * List of wasted files records by storage oid.
      */
     private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
-    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true, true, false);
-    private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
-            new GroupPrimitiveFieldsOnGroupingPatcher(true, false);
+    private final PrimitiveFieldsOnTEDPatcher tedPatcher;
+    private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher;
     private final DataPack<Long> oidPack;
+    private final DataExtractionFactory dataExtractionFactory;
     private final ScopeManager scopeManager;
     private DSLContext dsl;
 
     /**
      * Create a new writer instance.
-     *
-     * @param dbEndpoint        db endpoint for persisting data
+     *  @param dbEndpoint        db endpoint for persisting data
      * @param entityHashManager to track entity hash evolution across topology broadcasts
      * @param scopeManager      scope manager
      * @param oidPack           entity id manager
      * @param pool              thread pool
+     * @param dataExtractionFactory the factory for providing extractors
      */
     public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
             final ScopeManager scopeManager, final DataPack<Long> oidPack,
-            final ExecutorService pool) {
+            final ExecutorService pool, final DataExtractionFactory dataExtractionFactory) {
         super(dbEndpoint, pool);
         this.entityHashManager = entityHashManager;
         this.scopeManager = scopeManager;
         this.oidPack = oidPack;
+        this.dataExtractionFactory = dataExtractionFactory;
+        TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
+        this.tedPatcher = new PrimitiveFieldsOnTEDPatcher(PatchCase.REPORTING, targetsExtractor);
+        this.groupPatcher = new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.REPORTING, targetsExtractor);
     }
 
     @Override
@@ -461,11 +469,15 @@ public class EntityMetricWriter extends TopologyWriterBase {
         volumeInfo.getFilesList().forEach(file -> {
             Record wastedFileRecord = new Record(WASTED_FILE_TABLE);
             wastedFileRecord.set(FILE_PATH, file.getPath());
-            wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
-            wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+            if (file.hasSizeKb()) {
+                wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
+            }
+            if (file.hasModificationTimeMs()) {
+                wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+            }
             wastedFileRecord.set(STORAGE_OID, storageId);
             // storage name will be added later in finish stage
-            wastedFileRecordsByStorageId.computeIfAbsent((long)storageId, k -> new ArrayList<>())
+            wastedFileRecordsByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>())
                     .add(wastedFileRecord);
         });
     }
@@ -498,8 +510,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private void updateScopes(DataProvider dataProvider)
             throws UnsupportedDialectException, InterruptedException, SQLException {
+        final Optional<RelatedEntitiesExtractor> extractorOptional =
+                dataExtractionFactory.newRelatedEntitiesExtractor();
+        if (!extractorOptional.isPresent()) {
+            // this should not happen
+            logger.error("Topology graph or supply chain is not ready, skipping updating scopes");
+            return;
+        }
+        final RelatedEntitiesExtractor relatedEntitiesExtractor = extractorOptional.get();
+
         scopeManager.startTopology(topologyInfo);
-        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), dataProvider));
+        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), relatedEntitiesExtractor));
 
         // Scope manager needs to know the types of all entities and groups appearing in
         // current topology, so we construct the needed map here.
@@ -587,7 +608,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         Double capacity = record.hasCapacity() ? (double)record.getCapacity().getAvg() : null;
         Double current = record.hasCapacity() && record.hasUsed()
-                ? capacity - (double)record.getUsed().getAvg() : null;
+                ? capacity - record.getUsed().getAvg() : null;
         Double utilization = null;
         if (capacity != null && current != null) {
             utilization = capacity == 0 ? 0 : current / capacity;
@@ -604,17 +625,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
         return r;
     }
 
-    private void updateScope(long oid, DataProvider dataProvider) {
+    private void updateScope(long oid, RelatedEntitiesExtractor relatedEntitiesExtractor) {
         // first collect oids for entities related to this one via supply chain
-        final LongSet entitiesInScope = dataProvider.getRelatedEntities(oid);
+        final LongSet entitiesInScope = relatedEntitiesExtractor.getRelatedEntitiesByType(oid).values().stream()
+                .flatMap(Collection::stream)
+                .mapToLong(Long::longValue)
+                .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
         logger.debug("Adding entities to scope for entity {}: {}", () -> oid, () -> entitiesInScope);
         scopeManager.addInCurrentScope(oid, entitiesInScope.toLongArray());
         // then we collect all the groups that any of our related entities belong to...
-        LongSet groupsInScope = entitiesInScope.stream()
-                .map(dataProvider::getGroupsForEntity)
-                .flatMap(Collection::stream)
+        LongSet groupsInScope = relatedEntitiesExtractor.getRelatedGroups(entitiesInScope.stream())
                 .mapToLong(Grouping::getId)
-                .distinct()
                 .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
         logger.debug("Adding groups to scope for entity {}: {}", () -> oid, () -> groupsInScope);
         // groups are added symmetrically to the entity scope

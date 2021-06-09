@@ -6,7 +6,13 @@ import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.mak
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyDouble;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -17,9 +23,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -49,10 +57,9 @@ public class CpuScalingFactorPostStitchingOperationTest {
     private static final double CPU_SCALE_FACTOR = 1.3;
     private static final String TEST_CPU_MODEL = "cpu-model-1";
 
-
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final CpuScalingFactorPostStitchingOperation operation =
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, true);
+            spy(new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, true));
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -318,31 +325,49 @@ public class CpuScalingFactorPostStitchingOperationTest {
      * Some entities like namespaces may be connected to multiple hosts.
      * In these cases, we would like the namespace to get the largest scalingFactor of all hosts
      * that it is connected to.
+     * <p/>
+     * Workload controllers should have the max of the hosts that they are connected to through their
+     * pods, not necessarily the max of all the hosts connected to the namespace.
      */
     @Test
     public void testUpdateMaxScalingFactor() {
         final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
             CPU_CAPACITY);
+        final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
         final CommodityBoughtDTO vcpuLimitQuotaBoughtComm =
             makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
 
+        final TopologyEntity.Builder pod1 = makeTopologyEntityBuilder(10L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
         final TopologyEntity.Builder wc1 = makeTopologyEntityBuilder(3L,
             EntityType.WORKLOAD_CONTROLLER_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
             // Buying VCPUQuota & RequestQuota bought from namespace.
             Collections.singletonList(vcpuLimitQuotaBoughtComm));
+
+        final TopologyEntity.Builder pod2 = makeTopologyEntityBuilder(11L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
         final TopologyEntity.Builder wc2 = makeTopologyEntityBuilder(4L,
             EntityType.WORKLOAD_CONTROLLER_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
             // Buying VCPUQuota & RequestQuota bought from namespace.
             Collections.singletonList(vcpuLimitQuotaBoughtComm));
+
+        final TopologyEntity.Builder pod3 = makeTopologyEntityBuilder(12L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
         final TopologyEntity.Builder wc3 = makeTopologyEntityBuilder(5L,
             EntityType.WORKLOAD_CONTROLLER_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
             // Buying VCPUQuota & RequestQuota bought from namespace.
             Collections.singletonList(vcpuLimitQuotaBoughtComm));
 
-        final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
+        final TopologyEntity.Builder ns = makeTopologyEntityBuilder(6L,
             EntityType.NAMESPACE_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
             Collections.emptyList());
@@ -350,12 +375,24 @@ public class CpuScalingFactorPostStitchingOperationTest {
             ns.addConsumer(wc);
             wc.addProvider(ns);
         });
+        ImmutableMap.of(pod1, wc1, pod2, wc2, pod3, wc3).forEach((pod, wc) -> {
+            wc.addConsumer(pod);
+            pod.addProvider(wc);
+        });
 
         final LongOpenHashSet visited = new LongOpenHashSet();
-        operation.updateScalingFactorForEntity(wc1.build(), 2.0, visited);
-        operation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
-        operation.updateScalingFactorForEntity(wc3.build(), 1.0, visited);
+        operation.updateScalingFactorForEntity(pod1.build(), 2.0, visited);
+        operation.updateScalingFactorForEntity(pod2.build(), 3.0, visited);
+        operation.updateScalingFactorForEntity(pod3.build(), 1.0, visited);
         assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(3.0).build());
+
+        // Verify that we do not propagate multiple updates back to the pods or workload
+        // controllers. Doing so can cause a big performance hit in large topologies
+        // with lots of container entities.
+        Stream.of(pod1, wc1, pod2, wc2, pod3, wc3).forEach(entity -> {
+            verify(operation, times(1))
+                .updateScalingFactorForEntity(eq(entity.build()), anyDouble(), any());
+        });
     }
 
     /**
@@ -406,6 +443,38 @@ public class CpuScalingFactorPostStitchingOperationTest {
         disabledOperation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
         disabledOperation.updateScalingFactorForEntity(wc3.build(), 1.0, visited);
         assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(2.0).build());
+    }
+
+    /**
+     * Test updateScalingFactorForEntity for supported provider entity.
+     */
+    @Test
+    public void testUpdateScalingFactorForProviderEntity() {
+        final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+        final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
+            CPU_CAPACITY);
+        final CommodityBoughtDTO vcpuLimitQuotaBoughtComm = makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
+
+        final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
+        final TopologyEntity.Builder wc = makeTopologyEntityBuilder(3L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder vm = makeTopologyEntityBuilder(4L,
+            EntityType.VIRTUAL_MACHINE_VALUE,
+            Collections.singletonList(vcpuComm),
+            Collections.singletonList(vcpuBoughtCommodity));
+        pod.addProvider(wc);
+        pod.addProvider(vm);
+
+        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        // WorkloadController scalingFactor is updated because it's a supported provider of ContainerPod.
+        assertSelling(wc, vcpuLimitQuotaComm.toBuilder().setScalingFactor(CPU_SCALE_FACTOR).build());
+        // VM scalingFactor is not updated because it's not a supported provider to update from ContainerPod.
+        assertSelling(vm, vcpuComm);
     }
 
     private static void assertSelling(@Nonnull final TopologyEntity.Builder entity,

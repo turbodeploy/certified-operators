@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>8.1.6-SNAPSHOT</version>
+        <version>8.2.3-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -86,7 +86,7 @@
                     <dependency>
                         <groupId>com.vmturbo</groupId>
                         <artifactId>com.vmturbo.branding</artifactId>
-                        <version>${vmturbo.mt.branch.version}</version>
+                        <version>${com.vmturbo.api.version}</version>
                     </dependency>
                 </dependencies>
             </plugin>
@@ -111,42 +111,6 @@
                                 </apiSource>
                             </apiSources>
                         </configuration>
-                    </execution>
-                    <execution>
-                        <id>external-swagger</id>
-                        <configuration>
-                            <apiSources>
-                                <apiSource>
-                                    <springmvc>true</springmvc>
-                                    <schemes>
-                                        <scheme>https</scheme>
-                                    </schemes>
-                                    <basePath>/api/v3</basePath>
-                                    <locations>
-                                        <location>com.vmturbo.api.controller</location>
-                                        <location>com.vmturbo.api.external.controller</location>
-                                    </locations>
-                                    <info>
-                                        <title>${swagger.info.title}</title>
-                                        <description>${swagger.info.description}</description>
-                                        <version>${api.version}</version>
-                                        <contact>
-                                            <email>${swagger.contact.email}</email>
-                                            <name>${swagger.contact.name}</name>
-                                            <url>${swagger.contact.url}</url>
-                                        </contact>
-                                    </info>
-                                    <swaggerDirectory>
-                                        ${project.build.directory}/generated-docs/swagger/external
-                                    </swaggerDirectory>
-                                    <outputFormats>json,yaml</outputFormats>
-                                </apiSource>
-                            </apiSources>
-                        </configuration>
-                        <phase>process-test-resources</phase>
-                        <goals>
-                            <goal>generate</goal>
-                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -214,6 +178,71 @@
                                        dest="${project.build.directory}/www"
                                        failOnEmptyArchive="true">
                                 </unzip>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>get-swagger-resources</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.api</artifactId>
+                                    <!-- note: Swagger resources (external API swagger.json and swagger.yaml are built in
+                                         the API project repository. We pull a .jar file containing those resources and
+                                          unpack them for use and inclusion in our docker container here. However, we do
+                                          still codgen the internal component swagger.json and swagger.yaml directly in
+                                          this project.-->
+                                    <version>${com.vmturbo.api.version}</version>
+                                    <classifier>swagger</classifier>
+                                    <type>jar</type>
+                                    <destFileName>swagger-resources.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-swagger</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Unpack the swagger.yaml and swagger.json pulled from the API repository build.
+                                     Place the files in the the <generated_docs_dir>/swagger/external and then cleanup. -->
+                                <echo message="unpack swagger jar file"/>
+                                <mkdir dir="${base.generated.docs.dir}/swagger/external"/>
+                                <unzip src="${project.build.directory}/dependency/swagger-resources.jar"
+                                       dest="${base.generated.docs.dir}/swagger/tmp"
+                                       failOnEmptyArchive="true">
+                                </unzip>
+                                <path id="swagger_tmp_dir">
+                                    <dirset dir="${base.generated.docs.dir}/swagger/tmp/">
+                                        <include name="*${com.vmturbo.api.version}*"/>
+                                    </dirset>
+                                </path>
+                                <property name="swagger.tmp.dir" refid="swagger_tmp_dir" />
+                                <move todir="${base.generated.docs.dir}/swagger/external/" includeemptydirs="false">
+                                    <fileset dir="${swagger.tmp.dir}/" includes="swagger*"/>
+                                </move>
+                                <delete dir="${swagger.tmp.dir}"/>
                             </target>
                         </configuration>
                     </execution>

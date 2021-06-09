@@ -17,12 +17,15 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
+import com.google.protobuf.GeneratedMessageV3;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -41,6 +44,9 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -86,7 +92,9 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.group.common.InvalidParameterException;
 import com.vmturbo.group.common.Truncator;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
@@ -94,7 +102,7 @@ import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
-import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.service.TransactionProvider.Stores;
@@ -103,6 +111,8 @@ import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.StitchingGroup;
 import com.vmturbo.group.stitching.StitchingResult;
+import com.vmturbo.group.validation.GetPaginatedGroupsSanitizer;
+import com.vmturbo.group.validation.InputSanitizer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
@@ -118,6 +128,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .withBuckets(1, 10, 100, 1000, 10000, 100000, 1000000)
                     .build()
                     .register();
+    private final Map<Class<? extends GeneratedMessageV3>,
+            InputSanitizer<? extends GeneratedMessageV3>> inputClassToSanitizer;
 
     private long realtimeTopologyContextId = 777777;
     static final int MAX_NESTING_DEPTH = 100;
@@ -145,6 +157,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final GroupSeverityCalculator groupSeverityCalculator;
 
+    private final GroupPaginationParams groupPaginationParams;
+
     private final long groupLoadTimeoutMs;
 
     /**
@@ -166,6 +180,8 @@ public class GroupRpcService extends GroupServiceImplBase {
      *         StopWatch, boolean)} will return a error.
      * @param groupEnvironmentTypeResolver utility class for group environment type resolution
      * @param groupSeverityCalculator utility class for group severity calculation
+     * @param groupPaginationParams group component's internal parameters for paginated calls for
+     *                              groups.
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
@@ -180,7 +196,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             int groupLoadPermits,
             long groupLoadTimeoutSec,
             @Nonnull GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
-            @Nonnull GroupSeverityCalculator groupSeverityCalculator) {
+            @Nonnull GroupSeverityCalculator groupSeverityCalculator,
+            @Nonnull GroupPaginationParams groupPaginationParams) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -203,6 +220,10 @@ public class GroupRpcService extends GroupServiceImplBase {
         this.memberCalculator = memberCalculator;
         this.groupEnvironmentTypeResolver = Objects.requireNonNull(groupEnvironmentTypeResolver);
         this.groupSeverityCalculator = Objects.requireNonNull(groupSeverityCalculator);
+        this.groupPaginationParams = groupPaginationParams;
+        this.inputClassToSanitizer = ImmutableMap.of(
+                GetPaginatedGroupsRequest.class, new GetPaginatedGroupsSanitizer(
+                        groupPaginationParams));
     }
 
     @Override
@@ -214,11 +235,155 @@ public class GroupRpcService extends GroupServiceImplBase {
             return;
         }
         grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
-            final Collection<Long> listOfGroups = getGroupIds(stores.getGroupStore(), request);
+            final Collection<Long> listOfGroups = getGroupIds(stores.getGroupStore(),
+                    request.getGroupFilter());
             responseObserver.onNext(
                     CountGroupsResponse.newBuilder().setCount(listOfGroups.size()).build());
             responseObserver.onCompleted();
         });
+    }
+
+    /**
+     * Returns groups based on the request, in a paginated response.
+     * This is a temporary testing method that supports paginated queries which require scope
+     * filtering. It will be removed in OM-70603, after being merged with the original.
+     *
+     * @param request the request for groups, including pagination, filtering & ordering params.
+     * @param responseObserver the observer to notify with the response.
+     */
+    @Override
+    public void getPaginatedGroupsForScopedUser(GetPaginatedGroupsRequest request,
+            StreamObserver<GetPaginatedGroupsResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
+            getPaginatedGroupsForScopedUser(stores.getGroupStore(), request, responseObserver);
+        });
+    }
+
+    /**
+     * Internal implementation for getPaginatedGroupsForScopedUser.
+     *
+     * @param groupStore the group store to query.
+     * @param request the request for groups, including pagination, filtering & ordering params.
+     * @param observer the observer to notify with the response.
+     */
+    private void getPaginatedGroupsForScopedUser(@Nonnull IGroupStore groupStore,
+            GetPaginatedGroupsRequest request,
+            StreamObserver<GetPaginatedGroupsResponse> observer) {
+        if (!userSessionContext.isUserScoped() && isMarketScoped(request.getScopesList())) {
+            // in the non-scoped case, use the simple implementation
+            getPaginatedGroups(groupStore, request, observer);
+            return;
+        }
+        try {
+            GetPaginatedGroupsRequest validatedRequest =
+                    sanitize(GetPaginatedGroupsRequest.class, request);
+            logger.trace("Processing scoped paginated request.");
+            // find the groups that the user has access to, based on the scope (either the user's
+            // scope or the scope provided in the request
+            Set<Long> groupUuidsInScope = getGroupUuidsInScope(groupStore, validatedRequest);
+            // fetch all groups that conform to the other (non-scope related) filters
+            final Collection<Long> groupsFromStore = groupStore.getOrderedGroupIds(
+                    validatedRequest.getGroupFilter(), validatedRequest.getPaginationParameters());
+            // find the intersection between the two
+            final List<Long> filteredIds = new ArrayList<>(groupsFromStore.size());
+            groupsFromStore.forEach(groupId -> {
+                if (groupUuidsInScope.contains(groupId)) {
+                    filteredIds.add(groupId);
+                }
+            });
+            // get the next page
+            final int limit = validatedRequest.getPaginationParameters().getLimit();
+            final int cursor = Integer.parseInt(
+                    validatedRequest.getPaginationParameters().getCursor());
+            final List<Long> nextPageIds = cursor < filteredIds.size()
+                    ? filteredIds.subList(cursor, Math.min(cursor + limit, filteredIds.size()))
+                    : Collections.emptyList();
+            // construct and return response
+            PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+            paginationResponse.setTotalRecordCount(filteredIds.size());
+            if (cursor + limit < filteredIds.size()) {
+                paginationResponse.setNextCursor(Integer.toString(cursor + limit));
+            }
+            observer.onNext(GetPaginatedGroupsResponse.newBuilder()
+                    .addAllGroups(groupStore.getGroupsById(nextPageIds))
+                    .setPaginationResponse(paginationResponse.build())
+                    .build());
+            observer.onCompleted();
+        } catch (IllegalArgumentException | InvalidParameterException e) {
+            final String errorMessage = "Invalid request for groups. Error: ";
+            logger.error(errorMessage, e);
+            observer.onError(Status.INVALID_ARGUMENT.withDescription(errorMessage + e.getMessage())
+                    .asException());
+        } catch (StoreOperationException e) {
+            String errorMessage = "An error occurred while interacting with the store. Error: ";
+            logger.error(errorMessage, e);
+            observer.onError(Status.INTERNAL.withDescription(errorMessage + e.getMessage())
+                    .asException());
+        }
+    }
+
+    private Set<Long> getGroupUuidsInScope(@Nonnull IGroupStore groupStore,
+            @Nonnull GetPaginatedGroupsRequest request) throws StoreOperationException {
+        final boolean userIsScoped = userSessionContext.isUserScoped();
+        final boolean requestIsScoped = !request.getScopesList().isEmpty();
+        final Set<Long> groupUuidsInScope = new HashSet<>();
+        final Set<Long> entityUuidsInScope = new HashSet<>();
+        final EntityAccessScope userScope = userIsScoped
+                ? userSessionContext.getUserAccessScope() : null;
+        final EntityAccessScope requestScope = requestIsScoped
+                ? userSessionContext.getAccessScope(request.getScopesList()) : null;
+        if (userIsScoped) {
+            logger.trace("User scope: {}", () -> userScope);
+            userScope.accessibleOids().forEach(entityUuidsInScope::add);
+        }
+        if (requestIsScoped) {
+            logger.trace("Requested scope: {}", () -> requestScope);
+            requestScope.accessibleOids().forEach(entityUuidsInScope::add);
+        }
+        // find the groups that the entities in the scope belong to
+        Set<Long> initialGroupUuids = memberCalculator.getEntityGroups(groupStore,
+                entityUuidsInScope, Collections.emptySet())
+                .values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        // add nested groups
+        // Parent group cache contains only direct parents, so in order to retrieve nested groups
+        // we do recursive requests to the cache until there are no more parents
+        Set<Long> nestedGroups = initialGroupUuids;
+        while (!nestedGroups.isEmpty()) {
+            nestedGroups = memberCalculator.getEntityGroups(groupStore, nestedGroups,
+                    Collections.emptySet())
+                    .values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            initialGroupUuids.addAll(nestedGroups);
+        }
+        // find which of those groups are actually accessible (all their members being in the scope)
+        for (Long groupId : initialGroupUuids) {
+            final Collection<Long> members = memberCalculator.getGroupMembers(
+                    groupStore, Collections.singleton(groupId), true);
+            if ((userIsScoped && !userScope.contains(members))
+                    || (requestIsScoped && !requestScope.contains(members))) {
+                continue;
+            }
+            groupUuidsInScope.add(groupId);
+        }
+        // also fetch empty groups (empty groups are included in all scopes by definition)
+        Collection<Long> emptyGroupIds = memberCalculator.getEmptyGroupIds(groupStore);
+        groupUuidsInScope.addAll(emptyGroupIds);
+        // if the user has requested for specific uuids, make sure that all of them are accessible;
+        // Otherwise, throw an exception
+        if (!request.getGroupFilter().getIdList().isEmpty()) {
+            for (Long groupId : request.getGroupFilter().getIdList()) {
+                if (!groupUuidsInScope.contains(groupId)) {
+                    throw new UserAccessScopeException("User does not have access to one or more of"
+                            + " the requested groups.");
+                }
+            }
+        }
+        return groupUuidsInScope;
     }
 
     /**
@@ -247,13 +412,14 @@ public class GroupRpcService extends GroupServiceImplBase {
             GetPaginatedGroupsRequest request,
             StreamObserver<GetPaginatedGroupsResponse> observer) {
         try {
-            observer.onNext(groupStore.getPaginatedGroups(request));
+            observer.onNext(groupStore.getPaginatedGroups(
+                    // sanitize the input before using it
+                    sanitize(GetPaginatedGroupsRequest.class, request)));
             observer.onCompleted();
-        } catch (IllegalArgumentException e) {
-            final String errorMessage = "Invalid request for groups. Error: " + e.getMessage();
-            logger.error(errorMessage);
-            observer.onError(Status.INVALID_ARGUMENT
-                    .withDescription(errorMessage)
+        } catch (IllegalArgumentException | InvalidParameterException e) {
+            final String errorMessage = "Invalid request for groups. Error: ";
+            logger.error(errorMessage, e);
+            observer.onError(Status.INVALID_ARGUMENT.withDescription(errorMessage + e.getMessage())
                     .asException());
         }
     }
@@ -272,10 +438,10 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private Collection<Long> getGroupIds(@Nonnull IGroupStore groupStore,
-            @Nonnull GetGroupsRequest request) {
+            @Nullable GroupFilter groupFilter) {
         final GroupFilters.Builder filter = GroupFilters.newBuilder();
-        if (request.hasGroupFilter()) {
-            filter.addGroupFilter(request.getGroupFilter());
+        if (groupFilter != null) {
+            filter.addGroupFilter(groupFilter);
         }
         return groupStore.getGroupIds(filter.build());
     }
@@ -298,7 +464,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             request.getReplaceGroupPropertyWithGroupMembershipFilter();
         stopWatch.stop();
         stopWatch.start("get group ids");
-        final Collection<Long> groupIds = getGroupIds(groupStore, request);
+        final Collection<Long> groupIds = getGroupIds(groupStore, request.getGroupFilter());
         stopWatch.stop();
         stopWatch.start("apply user scope");
         final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
@@ -793,20 +959,13 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<MemberType> expectedTypes = findGroupExpectedTypes(groupStore, groupDef);
 
         if (groupDef.getIsTemporary()) {
+            Set<Long> groupEntities = memberCalculator.getGroupMembers(groupStore, groupDef, true);
             if (groupDef.hasOptimizationMetadata()
                             && !groupDef.getOptimizationMetadata().getIsGlobalScope()) {
-                UserScopeUtils.checkAccess(userSessionContext,
-                        memberCalculator.getGroupMembers(groupStore, groupDef, true));
+                UserScopeUtils.checkAccess(userSessionContext, groupEntities);
             }
-
-            try {
-                createdGroup = tempGroupCache.create(groupDef, request.getOrigin(), expectedTypes);
-            } catch (InvalidTempGroupException e) {
-                final String errorMsg = String.format("Failed to create group: %s as it is invalid. exception: %s.",
-                                groupDef, e.getLocalizedMessage());
-                logger.error(errorMsg, e);
-                throw new StoreOperationException(Status.ABORTED, errorMsg, e);
-            }
+            createdGroup = tempGroupCache.create(groupDef, request.getOrigin(), expectedTypes,
+                        fetchEntitiesWithEnvironment(groupEntities));
         } else {
             final boolean supportsMemberReverseLookup =
                             determineMemberReverseLookupSupported(groupDef);
@@ -824,14 +983,21 @@ public class GroupRpcService extends GroupServiceImplBase {
             // cache.
             // Supplementary info derive from group members, so we create them after the cache has
             // been updated.
-            storeSingleGroupSupplementaryInfo(groupStore, groupOid);
-            createdGroup = Grouping.newBuilder()
+            GroupSupplementaryInfo supplementaryInfo =
+                    storeSingleGroupSupplementaryInfo(groupStore, groupOid);
+            Grouping.Builder builder = Grouping.newBuilder()
                 .setId(groupOid)
                 .setDefinition(groupDef)
                 .addAllExpectedTypes(expectedTypes)
-                .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
-                .build();
-                postValidateNewGroup(groupStore, createdGroup);
+                .setSupportsMemberReverseLookup(supportsMemberReverseLookup);
+            if (supplementaryInfo != null) {
+                builder.setEnvironmentType(
+                        EnvironmentType.forNumber(supplementaryInfo.getEnvironmentType()));
+                builder.setCloudType(CloudType.forNumber(supplementaryInfo.getCloudType()));
+                builder.setSeverity(Severity.forNumber(supplementaryInfo.getSeverity()));
+            }
+            createdGroup = builder.build();
+            postValidateNewGroup(groupStore, createdGroup);
         }
 
         return CreateGroupResponse.newBuilder()
@@ -845,9 +1011,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
+     * @return the calculated supplementary info for the group
      * @throws StoreOperationException on db error
      */
-    private void storeSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+    private GroupSupplementaryInfo storeSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
             final long groupId) throws StoreOperationException {
         Set<Long> groupEntities = memberCalculator.getGroupMembers(groupStore,
                 Collections.singleton(groupId), true);
@@ -855,7 +1022,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
         if (entitiesWithEnvironment == null) {
-            return;
+            return null;
         }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
@@ -870,6 +1037,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         Severity groupSeverity = groupSeverityCalculator.calculateSeverity(groupEntities);
         // add group info to the database
         groupStore.createGroupSupplementaryInfo(groupId, isEmpty, groupEnvironment, groupSeverity);
+        return new GroupSupplementaryInfo(groupId, isEmpty,
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber(), groupSeverity.getNumber());
     }
 
     private void validateCreateGroupRequest(@Nonnull final IGroupStore groupStore,
@@ -948,11 +1118,20 @@ public class GroupRpcService extends GroupServiceImplBase {
         // from the group membership cache.
         // Supplementary info derive from group members, so we update them after the cache has been
         // updated (during the previous call).
-        updateSingleGroupSupplementaryInfo(groupStore, newGroup.getId());
-        postValidateNewGroup(groupStore, newGroup);
+        GroupSupplementaryInfo supplementaryInfo =
+                updateSingleGroupSupplementaryInfo(groupStore, newGroup.getId());
+        Grouping.Builder groupingBuilder = Grouping.newBuilder(newGroup);
+        if (supplementaryInfo != null) {
+            groupingBuilder.setEnvironmentType(
+                    EnvironmentType.forNumber(supplementaryInfo.getEnvironmentType()));
+            groupingBuilder.setCloudType(CloudType.forNumber(supplementaryInfo.getCloudType()));
+            groupingBuilder.setSeverity(Severity.forNumber(supplementaryInfo.getSeverity()));
+        }
+        final Grouping fullyUpdatedGroup = groupingBuilder.build();
+        postValidateNewGroup(groupStore, fullyUpdatedGroup);
 
         final UpdateGroupResponse res =
-                UpdateGroupResponse.newBuilder().setUpdatedGroup(newGroup).build();
+                UpdateGroupResponse.newBuilder().setUpdatedGroup(fullyUpdatedGroup).build();
         responseObserver.onNext(res);
         responseObserver.onCompleted();
     }
@@ -963,16 +1142,17 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
+     * @return the calculated supplementary info for the group
      * @throws StoreOperationException on db error
      */
-    private void updateSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+    private GroupSupplementaryInfo updateSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
             final long groupId) throws StoreOperationException {
         Set<Long> groupEntities =
             memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true);
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
         if (entitiesWithEnvironment == null) {
-            return;
+            return null;
         }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
@@ -988,6 +1168,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         // add record to the database
         groupStore.updateSingleGroupSupplementaryInfo(groupId, groupEntities.isEmpty(),
                 groupEnvironment, groupSeverity);
+        return new GroupSupplementaryInfo(groupId, groupEntities.isEmpty(),
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber(), groupSeverity.getNumber());
     }
 
     /**
@@ -997,7 +1180,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param entities the entities to query for
      * @return A list of {@link PartialEntity} containing
      *         {@link PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets} for the entities
-     *         provided.
+     *         provided, or null if there was an error communicating with the repository.
      */
     private List<PartialEntity> fetchEntitiesWithEnvironment(Set<Long> entities) {
         List<PartialEntity> entitiesWithEnvironment = new ArrayList<>();
@@ -1226,6 +1409,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             case GROUP_FILTERS:
                 // If the group type is dynamic group of groups we currently cannot determine the type
                 // expected in the group so we return empty list
+                //
+                // Note - we could do this by querying existing groups, but to be 100% accurate we
+                // would need to re-run this query every time we add a new group.
                 break;
             case SELECTIONCRITERIA_NOT_SET:
                 logger.error("Member selection criteria has not been set in group definition `{}`",
@@ -1406,7 +1592,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
         final String truncatedSourceIdentifier =
             Truncator.truncateGroupSourceIdentifier(src.getSourceId(), true);
-        return new DiscoveredGroup(src.getOid(), groupDefinition, truncatedSourceIdentifier,
+        return new DiscoveredGroup(src.getOid(), groupDefinition,
+                truncatedSourceIdentifier, src.stitchAcrossTargets(),
                 src.getTargetIds(), expectedMembers,
                 determineMemberReverseLookupSupported(groupDefinition));
     }
@@ -1422,6 +1609,16 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         return builder.build();
+    }
+
+    private <T extends GeneratedMessageV3> T sanitize(Class<T> cls, T request)
+            throws InvalidParameterException {
+        @SuppressWarnings("unchecked")
+        InputSanitizer<T> sanitizer = (InputSanitizer<T>)inputClassToSanitizer.get(cls);
+        if (sanitizer == null) {
+            return request;
+        }
+        return sanitizer.sanitize(request);
     }
 
     /**

@@ -1,0 +1,24 @@
+[
+    {
+        "destTier": 10,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1685246400000,
+        "sourceTier": 8,
+        "timestamp": 1622174400000,
+        "uuid": 74670111191225
+    },
+    {
+        "eventType": "RECOMMENDATION_REMOVED",
+        "expirationTimestamp": 1685250000000,
+        "timestamp": 1622178000000,
+        "uuid": 74670111191225
+    },
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_EXECUTED",
+        "expirationTimestamp": 1685250300000,
+        "sourceTier": 8,
+        "timestamp": 1622178300000,
+        "uuid": 74670111191225
+    }
+]

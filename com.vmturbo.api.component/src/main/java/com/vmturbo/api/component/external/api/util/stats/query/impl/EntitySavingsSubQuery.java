@@ -5,13 +5,19 @@ import static java.util.stream.Collectors.toList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -24,12 +30,20 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.BillingFamilyFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntitySavingsStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Sub-query for handling requests for entity savings/investments.
@@ -37,6 +51,10 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 public class EntitySavingsSubQuery implements StatsSubQuery {
 
     private final CostServiceBlockingStub costServiceRpc;
+
+    private final GroupExpander groupExpander;
+
+    private final RepositoryClient repositoryClient;
 
     private static final Set<String> SUPPORTED_STATS = Arrays.stream(EntitySavingsStatsType.values())
             .map(EntitySavingsStatsType::name)
@@ -46,9 +64,15 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
      * Constructor for EntitySavingsSubQuery.
      *
      * @param costServiceRpc cost RPC service
+     * @param groupExpander group expander
+     * @param repositoryClient repository client
      */
-    public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc) {
+    public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc,
+                                 @Nonnull final GroupExpander groupExpander,
+                                 @Nonnull final RepositoryClient repositoryClient) {
         this.costServiceRpc = costServiceRpc;
+        this.groupExpander = groupExpander;
+        this.repositoryClient = repositoryClient;
     }
 
     @Override
@@ -57,8 +81,9 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         // Hybrid groups are also applicable. Only the cloud entities in the group will have savings
         // stats. There is no need to process on-prem entities or groups since they don't have
         // savings data.
-        return !context.getInputScope().isPlan()
-                && (context.getInputScope().isCloud() || context.getInputScope().isHybridGroup());
+        ApiId inputScope = context.getInputScope();
+        return !inputScope.isPlan()
+                && (inputScope.isCloud() || inputScope.isHybridGroup() || inputScope.isRealtimeMarket());
     }
 
     @Override
@@ -86,7 +111,6 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
             return Collections.emptyList();
         }
 
-
         // Set requested stat names.
         Set<EntitySavingsStatsType> requestedStatsTypes = stats.stream()
                 .map(StatApiInputDTO::getName)
@@ -99,9 +123,61 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         request.addAllStatsTypes(requestedStatsTypes);
 
         // Set scope entity IDs.
-        EntityFilter entityFilter = EntityFilter.newBuilder()
-                .addAllEntityId(context.getInputScope().getScopeOids()).build();
-        request.setEntityFilter(entityFilter);
+        if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups()) {
+            // Resource groups are handled differently because they are a kind of group and members
+            // are already determined. However, we want to send the resource OID(s) in the
+            // request for entity savings and use the entity_cloud_scope table to look up its members.
+            // Doing the scope expansion by using the entity_cloud_scope table will include entities
+            // that have been deleted, and allow savings to be calculated more correctly.
+            ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
+            long scopeOid = context.getInputScope().oid();
+            Optional<GroupType> groupType = context.getInputScope().getGroupType();
+            if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
+                // Scope is a group of resource groups.
+                Optional<GroupAndMembers> groupAndMembers =
+                        groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
+                groupAndMembers.ifPresent(g -> resourceGroupFilterBuilder.addAllResourceGroupOid(g.members()));
+            } else {
+                // Scope is a single resource group.
+                resourceGroupFilterBuilder.addResourceGroupOid(scopeOid);
+            }
+            request.setResourceGroupFilter(resourceGroupFilterBuilder);
+        } else if (context.getInputScope().isBillingFamilyOrGroupOfBillingFamilies()) {
+            BillingFamilyFilter.Builder billingFamilyFilterBuilder = BillingFamilyFilter.newBuilder();
+            long scopeOid = context.getInputScope().oid();
+            Optional<GroupType> groupType = context.getInputScope().getGroupType();
+            if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
+                // Scope is a group of billing families.
+                Optional<GroupAndMembers> groupAndMembers =
+                        groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
+                groupAndMembers.ifPresent(g -> billingFamilyFilterBuilder.addAllBillingFamilyOid(g.members()));
+            } else {
+                // Scope is a single billing family.
+                billingFamilyFilterBuilder.addBillingFamilyOid(scopeOid);
+            }
+            request.setBillingFamilyFilter(billingFamilyFilterBuilder);
+        } else if (context.getInputScope().isRealtimeMarket()) {
+            // If the scope is "Market", use all cloud service providers and use them as the scope.
+            // This way, savings for all cloud entities will be considered.
+            EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+            repositoryClient.getEntitiesByType(ImmutableList.of(EntityType.SERVICE_PROVIDER))
+                    .forEach(sp -> entityFilterBuilder.addEntityId(sp.getOid()));
+            request.setEntityFilter(entityFilterBuilder);
+            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.SERVICE_PROVIDER_VALUE)
+                    .build();
+            request.setEntityTypeFilter(entityTypeFilter);
+        } else {
+            // Set entity OIDs.
+            EntityFilter entityFilter = EntityFilter.newBuilder()
+                    .addAllEntityId(context.getInputScope().getScopeOids()).build();
+            request.setEntityFilter(entityFilter);
+
+            // Set entity types.
+            Set<Integer> scopeTypes = getScopeTypes(context);
+            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
+            request.setEntityTypeFilter(entityTypeFilter);
+        }
 
         // Call cost component api to get the list of stats
         Iterator<EntitySavingsStatsRecord> savingsStatsRecords = costServiceRpc.getEntitySavingsStats(request.build());
@@ -114,6 +190,22 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         }
 
         return statsResponse;
+    }
+
+    private Set<Integer> getScopeTypes(StatsQueryContext context) {
+        Set<Integer> scopeTypes = new HashSet<>();
+        ApiId inputScope = context.getInputScope();
+        if (inputScope.isGroup()) {
+            if (inputScope.getCachedGroupInfo().isPresent()) {
+                inputScope.getCachedGroupInfo().get().getEntityTypes().stream()
+                        .map(ApiEntityType::typeNumber).forEach(scopeTypes::add);
+            }
+        } else {
+            inputScope.getScopeTypes().ifPresent(entityTypes -> entityTypes.stream()
+                    .map(ApiEntityType::typeNumber)
+                    .forEach(scopeTypes::add));
+        }
+        return scopeTypes;
     }
 
     /**

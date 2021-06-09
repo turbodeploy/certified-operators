@@ -46,10 +46,22 @@ public class MarketDBConfig extends SQLDatabaseConfig {
                 !Strings.isEmpty(marketDbPassword) ? marketDbPassword : null));
     }
 
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
     @Override
     public String getDbSchemaName() {
         return dbSchemaName;
     }
 
+    @Override
+    public String getDbUsername() {
+        return marketDbUsername;
+    }
 }
 

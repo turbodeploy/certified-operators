@@ -45,6 +45,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
@@ -68,6 +69,7 @@ import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -162,14 +164,14 @@ public class GroupDAO implements IGroupStore {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Map<String, Function<PropertyFilter, Optional<Condition>>>
-            PROPETY_FILTER_CONDITION_CREATORS;
+            PROPERTY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
 
     private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
 
     static {
-        PROPETY_FILTER_CONDITION_CREATORS =
+        PROPERTY_FILTER_CONDITION_CREATORS =
                 ImmutableMap.<String, Function<PropertyFilter, Optional<Condition>>>builder().put(
                         SearchableProperties.DISPLAY_NAME,
                         GroupDAO::createDisplayNameSearchCondition)
@@ -255,22 +257,39 @@ public class GroupDAO implements IGroupStore {
                 .execute();
     }
 
-    /**
-     * Replaces current GroupSupplementaryInfo data with the ones provided.
-     *
-     * @param groups a collection with information for each group to be inserted.
-     */
-    public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
-        // create upsert statements
+    @Override
+    public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
+        // read records to ensure that they still exist in the database and place locks
+        Collection<Long> existingGroupIds = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                .where(GROUPING.ID.in(groups.keySet()))
+                .forUpdate()
+                .fetch()
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toList());
+        // filter out groups that might have been deleted between previous calculations and
+        // ingestion
+        if (existingGroupIds.size() < groups.size()) {
+            Set<Long> skippedGroups = new HashSet<>(groups.keySet());
+            skippedGroups.removeAll(existingGroupIds);
+            logger.info("Skipping {} groups during bulk supplementary info update since they "
+                    + "were not found in the database.", skippedGroups.size());
+            logger.debug("Uuids of the groups that were skipped: {}", () -> skippedGroups);
+        }
+        // create upsert statements only for the groups that exist in the database
         final Collection<Query> upserts = new ArrayList<>();
-        groups.forEach(group -> {
+        existingGroupIds.forEach(groupId -> {
+            GroupSupplementaryInfo gsi = groups.get(groupId);
             upserts.add(dslContext.insertInto(GROUP_SUPPLEMENTARY_INFO)
-                    .set(dslContext.newRecord(GROUP_SUPPLEMENTARY_INFO, group))
+                    .set(dslContext.newRecord(GROUP_SUPPLEMENTARY_INFO, gsi))
                     .onDuplicateKeyUpdate()
-                    .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, group.getEmpty())
-                    .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE, group.getEnvironmentType())
-                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, group.getCloudType())
-                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, group.getSeverity()));
+                    .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, gsi.getEmpty())
+                    .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE, gsi.getEnvironmentType())
+                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, gsi.getCloudType())
+                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, gsi.getSeverity()));
         });
         // update records
         dslContext.batch(upserts).execute();
@@ -313,10 +332,12 @@ public class GroupDAO implements IGroupStore {
             groupUpdateListeners.forEach(l -> l.onUserGroupCreated(oid, groupDefinition));
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
+            Status status = Status.ABORTED;
             if (e.getCause() instanceof DuplicateNameException) {
                 GROUP_STORE_DUPLICATE_NAME_COUNT.increment();
+                status = Status.ALREADY_EXISTS;
             }
-            throw e;
+            throw new StoreOperationException(status, "Failed to store new group", e);
         }
     }
 
@@ -347,21 +368,21 @@ public class GroupDAO implements IGroupStore {
                 insertGroupDefinitionDependencies(context, groupPojo.getId(), groupDefinition));
         inserts.addAll(
                 insertExpectedMembers(context, groupPojo.getId(), new HashSet<>(expectedMembers),
-                        groupDefinition.getStaticGroupMembers()));
+                        groupDefinition));
         context.batch(inserts).execute();
     }
 
-    private void validatePropertyFilters(@Nullable GroupFilters groupFilters) {
+    private void validatePropertyFilters(@Nullable GroupFilters groupFilters) throws StoreOperationException {
         for (GroupFilter filter : groupFilters.getGroupFilterList()) {
             for (PropertyFilter propertyFilter : filter.getPropertyFiltersList()) {
-                if (!PROPETY_FILTER_CONDITION_CREATORS.containsKey(
+                if (!PROPERTY_FILTER_CONDITION_CREATORS.containsKey(
                         propertyFilter.getPropertyName())) {
-                    throw new IllegalArgumentException(
+                    throw new StoreOperationException(Status.INVALID_ARGUMENT,
                             "Property filter " + propertyFilter.getPropertyName()
                                     + " is not supported");
                 }
                 final Function<PropertyFilter, Optional<Condition>> conditionCreator =
-                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+                    PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
                 // try to apply the filter and check if it can be translated into real
                 // conditions, if not it throws an exception
                 conditionCreator.apply(propertyFilter);
@@ -486,32 +507,38 @@ public class GroupDAO implements IGroupStore {
 
     private Collection<Query> insertExpectedMembers(@Nonnull DSLContext context,
             long groupId, @Nonnull Set<MemberType> memberTypes,
-            @Nullable StaticMembers staticMembers) throws StoreOperationException {
+            @Nonnull GroupDefinition groupDefinition) throws StoreOperationException {
         final Collection<Query> records = new ArrayList<>();
         final Set<MemberType> directMembers;
-        if (staticMembers != null) {
-            directMembers = staticMembers.getMembersByTypeList()
+        if (groupDefinition.hasGroupFilters() || groupDefinition.hasEntityFilters()) {
+            // For dynamic groups we assume that all member types are direct members.
+            //
+            // This is the correct assumption in all cases at the time of this writing, because
+            // for dynamic nested groups we do not resolve expected types
+            // (see GroupRpcService#findGroupExpectedTypes).
+            directMembers = memberTypes;
+        } else {
+            directMembers = groupDefinition.getStaticGroupMembers().getMembersByTypeList()
                     .stream()
                     .map(StaticMembersByType::getType)
                     .collect(Collectors.toSet());
-        } else {
-            directMembers = Collections.emptySet();
+            if (!memberTypes.containsAll(directMembers)) {
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Group " + groupId + " declared expected members  " + memberTypes.stream()
+                                .map(memberType -> memberType.hasGroup() ? memberType.getGroup()
+                                        .toString() : Integer.toString(memberType.getEntity()))
+                                .collect(Collectors.joining(",", "[", "]"))
+                                + " does not contain all the direct members: "
+                                + groupDefinition.getStaticGroupMembers().getMembersByTypeList()
+                                .stream()
+                                .map(StaticMembersByType::getType)
+                                .map(memberType -> memberType.hasGroup()
+                                        ? memberType.getGroup().toString()
+                                        : Integer.toString(memberType.getEntity()))
+                                .collect(Collectors.joining(",", "[", "]")));
+            }
         }
-        if (!memberTypes.containsAll(directMembers)) {
-            throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                    "Group " + groupId + " declared expected members  " + memberTypes.stream()
-                            .map(memberType -> memberType.hasGroup() ? memberType.getGroup()
-                                    .toString() : Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]"))
-                            + " does not contain all the direct members: "
-                            + staticMembers.getMembersByTypeList()
-                            .stream()
-                            .map(StaticMembersByType::getType)
-                            .map(memberType -> memberType.hasGroup()
-                                    ? memberType.getGroup().toString()
-                                    : Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]")));
-        }
+
         for (MemberType memberType : memberTypes) {
             final boolean directMember = directMembers.contains(memberType);
             if (memberType.getTypeCase() == TypeCase.GROUP) {
@@ -677,24 +704,35 @@ public class GroupDAO implements IGroupStore {
         }
         final StopWatch stopWatch = new StopWatch("Retrieving " + groupIds.size() + " groups");
         stopWatch.start("grouping table");
-        final Map<Long, Grouping> groupings = dslContext.selectFrom(GROUPING)
-                .where(groupIds.idCondition(GROUPING.ID))
-                .fetchInto(Grouping.class)
-                .stream()
-                .collect(Collectors.toMap(Grouping::getId, Function.identity()));
-        if (groupings.isEmpty()) {
+        final Map<Long, Map.Entry<Grouping, List<GroupSupplementaryInfo>>>
+                groupingsAndSupplementaryInfo =
+                dslContext.select(GROUPING.fields())
+                        .select(GROUP_SUPPLEMENTARY_INFO.fields())
+                        .from(GROUPING)
+                        .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                        .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                        .where(groupIds.idCondition(GROUPING.ID))
+                        .fetchGroups(
+                                r -> r.into(GROUPING).into(Grouping.class),
+                                r -> r.into(GROUP_SUPPLEMENTARY_INFO)
+                                        .into(GroupSupplementaryInfo.class)
+                        )
+                        .entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(e -> e.getKey().getId(), Function.identity()));
+        if (groupingsAndSupplementaryInfo.isEmpty()) {
             return Collections.emptyList();
         }
-        // Preserve the ordering of the input group ids. This is necessary for paginated requests.
-        final ArrayList<Grouping> sortedGroupings = new ArrayList<>();
-        groupIds.groupIds().stream().map(groupings::get).filter(Objects::nonNull)
-                .forEach(sortedGroupings::add);
+        Collection<Grouping> groupings = groupingsAndSupplementaryInfo.values()
+                .stream()
+                .map(Entry::getKey)
+                .collect(Collectors.toList());
         stopWatch.stop();
         stopWatch.start("expected member types");
         final Table<Long, MemberType, Boolean> expectedMembers = internalGetExpectedMemberTypes(dslContext, groupIds);
         stopWatch.stop();
         stopWatch.start("origins");
-        final Map<Long, Origin> groupsOrigins = getGroupOrigin(sortedGroupings);
+        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings);
         stopWatch.stop();
         stopWatch.start("tags");
         final Map<Long, Tags> groupTags = getGroupTags(groupIds);
@@ -705,8 +743,11 @@ public class GroupDAO implements IGroupStore {
         stopWatch.stop();
         stopWatch.start("calculation");
         final List<GroupDTO.Grouping> result = new ArrayList<>(groupIds.size());
-        for (Grouping grouping: sortedGroupings) {
-            final long groupId = grouping.getId();
+        // Preserve the ordering of the input group ids. This is necessary for paginated requests.
+        for (long groupId : groupIds.groupIds()) {
+            final Map.Entry<Grouping, List<GroupSupplementaryInfo>> groupingAndSupplementaryInfo =
+                    groupingsAndSupplementaryInfo.get(groupId);
+            final Grouping grouping = groupingAndSupplementaryInfo.getKey();
             final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
             builder.setId(groupId);
             builder.addAllExpectedTypes(expectedMembers.row(groupId).keySet());
@@ -742,6 +783,26 @@ public class GroupDAO implements IGroupStore {
                         grouping.getDisplayName(), groupId, e);
             }
             builder.setDefinition(defBuilder);
+            final List<GroupSupplementaryInfo> gsiList = groupingAndSupplementaryInfo.getValue();
+            if (!CollectionUtils.isEmpty(gsiList) && gsiList.get(0) != null) {
+                GroupSupplementaryInfo gsi = gsiList.get(0);
+                Integer envType = gsi.getEnvironmentType();
+                Integer cloudType = gsi.getCloudType();
+                Integer severity = gsi.getSeverity();
+                builder.setEnvironmentType(envType == null
+                        ? EnvironmentType.UNKNOWN_ENV
+                        : EnvironmentType.forNumber(gsi.getEnvironmentType()));
+                builder.setCloudType(cloudType == null
+                        ? CloudType.UNKNOWN_CLOUD
+                        : CloudType.forNumber(gsi.getCloudType()));
+                builder.setSeverity(severity == null
+                        ? Severity.NORMAL
+                        : Severity.forNumber(gsi.getSeverity()));
+            } else {
+                builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
+                builder.setCloudType(CloudType.UNKNOWN_CLOUD);
+                builder.setSeverity(Severity.NORMAL);
+            }
             result.add(builder.build());
         }
         stopWatch.stop();
@@ -868,7 +929,8 @@ public class GroupDAO implements IGroupStore {
                 origin = Origin.newBuilder()
                         .setDiscovered(Origin.Discovered.newBuilder()
                                 .addAllDiscoveringTargetId(targets)
-                                .setSourceIdentifier(group.getOriginDiscoveredSrcId()))
+                                .setSourceIdentifier(group.getOriginDiscoveredSrcId())
+                                .setStitchAcrossTargets(group.getStitchAcrossTargets()))
                         .build();
             } else {
                 throw new RuntimeException("Unknown origin for the group " + group.getId());
@@ -934,7 +996,7 @@ public class GroupDAO implements IGroupStore {
             }
         }
         for (GroupFilters groupFilter: groupFilters) {
-            final Set<Long> subgroups = getGroupIds(groupFilter);
+            final Collection<Long> subgroups = getGroupIds(groupFilter);
             groupMembers.addAll(subgroups);
         }
         return new GroupMembersPlain(entitiesMembers, groupMembers, entityFilters);
@@ -1124,8 +1186,7 @@ public class GroupDAO implements IGroupStore {
         cleanGroupChildTables(context, groupId);
         final Collection<Query> children = new ArrayList<>();
         children.addAll(insertGroupDefinitionDependencies(context, groupId, groupDefinition));
-        children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes,
-                groupDefinition.getStaticGroupMembers()));
+        children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes, groupDefinition));
 
         // Set the values that don't get updated as a part of update
         group.setOriginSystemDescription(record.value1());
@@ -1154,7 +1215,7 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     @Override
     public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
-        final FilteredIds groupingIds = getGroupIds(filter);
+        final FilteredIds groupingIds = getGroupIds(filter, null);
         return getGroupInternal(groupingIds);
     }
 
@@ -1182,15 +1243,13 @@ public class GroupDAO implements IGroupStore {
      * @param paginationParams the parameters for pagination.
      * @return the ids of the groups, along with info for the next page of the pagination.
      */
-    private NextGroupPageInfo getNextPage(@Nullable GroupDTO.GroupFilter filter,
-            @Nullable PaginationParameters paginationParams) {
-        final Optional<Condition> sqlCondition = filter != null
-                ? createGroupCondition(filter)
-                : Optional.empty();
+    private NextGroupPageInfo getNextPage(@Nonnull GroupDTO.GroupFilter filter,
+            @Nonnull PaginationParameters paginationParams) {
+        final Optional<Condition> sqlCondition = createGroupCondition(filter);
         // get ascending value from input, or default to true
-        final boolean ascendingOrder = paginationParams == null || paginationParams.getAscending();
-        final int cursorValue = getCursorValue(paginationParams);
-        final int paginationLimit = getPaginationLimit(paginationParams);
+        final boolean ascendingOrder = paginationParams.getAscending();
+        final int cursorValue = Integer.parseInt(paginationParams.getCursor());
+        final int paginationLimit = paginationParams.getLimit();
         // Get the ids of the next page
         List<Long> result = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
@@ -1198,8 +1257,13 @@ public class GroupDAO implements IGroupStore {
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
                 .where(sqlCondition.orElse(DSL.noCondition()))
                 .orderBy(createOrderByClause(paginationParams, ascendingOrder),
-                        // add secondary sorting to catch edge cases of duplicate values in primary
-                        // sorting
+                        // place empty groups first or last depending on input. When ordering by
+                        // Severity, we want to stack empty groups together
+                        ascendingOrder
+                                ? GROUP_SUPPLEMENTARY_INFO.EMPTY.desc().nullsFirst()
+                                : GROUP_SUPPLEMENTARY_INFO.EMPTY.asc().nullsLast(),
+                        // add last sorting to catch edge cases of duplicate values in both previous
+                        // sortings
                         ascendingOrder ? GROUPING.ID.asc() : GROUPING.ID.desc())
                 // apply pagination
                 .offset(cursorValue)
@@ -1220,51 +1284,18 @@ public class GroupDAO implements IGroupStore {
     }
 
     /**
-     * Returns the pagination limit for the query. If the input limit exceeds max pagination limit,
-     * returns the max pagination limit. If there is no pagination limit provided, it returns a
-     * default value.
-     *
-     * @param paginationParams the pagination parameters provided by the user.
-     * @return the pagination limit for the query.
-     */
-    private int getPaginationLimit(final PaginationParameters paginationParams) {
-        if (paginationParams == null || !paginationParams.hasLimit()) {
-            return groupPaginationParams.getGroupPaginationDefaultLimit();
-        }
-        int paginationLimit = paginationParams.getLimit();
-        if (paginationLimit <= 0) {
-            throw new IllegalArgumentException("Invalid limit value provided: '" + paginationLimit
-                    + "'. Limit must be a positive integer.");
-        }
-        final int maxPaginationLimit = groupPaginationParams.getGroupPaginationMaxLimit();
-        if (paginationLimit > maxPaginationLimit) {
-            logger.warn("Client limit " + paginationParams.getLimit() + " exceeds max limit "
-                    + maxPaginationLimit + ". Page size will be reduced to " + maxPaginationLimit
-                    + ".");
-            paginationLimit = maxPaginationLimit;
-        }
-        return paginationLimit;
-    }
-
-    /**
      * Returns the database field that the query should order by, based on the pagination
      * parameters provided in the input.
      *
      * @param paginationParams the pagination parameters provided by the user.
      * @param ascendingOrder whether to return the results in ascending or descending order.
-     * @return The appropriate database field to order by. Defaults to group id if input is empty.
+     * @return The appropriate database field to order by. Defaults to display name on empty input.
      */
-    private OrderField<?> createOrderByClause(PaginationParameters paginationParams,
+    private OrderField<?> createOrderByClause(@Nonnull PaginationParameters paginationParams,
             final boolean ascendingOrder) {
         // Ordering by COST not supported yet (will be added at a later stage of pagination work;
         // see OM-63107)
         // default is name
-        if (paginationParams == null || !paginationParams.hasOrderBy()
-                || !paginationParams.getOrderBy().hasGroupSearch()) {
-            return ascendingOrder
-                    ? GROUPING.DISPLAY_NAME.asc()
-                    : GROUPING.DISPLAY_NAME.desc();
-        }
         switch (paginationParams.getOrderBy().getGroupSearch()) {
             case GROUP_SEVERITY:
                 return ascendingOrder
@@ -1276,27 +1307,6 @@ public class GroupDAO implements IGroupStore {
                         ? GROUPING.DISPLAY_NAME.asc()
                         : GROUPING.DISPLAY_NAME.desc();
         }
-    }
-
-    /**
-     * Extracts the cursor from the pagination parameters, doing some sanity checking.
-     *
-     * @param params the pagination parameters provided by the user.
-     * @return the cursor value if it's a valid one, otherwise 0.
-     */
-    private int getCursorValue(PaginationParameters params) {
-        int cursorValue;
-        if (params != null && params.hasCursor()) {
-            try {
-                cursorValue = Integer.parseInt(params.getCursor());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid cursor value provided: '"
-                        + params.getCursor() + "'.");
-            }
-        } else {
-            cursorValue = 0;
-        }
-        return cursorValue;
     }
 
     /**
@@ -1316,17 +1326,57 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private FilteredIds getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
-        final Optional<Condition> sqlCondition = createGroupCondition(filter);
-        final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
+    @Override
+    public Collection<Long> getEmptyGroupIds() {
+        return dslContext.select(GROUPING.ID)
                 .from(GROUPING)
                 .leftJoin(GROUP_SUPPLEMENTARY_INFO)
                 .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
-                .where(sqlCondition.orElse(DSL.noCondition()))
-                .fetch()
+                .where(GROUP_SUPPLEMENTARY_INFO.EMPTY.eq(true))
+                .fetchInto(Long.class);
+    }
+
+    /**
+     * Retrieves the group ids that conform to the filter provided from the database.
+     * If parameters regarding ordering are provided, the results will be ordered accordingly.
+     *
+     * <p>NOTE: Cursor and limit are ignored in this call; the object is used only to identify the
+     * requested OrderBy and ascending values. This call fetches ALL groups that conform to the
+     * filter, it does not apply actual pagination.</p>
+     *
+     * @param filter used to filter the results. If null, all results will be returned.
+     * @param orderingParams parameters that define how the results should be ordered. If not
+     *                       provided (null), the results will not follow a specific ordering.
+     * @return The uuids of all groups that conform to the input.
+     */
+    @Nonnull
+    private FilteredIds getGroupIds(@Nonnull GroupDTO.GroupFilter filter,
+            @Nullable PaginationParameters orderingParams) {
+        final Optional<Condition> sqlCondition = createGroupCondition(filter);
+        final Select<Record1<Long>> query;
+        SelectConditionStep<Record1<Long>> queryBuilder = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .leftJoin(GROUP_SUPPLEMENTARY_INFO)
+                .on(GROUPING.ID.eq(GROUP_SUPPLEMENTARY_INFO.GROUP_ID))
+                .where(sqlCondition.orElse(DSL.noCondition()));
+        if (orderingParams != null) {
+            final boolean ascending = orderingParams.getAscending();
+            query = queryBuilder.orderBy(createOrderByClause(orderingParams, ascending),
+                    // place empty groups first or last depending on input. When ordering by
+                    // Severity, we want to stack empty groups together
+                    ascending
+                            ? GROUP_SUPPLEMENTARY_INFO.EMPTY.desc().nullsFirst()
+                            : GROUP_SUPPLEMENTARY_INFO.EMPTY.asc().nullsLast(),
+                    // add last sorting to catch edge cases of duplicate values in both previous
+                    // sortings
+                    ascending ? GROUPING.ID.asc() : GROUPING.ID.desc());
+        } else {
+            query = queryBuilder;
+        }
+        final Collection<Long> groupingIds = query.fetch()
                 .stream()
                 .map(Record1::value1)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
         return new FilteredIds(groupingIds, !sqlCondition.isPresent());
     }
 
@@ -1366,7 +1416,7 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Set<Long> getGroupIds(@Nonnull GroupFilters filters) {
+    public Collection<Long> getGroupIds(@Nonnull GroupFilters filters) {
         if (filters.getGroupFilterCount() == 0) {
             return Collections.unmodifiableSet(dslContext.select(GROUPING.ID)
                     .from(GROUPING)
@@ -1376,13 +1426,20 @@ public class GroupDAO implements IGroupStore {
                     .collect(Collectors.toSet()));
         }
         final Iterator<GroupFilter> iterator = filters.getGroupFilterList().iterator();
-        final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next()).groupIds());
+        final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next(), null).groupIds());
         while (iterator.hasNext()) {
             final GroupFilter additionalFilter = iterator.next();
-            final Collection<Long> anotherSet = getGroupIds(additionalFilter).groupIds();
+            final Collection<Long> anotherSet = getGroupIds(additionalFilter, null).groupIds();
             initialSet.retainAll(anotherSet);
         }
         return Collections.unmodifiableSet(initialSet);
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getOrderedGroupIds(@Nonnull GroupFilter filter,
+        @Nonnull PaginationParameters paginationParameters) {
+        return getGroupIds(filter, paginationParameters).groupIds();
     }
 
     @Nonnull
@@ -1433,23 +1490,36 @@ public class GroupDAO implements IGroupStore {
         }
         if (!filter.getDirectMemberTypesList().isEmpty()) {
             filter.getDirectMemberTypesList().forEach(directMemberType ->
-                    createExpectedMembersCondition(directMemberType, conditions, true));
+                    createExpectedMembersCondition(directMemberType, conditions, Boolean.TRUE));
         }
         if (!filter.getIndirectMemberTypesList().isEmpty()) {
             filter.getIndirectMemberTypesList().forEach(indirectMemberType ->
-                    createExpectedMembersCondition(indirectMemberType, conditions, false));
+                    createExpectedMembersCondition(indirectMemberType, conditions, null));
         }
         if (filter.getExcludeEmpty()) {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.EMPTY.eq(false));
         }
         if (filter.hasEnvironmentType()) {
-            conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.eq(
-                            filter.getEnvironmentType().getNumber()));
+            EnvironmentType environmentType = filter.getEnvironmentType();
+            // Following the logic previously implemented in the api component:
+            // - If the requested environment type is ONPREM, CLOUD or UNKNOWN, include both the
+            //   requested environment type and HYBRID.
+            // - If the requested environment type is HYBRID, include everything.
+            if (!EnvironmentType.HYBRID.equals(environmentType)) {
+                conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.in(
+                        EnvironmentType.HYBRID.getNumber(), environmentType.getNumber()));
+            }
         }
         if (filter.hasCloudType()) {
-            conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.eq(EnvironmentType.CLOUD_VALUE)
-                            .and(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE.eq(
-                                    filter.getCloudType().getNumber())));
+            CloudType cloudType = filter.getCloudType();
+            // Following the logic of environment type case:
+            // - If the requested cloud type is anything but HYBRID_CLOUD, include both the
+            //   requested cloud type and HYBRID_CLOUD.
+            // - If the requested cloud type is HYBRID_CLOUD, include everything.
+            if (!CloudType.HYBRID_CLOUD.equals(cloudType)) {
+                conditions.add(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE.in(
+                        CloudType.HYBRID_CLOUD.getNumber(), filter.getCloudType().getNumber()));
+            }
         }
         if (filter.hasSeverity()) {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.SEVERITY.eq(filter.getSeverity().getNumber()));
@@ -1457,20 +1527,35 @@ public class GroupDAO implements IGroupStore {
         return combineConditions(conditions, Condition::and);
     }
 
+    /**
+     * Creates conditions related to expected members, based on input.
+     *
+     * @param memberType The member type to add to the condition.
+     * @param conditions Collection of current conditions. The new condition will be added to the
+     *                   collection.
+     * @param isDirectMember boolean flag to specify if the member type will be added to the
+     *                       condition as direct or indirect only. If null, both direct and indirect
+     *                       members will be queried.
+     */
     private void createExpectedMembersCondition(@Nonnull GroupDTO.MemberType memberType,
-            final Collection<Condition> conditions,
-            final boolean isDirectMember) {
+            @Nonnull final Collection<Condition> conditions,
+            @Nullable final Boolean isDirectMember) {
         if (memberType.hasEntity()) {
             conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID)
                     .from(GROUP_EXPECTED_MEMBERS_ENTITIES)
-                    .where(GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
-                            .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
-                                    isDirectMember)))));
+                    .where(isDirectMember == null
+                            ? GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                            : GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                                    .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
+                                            isDirectMember)))));
         } else if (memberType.hasGroup()) {
             conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID)
                     .from(GROUP_EXPECTED_MEMBERS_GROUPS)
-                    .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
-                            .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(isDirectMember)))));
+                    .where(isDirectMember == null
+                            ? GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                            : GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                                    .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(
+                                            isDirectMember)))));
         }
     }
 
@@ -1484,7 +1569,7 @@ public class GroupDAO implements IGroupStore {
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
             final Function<PropertyFilter, Optional<Condition>> conditionCreator =
-                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+                    PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
             if (conditionCreator == null) {
                 throw new IllegalArgumentException(
                         "Unsupported property filter found: " + propertyFilter.getPropertyName());
@@ -1564,9 +1649,7 @@ public class GroupDAO implements IGroupStore {
             // string key=value must match the regex
             final Field<String> stringToMatch =
                     DSL.concat(GROUP_TAGS.TAG_KEY, DSL.val("="), GROUP_TAGS.TAG_VALUE);
-            tagCondition = filter.getPositiveMatch()
-                                    ? stringToMatch.likeRegex(filter.getRegex())
-                                    : stringToMatch.notLikeRegex(filter.getRegex());
+            tagCondition = stringToMatch.likeRegex(filter.getRegex());
         } else {
             // key is present in the filter
             // key must match and value must satisfy a specific predicate
@@ -1582,15 +1665,17 @@ public class GroupDAO implements IGroupStore {
                 // no restriction on the value
                 tagValueCondition = DSL.trueCondition();
             }
-            if (filter.getPositiveMatch()) {
-                tagCondition = tagKeyCondition.and(tagValueCondition);
-            } else {
-                tagCondition = tagKeyCondition.and(tagValueCondition.not());
-            }
+            tagCondition = tagKeyCondition.and(tagValueCondition);
         }
-        return GROUPING.ID.in(DSL.select(GROUP_TAGS.GROUP_ID)
-                                 .from(GROUP_TAGS)
-                                 .where(tagCondition));
+        Select<Record1<Long>> tagSubQuery = DSL.select(GROUP_TAGS.GROUP_ID)
+                .from(GROUP_TAGS)
+                .where(tagCondition);
+        if (filter.getPositiveMatch()) {
+            return GROUPING.ID.in(tagSubQuery);
+        } else {
+            return GROUPING.ID.notIn(tagSubQuery);
+        }
+
     }
 
     @Nonnull
@@ -1760,12 +1845,12 @@ public class GroupDAO implements IGroupStore {
             groupPojo.setId(effectiveId);
             groupPojo.setSupportsMemberReverseLookup(group.isReverseLookupSupported());
             groupPojo.setOriginDiscoveredSrcId(sourceIdentifier);
+            groupPojo.setStitchAcrossTargets(group.stitchAcrossTargets());
             groupPojo.setHash(DiscoveredGroupHash.hash(group));
             queriesToAppend.add(createFunction.apply(groupPojo));
             insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
             insertsToAppend.addAll(insertExpectedMembers(context, groupPojo.getId(),
-                    new HashSet<>(group.getExpectedMembers()),
-                    group.getDefinition().getStaticGroupMembers()));
+                    new HashSet<>(group.getExpectedMembers()), group.getDefinition()));
             insertsToAppend.addAll(
                     createTargetForGroupRecords(context, effectiveId, group.getTargetIds()));
         }
@@ -1847,6 +1932,7 @@ public class GroupDAO implements IGroupStore {
                 .set(GROUPING.DISPLAY_NAME, groupPojo.getDisplayName())
                 .set(GROUPING.IS_HIDDEN, groupPojo.getIsHidden())
                 .set(GROUPING.OWNER_ID, groupPojo.getOwnerId())
+                .set(GROUPING.STITCH_ACROSS_TARGETS, groupPojo.getStitchAcrossTargets())
                 .set(GROUPING.SUPPORTS_MEMBER_REVERSE_LOOKUP,
                         groupPojo.getSupportsMemberReverseLookup())
                 .set(GROUPING.ORIGIN_DISCOVERED_SRC_ID, groupPojo.getOriginDiscoveredSrcId())

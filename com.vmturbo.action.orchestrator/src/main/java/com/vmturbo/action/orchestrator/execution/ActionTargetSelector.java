@@ -5,14 +5,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,17 +20,13 @@ import org.immutables.value.Value;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 
 /**
@@ -49,33 +43,22 @@ public class ActionTargetSelector {
 
     private final TargetInfoResolver targetInfoResolver;
 
-    /**
-     * A client for making remote calls to the repository service to retrieve entity data.
-     */
-    private final RepositoryServiceBlockingStub repositoryService;
-
-    /**
-     * The context ID for the realtime market.
-     * Used when making remote calls to the repository service.
-     */
-    private final long realtimeTopologyContextId;
+    private final ActionTopologyStore actionTopologyStore;
 
     /**
      * Constructor.
      *
      * @param probeCapabilityCache To get the target-specific action capabilities
      * @param actionConstraintStoreFactory the factory which has access to all action constraint stores
-     * @param repositoryProcessorChannel channel to access repository
-     * @param realtimeTopologyContextId the context ID of the realtime market
+     * @param actionTopologyStore Action orchestrator's internal topology store.
      */
     public ActionTargetSelector(@Nonnull final ProbeCapabilityCache probeCapabilityCache,
             @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory,
-            @Nonnull final Channel repositoryProcessorChannel, final long realtimeTopologyContextId) {
+            @Nonnull final ActionTopologyStore actionTopologyStore) {
         this.targetInfoResolver =
                 new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory,
                         new EntityAndActionTypeBasedEntitySelector());
-        this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repositoryProcessorChannel);
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.actionTopologyStore = actionTopologyStore;
     }
 
     /**
@@ -205,15 +188,15 @@ public class ActionTargetSelector {
      * @return a {@link Map} with an {@link ActionPartialEntity} per entity id.
      */
     private Map<Long, ActionPartialEntity> getRealtimeActionEntities(Set<Long> entityIds) {
-        RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyType(TopologyType.SOURCE)
-            .addAllEntityOids(entityIds)
-            .setReturnType(PartialEntity.Type.ACTION)
-            .setTopologyContextId(realtimeTopologyContextId)
-            .build();
-        return
-            RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(getEntitiesrequest))
-                .map(PartialEntity::getAction)
-                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+        Map<Long, ActionPartialEntity> retMap = new HashMap<>(entityIds.size());
+        Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
+        if (topology.isPresent()) {
+            topology.get().entityGraph().getEntities(entityIds).forEach(entity -> {
+                retMap.put(entity.getOid(), entity.asPartialEntity());
+            });
+        } else {
+            logger.error("No realtime topology available in action orchestrator.");
+        }
+        return retMap;
     }
 }

@@ -1,17 +1,21 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,12 +24,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ProviderInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -253,6 +260,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
         // Check that the source and destination are the same type
         final EntityType srcEntityType = sourceEntity.getEntityType();
         final EntityType destinationEntityType = destinationEntity.getEntityType();
+        final Collection<ActionEntity> resources = change.getResourceList();
         if (srcEntityType != destinationEntityType) {
             throw new ContextCreationException("Mismatched source and destination entity types! " +
                     " Source: " + srcEntityType +
@@ -267,12 +275,37 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                 .setCurrentSE(sourceEntity)
                 .setNewSE(destinationEntity)
                 .addAllContextData(getContextData());
-
+        addResourcesInfo(resources, actionBuilder, EntityType.VIRTUAL_VOLUME);
         getHost(primaryEntity).ifPresent(actionBuilder::setHostedBySE);
         logger.trace("created action item for {}:{}, and provider {} change from {} to {}",
                 primaryEntity.getEntityType(), primaryEntity.getDisplayName(),
                 srcEntityType, sourceEntity.getDisplayName(), destinationEntity.getDisplayName());
         return actionBuilder;
     }
+
+    private void addResourcesInfo(Collection<ActionEntity> entities,
+                    ActionItemDTO.Builder actionBuilder, EntityType entityType) {
+        final Collection<String> vendorIds =
+                        getVendorIds(entities, r -> r.getType() == entityType.getNumber());
+        if (!vendorIds.isEmpty()) {
+            final ProviderInfo.Builder providerInfoBuilder =
+                            ProviderInfo.newBuilder().setEntityType(entityType)
+                                            .addAllIds(vendorIds);
+            actionBuilder.addProviders(providerInfoBuilder);
+        }
+    }
+
+    private Collection<String> getVendorIds(Collection<ActionEntity> entities,
+                    Predicate<ActionEntity> filter) {
+        return entities.stream().filter(filter).map(ActionEntity::getId)
+                        .map(entityRetriever::retrieveTopologyEntity).filter(Optional::isPresent)
+                        .map(Optional::get).filter(TopologyEntityDTO::hasOrigin)
+                        .map(TopologyEntityDTO::getOrigin).filter(Origin::hasDiscoveryOrigin)
+                        .map(o -> o.getDiscoveryOrigin().getDiscoveredTargetDataMap()
+                                        .get(this.getTargetId()))
+                        .map(PerTargetEntityInformation::getVendorId)
+                        .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+    }
+
 
 }

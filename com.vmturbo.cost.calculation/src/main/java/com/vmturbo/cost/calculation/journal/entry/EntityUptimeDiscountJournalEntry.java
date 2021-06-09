@@ -1,9 +1,12 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
@@ -11,6 +14,9 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.TraxNumber;
 
@@ -46,13 +52,25 @@ public class EntityUptimeDiscountJournalEntry<E> implements  QualifiedJournalEnt
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(@Nonnull final EntityInfoExtractor infoExtractor,
+    public Collection<CostItem> calculateHourlyCost(@Nonnull final EntityInfoExtractor infoExtractor,
                                           @Nonnull final DiscountApplicator discountApplicator,
                                           @Nonnull final RateExtractor rateExtractor) {
         // Retrieve the sum total of prices for all sources.
-        TraxNumber price = rateExtractor.lookupCostWithFilter(targetCostCategory, cs -> true);
-        return price.times(-1).compute()
-                .times(entityUptimeDiscountMultiplier).compute();
+        final Collection<CostItem> costItems = rateExtractor.lookupCostWithFilter(targetCostCategory, CostSourceFilter.INCLUDE_ALL);
+
+        return costItems.stream()
+                .map(costItem -> {
+                    final TraxNumber discount = costItem.cost()
+                            .times(-1).compute()
+                            .times(entityUptimeDiscountMultiplier).compute();
+
+                    return CostItem.builder()
+                            .costSourceLink(CostSourceLink.of(
+                                    CostSource.ENTITY_UPTIME_DISCOUNT,
+                                    Optional.of(costItem.costSourceLink())))
+                            .cost(discount)
+                            .build();
+                }).collect(ImmutableList.toImmutableList());
     }
 
     @Nonnull

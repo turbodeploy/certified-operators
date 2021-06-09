@@ -207,6 +207,10 @@ public class RepositoryComponent extends BaseVmtComponent {
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
         // previous versions.
         setForceRetryMigrations(true);
+
+        if (repositoryDBConfig.isDbMonitorEnabled()) {
+            repositoryDBConfig.startDbMonitor();
+        }
     }
 
     @Bean
@@ -232,6 +236,7 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new PlanStatsService(paginationParamsFactory(),
             entityStatsPaginator(),
             repositoryComponentConfig.partialEntityConverter(),
+            userSessionConfig.userSessionContext(),
             maxEntitiesPerChunk);
     }
 
@@ -245,7 +250,7 @@ public class RepositoryComponent extends BaseVmtComponent {
             repositoryComponentConfig.partialEntityConverter(),
             maxEntitiesPerChunk,
             repositoryComponentConfig.mySQLPlanEntityStore(),
-            new PlanEntityFilterConverter());
+            new PlanEntityFilterConverter(), userSessionConfig.userSessionContext());
 
         // Return a topology-graph backed rpc service, which will fall back to arango for
         // non-realtime queries.
@@ -373,8 +378,12 @@ public class RepositoryComponent extends BaseVmtComponent {
         topologyProcessor = tpClientConfig.topologyProcessor(
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
+            // For plan topologies we start from the last committed topology.
+            // If the repository crashes in the middle of processing a plan this may mean
+            // that we don't process the plan topology properly on restart, which will lead
+            // the plan to fail.
             TopologyProcessorSubscription.forTopicWithStartFrom(
-                    TopologyProcessorSubscription.Topic.PlanTopologies, StartFrom.BEGINNING),
+                    TopologyProcessorSubscription.Topic.PlanTopologies, StartFrom.LAST_COMMITTED),
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING),
             TopologyProcessorSubscription.forTopicWithStartFrom(

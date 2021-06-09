@@ -1,0 +1,276 @@
+{
+  "probeType": "AWS Billing",
+  "probeCategory": "Billing",
+  "supplyChainDefinitionSet": [{
+    "templateClass": "SERVICE_PROVIDER",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }]
+      }
+    }
+  }, {
+    "templateClass": "VIRTUAL_MACHINE",
+    "templateType": "BASE",
+    "templatePriority": -1,
+    "commoditySold": [{
+      "commodityType": "COUPON",
+      "optional": true
+    }],
+    "commodityBought": [{
+      "key": {
+        "templateClass": "RESERVED_INSTANCE",
+        "providerType": "LAYERED_OVER",
+        "cardinalityMax": 2147483647,
+        "cardinalityMin": 1
+      },
+      "value": [{
+        "commodityType": "COUPON"
+      }]
+    }]
+  }, {
+    "templateClass": "RESERVED_INSTANCE",
+    "templateType": "BASE",
+    "templatePriority": 0,
+    "mergedEntityMetaData": {
+      "matchingMetadata": {
+        "matchingData": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }],
+        "externalEntityMatchingProperty": [{
+          "matchingField": {
+            "fieldName": "id"
+          }
+        }]
+      },
+      "patchedFields": [{
+        "messagePath": ["reserved_instance_data"],
+        "fieldName": "purchasingAccountId"
+      }]
+    }
+  }, {
+    "templateClass": "CLOUD_SERVICE",
+    "templateType": "BASE",
+    "templatePriority": -1
+  }, {
+    "templateClass": "BUSINESS_ACCOUNT",
+    "templateType": "BASE",
+    "templatePriority": -1
+  }],
+  "accountDefinition": [{
+    "customDefinition": {
+      "name": "address",
+      "displayName": "Custom Target Name",
+      "description": "Enter a unique target name.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "iamRole",
+      "displayName": "IAM Role",
+      "description": "Authenticate using either IAM Role ARN or Access Key and Secret Access Key.",
+      "verificationRegex": "(true|false)",
+      "isSecret": false,
+      "primitiveValue": "BOOLEAN",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "username",
+      "displayName": "Access Key",
+      "description": "Enter AWS account Access Key ID.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "false"
+  }, {
+    "customDefinition": {
+      "name": "password",
+      "displayName": "Secret Access Key",
+      "description": "Enter AWS account Secret Access Key ID.",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "false"
+  }, {
+    "customDefinition": {
+      "name": "iamRoleArn",
+      "displayName": "IAM Role ARN",
+      "description": "Enter ARN for IAM Role.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false,
+    "dependencyKey": "iamRole",
+    "dependencyValue": "true"
+  }, {
+    "customDefinition": {
+      "name": "bucketName",
+      "displayName": "Cost and Usage Report Bucket",
+      "description": "To get cloud service spend, enter the name of the S3 bucket that contains the AWS Cost and Usage Report.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "reportPathPrefix",
+      "displayName": "Cost and Usage Report Path",
+      "description": "To get cloud service spend, enter the report path prefix for the AWS Cost and Usage Report.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "bucketRegion",
+      "displayName": "Cost and Usage Report Region",
+      "description": "To get cloud service spend, enter the region for the S3 bucket that contains the AWS Cost and Usage Report.",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": true,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyHost",
+      "displayName": "Proxy Host",
+      "description": "Proxy host name or IP address (optional)",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPort",
+      "displayName": "Proxy Port",
+      "description": "Proxy host port (optional)",
+      "verificationRegex": "^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]{2}|9[0-8][0-9]|99[0-9]|[1-8][0-9]{3}|9[0-8][0-9]{2}|99[0-8][0-9]|999[0-9]|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$)",
+      "isSecret": false,
+      "primitiveValue": "NUMERIC",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "8080",
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyUsername",
+      "displayName": "Proxy Username",
+      "description": "User name to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": false,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "proxyPassword",
+      "displayName": "Proxy Password",
+      "description": "Password to use to connect to a proxy",
+      "verificationRegex": ".*",
+      "isSecret": true,
+      "primitiveValue": "STRING",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "isTargetDisplayName": false
+  }, {
+    "customDefinition": {
+      "name": "secureProxy",
+      "displayName": "Secure Proxy Connection",
+      "description": "Use SSL to connect to the proxy host",
+      "verificationRegex": "(true|false)",
+      "isSecret": false,
+      "primitiveValue": "BOOLEAN",
+      "isMultiline": false
+    },
+    "mandatory": false,
+    "defaultValue": "false",
+    "isTargetDisplayName": false
+  }],
+  "targetIdentifierField": ["address"],
+  "fullRediscoveryIntervalSeconds": 3600,
+  "entityMetadata": [{
+    "entityType": "BUSINESS_ACCOUNT",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "CLOUD_SERVICE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "VIRTUAL_MACHINE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "SERVICE_PROVIDER",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }, {
+    "entityType": "RESERVED_INSTANCE",
+    "nonVolatileProperties": [{
+      "name": "id"
+    }]
+  }],
+  "actionPolicy": [{
+    "entityType": "UNKNOWN",
+    "policyElement": [{
+      "actionType": "NONE",
+      "actionCapability": "NOT_EXECUTABLE"
+    }]
+  }],
+  "discoversSupplyChain": true,
+  "creationMode": "STAND_ALONE",
+  "uiProbeCategory": "Public Cloud",
+  "license": "public_cloud"
+}

@@ -86,6 +86,11 @@ public class DTOFieldAndPropertyHandlerTest {
                             public List<String> getMessagePath() {
                                 return Lists.newArrayList("consumerPolicy");
                             }
+
+                            @Override
+                            public boolean getIgnoreIfPresent() {
+                                return false;
+                            }
                         }));
 
     }
@@ -110,6 +115,11 @@ public class DTOFieldAndPropertyHandlerTest {
                     @Override
                     public List<String> getMessagePath() {
                         return Lists.newArrayList("consumerPolicy");
+                    }
+
+                    @Override
+                    public boolean getIgnoreIfPresent() {
+                        return false;
                     }
                 }, true);
         assertTrue(vmFoo.getConsumerPolicy().getControllable());
@@ -151,6 +161,11 @@ public class DTOFieldAndPropertyHandlerTest {
                 public List<String> getMessagePath() {
                     return Collections.emptyList();
                 }
+
+                @Override
+                public boolean getIgnoreIfPresent() {
+                    return false;
+                }
             },
             new DTOFieldSpec() {
                 @Nonnull
@@ -163,6 +178,11 @@ public class DTOFieldAndPropertyHandlerTest {
                 @Override
                 public List<String> getMessagePath() {
                     return ImmutableList.of("vcpu_data");
+                }
+
+                @Override
+                public boolean getIgnoreIfPresent() {
+                    return false;
                 }
             }
         );

@@ -6,14 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -22,7 +19,6 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
@@ -44,8 +40,6 @@ import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 @Configuration
 @Import({EntityConfig.class,
     GroupClientConfig.class,
-    PlanOrchestratorClientConfig.class,
-    ActionOrchestratorClientConfig.class,
     TargetConfig.class})
 public class GroupConfig {
 
@@ -54,12 +48,6 @@ public class GroupConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
-
-    @Autowired
-    private PlanOrchestratorClientConfig planClientConfig;
-
-    @Autowired
-    private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
 
     @Autowired
     private TargetConfig targetConfig;

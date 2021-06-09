@@ -10,7 +10,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineContextMemberException;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * The {@link PipelineContext} is information that's shared by all stages in a pipeline.
@@ -63,6 +65,39 @@ public abstract class PipelineContext {
     public abstract String getPipelineName();
 
     /**
+     * Start the timer for timing the execution of a stage. Initiates timing for prometheus instrumentation.
+     * If the timer returned is null, no stage timing will be done.
+     *
+     * @param stageName The name fo the stage being timed.
+     * @return A {@link DataMetricTimer} for timing the stage execution.
+     */
+    @Nullable
+    public abstract DataMetricTimer startStageTimer(String stageName);
+
+    /**
+     * Initiate the jaeger trace for the execution of a stage.
+     * If the tracing scope returned is null, no tracing will be done.
+     *
+     * @param stageName The name of the stage being executed.
+     * @return A {@link TracingScope} for tracing a stage in jaeger.
+     */
+    @Nullable
+    public abstract TracingScope startStageTrace(String stageName);
+
+    /**
+     * Check whether stages should include a summary of their context members in their
+     * {@link com.vmturbo.components.common.pipeline.Pipeline.StageResult}s. If false,
+     * stages should return a blank summary from their
+     * {@link Stage#contextMemberCleanup(PipelineContext)} method.
+     *
+     * @return Whether stages should include a summary of their context members.
+     */
+    public boolean includeContextMemberSummary() {
+        // By default, enable.
+        return true;
+    }
+
+    /**
      * Add a new ContextMember to the {@link PipelineContext}. Adding a new member with the
      * previous for a definition that was already added will overwrite the previous one.
      *
@@ -107,8 +142,7 @@ public abstract class PipelineContext {
             throw new PipelineContextMemberException(String.format(
                 "Attempt to drop unavailable PipelineContext member %s. "
                     + "This usually indicates a pipeline misconfiguration in the form of a "
-                    + "failure to declare and provide a required dependency",
-                definition.toString()));
+                    + "failure to declare and provide a required dependency", definition));
         }
     }
 
@@ -137,7 +171,7 @@ public abstract class PipelineContext {
         final Class<M> klass = definition.getMemberClass();
         final M member = klass.cast(members.get(definition));
         if (member == null) {
-            throw new PipelineContextMemberException("Illegal attempt to acquire member " + definition.toString()
+            throw new PipelineContextMemberException("Illegal attempt to acquire member " + definition
                 + " when no prior stage has provided it.");
         }
         return member;

@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.REGION_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
@@ -29,9 +31,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,6 +40,8 @@ import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.list.linked.TLongLinkedList;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -125,6 +126,16 @@ public class PlanTopologyScopeEditor {
             EntityType.APPLICATION_COMPONENT)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
+    /**
+     *  Entity types to include in container plans to get costs for VMs and Volumes.
+     */
+    private static final Set<EntityType> COST_COMPUTATION_SEED_ENTITY_TYPES = Stream.of(
+            EntityType.AVAILABILITY_ZONE,
+            EntityType.REGION,
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.SERVICE_PROVIDER)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                    Collections::unmodifiableSet));
 
     /**
      * We don't include potential providers of the following entities into scope.
@@ -141,13 +152,16 @@ public class PlanTopologyScopeEditor {
             ImmutableSet.of(EntityType.VIRTUAL_DATACENTER_VALUE);
 
     private final GroupServiceBlockingStub groupServiceClient;
+    private final boolean enableContainerClusterScalingCost;
 
     /**
      * Constructor.
      * @param groupServiceClient gRPC handle to group service
      */
-    public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient) {
+    public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient,
+                                   final boolean enableContainerClusterScalingCost) {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
+        this.enableContainerClusterScalingCost = enableContainerClusterScalingCost;
     }
 
     /**
@@ -405,17 +419,21 @@ public class PlanTopologyScopeEditor {
      * @throws GroupResolutionException if the pipeline has errors.
      **/
     public TopologyGraph<TopologyEntity> indexBasedScoping(
-            @Nonnull final InvertedIndex<TopologyEntity,
-                    CommoditiesBoughtFromProvider> index,
+            @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index,
+            @Nonnull TopologyInfo topologyInfo,
             @Nonnull final TopologyGraph<TopologyEntity> topology,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final PlanScope planScope,
             PlanProjectType planProjectType) throws GroupResolutionException {
+        final String logPrefix = String.format("%s topology [ID=%d, context=%d, plan=%s]:",
+                topologyInfo.getTopologyType(), topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(), topologyInfo.getPlanInfo().getPlanType());
+
         final Stopwatch stopwatch = Stopwatch.createStarted();
 
-        logger.info("Entering scoping stage for on-prem topology .....");
+        logger.info("{} Entering scoping stage for on-prem/container platform topology .....", logPrefix);
         // record a count of the number of entities by their entity type in the context.
-        entityCountMsg(topology.entities().collect(Collectors.toSet()));
+        entityCountMsg(topology.entities().collect(Collectors.toSet()), logPrefix);
 
         Map<EntityType, Set<TopologyEntity>> allSeed = getSeedEntities(groupResolver, planScope, topology);
 
@@ -483,37 +501,8 @@ public class PlanTopologyScopeEditor {
                 return true;
             });
 
-            // Pull in outBoundAssociatedEntities for VMs and inBoundAssociatedEntities for Storage
-            // so as to not skip entities like vVolume that don't buy/sell commodities.
-            if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
-                final TLongSet outboundAssociatesToExpand = new TLongHashSet();
-                entity.getOutboundAssociatedEntities().forEach(e -> {
-                    final long oid = e.getOid();
-                    if (!scopedTopologyOIDs.contains(oid)) {
-                        outboundAssociatesToExpand.add(oid);
-                    }
-                });
-                logger.trace("Outbound associates of {}:{} to expand upwards - {}", entity.getOid(),
-                    entity.getDisplayName(), outboundAssociatesToExpand);
-                outboundAssociatesToExpand.forEach(outbound -> {
-                    suppliersToExpand.tryAdd(outbound);
-                    return true;
-                });
-            } else if (entity.getEntityType() == STORAGE_VALUE) {
-                final TLongSet inboundAssociatesToExpand = new TLongHashSet();
-                entity.getInboundAssociatedEntities().forEach(e -> {
-                    final long oid = e.getOid();
-                    if (!scopedTopologyOIDs.contains(oid)) {
-                        inboundAssociatesToExpand.add(oid);
-                    }
-                });
-                logger.trace("Inbound associates of {}:{} to expand upwards - {}",
-                    entity.getOid(), entity.getDisplayName(), inboundAssociatesToExpand);
-                inboundAssociatesToExpand.forEach(inbound -> {
-                    suppliersToExpand.tryAdd(inbound);
-                    return true;
-                });
-            }
+            // Pull in vVolumes using outBoundAssociatedEntities (usually for VMs) and inBoundAssociatedEntities (usually for Storage).
+            addVirtualVolumeToPlanScope(entity, scopedTopologyOIDs);
 
             final int numSuppliersAdded = suppliersToExpand.size() - beforeSuppliers;
             // if no customers, then "start downwards" from here
@@ -525,13 +514,18 @@ public class PlanTopologyScopeEditor {
                 }
             }
         }
-        logger.info("Completed consumer traversal in {} millis.", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("{} Completed consumer traversal in {} millis.", logPrefix, stopwatch.elapsed(TimeUnit.MILLISECONDS));
         stopwatch.reset();
+
         stopwatch.start();
-        logger.trace("Top level buyers: {}", buyersToSatisfy.lookupSet);
+        logger.trace("{} Top level buyers: {}", logPrefix, buyersToSatisfy.lookupSet);
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
         final TLongSet providersExpanded = new TLongHashSet();
         final TLongSet topLevelBuyers = new TLongHashSet();
+
+        // the seed OIDs for finding the entities needed for entity cost computation
+        final FastLookupQueue costEntitiesSeeds = new FastLookupQueue();
+
         topLevelBuyers.addAll(buyersToSatisfy.lookupSet);
         // starting with buyersToSatisfy, expand "downwards"
         while (!buyersToSatisfy.isEmpty()) {
@@ -540,28 +534,53 @@ public class PlanTopologyScopeEditor {
             logger.trace("Traversing down from {}:{}", traderOid, buyer.getDisplayName());
             final boolean skipEntityType = PROVIDER_ENTITY_TYPES_TO_SKIP.contains(buyer.getEntityType());
             providersExpanded.add(traderOid);
+
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
             // also omit traders of the type pulled in as seed members
-            final Set<TopologyEntity> potentialSellers = getPotentialSellers(topology, index,
-                buyer.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream());
+            final Set<Long> potentialSellers = new HashSet<>();
+
+            // Potential sellers for cloud virtual volumes wrongly include all the other volumes
+            // from the storage tiers providers. For cloud virtual volumes, the storage tiers
+            // are fetched from the Region entities while scoping the cost related entities.
+            // For On-prem topology, the InboundAssociatedEntities and OutboundAssociatedEntities attributes
+            // are used to pull in VirtualVolumes
+            // If the cost feature flag is disabled, the region entity and tiers will not be included in the scope,
+            // so revert back to fetching storage tiers for the VV entities too
+            if (!enableContainerClusterScalingCost || buyer.getEntityType() != VIRTUAL_VOLUME_VALUE) {
+                potentialSellers.addAll(getPotentialSellers(topology, index,
+                        buyer.getTopologyEntityDtoBuilder()
+                                .getCommoditiesBoughtFromProvidersList()
+                                .stream()));
+            }
+
             logger.trace("Adding potential sellers as associated entities for {}:{} - {}",
                 () -> traderOid, () -> buyer.getDisplayName(),
-                () -> potentialSellers.stream().map(TopologyEntity::getOid).map(String::valueOf)
-                    .collect(Collectors.joining(",")));
-            final Set<TopologyEntity> associatedEntities = Sets.newHashSet();
+                () -> potentialSellers.stream().map(String::valueOf).collect(Collectors.joining(",")));
+
+            // This is needed for on-prem VV. When on-prem VV feature flag is on, all commodities that VM buys from VV are inactive.
+            // So without following line, VV won't be potential seller of VM and won't be pulled into scope.
+            scopedTopologyOIDs.addAll(buyer.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                .filter(commBoughtGrouping -> commBoughtGrouping.getProviderEntityType() == VIRTUAL_VOLUME_VALUE)
+                .map(CommoditiesBoughtFromProvider::getProviderId).collect(Collectors.toList()));
+
+            // Pull in vVolumes using outBoundAssociatedEntities (usually for VMs) and inBoundAssociatedEntities (usually for Storage).
+            addVirtualVolumeToPlanScope(buyer, scopedTopologyOIDs);
+
+            final TLongSet associatedEntities = new TLongHashSet();
             associatedEntities.addAll(potentialSellers);
+
             if (buyer.getEntityType() == VIRTUAL_MACHINE_VALUE) {
-                logger.trace("Adding outbound associates as associated entities for {}:{} - {}",
-                    () -> traderOid, () -> buyer.getDisplayName(),
-                    () -> buyer.getOutboundAssociatedEntities().stream().map(TopologyEntity::getOid)
-                        .map(String::valueOf).collect(Collectors.joining(",")));
-                associatedEntities.addAll(buyer.getOutboundAssociatedEntities());
+                // To compute costs for cloud VMs we need the BA and Region associated with them in the scope
+                // Azure VMs are not associated with any AZ, so we get Region using the Aggregator relationship
+                if (enableContainerClusterScalingCost && !buyer.getAggregators().isEmpty()) {
+                    buyer.getAggregators().stream().filter(a -> a.getEntityType() == REGION_VALUE)
+                            .forEach(a -> costEntitiesSeeds.tryAdd(a.getOid()));
+                }
+                if (enableContainerClusterScalingCost && buyer.getOwner().isPresent()
+                        && buyer.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
+                    costEntitiesSeeds.tryAdd(buyer.getOwner().get().getOid());
+                }
             } else if (buyer.getEntityType() == STORAGE_VALUE) {
-                logger.trace("Adding inbound associates as associated entities for {}:{} - {}",
-                    () -> traderOid, () -> buyer.getDisplayName(),
-                    () -> buyer.getInboundAssociatedEntities().stream().map(TopologyEntity::getOid)
-                        .map(String::valueOf).collect(Collectors.joining(",")));
-                associatedEntities.addAll(buyer.getInboundAssociatedEntities());
                 // In case of an empty storage cluster, Storages will not have VMs as customers.
                 // And we rely on VMs to pull in the PMs. But we still need to pull in PMs even if
                 // there are no VMs. Hence, PMs are pulled in using accesses relation.
@@ -574,18 +593,31 @@ public class PlanTopologyScopeEditor {
             } else if (buyer.getEntityType() == CONTAINER_VALUE) {
                 // Because container history is actually stored on ContainerSpec entities, we need to ensure
                 // that we pull in the related ContainerSpecs even though they don't have any buy/sell
-                // relations to the entities in plan scope. ContainerSpecs are aggregators for Containers.
-                associatedEntities.addAll(buyer.getAggregators());
+                // relations to the entities in plan scope.
+                // ContainerSpecs are aggregators of Containers for kubeturbo 8.2.0 and before
+                // ContainerSpecs are controllers of Containers for kubeturbo 8.2.1 and after
+                // We check both connections here to maintain backward compatibility
+                associatedEntities.addAll(buyer.getAggregators().stream().map(TopologyEntity::getOid).collect(Collectors.toSet()));
+                associatedEntities.addAll(buyer.getControllers().stream().map(TopologyEntity::getOid).collect(Collectors.toSet()));
+            } else if (buyer.getEntityType() == AVAILABILITY_ZONE_VALUE) {
+                // We have encountered AZ as a provider, it can serve as the seed to obtain
+                // Region, tiers and service providers to compute costs for entities in the scope
+                // AWS VMs are connected to AZ, Azure VMs are not connected to AZ
+                // so we obtain the Region for those VMs
+                if (enableContainerClusterScalingCost) {
+                    costEntitiesSeeds.tryAdd(buyer.getOid());
+                }
             }
 
-            associatedEntities.forEach(seller -> {
-                final long sellerId = seller.getOid();
+            associatedEntities.forEach(sellerId -> {
                 if (!providersExpanded.contains(sellerId)) {
                     // if thisTrader is "skipped", and is not a seed, bring in just the sellers that we have already scoped in.
                     // This logic is for ENTITY_TYPES_TO_SKIP.
-                    if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(seller.getOid())) ) {
-                        if (!allSeed.containsKey(EntityType.forNumber(seller.getEntityType()))
-                                || seedOids.contains(sellerId)) {
+                    if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(sellerId))) {
+                        final Optional<TopologyEntity> sellerOptional = topology.getEntity(sellerId);
+                        if (sellerOptional.isPresent()
+                                && (!allSeed.containsKey(EntityType.forNumber(sellerOptional.get().getEntityType()))
+                                || seedOids.contains(sellerId))) {
                             scopedTopologyOIDs.add(sellerId);
                             if (!visited.contains(sellerId)) {
                                 visited.add(sellerId);
@@ -594,11 +626,19 @@ public class PlanTopologyScopeEditor {
                         }
                     }
                 }
+                return true;
             });
         }
-        logger.trace("Scoped topology entities are - {}", scopedTopologyOIDs);
-        logger.info("Completed buyer traversal in {} millis", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        logger.trace("{} Scoped topology entities are - {}", logPrefix, scopedTopologyOIDs);
+        logger.info("{} Completed buyer traversal in {} millis", logPrefix, stopwatch.elapsed(TimeUnit.MILLISECONDS));
         stopwatch.stop();
+
+        // Fetching the entities required for the entity calculations
+        if (enableContainerClusterScalingCost) {
+            final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
+            scopeCostTopology(topology, costEntitiesSeeds, resultEntityMap);
+            resultEntityMap.values().stream().forEach(e -> scopedTopologyOIDs.add(e.getOid()));
+        }
 
         final TopologyGraphCreator<TopologyEntity.Builder, TopologyEntity> graphCreator =
             new TopologyGraphCreator<>(scopedTopologyOIDs.size());
@@ -615,8 +655,52 @@ public class PlanTopologyScopeEditor {
 
         final TopologyGraph<TopologyEntity> retGraph = graphCreator.build();
 
-        logger.info("Completed scoping stage for on-prem topology. {} scoped entities", retGraph.size());
+        logger.info("{} Completed scoping stage for on-prem topology. {} scoped entities", logPrefix, retGraph.size());
+        entityCountMsg(new HashSet<>(retGraph.entities().collect(Collectors.toSet())), logPrefix);
         return retGraph;
+    }
+
+    /**
+     * Add virtual volumes to plan scope using outBoundAssociatedEntities and inBoundAssociatedEntities.
+     *
+     * @param entity an entity
+     * @param scopedTopologyOIDs scopedTopologyOIDs
+     */
+    private void addVirtualVolumeToPlanScope(final TopologyEntity entity,
+                                             final TLongSet scopedTopologyOIDs) {
+        addVirtualVolumeToPlanScope(entity, scopedTopologyOIDs, entity.getInboundAssociatedEntities());
+        addVirtualVolumeToPlanScope(entity, scopedTopologyOIDs, entity.getOutboundAssociatedEntities());
+    }
+
+    /**
+     * Add virtual volumes to plan scope using outBoundAssociatedEntities and inBoundAssociatedEntities.
+     * Virtual volumes need to be included in plan scope in order to generate delete volume actions.
+     * When VV feature flag is off, virtual volumes don't buy/sell commodities. VVs are outBoundAssociatedEntities of VMs.
+     * When VV feature flag is on, VMs buy from VVs. Storages are outBoundAssociatedEntities of VMs.
+     *
+     * @param entity an entity
+     * @param scopedTopologyOIDs scopedTopologyOIDs
+     * @param associatedEntities inbound or outbound associatedEntities
+     */
+    private void addVirtualVolumeToPlanScope(final TopologyEntity entity,
+                                             final TLongSet scopedTopologyOIDs,
+                                             final List<TopologyEntity> associatedEntities) {
+        TLongSet associatesToExpand = null;
+        for (TopologyEntity associatedEntity : associatedEntities) {
+            final long oid = associatedEntity.getOid();
+            if (associatedEntity.getEntityType() == VIRTUAL_VOLUME_VALUE && !scopedTopologyOIDs.contains(oid)) {
+                if (associatesToExpand == null) {
+                    associatesToExpand = new TLongHashSet();
+                }
+                associatesToExpand.add(oid);
+            }
+        }
+
+        if (associatesToExpand != null) {
+            scopedTopologyOIDs.addAll(associatesToExpand);
+            logger.trace("associated entities of {}:{} - {}",
+                entity.getOid(), entity.getDisplayName(), associatesToExpand);
+        }
     }
 
     /**
@@ -630,24 +714,24 @@ public class PlanTopologyScopeEditor {
      * @param topLevelBuyers the oids of entities at the top of the supply chain
      * @return all the accesses relations of the entity if it is a top level entity.
      */
-    private Set<TopologyEntity> getAccessesForTopLevelBuyer(TopologyEntity entity,
-                                                            TopologyGraph<TopologyEntity> topology,
-                                                            TLongSet topLevelBuyers) {
+    private Set<Long> getAccessesForTopLevelBuyer(TopologyEntity entity,
+                                                  TopologyGraph<TopologyEntity> topology,
+                                                  TLongSet topLevelBuyers) {
         // Only get the accesses if the entity is a top level buyer.
         if (topLevelBuyers.contains(entity.getOid())) {
-            Set<TopologyEntity> accessedEntities =
+            Set<Long> accessedEntities =
                 entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                     .stream()
                     .filter(CommoditySoldDTO.Builder::hasAccesses)
                     .map(CommoditySoldDTO.Builder::getAccesses)
-                    .map(accesses -> topology.getEntity(accesses))
+                    .map(topology::getEntity)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
+                    .map(TopologyEntity::getOid)
                     .collect(Collectors.toSet());
             logger.trace("Adding accessed entities as associated entities for {}:{} - {}",
-                () -> entity.getOid(), () -> entity.getDisplayName(),
-                () -> accessedEntities.stream().map(TopologyEntity::getOid)
-                    .map(String::valueOf).collect(Collectors.joining(",")));
+                entity::getOid, entity::getDisplayName,
+                () -> accessedEntities.stream().map(String::valueOf).collect(Collectors.joining(",")));
             return accessedEntities;
         } else {
             return Collections.emptySet();
@@ -662,15 +746,16 @@ public class PlanTopologyScopeEditor {
      * @param commBoughtFromProviders list of {@link CommoditiesBoughtFromProvider}
      * @return list of potential sellers selling the list of commoditiesBought.
      */
-    private Set<TopologyEntity> getPotentialSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
-                                                    @Nonnull final InvertedIndex<TopologyEntity,
-                                                        TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
-                       @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
+    private Set<Long> getPotentialSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
+                                          @Nonnull final InvertedIndex<TopologyEntity,
+                                              TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
+                                          @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
         // vCenter PMs buy latency and iops with active=false from underlying DSs.
         // Bring in only providers for baskets with atleast 1 active commodity
         return commBoughtFromProviders
             .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtDTO::getActive))
             .flatMap(bought -> getSatisfyingSellers(topology, bought, index))
+            .map(TopologyEntity::getOid)
             .collect(Collectors.toSet());
     }
 
@@ -706,10 +791,10 @@ public class PlanTopologyScopeEditor {
      * A helper method to print the entities by type count in log.
      * @param entities the list of entities
      */
-    private void entityCountMsg(Set<TopologyEntity> entities) {
+    private void entityCountMsg(Set<TopologyEntity> entities, String logPrefix) {
         Map<Integer, Long> originEntityByType = entities.stream()
                 .collect(Collectors.groupingBy(e -> e.getEntityType(), Collectors.counting()));
-        StringBuilder infoMsg = new StringBuilder().append("Entity set contains the following :");
+        StringBuilder infoMsg = new StringBuilder().append(logPrefix).append(" Entity set contains the following :");
         originEntityByType.entrySet().forEach(entry -> infoMsg.append(" Entity type ")
                 .append(EntityType.forNumber(entry.getKey())).append(" count is ").append(entry.getValue()));
         logger.info(infoMsg.toString());
@@ -758,6 +843,81 @@ public class PlanTopologyScopeEditor {
         return seedByEntityType;
     }
 
+    /**
+     * Scoping to include the entities from the cloud topology that are used to compute entity costs.
+     * These entities include - Regions, Tiers, ServiceProviders and BusinessAccounts.
+     * AZ --- OwnedBy --- Region   ------ OwnedBy ------ ServiceProvider
+     *                      |
+     *                   Aggregates
+     *                      |
+     *                    Tier (Compute, Storage)
+     *
+     * BA -- OwnedBy -- ServiceProvider
+     *
+     * @param graph             Topology graph
+     * @param costTopologySeeds List of OIDs used as seed to traverse the topology
+     *                              for Regions, Tiers, ServiceProviders
+     * @param resultEntityMap Map containing the scoped entities
+     */
+    private void scopeCostTopology(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                    FastLookupQueue costTopologySeeds,
+                                    @Nonnull final Map<Long, TopologyEntity.Builder> resultEntityMap) {
+        logger.info("Entering scoping stage for costs topology .....");
+        if (costTopologySeeds.isEmpty()) {
+            logger.trace("Empty seeds list for cost topology.");
+            return;
+        }
+
+        // seed list consists of AZ, last provider for VMs in the the cloud topology
+        final Set<Long> seedIds = new HashSet<>();
+        costTopologySeeds.lookupSet.forEach(s -> seedIds.add(s));
+        logger.trace("cost topology seeds: {} ", seedIds);
+
+        // targets of the seeds
+        final Collection<Long> targetIds = graph.getEntities(seedIds)
+                .flatMap(TopologyEntity::getDiscoveringTargetIds)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // the resulting scoped topology - contains at least the seed OIDs
+        final TLongSet visited = new TLongHashSet();
+        Set<TopologyEntity> scopeEntities = new HashSet<>();
+
+        final TLongSet ownerExpanded = new TLongHashSet();
+        while (!costTopologySeeds.isEmpty()) {
+            final long seedOid = costTopologySeeds.remove();
+            final TopologyEntity entity = graph.getEntity(seedOid).get();
+
+            if (!COST_COMPUTATION_SEED_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()))) {
+                continue;
+            }
+            if (!ownerExpanded.contains(seedOid)) {
+                scopeEntities.add(entity);
+            }
+
+            final Set<TopologyEntity> ownerEntities = Sets.newHashSet(entity.getAggregatorsAndOwner());
+            ownerEntities.forEach(owner -> {
+                final long ownerId = owner.getOid();
+                if (!ownerExpanded.contains(ownerId)) {
+                    if (!visited.contains(ownerId)) {
+                        visited.add(ownerId);
+                        costTopologySeeds.tryAdd(ownerId);
+                    }
+                    scopeEntities.add(owner);
+                }
+            });
+
+            final Set<TopologyEntity> tiers = entity.getAggregatedEntities().stream()
+                    .filter(e -> TopologyDTOUtil.isTierEntityType(e.getEntityType()))
+                    .collect(Collectors.toSet());
+            scopeEntities.addAll(tiers);
+        }
+
+        // Result map
+        resultEntityMap.putAll(scopeEntities.stream().filter(e -> discoveredBy(e, targetIds))
+                        .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                        .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+    }
 
     /**
      * A helper object to provide queue-like semantics for traversal, while supporting quick

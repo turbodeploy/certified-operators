@@ -1,3 +1,26 @@
+---
+__inputs: []
+__requires:
+- type: panel
+  id: bargauge
+  name: Bar gauge
+  version: ""
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 7.3.8
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
+- type: panel
+  id: table
+  name: Table
+  version: ""
+- type: panel
+  id: text
+  name: Text
+  version: ""
 annotations:
   list:
   - builtIn: 1
@@ -10,10 +33,10 @@ annotations:
 description: This dashboard displays information on data stores organized by wasted
   storage amounts. Wasted amounts are those that are allocated on a data store, and
   occupy space, but are not associated with a virtual machine.
-editable: false
-gnetId:
+editable: true
+gnetId: null
 graphTooltip: 0
-iteration: 1607110974420
+iteration: 1622831307339
 links: []
 panels:
 - datasource: $DB
@@ -29,7 +52,7 @@ panels:
         mode: absolute
         steps:
         - color: light-red
-          value:
+          value: null
       unit: kbytes
     overrides: []
   gridPos:
@@ -44,10 +67,11 @@ panels:
     reduceOptions:
       calcs:
       - mean
+      fields: ""
       limit: 10
       values: true
     showUnfilled: false
-  pluginVersion: 7.0.1
+  pluginVersion: 7.3.8
   targets:
   - format: time_series
     group: []
@@ -59,7 +83,7 @@ panels:
              SUM(file_size_kb) as "Wasted Storage Amount"
         FROM wasted_file
        WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
-         AND file_size_kb >= $MinFileSize
+         AND (file_size_kb >= $MinFileSize OR $MinFileSize = 0)
        GROUP BY 1, 2
        ORDER BY 3 DESC
     refId: A
@@ -74,21 +98,22 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Total Wasted Amount Per Datastore
   type: bargauge
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
+        filterable: false
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
       unit: kbytes
@@ -115,7 +140,7 @@ panels:
   id: 4
   options:
     showHeader: true
-  pluginVersion: 7.0.1
+  pluginVersion: 7.3.8
   targets:
   - format: table
     group: []
@@ -127,7 +152,7 @@ panels:
              COUNT(file_size_kb) as "Wasted File Count"
         FROM wasted_file
        WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
-         AND file_size_kb >= $MinFileSize
+         AND (file_size_kb >= $MinFileSize OR $MinFileSize = 0)
        GROUP BY storage_oid, storage_name
        ORDER BY 2 DESC;
     refId: A
@@ -142,15 +167,15 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Total Wasted Storage Per Datastore
   type: table
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
       links:
       - title: Scope Dashboard to ${__field.name}
         url: /d/wasted_files?var-Datastore=${__field.name}&var-MinFileSize=${MinFileSize}
@@ -160,7 +185,7 @@ panels:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
     overrides: []
   gridPos:
     h: 10
@@ -174,10 +199,11 @@ panels:
     reduceOptions:
       calcs:
       - mean
+      fields: ""
       limit: 5
       values: true
     showUnfilled: true
-  pluginVersion: 7.0.1
+  pluginVersion: 7.3.8
   targets:
   - format: time_series
     group: []
@@ -189,7 +215,7 @@ panels:
              COUNT(*) as "Wasted File Count"
         FROM wasted_file
        WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
-         AND file_size_kb >= $MinFileSize
+         AND (file_size_kb >= $MinFileSize OR $MinFileSize = 0)
        GROUP BY 1, storage_oid, storage_name
        ORDER BY 3 DESC
     refId: A
@@ -204,21 +230,46 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Wasted File Count Per Datastore
   type: bargauge
+- datasource: null
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  gridPos:
+    h: 2
+    w: 24
+    x: 0
+    y: 19
+  id: 7
+  options:
+    content: |-
+      <p style="text-align: center; color: red; background-color: white">
+      The information in this report is correct as of the time the
+      data was collected. The data can be up to one day older than the date
+      of report generation. Before you delete files based on this report,
+      verify that the files are indeed unused.</p>
+    mode: html
+  pluginVersion: 7.3.8
+  timeFrom: null
+  timeShift: null
+  title: Caution
+  type: text
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
+        filterable: false
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
     overrides:
@@ -227,7 +278,7 @@ panels:
         options: File Size
       properties:
       - id: custom.align
-        value: left
+        value: center
       - id: unit
         value: kbytes
     - matcher:
@@ -242,16 +293,22 @@ panels:
       properties:
       - id: custom.width
         value: 422
+    - matcher:
+        id: byName
+        options: Last Modified Time
+      properties:
+      - id: custom.align
+        value: center
   gridPos:
     h: 12
     w: 24
     x: 0
-    y: 19
+    y: 21
   id: 6
   options:
     showHeader: true
     sortBy: []
-  pluginVersion: 7.0.1
+  pluginVersion: 7.3.8
   targets:
   - format: table
     group: []
@@ -260,10 +317,10 @@ panels:
     rawSql: |-
       SELECT storage_name as "Datastore",
              path as "File Path",
-             file_size_kb as "File Size",
-             modification_time as "Last Modified Time"
+             coalesce(file_size_kb::text, '-') as "File Size",
+             coalesce(to_char(modification_time, 'DD-MON-YYYY HH24:MI:SSxFF TZH:TZM'), '-') as "Last Modified Time"
         FROM wasted_file
-       WHERE file_size_kb >= $MinFileSize
+       WHERE (file_size_kb >= $MinFileSize OR $MinFileSize = 0)
          AND ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
        ORDER BY 3 DESC
     refId: A
@@ -278,38 +335,45 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Individual Wasted Files
   type: table
 refresh: false
-schemaVersion: 25
+schemaVersion: 26
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - current:
+      selected: false
+      text: Turbo Timescale
+      value: Turbo Timescale
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue:
+  - allValue: null
+    current: {}
     datasource: $DB
     definition: |-
       SELECT DISTINCT storage_name as __text,
              storage_oid as __value
       FROM wasted_file
       ORDER BY storage_name
+    error: null
     hide: 0
     includeAll: true
-    label:
+    label: null
     multi: true
     name: Datastore
     options: []
@@ -319,15 +383,16 @@ templating:
       FROM wasted_file
       ORDER BY storage_name
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
+    tagValuesQuery: ""
     tags: []
-    tagsQuery: ''
+    tagsQuery: ""
     type: query
     useTags: false
-  - allValue:
+  - allValue: null
+    current: {}
     datasource: $DB
     definition: |-
       SELECT  col || ' MB' as __text,
@@ -341,9 +406,10 @@ templating:
              generate_series*1024 as __value
         FROM generate_series(10,100,10)
        ORDER BY __value
+    error: null
     hide: 0
     includeAll: false
-    label:
+    label: null
     multi: false
     name: MinFileSize
     options: []
@@ -360,14 +426,17 @@ templating:
         FROM generate_series(10,100,10)
        ORDER BY __value
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
+    tagValuesQuery: ""
     tags: []
-    tagsQuery: ''
+    tagsQuery: ""
     type: query
     useTags: false
+time:
+  from: now-6h
+  to: now
 timepicker:
   hidden: true
   refresh_intervals:

@@ -16,6 +16,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,9 +46,16 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PhysicalMachineData;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -114,8 +122,7 @@ public class EntityStoreTest {
             .setProbeType("foo")
             .build();
 
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-        sender, 0.3F, true, Clock.systemUTC());
+    private EntityStore entityStore = spy(new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
 
     /**
      * Expected exception rule.
@@ -535,8 +542,8 @@ public class EntityStoreTest {
 
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
-                mockClock);
+        entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
+                mockClock, false);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -623,8 +630,8 @@ public class EntityStoreTest {
             throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
-                mockClock);
+        entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
+                mockClock, false);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
@@ -702,6 +709,9 @@ public class EntityStoreTest {
      */
     @Test
     public void testSendEntitiesWithNewState() throws Exception {
+        entityStore = spy(new EntityStore(targetStore, identityProvider,
+            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), true));
+
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
         final long targetId1 = 2001;
         final long oid1 = 1L;
@@ -717,6 +727,44 @@ public class EntityStoreTest {
         // before
         addEntities(entitiesMap1, targetId1, 0, DiscoveryType.INCREMENTAL, messageId1);
         verify(sender, times(1)).onEntitiesWithNewState(Mockito.any());
+
+        // second incremental discovery
+        final long oid2 = 2L;
+        final EntityDTO entityDTO2 = EntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setId("pm2")
+            .setPhysicalMachineData(PhysicalMachineData.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED))
+            .setMaintenance(true)
+            .build();
+        final Entity entity2 = new Entity(oid2, EntityType.PHYSICAL_MACHINE);
+        entity2.addTargetInfo(targetId1, entityDTO2);
+        when(entityStore.getEntity(oid2)).thenReturn(Optional.of(entity2));
+        addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
+        verify(sender, times(1)).onEntitiesWithNewState(
+            EntitiesWithNewState.newBuilder()
+                .setStateChangeId(1L)
+                .addTopologyEntity(
+                    TopologyEntityDTO.newBuilder().setOid(oid2)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setEntityState(EntityState.MAINTENANCE)
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                            PhysicalMachineInfo.newBuilder().setAutomationLevel(
+                                AutomationLevel.FULLY_AUTOMATED))))
+                .build());
+
+        // Disable maintenance mode feature. Automation level is not sent.
+        entityStore = spy(new EntityStore(targetStore, identityProvider,
+            0.3F, true, Collections.singletonList(sender), Clock.systemUTC(), false));
+        addEntities(ImmutableMap.of(oid2, entityDTO2), targetId1, 0, DiscoveryType.INCREMENTAL, 2);
+        verify(sender, times(1)).onEntitiesWithNewState(
+            EntitiesWithNewState.newBuilder()
+                .setStateChangeId(1L)
+                .addTopologyEntity(
+                    TopologyEntityDTO.newBuilder().setOid(oid2)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setEntityState(EntityState.MAINTENANCE))
+                .build()
+        );
     }
 
     private void restoreWithSharedEntity(@Nonnull EntityType entityType)

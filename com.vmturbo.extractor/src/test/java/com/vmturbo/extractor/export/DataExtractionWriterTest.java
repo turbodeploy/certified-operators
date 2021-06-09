@@ -21,7 +21,10 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STO
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -59,7 +62,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.EntityType;
@@ -68,6 +73,7 @@ import com.vmturbo.extractor.schema.json.export.Entity;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.schema.json.export.Group;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
+import com.vmturbo.extractor.schema.json.export.Target;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
 import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
 import com.vmturbo.extractor.topology.DataProvider;
@@ -79,7 +85,12 @@ import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Test that data extraction for entities works.
@@ -98,6 +109,50 @@ public class DataExtractionWriterTest {
                     .setType(GroupType.STORAGE_CLUSTER)
                     .setDisplayName("storageCluster1"))
             .build();
+    private static final long targetId1 = 980L;
+    private static final long targetId2 = 981L;
+    private static final long targetId3 = 982L;
+    private static final String vendorId1 = "foo";
+    private static final String vendorId2 = "bar";
+    private static final String probeType1 = "vCenter";
+    private static final String probeType2 = "AppDynamics";
+    private static final String probeType3 = "Datadog";
+    private static final String probeCategory1 = "HYPERVISOR";
+    private static final String probeCategory2 = "Guest OS Processes";
+
+    private static final ThinTargetInfo target1 = ImmutableThinTargetInfo.builder()
+            .oid(targetId1)
+            .displayName(String.valueOf(targetId1))
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .oid(870)
+                    .type(probeType1)
+                    .category(probeCategory1)
+                    .uiCategory(probeCategory1)
+                    .build())
+            .isHidden(false)
+            .build();
+    private static final ThinTargetInfo target2 = ImmutableThinTargetInfo.builder()
+            .oid(targetId2)
+            .displayName(String.valueOf(targetId2))
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .oid(871)
+                    .type(probeType2)
+                    .category(probeCategory2)
+                    .uiCategory(probeCategory2)
+                    .build())
+            .isHidden(false)
+            .build();
+    private static final ThinTargetInfo target3 = ImmutableThinTargetInfo.builder()
+            .oid(targetId3)
+            .displayName(String.valueOf(targetId3))
+            .probeInfo(ImmutableThinProbeInfo.builder()
+                    .oid(872)
+                    .type(probeType3)
+                    .category(probeCategory2)
+                    .uiCategory(probeCategory2)
+                    .build())
+            .isHidden(false)
+            .build();
 
     private static final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
     private static final MultiStageTimer timer = mock(MultiStageTimer.class);
@@ -106,7 +161,8 @@ public class DataExtractionWriterTest {
     private final GroupData groupData = mock(GroupData.class);
     private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
     private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
-    private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory();
+    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
+    private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory(dataProvider, targetCache);
     private DataExtractionWriter writer;
     private List<ExportedObject> exportedObjectsCapture;
 
@@ -132,6 +188,11 @@ public class DataExtractionWriterTest {
         }).when(extractorKafkaSender).send(any());
         this.writer = spy(new DataExtractionWriter(extractorKafkaSender, dataExtractionFactory));
         writer.startTopology(info, ExtractorTestUtil.config, timer);
+
+        // mock targets
+        doReturn(Optional.of(target1)).when(targetCache).getTargetInfo(targetId1);
+        doReturn(Optional.of(target2)).when(targetCache).getTargetInfo(targetId2);
+        doReturn(Optional.of(target3)).when(targetCache).getTargetInfo(targetId3);
     }
 
     /**
@@ -193,6 +254,14 @@ public class DataExtractionWriterTest {
                         .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
                         .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build())
                         .putTags("baz", TagValuesDTO.getDefaultInstance()))
+                .setOrigin(TopologyEntityDTO.Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(targetId1, PerTargetEntityInformation
+                                        .newBuilder().setVendorId(vendorId1).build())
+                                .putDiscoveredTargetData(targetId2, PerTargetEntityInformation
+                                        .newBuilder().setVendorId(vendorId2).build())
+                                .putDiscoveredTargetData(targetId3,
+                                        PerTargetEntityInformation.getDefaultInstance())))
                 .build();
 
         // mock supply chain
@@ -252,12 +321,34 @@ public class DataExtractionWriterTest {
 
         // verify type specific info
         Map<String, Object> vmAttrs = vmEntity.getAttrs();
-        assertThat(vmAttrs.size(), is(4));
+        assertThat(vmAttrs.size(), is(6));
         assertThat(vmAttrs.get("num_cpus"), is(12));
         assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
+        assertThat(vmAttrs.get("guest_os_name"), is("Ubuntu"));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
         assertThat((Set<String>)vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME),
                 containsInAnyOrder("foo=a", "bar=b", "bar=c", "baz"));
+        // verify targets info
+        assertThat(vmAttrs, not(hasKey(SearchMetadataMapping.PRIMITIVE_VENDOR_ID.getJsonKeyName())));
+        List<Target> targets = (List<Target>)vmAttrs.get(ExportUtils.TARGETS_JSON_KEY_NAME);
+        assertThat(targets.size(), is(3));
+        assertThat(targets.get(0).getOid(), is(targetId1));
+        assertThat(targets.get(0).getName(), is(String.valueOf(targetId1)));
+        assertThat(targets.get(0).getType(), is(probeType1));
+        assertThat(targets.get(0).getCategory(), is(probeCategory1));
+        assertThat(targets.get(0).getEntityVendorId(), is(vendorId1));
+
+        assertThat(targets.get(1).getOid(), is(targetId2));
+        assertThat(targets.get(1).getName(), is(String.valueOf(targetId2)));
+        assertThat(targets.get(1).getType(), is(probeType2));
+        assertThat(targets.get(1).getCategory(), is(probeCategory2));
+        assertThat(targets.get(1).getEntityVendorId(), is(vendorId2));
+
+        assertThat(targets.get(2).getOid(), is(targetId3));
+        assertThat(targets.get(2).getName(), is(String.valueOf(targetId3)));
+        assertThat(targets.get(2).getType(), is(probeType3));
+        assertThat(targets.get(2).getCategory(), is(probeCategory2));
+        assertThat(targets.get(2).getEntityVendorId(), is(nullValue()));
 
         Map<String, Object> pmAttrs = pmEntity.getAttrs();
         assertThat(pmAttrs.size(), is(4));

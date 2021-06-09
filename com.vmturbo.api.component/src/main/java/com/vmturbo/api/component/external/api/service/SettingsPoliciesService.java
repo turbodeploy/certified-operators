@@ -36,17 +36,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
+
 
 
 /**
@@ -146,15 +143,31 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
             .build();
     }
 
+    /**
+     * Get the setting policies of a specific policy.
+     *
+     * @param uuid The policy uuid
+     * @return The {@link SettingsPolicyApiDTO} for the specified policy
+     * @throws Exception
+     */
     @Override
-    public SettingsPolicyApiDTO getSettingsPolicyByUuid(String uuid) throws Exception {
+    @Nonnull
+    public SettingsPolicyApiDTO getSettingsPolicyByUuid(@Nonnull String uuid) throws Exception {
 
         final GetSettingPolicyResponse response;
         try {
+            // If the get is called with the id of the global setting policy
+            // then return the global setting policy, which is built on demand
+            // rather than stored as a policy.
+            long uuidLongValue = Long.valueOf(uuid);
+            if (uuidLongValue==SettingsMapper.GLOBAL_SETTING_POLICY_ID) {
+                SettingPolicy policy = createGlobalSettingPolicy();
+                return settingsMapper.convertSettingPolicy(policy);
+            }
             response = settingPolicyService.getSettingPolicy(
-                    GetSettingPolicyRequest.newBuilder()
-                            .setId(Long.valueOf(uuid))
-                            .build());
+                    GetSettingPolicyRequest.newBuilder().setId(uuidLongValue).build());
+        } catch (NumberFormatException e) {
+            throw new InvalidOperationException("Cannot convert uuid to long: " + uuid);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
@@ -309,8 +322,14 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         return true;
     }
 
+    /**
+     * Validates the input setting policy api object.
+     *
+     * @param inputDTO  Object to validate
+     * @param e         Spring framework validation errors, not actually used in our validations
+     */
     @Override
-    public void validateInput(Object obj, Errors e) {
+    public void validateInput(SettingsPolicyApiDTO inputDTO, Errors e) {
         // We do the validation in the group component as part of saving the policy.
     }
 }

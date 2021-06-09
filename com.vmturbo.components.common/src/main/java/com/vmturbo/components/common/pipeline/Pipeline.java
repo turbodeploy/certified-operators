@@ -3,7 +3,6 @@ package com.vmturbo.components.common.pipeline;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -16,10 +15,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
@@ -44,7 +41,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * @param <C> The {@link PipelineContext} for the pipeline.
  * @param <S> The {@link PipelineSummary} for the pipeline.
  */
-public abstract class Pipeline<I, O, C extends PipelineContext, S extends PipelineSummary> {
+public abstract class Pipeline<I, O, C extends PipelineContext, S extends PipelineSummary> implements StageExecutor<C> {
 
     private static final int MAX_STAGE_RETRIES = 3;
 
@@ -77,17 +74,21 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         this.initialContextMemberSuppliers = stages.getInitialContextMemberSuppliers();
     }
 
+    @Nonnull
+    @Override
     public C getContext() {
         return context;
     }
 
+    @Override
+    @Nonnull
+    public AbstractSummary getSummary() {
+        return pipelineSummary;
+    }
+
     protected abstract DataMetricTimer startPipelineTimer();
 
-    protected abstract DataMetricTimer startStageTimer(String stageName);
-
     protected abstract TracingScope startPipelineTrace();
-
-    protected abstract TracingScope startStageTrace(String stageName);
 
     /**
      * Run the stages of the pipeline, in the order they're configured.
@@ -95,7 +96,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
      * @param input The input to the pipeline.
      * @return The output of the pipeline.
      * @throws PipelineException If a required stage fails.
-     * @throws InterruptedException      If the pipeline is interrupted.
+     * @throws InterruptedException If the pipeline is interrupted.
      */
     @SuppressWarnings("unchecked")
     @Nonnull
@@ -109,20 +110,14 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             initialContextMemberSuppliers.forEach(supplier -> supplier.runSupplier(context));
 
             for (final Stage stage : stages) {
-                String stageName = getSnakeCaseName(stage);
-                try (DataMetricTimer stageTimer = startStageTimer(stageName);
-                     TracingScope stageScope = startStageTrace(stageName)) {
-                    // TODO (roman, Nov 13) OM-27195: Consider refactoring the builder and pipeline
-                    // into more of a linked-list format so that there is better type safety.
-                    logger.info("Executing stage {}", stage.getClass().getSimpleName());
-                    final StageResult result = stage.execute(curStageInput);
-                    result.getStatus().setContextMemberSummary(stage.contextMemberCleanup(context));
-                    curStageInput = result.getResult();
-                    pipelineSummary.endStage(result.getStatus());
+                try {
+                    logger.info("Executing stage {}", stage.getName());
+                    curStageInput = runStage(stage, curStageInput).getResult();
                 } catch (PipelineStageException | RuntimeException e) {
                     final String message = "Pipeline failed at stage "
-                        + stage.getClass().getSimpleName() + " with error: " + e.getMessage();
-                    pipelineSummary.fail(message);
+                        + stage.getName() + " with error: " + e.getMessage();
+                    getSummary().endStage(Status.failed(e), false);
+                    getSummary().fail(message);
                     logger.info("\n{}", pipelineSummary);
                     throw new PipelineException(message, e);
                 }
@@ -161,11 +156,6 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
      */
     List<Stage> getStages() {
         return stages;
-    }
-
-    private static String getSnakeCaseName(@Nonnull final Stage stage) {
-        return CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE,
-                stage.getClass().getSimpleName());
     }
 
     /**
@@ -229,7 +219,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
                             Math.max(0, Math.min(retryIntervalOpt.get(), MAX_STAGE_RETRY_INTERVAL_MS));
                         logger.warn("Pipeline stage {} failed with transient error. "
                             + "Retrying after {}ms. Error: {}",
-                            getClass().getSimpleName(), retryDelayMs, e.getMessage());
+                            getName(), retryDelayMs, e.getMessage());
                         try {
                             Thread.sleep(retryDelayMs);
                         } catch (InterruptedException e1) {
@@ -249,14 +239,14 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
                     if (!required()) {
                         status = Status.failed("Error: " + terminatingException.getLocalizedMessage());
                         logger.warn("Non-required pipeline stage {} failed with error: {}",
-                            getClass().getSimpleName(), terminatingException.getMessage());
+                            getName(), terminatingException.getMessage());
                     } else {
                         throw (PipelineStageException)terminatingException;
                     }
                 } else {
                     if (!required()) {
                         status = Status.failed("Runtime Error: " + terminatingException.getLocalizedMessage());
-                        String stageName = getClass().getSimpleName();
+                        final String stageName = getName();
                         if (terminatingException instanceof StatusRuntimeException) {
                             // we don't want to print the entire stack trace when it is a grpc exception
                             // as it will pollute the logs with unnecessary details.
@@ -311,11 +301,33 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             this.result = Objects.requireNonNull(result);
         }
 
+        /**
+         * Get the result object of this {@link StageResult}.
+         *
+         * @return the result object of this {@link StageResult}.
+         */
         @Nonnull
         public T getResult() {
             return result;
         }
 
+        /**
+         * Create a new {@link StageResult} with the same status but a new result object.
+         *
+         * @param result The new result object to create with the same status as this one.
+         * @param <R> The class of the new result object.
+         * @return a new {@link StageResult} with the same status but a new result object.
+         */
+        @Nonnull
+        public <R> StageResult<R> transpose(@Nonnull final R result) {
+            return new StageResult<>(status, result);
+        }
+
+        /**
+         * Get the {@link Status} of the stage that generated this {@link StageResult}.
+         *
+         * @return the {@link Status} of the stage that generated this {@link StageResult}.
+         */
         @Nonnull
         public Status getStatus() {
             return status;
@@ -355,6 +367,42 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             public StageResult<R> andStatus(@Nonnull final Status status) {
                 return new StageResult<>(status, result);
             }
+        }
+    }
+
+    /**
+     * {@link SegmentStage}s wrap up entire pipeline segments running multiple other stages. The status
+     * returned from a {@link SegmentStage} should summarize the results of the entire internal segment
+     * for the stage. To achieve this, we take the results from the final stage of the internal segment
+     * and replace the message with a summary of the full segment. This preserves the result of
+     * the stage (ie SUCCEEDED, FAILED, WARNING, etc.) while allowing a message that describe the
+     * action of everything in the segment.
+     *
+     * @param <T> The result type of the stage.
+     */
+    public static class SegmentStageResult<T> extends StageResult<T> {
+        /**
+         * Use {@link SegmentStageResult#withResult(Object)}.
+         *
+         * @param status The {@link Status} of stage execution.
+         * @param result The output of the stage.
+         */
+        private SegmentStageResult(@Nonnull Status status, @Nonnull T result) {
+            super(status, result);
+        }
+
+        /**
+         * Create a new {@link SegmentStageResult} given the result of the final stage in the segment.
+         *
+         * @param segmentFinalStageResult The result of the final stage in the segment.
+         * @param summary The summary of the segment. This will be used to generate the message on the result.
+         * @param <R> The result type.
+         * @return a new {@link SegmentStageResult} given the result of the final stage in the segment.
+         */
+        public static <R> SegmentStageResult<R> forFinalStageResult(@Nonnull StageResult<R> segmentFinalStageResult,
+                                                                    @Nonnull SegmentSummary summary) {
+            return new SegmentStageResult<>(segmentFinalStageResult.getStatus().withNewMessage(summary.toString()),
+                segmentFinalStageResult.getResult());
         }
     }
 
@@ -429,7 +477,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         @Nonnull
         public String getMessageWithSummary() {
             if (Strings.isNullOrEmpty(contextMemberSummary)) {
-                return "\t" + message;
+                return PipelineSummary.NESTING_SPACING + message;
             } else {
                 final String msg = message.endsWith("\n") ? message : (message + "\n");
                 return msg + contextMemberSummary;
@@ -453,6 +501,20 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
          */
         public static Status failed(@Nonnull final String message) {
             return new Status(message, Type.FAILED);
+        }
+
+        /**
+         * The stage failed. See {@link Type#FAILED}.
+         *
+         * @param cause The Throwable that caused the exception.
+         * @return The failure status.
+         */
+        public static Status failed(@Nonnull final Throwable cause) {
+            if (cause instanceof PipelineStageException) {
+                return failed(((PipelineStageException)cause).getProgressSummaryOrMessage());
+            } else {
+                return failed(cause.getMessage());
+            }
         }
 
         /**
@@ -492,6 +554,16 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         }
 
         /**
+         * Create a new {@link Status} with the same status type but a new message.
+         *
+         * @param newMessage The new message for the status.
+         * @return A new {@link Status} with the same status type but a new message.
+         */
+        public Status withNewMessage(@Nonnull final String newMessage) {
+            return new Status(newMessage, type);
+        }
+
+        /**
          * Get the summary of context member usage by the stage.
          *
          * @return the summary of context member usage by the stage.
@@ -526,15 +598,33 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
     }
 
     /**
-     * An exception thrown when a stage of the pipeline fails.
+     * An exception thrown when a stage of the pipeline fails. When an error occurs inside a {@link SegmentStage},
+     * we should populate the progressSummary inside the exception in order to correctly render the summary
+     * for the failed segment.
      */
     public static class PipelineStageException extends Exception {
+        @Nullable
+        private final AbstractSummary progressSummary;
+
         /**
          * Construct a new exception.
          * @param cause The cause for the error.
          */
         public PipelineStageException(@Nonnull final Throwable cause) {
             super(cause);
+            this.progressSummary = null;
+        }
+
+        /**
+         * Construct a new exception.
+         * @param cause The cause for the error.
+         * @param progressSummary A summary of the progress of the stage. Can be used to improve
+         *                        logging output for the stage failure.
+         */
+        public PipelineStageException(@Nonnull final Throwable cause,
+                                      @Nullable final AbstractSummary progressSummary) {
+            super(cause);
+            this.progressSummary = progressSummary;
         }
 
         /**
@@ -543,6 +633,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
          */
         public PipelineStageException(@Nonnull final String error) {
             super(error);
+            this.progressSummary = null;
         }
 
         /**
@@ -552,14 +643,42 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
          */
         public PipelineStageException(@Nonnull final String error, @Nullable final Throwable cause) {
             super(error, cause);
+            this.progressSummary = null;
+        }
+
+        /**
+         * Construct a new exception.
+         * @param error The error message.
+         * @param cause The cause for the error.
+         * @param progressSummary A summary of the progress of the stage. Can be used to improve
+         *                        logging output for the stage failure.
+         */
+        public PipelineStageException(@Nonnull final String error,
+                                      @Nullable final Throwable cause,
+                                      @Nullable final AbstractSummary progressSummary) {
+            super(error, cause);
+            this.progressSummary = progressSummary;
+        }
+
+        /**
+         * Get the progress summary description, or if no progress summary is present, get
+         * the message.
+         *
+         * @return the progress summary description, or if no progress summary is present, get
+         *         the message.
+         */
+        @Nonnull
+        public String getProgressSummaryOrMessage() {
+            return progressSummary != null ? progressSummary.toString() : getMessage();
         }
     }
 
     /**
-     * An exception that indicates an error in pipeline dependencies/configuration.
+     * An exception that indicates an error in pipeline context member configuration.
      * Made to be a runtime exception because it indicates an unrecoverable mis-configuration
      * in the pipeline that we want to go uncaught and blow everything up. Should only happen
-     * in development when introducing new pipeline stages or modifying stage dependencies.
+     * in development when introducing new pipeline stages or modifying stage provided/required
+     * context members.
      */
     public static class PipelineContextMemberException extends RuntimeException {
         /**
@@ -728,7 +847,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
          *
          * @param stage The stage.
          * @return The full {@link PipelineDefinition}.
-         * @throws PipelineContextMemberException if the pipeline stage dependencies have been misconfigured.
+         * @throws PipelineContextMemberException if the pipeline stage context members have been misconfigured.
          */
         public PipelineDefinition<I, O, C> finalStage(@Nonnull final Stage<N, O, C> stage)
             throws PipelineContextMemberException {
@@ -755,53 +874,23 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         @Nonnull
         private List<SupplyToContext<?>> configureStageContextMembers()
             throws PipelineContextMemberException {
-            final Map<PipelineContextMemberDefinition<?>, String> providedDependencies = new HashMap<>();
-            final Map<PipelineContextMemberDefinition<?>, Stage<?, ?, ?>> requirements = new HashMap<>();
+            // Map of context member to the name of the first stage providing it.
+            // If the context member is initialized with the member, the name will be INITIAL_STAGE_NAME.
+            final Map<PipelineContextMemberDefinition<?>, String> provided = new HashMap<>();
+            // Map of context member to the last stage requiring it.
+            final Map<PipelineContextMemberDefinition<?>, Stage<?, ?, ?>> required = new HashMap<>();
             initialContextMemberSuppliers.forEach(def ->
-                providedDependencies.put(def.getMemberDefinition(), INITIAL_STAGE_NAME));
+                provided.put(def.getMemberDefinition(), INITIAL_STAGE_NAME));
 
             for (final Stage<?, ?, ?> stage : stages) {
-                // Ensure requirements are provided by an earlier stage
-                if (!providedDependencies.keySet().containsAll(stage.getContextMemberRequirements())) {
-                    final List<PipelineContextMemberDefinition<?>> missingMembers =
-                        Sets.difference(new HashSet<>(stage.getContextMemberRequirements()),
-                            providedDependencies.keySet()).stream()
-                        .filter(memberDef -> !memberDef.suppliesDefault())
-                        .collect(Collectors.toList());
-                    if (!missingMembers.isEmpty()) {
-                        throw new PipelineContextMemberException(String.format(
-                            "No earlier stage provides required pipeline dependencies (%s) without default for stage %s.",
-                            missingMembers.stream()
-                                .map(PipelineContextMemberDefinition::toString)
-                                .collect(Collectors.joining(", ")),
-                            stage.getName()));
-                    }
-                }
-                stage.getContextMemberRequirements().forEach(requirement ->
-                    requirements.put(requirement, stage));
-
-                // Ensure unique provider for every dependency
-                for (final PipelineContextMemberDefinition<?> dependency : stage.getProvidedContextMembers()) {
-                    final String firstProviderName = providedDependencies.get(dependency);
-                    if (firstProviderName == null) {
-                        providedDependencies.put(dependency, stage.getName());
-                    } else {
-                        throw new PipelineContextMemberException(String.format(
-                            "Pipeline ContextMember of type %s provided by stage %s is already "
-                                + "provided by earlier stage %s. Only one stage in the pipeline "
-                                + "may provide a particular ContextMember to the pipeline context.", dependency,
-                            stage.getName(), firstProviderName));
-                    }
-                    // If no one requires, we drop right after the initial dependency.
-                    requirements.put(dependency, stage);
-                }
+                stage.configureContextMembers(provided, required);
             }
 
             // The requirements map should have the last stage in the pipeline that requires a
-            // particular dependency.
-            requirements.entrySet().stream()
-                .collect(Collectors.groupingBy(entry -> entry.getValue()))
-                .forEach((stage, entries) -> stage.setDependenciesToDrop(entries.stream()
+            // particular member.
+            required.entrySet().stream()
+                .collect(Collectors.groupingBy(Entry::getValue))
+                .forEach((stage, entries) -> stage.setMembersToDrop(entries.stream()
                     .map(Entry::getKey)
                     .collect(Collectors.toList())));
 
@@ -809,7 +898,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             // members that are initially provided but never required. These suppliers will be
             // dropped here.
             final Map<Boolean, List<SupplyToContext<?>>> suppliersByRequirement = initialContextMemberSuppliers.stream()
-                .collect(Collectors.groupingBy(member -> requirements.containsKey(member.getMemberDefinition())));
+                .collect(Collectors.groupingBy(member -> required.containsKey(member.getMemberDefinition())));
             final List<SupplyToContext<?>> unnecessary =
                 suppliersByRequirement.getOrDefault(false, Collections.emptyList());
             if (unnecessary.size() > 0) {

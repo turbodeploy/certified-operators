@@ -1707,17 +1707,21 @@ public class Stages {
             }
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
-            if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
-                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
+            final String planType = topologyInfo.getPlanInfo().getPlanType();
+            if (!StringConstants.CLOUD_PLAN_TYPES.contains(planType)) {
+                if (planType.equals(StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN)) {
+                    logger.info("Indexing container platform entities for scoping .....");
+                } else {
+                    logger.info("Indexing on-prem entities for scoping .....");
+                }
                 // populate InvertedIndex
-                logger.info("Indexing on-prem entities for scoping .....");
                 InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
                         index = planTopologyScopeEditor.createInvertedIndex();
                 graph.entities().forEach(entity -> index.add(entity));
                 PlanProjectType planProjectType = topologyInfo.getPlanInfo().getPlanProjectType();
                 // scope using inverted index
                 try {
-                    result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope, planProjectType);
+                    result = planTopologyScopeEditor.indexBasedScoping(index, topologyInfo, graph, groupResolver, planScope, planProjectType);
                 } catch (GroupResolutionException e) {
                     throw new PipelineStageException(e);
                 }

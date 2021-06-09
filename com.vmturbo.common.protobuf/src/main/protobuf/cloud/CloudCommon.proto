@@ -1,0 +1,34 @@
+syntax = "proto2";
+package cloud_common;
+
+option java_package = "com.vmturbo.common.protobuf.cloud";
+option java_outer_classname = "CloudCommon";
+
+enum CloudStatGranularity {
+    HOURLY = 0;
+    DAILY = 1;
+    MONTHLY = 2;
+}
+
+message AccountFilter {
+    // A list of account ids need to filter by.
+    repeated int64 account_id = 1;
+}
+
+message RegionFilter {
+    // A list of region ids need to filter by.
+    repeated int64 region_id = 1;
+}
+
+message EntityFilter {
+    // A list of entity ids need to filter by.
+    repeated int64 entity_id = 1;
+}
+
+message CloudCommitmentFilter {
+    repeated int64 cloud_commitment_id = 1;
+}
+
+message ServiceProviderFilter {
+    repeated int64 service_provider_id = 1;
+}

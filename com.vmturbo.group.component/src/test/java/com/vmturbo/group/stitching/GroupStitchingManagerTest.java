@@ -1,5 +1,7 @@
 package com.vmturbo.group.stitching;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.spy;
 
 import java.util.ArrayList;
@@ -17,6 +19,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -80,6 +83,12 @@ public class GroupStitchingManagerTest {
                     ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(VM_ID_3)));
     private static final UploadedGroup group5 =
             GroupTestUtils.createUploadedGroup(GroupType.RESOURCE, GROUP_ID_2,
+                    ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(VM_ID_3)));
+    private static final UploadedGroup globalRegularGroupA =
+            GroupTestUtils.createUploadedGlobalGroup(GroupType.REGULAR, GROUP_ID,
+                    ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(VM_ID_1, VM_ID_2)));
+    private static final UploadedGroup globalRegularGroupB =
+            GroupTestUtils.createUploadedGlobalGroup(GroupType.REGULAR, GROUP_ID,
                     ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(VM_ID_3)));
     private static final UploadedGroup billingFamilyGroup1 =
             GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BILLING_FAMILY, BF_ID_1,
@@ -168,6 +177,32 @@ public class GroupStitchingManagerTest {
         Assert.assertEquals(BF_DISPLAY_NAME_1_FROM_AWS,
                 stitchingGroup.getGroupDefinition().getDisplayName());
         Assert.assertEquals(Sets.newHashSet(TARGET_1, TARGET_2), stitchingGroup.getTargetIds());
+    }
+
+    /**
+     * Tests that two regular VM groups with stitching across targets set to true are correctly
+     * stitched together.
+     */
+    @Test
+    public void testRegularGroupStitching() {
+        groupStitchingContext.setTargetGroups(TARGET_1, AWS_PROBE_TYPE,
+                Collections.singletonList(globalRegularGroupA));
+        groupStitchingContext.setTargetGroups(TARGET_2, AWS_PROBE_TYPE,
+                Collections.singletonList(globalRegularGroupB));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(1, result.getGroupsToAddOrUpdate().size());
+        final StitchingGroup stitchingGroup = result.getGroupsToAddOrUpdate().iterator().next();
+        Assert.assertEquals(GROUP_ID, stitchingGroup.getSourceId());
+        Assert.assertEquals(Sets.newHashSet(TARGET_1, TARGET_2), stitchingGroup.getTargetIds());
+
+        final Set<Long> actualStaticGroupMemberIDs = stitchingGroup.buildGroupDefinition()
+                .getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .flatMap(staticMembersByType -> staticMembersByType.getMembersList().stream())
+                .collect(ImmutableSet.toImmutableSet());
+        assertThat(actualStaticGroupMemberIDs, containsInAnyOrder(VM_ID_1, VM_ID_2, VM_ID_3));
     }
 
     /**

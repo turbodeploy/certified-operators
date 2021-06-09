@@ -249,7 +249,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                         final long azId = regionOrAz.getConnectedEntityId();
                         final Optional<TopologyEntityDTO> regionOwner = getOwner(azId);
                         if (!regionOwner.isPresent()) {
-                            logger.error("Availability Zone {} (connected to by entity {}) has no region owner.",
+                            logger.warn("Availability Zone {} (connected to by entity {}) has no region owner.",
                                     azId, entityId);
                         }
                         return regionOwner;
@@ -257,7 +257,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                         // Must be a region, because of the filter.
                         final Optional<TopologyEntityDTO> region = getEntity(regionOrAz.getConnectedEntityId());
                         if (!region.isPresent()) {
-                            logger.error("Entity {} connected to region {} which is not present in the topology!",
+                            logger.warn("Entity {} connected to region {} which is not present in the topology!",
                                 entityId, regionOrAz.getConnectedEntityId());
                         }
                         return region;
@@ -268,7 +268,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .collect(Collectors.toSet());
 
             if (connectedRegions.size() == 0) {
-                logger.error("Entity {} not connected to any regions, either directly or through availability zones!", entity.getOid());
+                logger.warn("Entity {} not connected to any regions, either directly or through availability zones!", entity.getOid());
                 return Optional.empty();
             } else if (connectedRegions.size() > 1) {
                 logger.warn("Entity {} connected to multiple regions: {}! Choosing the first.",

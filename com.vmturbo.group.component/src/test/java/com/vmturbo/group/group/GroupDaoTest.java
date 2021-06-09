@@ -1,20 +1,25 @@
 package com.vmturbo.group.group;
 
 import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMENTARY_INFO;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -23,6 +28,7 @@ import io.grpc.Status;
 import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -54,14 +60,18 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
@@ -187,7 +197,7 @@ public class GroupDaoTest {
         final GroupDefinition groupDefinition = createGroupDefinition()
             .toBuilder().setDisplayName(displayName).build();
         final DiscoveredGroup group1 = new DiscoveredGroup(OID1, groupDefinition, "grp1",
-            Collections.singleton(100L),
+            false, Collections.singleton(100L),
             Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
         groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
             Collections.emptySet());
@@ -390,7 +400,7 @@ public class GroupDaoTest {
         final Set<MemberType> memberTypes = new HashSet<>(
                 Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
-        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expect(StoreOperationException.class);
         expectedException.expectMessage(nonExistingProperty);
         groupStore.createGroup(OID1, createUserOrigin(), groupDefinition, memberTypes, false);
     }
@@ -409,6 +419,41 @@ public class GroupDaoTest {
         groupStore.createGroup(OID1, origin, groupDefinition, Collections.emptySet(), true);
         final GroupDTO.Grouping group = getGroupFromStore(OID1);
         Assert.assertEquals(groupDefinition, group.getDefinition());
+    }
+
+    /**
+     * Check that dynamic groups can still be queried by direct member type.
+     *
+     * @throws Exception If exception.
+     */
+    @Test
+    public void testDynamicGroupExpectedTypes() throws Exception {
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
+                // We set these filters to indicate that its a dynamic group.
+                .setEntityFilters(EntityFilters.getDefaultInstance())
+                .build();
+        final MemberType memberType = MemberType.newBuilder()
+            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .build();
+        groupStore.createGroup(OID1, createUserOrigin(), groupDefinition,
+                Collections.singleton(memberType), true);
+
+        GetPaginatedGroupsResponse resp =  groupStore.getPaginatedGroups(GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addDirectMemberTypes(memberType))
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setCursor("0")
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_NAME)
+                                .build())
+                        .setLimit(100)
+                        .setAscending(true)
+                        .build())
+                .build());
+
+        assertThat(resp.getGroupsList().stream()
+                .map(Grouping::getId)
+                .collect(Collectors.toList()), containsInAnyOrder(OID1));
     }
 
     /**
@@ -739,6 +784,74 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests how groups are filtered in queries that contain "non-equals" tag filters.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetGroupIdsFilteredByTagsNotEqualCase() throws StoreOperationException {
+        // GIVEN
+        final Origin origin = createUserOrigin();
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final String tagName3 = "tag3";
+        final String tagValue11 = "tag1-1";
+        final String tagValue12 = "tag1-2";
+        final String tagValue2 = "tag2";
+        final String tagValue31 = "tag3-1";
+        final String tagValue32 = "tag3-2";
+        final Map<String, Collection<String>> tagNameToTagValues = ImmutableMap.of(
+                tagName1, ImmutableSet.of(tagValue11, tagValue12),
+                tagName2, Collections.singleton(tagValue2),
+                tagName3, ImmutableSet.of(tagValue31, tagValue32));
+        final GroupDefinition groupDefinition1 = createGroupDefinitionWithTags(
+                ImmutableSet.of(tagName1, tagName2), tagNameToTagValues);
+        final GroupDefinition groupDefinition2 =
+                createGroupDefinitionWithTags(Collections.singleton(tagName3), tagNameToTagValues);
+        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, true);
+
+        // WHEN (regex case)
+        Collection<Long> resultGroupIds = getGroupIdsByMapPropertyFilterNotEquals(
+                mpf -> mpf.setRegex(tagName1 + "=" + tagValue11));
+        // THEN
+        Assert.assertEquals(1, resultGroupIds.size());
+        Assert.assertEquals(OID2, resultGroupIds.iterator().next().longValue());
+
+        // WHEN (exact case)
+        resultGroupIds = getGroupIdsByMapPropertyFilterNotEquals(
+                mpf -> mpf.setKey(tagName1).addValues(tagValue11));
+        // THEN
+        Assert.assertEquals(1, resultGroupIds.size());
+        Assert.assertEquals(OID2, resultGroupIds.iterator().next().longValue());
+    }
+
+    @Nonnull
+    private GroupDefinition createGroupDefinitionWithTags(Collection<String> tagNames,
+            Map<String, Collection<String>> tagNameToTagValues) {
+        final Tags.Builder tagsBuilder = Tags.newBuilder();
+        tagNames.forEach(tagName -> tagsBuilder.putTags(tagName, TagValuesDTO.newBuilder()
+                .addAllValues(tagNameToTagValues.getOrDefault(tagName, Collections.emptySet()))
+                .build()));
+        return GroupDefinition.newBuilder(createGroupDefinition()).setTags(tagsBuilder.build())
+                .build();
+    }
+
+    @Nonnull
+    private Collection<Long> getGroupIdsByMapPropertyFilterNotEquals(
+            Function<MapFilter.Builder, MapFilter.Builder> mapFilterPopulator) {
+        final MapFilter mapFilter =
+                mapFilterPopulator.apply(MapFilter.newBuilder().setPositiveMatch(false)).build();
+        final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+                .setPropertyName(StringConstants.TAGS_ATTR)
+                .setMapFilter(mapFilter)
+                .build();
+        return groupStore.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
+                .build());
+    }
+
+    /**
      * Tests retrieval of static groups associated with an entity.
      *
      * @throws Exception on exceptions occurred
@@ -1029,13 +1142,13 @@ public class GroupDaoTest {
      * Used in tests for {@link GroupDAO#getPaginatedGroups}.
      * Following groups are created:
      * - group 1: oid = OID1, static, type = pm cluster, contains 1 host, envType = ONPREM,
-     *          cloudType = UNKNOWN, severity = NORMAL
+     *          cloudType = UNKNOWN, severity = MAJOR
      * - group 2: oid = OID2, static, type = pm cluster, contains 1 host, envType = ONPREM,
      *          cloudType = UNKNOWN, severity = CRITICAL
-     * - group 3: oid = OID3, dynamic, type = regular vm group, empty, envType = HYBRID,
-     *          cloudType = AWS, severity = MAJOR
+     * - group 3: oid = OID3, dynamic, type = regular vm group, empty, envType = CLOUD,
+     *          cloudType = AWS, severity = NORMAL
      * - group 4: oid = OID4, static, type = pm cluster, empty, envType = ONPREM,
-     *          cloudType = UNKNOWN, severity = CRITICAL
+     *          cloudType = UNKNOWN, severity = NORMAL
      *
      * @param group1DisplayName 1st group's display name
      * @param group2DisplayName 2nd group's display name
@@ -1122,46 +1235,45 @@ public class GroupDaoTest {
                                 .build())
                         .build())
                 .build();
-        groupStore.createGroup(OID1,
-                origin,
-                groupDefinition1,
-                ImmutableSet.of(MemberType.newBuilder().setEntity(
-                        EntityType.PHYSICAL_MACHINE_VALUE).build()),
-                false);
-        groupStore.createGroupSupplementaryInfo(OID1,
+        createCustomGroup(OID1, origin, groupDefinition1,
+                ImmutableSet.of(
+                        MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
                 false,
                 new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
-                Severity.NORMAL);
-        groupStore.createGroup(OID2,
-                origin,
-                groupDefinition2,
-                ImmutableSet.of(MemberType.newBuilder().setEntity(
-                        EntityType.PHYSICAL_MACHINE_VALUE).build()),
-                false);
-        groupStore.createGroupSupplementaryInfo(OID2,
+                Severity.MAJOR);
+        createCustomGroup(OID2, origin, groupDefinition2,
+                ImmutableSet.of(
+                        MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
                 false,
                 new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.CRITICAL);
-        groupStore.createGroup(OID3,
-                origin,
-                groupDefinition3,
-                ImmutableSet.of(MemberType.newBuilder().setEntity(
-                        EntityType.VIRTUAL_MACHINE_VALUE).build()),
-                true);
-        groupStore.createGroupSupplementaryInfo(OID3,
+        createCustomGroup(OID3, origin, groupDefinition3,
+                ImmutableSet.of(
+                        MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()),
                 true,
                 new GroupEnvironment(EnvironmentType.CLOUD, CloudType.AWS),
-                Severity.MAJOR);
-        groupStore.createGroup(OID4,
-                origin,
-                groupDefinition4,
-                ImmutableSet.of(MemberType.newBuilder().setEntity(
-                        EntityType.PHYSICAL_MACHINE_VALUE).build()),
-                false);
-        groupStore.createGroupSupplementaryInfo(OID4,
+                Severity.NORMAL);
+        createCustomGroup(OID4, origin, groupDefinition4,
+                ImmutableSet.of(
+                        MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
                 true,
                 new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
-                Severity.CRITICAL);
+                Severity.NORMAL);
+    }
+
+    private void createCustomGroup(long oid,
+            Origin origin,
+            GroupDefinition definition,
+            Set<MemberType> expectedMemberTypes,
+            boolean isEmpty,
+            GroupEnvironment environment,
+            Severity severity) throws StoreOperationException {
+        groupStore.createGroup(oid,
+                origin,
+                definition,
+                expectedMemberTypes,
+                false);
+        groupStore.createGroupSupplementaryInfo(oid, isEmpty, environment, severity);
     }
 
     /**
@@ -1184,6 +1296,7 @@ public class GroupDaoTest {
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setCursor("0")
                         .setAscending(true)
                         .setLimit(1)
                         .build())
@@ -1284,6 +1397,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setOrderBy(OrderBy.newBuilder()
                                 .setGroupSearch(OrderBy.GroupOrderBy.GROUP_NAME)
                                 .build())
@@ -1361,6 +1475,7 @@ public class GroupDaoTest {
                         .build())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1432,6 +1547,7 @@ public class GroupDaoTest {
                         .build())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(1)
                         .build())
                 .build();
@@ -1489,6 +1605,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(4)
                         .build())
                 .build();
@@ -1511,6 +1628,7 @@ public class GroupDaoTest {
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(5)
                         .build())
                 .build();
@@ -1553,6 +1671,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1614,6 +1733,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1657,6 +1777,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1721,6 +1842,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(2)
                         .build())
                 .build();
@@ -1761,6 +1883,7 @@ public class GroupDaoTest {
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
+                        .setCursor("0")
                         .setLimit(1)
                         .build())
                 .build();
@@ -1797,8 +1920,43 @@ public class GroupDaoTest {
     }
 
     /**
+     * Utility method used by pagination tests related to environment/cloud type.
+     * Creates a regular static vm group with 3 entities, HYBRID environment & cloud type and MINOR
+     * severity.
+     *
+     * @param oid the oid for the new group.
+     * @param displayName the display name for the new group.
+     * @throws StoreOperationException on db error
+     */
+    private void createVMGroupWithHybridEnvAndCloudTypes(long oid, String displayName)
+            throws StoreOperationException {
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName(displayName)
+                .setIsHidden(false)
+                .setIsTemporary(false)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        .build())
+                                .addMembers(20001L)
+                                .addMembers(20002L)
+                                .addMembers(20003L)
+                                .build())
+                        .build())
+                .build();
+        createCustomGroup(oid, createUserOrigin(), groupDefinition,
+                ImmutableSet.of(
+                        MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()),
+                false,
+                new GroupEnvironment(EnvironmentType.HYBRID, CloudType.HYBRID_CLOUD),
+                Severity.MINOR);
+    }
+
+    /**
      * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
-     * filtering by group environment type.
+     * filtering by group environment type (non HYBRID cases; should return HYBRID groups as well).
      *
      * @throws StoreOperationException on db error
      */
@@ -1808,20 +1966,24 @@ public class GroupDaoTest {
         final String group2DisplayName = "myGroupA";
         final String group3DisplayName = "TestGroupD";
         final String group4DisplayName = "testGroupB";
+        final String group5DisplayName = "testGroupA";
         // GIVEN
         prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        createVMGroupWithHybridEnvAndCloudTypes(OID5, group5DisplayName);
         GroupFilter groupFilter = GroupFilter.newBuilder()
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build();
 
-        // expected return order (we're filtering by environment type, sort by name by default):
-        // group2 group4 group1
+        // expected return order (we're filtering by environment type ONPREM, sort by name by
+        // default, HYBRID groups are expected to be returned as well):
+        // group2 group5 group4 group1
         // first call:
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
-                        .setLimit(2)
+                        .setCursor("0")
+                        .setLimit(3)
                         .build())
                 .build();
 
@@ -1829,21 +1991,23 @@ public class GroupDaoTest {
         GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
 
         // THEN
-        Assert.assertEquals(2, response.getGroupsCount());
-        Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
-        Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(3, response.getGroupsCount());
+        Assert.assertEquals("3", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
         Assert.assertEquals(group2DisplayName,
                 response.getGroups(0).getDefinition().getDisplayName());
-        Assert.assertEquals(group4DisplayName,
+        Assert.assertEquals(group5DisplayName,
                 response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(2).getDefinition().getDisplayName());
 
         // next call
         request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
-                        .setLimit(2)
-                        .setCursor("2")
+                        .setLimit(3)
+                        .setCursor("3")
                         .build())
                 .build();
 
@@ -1853,14 +2017,85 @@ public class GroupDaoTest {
         // THEN
         Assert.assertEquals(1, response.getGroupsCount());
         Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
         Assert.assertEquals(group1DisplayName,
                 response.getGroups(0).getDefinition().getDisplayName());
     }
 
     /**
      * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
-     * filtering by group cloud type.
+     * filtering by group environment type HYBRID (special case, should return everything).
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsFilterByEnvironmentTypeHybrid()
+            throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "myGroupA";
+        final String group3DisplayName = "TestGroupD";
+        final String group4DisplayName = "testGroupB";
+        final String group5DisplayName = "testGroupA";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        createVMGroupWithHybridEnvAndCloudTypes(OID5, group5DisplayName);
+        GroupFilter groupFilter = GroupFilter.newBuilder()
+                .setEnvironmentType(EnvironmentType.HYBRID)
+                .build();
+
+        // expected return order (we're filtering by environment type HYBRID so all groups are
+        // expected to be returned, sort by name by default):
+        // group2 group5 group4 group1 group3
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setCursor("0")
+                        .setLimit(3)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(3, response.getGroupsCount());
+        Assert.assertEquals("3", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(5, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group5DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(2).getDefinition().getDisplayName());
+
+        // next call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(3)
+                        .setCursor("3")
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(2, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(5, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
+     * filtering by group cloud type (non HYBRID cases; should return HYBRID groups as well).
      *
      * @throws StoreOperationException on db error
      */
@@ -1870,20 +2105,24 @@ public class GroupDaoTest {
         final String group2DisplayName = "myGroupA";
         final String group3DisplayName = "TestGroupD";
         final String group4DisplayName = "testGroupB";
+        final String group5DisplayName = "testGroupA";
         // GIVEN
         prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        createVMGroupWithHybridEnvAndCloudTypes(OID5, group5DisplayName);
         GroupFilter groupFilter = GroupFilter.newBuilder()
                 .setCloudType(CloudType.AWS)
                 .build();
 
-        // (we're filtering by group cloud type, sort by name by default)
+        // (we're filtering by group cloud type, sort by name by default, HYBRID_CLOUD groups are
+        // expected to be returned as well)
         // expected return order:
-        // group3
+        // group 5 group3
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
-                        .setLimit(2)
+                        .setCursor("0")
+                        .setLimit(3)
                         .build())
                 .build();
 
@@ -1891,11 +2130,83 @@ public class GroupDaoTest {
         GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
 
         // THEN
-        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertEquals(2, response.getGroupsCount());
         Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(1, response.getPaginationResponse().getTotalRecordCount());
-        Assert.assertEquals(group3DisplayName,
+        Assert.assertEquals(2, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group5DisplayName,
                 response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
+     * filtering by group cloud type (non HYBRID cases; should return HYBRID groups as well).
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsFilterByCloudTypeHybrid() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "myGroupA";
+        final String group3DisplayName = "TestGroupD";
+        final String group4DisplayName = "testGroupB";
+        final String group5DisplayName = "testGroupA";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        createVMGroupWithHybridEnvAndCloudTypes(OID5, group5DisplayName);
+        GroupFilter groupFilter = GroupFilter.newBuilder()
+                .setCloudType(CloudType.HYBRID_CLOUD)
+                .build();
+
+        // (we're filtering by group cloud type HYBRID_CLOUD so all groups are expected to be
+        // returned, sort by name by default)
+        // expected return order:
+        // group2 group5 group4 group1 group3
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setCursor("0")
+                        .setLimit(3)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(3, response.getGroupsCount());
+        Assert.assertEquals("3", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(5, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group5DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(2).getDefinition().getDisplayName());
+
+        // next call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(3)
+                        .setCursor("3")
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(2, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(5, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
     }
 
     /**
@@ -1908,8 +2219,8 @@ public class GroupDaoTest {
     public void testGetPaginatedGroupsFilterBySeverity() throws StoreOperationException {
         final String group1DisplayName = "testGroupA";
         final String group2DisplayName = "testGroupB";
-        final String group3DisplayName = "testGroupC";
-        final String group4DisplayName = "testGroupD";
+        final String group3DisplayName = "testGroupD";
+        final String group4DisplayName = "testGroupC";
         // GIVEN
         prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
         GroupFilter groupFilter = GroupFilter.newBuilder()
@@ -1918,12 +2229,13 @@ public class GroupDaoTest {
 
         // (we're filtering by group severity, sort by name by default)
         // expected return order:
-        // group1
+        // group4 group3
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(groupFilter)
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(true)
-                        .setLimit(2)
+                        .setCursor("0")
+                        .setLimit(3)
                         .build())
                 .build();
 
@@ -1931,11 +2243,13 @@ public class GroupDaoTest {
         GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
 
         // THEN
-        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertEquals(2, response.getGroupsCount());
         Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(1, response.getPaginationResponse().getTotalRecordCount());
-        Assert.assertEquals(group1DisplayName,
+        Assert.assertEquals(2, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group4DisplayName,
                 response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
     }
 
     /**
@@ -1953,14 +2267,15 @@ public class GroupDaoTest {
         // GIVEN
         prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
 
-        // expected return order (we're sorting by severity, having id as secondary sorting for
-        // duplicate primary sorting values, and descending) :
-        // group4 group2 group3 group1
+        // expected return order (we're sorting by severity, having emptiness as secondary sorting
+        // and id as last sorting for duplicate entries, and descending) :
+        // group2 group1 group4 group3
         // first call:
         GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.getDefaultInstance())
                 .setPaginationParameters(PaginationParameters.newBuilder()
                         .setAscending(false)
+                        .setCursor("0")
                         .setOrderBy(OrderBy.newBuilder()
                                 .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
                                 .build())
@@ -1975,9 +2290,9 @@ public class GroupDaoTest {
         Assert.assertEquals(2, response.getGroupsCount());
         Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
         Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
-        Assert.assertEquals(group4DisplayName,
-                response.getGroups(0).getDefinition().getDisplayName());
         Assert.assertEquals(group2DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group1DisplayName,
                 response.getGroups(1).getDefinition().getDisplayName());
 
         // next call
@@ -2000,10 +2315,59 @@ public class GroupDaoTest {
         Assert.assertEquals(2, response.getGroupsCount());
         Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
         Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
         Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that results of {@link GroupDAO#getPaginatedGroups} are ordered secondarily by
+     * emptiness.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testSecondaryOrderByEmptiness() throws StoreOperationException {
+        final String group1DisplayName = "testGroupA";
+        final String group2DisplayName = "testGroupB";
+        final String group3DisplayName = "testGroupC";
+        final String group4DisplayName = "testGroupD";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+
+        // expected return order (we're sorting by severity, having emptiness as secondary sorting
+        // (empty first on ascending and last on descending), and id as last sorting for duplicate
+        // entries, and descending) :
+        // group2 group1 group4 group3
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(false)
+                        .setCursor("0")
+                        .setLimit(10)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(4, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName,
                 response.getGroups(0).getDefinition().getDisplayName());
         Assert.assertEquals(group1DisplayName,
                 response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(2).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(3).getDefinition().getDisplayName());
     }
 
     /**
@@ -2132,6 +2496,86 @@ public class GroupDaoTest {
                 .select(GROUP_SUPPLEMENTARY_INFO.SEVERITY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1()));
+    }
+
+    /**
+     * Tests updating group supplementary info in a bulk.
+     * Any groups that are not currently in the database (in main `grouping` table) are expected to
+     * be skipped.
+     *
+     * @throws StoreOperationException to satisfy compiler.
+     */
+    @Test
+    public void testUpdateBulkGroupSupplementaryInfo() throws StoreOperationException {
+        // GIVEN
+        prepareGroups("group1", "group2", "group3", "group4");
+        Map<Long, GroupSupplementaryInfo> groupsToUpdate = new HashMap<>();
+        // change emptiness and severity
+        groupsToUpdate.put(OID1, new GroupSupplementaryInfo(OID1, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber()));
+        // change env & cloud type and severity
+        groupsToUpdate.put(OID2, new GroupSupplementaryInfo(OID2, false,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.GCP.getNumber(),
+                Severity.MAJOR.getNumber()));
+        // leave same
+        groupsToUpdate.put(OID3, new GroupSupplementaryInfo(OID3, true,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.AWS.getNumber(),
+                Severity.MAJOR.getNumber()));
+        // leave same
+        groupsToUpdate.put(OID4, new GroupSupplementaryInfo(OID4, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.CRITICAL.getNumber()));
+        // group that doesn't exist in the database (in grouping table)
+        groupsToUpdate.put(OID5, new GroupSupplementaryInfo(OID5, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber()));
+
+        // WHEN
+        groupStore.updateBulkGroupSupplementaryInfo(groupsToUpdate);
+
+        // THEN
+        Map<Long, GroupSupplementaryInfo> retrievedGroups = dbConfig.getDslContext()
+                .select()
+                .from(GROUP_SUPPLEMENTARY_INFO)
+                .fetchInto(GroupSupplementaryInfo.class)
+                .stream()
+                .collect(Collectors.toMap(GroupSupplementaryInfo::getGroupId, Function.identity()));
+        Assert.assertEquals(4, retrievedGroups.size());
+        Assert.assertThat(retrievedGroups.keySet(),
+                Matchers.containsInAnyOrder(OID1, OID2, OID3, OID4));
+        // (group with oid 5 should not be present)
+        // Verify the contents of the retrieved groups
+        assertSupplementaryInfoValues(retrievedGroups.get(OID1), OID1, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID2), OID2, false,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.GCP.getNumber(),
+                Severity.MAJOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID3), OID3, true,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.AWS.getNumber(),
+                Severity.MAJOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID4), OID4, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.CRITICAL.getNumber());
+    }
+
+    private void assertSupplementaryInfoValues(GroupSupplementaryInfo gsi, long groupId,
+            boolean empty, int envType, int cloudType, int severity) {
+        Assert.assertEquals(groupId, gsi.getGroupId().longValue());
+        Assert.assertEquals(empty, gsi.getEmpty());
+        Assert.assertEquals(envType, gsi.getEnvironmentType().intValue());
+        Assert.assertEquals(cloudType, gsi.getCloudType().intValue());
+        Assert.assertEquals(severity, gsi.getSeverity().intValue());
     }
 
     @Nonnull

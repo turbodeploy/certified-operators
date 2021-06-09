@@ -234,12 +234,13 @@ public class ScenariosService implements IScenariosService {
     }
 
     /**
-     * Validate ScenarioApiDTO
-     * @param obj
-     * @param e
+     * Validates the input scenario api object.
+     *
+     * @param inputDTO  Object to validate
+     * @param e         Spring framework validation errors, not actually used in our validations
      */
     @Override
-    public void validateInput(Object obj, Errors e) {
+    public void validateInput(ScenarioApiDTO inputDTO, Errors e) {
         // The API will always validate any dto of type ScenarioApiDTO here
         // We want to bypass this validation for XL and not throw any errors so this doesn't interfere with other scenarios
     }

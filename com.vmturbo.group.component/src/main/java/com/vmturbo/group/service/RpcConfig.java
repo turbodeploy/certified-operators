@@ -110,7 +110,7 @@ public class RpcConfig {
     /**
      * Determines if we are caching parent groups for entities.
      */
-    @Value("${cacheEntityParentGroups:false}")
+    @Value("${cacheEntityParentGroups:true}")
     private boolean cacheEntityParentGroups;
 
     @Bean
@@ -161,7 +161,8 @@ public class RpcConfig {
                 transactionProvider(), identityProviderConfig.identityProvider(),
                 targetService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
                 cachingMemberCalculator(), groupRetrievePermitsSize, groupLoadTimeoutSec,
-                groupConfig.groupEnvironmentTypeResolver(), groupConfig.groupSeverityCalculator());
+                groupConfig.groupEnvironmentTypeResolver(), groupConfig.groupSeverityCalculator(),
+                groupPaginationConfig.groupPaginationParams());
     }
 
     /**

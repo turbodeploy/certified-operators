@@ -6,6 +6,8 @@ import java.time.OffsetDateTime;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.Tables;
 import com.vmturbo.extractor.schema.enums.AttrType;
+import com.vmturbo.extractor.schema.enums.CostCategory;
+import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -195,5 +197,71 @@ public class ModelDefinitions {
 
     }
 
-}
+    /**
+     * The entity_cost model.
+     */
+    public static class EntityCost {
+        /** TIME column. */
+        public static final Column<Timestamp> TIME = Column.timestampColumn(Tables.ENTITY_COST.TIME);
 
+        /** ENTITY_OID column. */
+        public static final Column<Long> ENTITY_OID = Column.longColumn(Tables.ENTITY_COST.ENTITY_OID);
+
+        /** CATEGORY column. */
+        public static final Column<CostCategory> CATEGORY = Column.costCategoryColumn(Tables.ENTITY_COST.CATEGORY);
+
+        /** SOURCE column. */
+        public static final Column<CostSource> SOURCE = Column.costSourceColumn(Tables.ENTITY_COST.SOURCE);
+
+        /** COST column. */
+        public static final Column<Float> COST = Column.floatColumn(Tables.ENTITY_COST.COST.getName());
+
+        /** TABLE containing all the columns. */
+        public static final Table TABLE = Table.named(Tables.ENTITY_COST.getName())
+                .withColumns(TIME,
+                        ENTITY_OID,
+                        CATEGORY,
+                        SOURCE,
+                        COST)
+                .build();
+    }
+
+    /**
+     * Table definition for cloud_service_cost table having billing account expense data.
+     */
+    public static class CloudServiceCost {
+        /**
+         * Timestamp column.
+         */
+        public static final Column<Timestamp> TIME = Column.timestampColumn(
+                Tables.CLOUD_SERVICE_COST.TIME);
+
+        /**
+         * Business account oid.
+         */
+        public static final Column<Long> ACCOUNT_OID = Column.longColumn(
+                Tables.CLOUD_SERVICE_COST.ACCOUNT_OID);
+
+        /**
+         * Cloud service oid.
+         */
+        public static final Column<Long> CLOUD_SERVICE_OID = Column.longColumn(
+                Tables.CLOUD_SERVICE_COST.CLOUD_SERVICE_OID);
+
+        /**
+         * Cloud service cost ($/hr).
+         */
+        public static final Column<Double> COST = Column.doubleColumn(
+                Tables.CLOUD_SERVICE_COST.COST.getName());
+
+        /**
+         * Cloud service cost table.
+         */
+        public static final Table TABLE = Table.named(Tables.CLOUD_SERVICE_COST.getName())
+                .withColumns(TIME,
+                        ACCOUNT_OID,
+                        CLOUD_SERVICE_OID,
+                        COST)
+                .build();
+    }
+}

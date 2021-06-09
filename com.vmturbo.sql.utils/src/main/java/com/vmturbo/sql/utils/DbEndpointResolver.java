@@ -69,6 +69,8 @@ public class DbEndpointResolver {
     public static final String ROOT_USER_NAME_PROPERTY = "rootUserName";
     /** dbRootPassword property. */
     public static final String ROOT_PASSWORD_PROPERTY = "rootPassword";
+    /** dbRootAccessEnabled property. */
+    public static final String ROOT_ACCESS_ENABLED_PROPERTY = "rootAccessEnabled";
     /** dbDriverProperties property. */
     public static final String DRIVER_PROPERTIES_PROPERTY = "driverProperties";
     /** dbSecure property. */
@@ -142,11 +144,11 @@ public class DbEndpointResolver {
         resolveAccess();
         resolveRootUserName();
         resolveRootPassword();
+        resolveRootAccessEnabled();
         resolveDriverProperties();
         resolveSecure();
         resolveMigrationLocations();
         resolveFlywayCallbacks();
-        resolveDestructiveProvisioningEnabled();
         resolveEndpointEnabled();
         resolveShouldProvisionDatabase();
         resolveShouldProvisionUser();
@@ -254,6 +256,20 @@ public class DbEndpointResolver {
     }
 
     /**
+     * Resolve the rootAccessEnabled property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if endpoint has bad dialect
+     */
+    public void resolveRootAccessEnabled() throws UnsupportedDialectException {
+        final String configuredValue = config.isRootAccessEnabled() != null
+                ? Boolean.toString(config.isRootAccessEnabled()) : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::isRootAccessEnabled);
+        config.setRootAccessEnabled(Boolean.parseBoolean(
+                firstNonNull(configuredPropValue(ROOT_ACCESS_ENABLED_PROPERTY),
+                        configuredValue, fromTemplate, "false")));
+    }
+
+    /**
      * Resolve the dbRootPassword for this endpoint.
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
@@ -329,20 +345,6 @@ public class DbEndpointResolver {
                     getFromTemplate(template, DbEndpointConfig::getFlywayCallbacks);
             config.setFlywayCallbacks(fromTemplate != null ? fromTemplate : new FlywayCallback[0]);
         }
-    }
-
-    /**
-     * Resolve the dbDestructiveProvisioningEnabled property for this endpoint.
-     *
-     * @throws UnsupportedDialectException if endpoint has bad dialect
-     */
-    public void resolveDestructiveProvisioningEnabled() throws UnsupportedDialectException {
-        final String currentValue = config.getDestructiveProvisioningEnabled() != null
-                ? config.getDestructiveProvisioningEnabled().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDestructiveProvisioningEnabled);
-        config.setDestructiveProvisioningEnabled(Boolean.parseBoolean(firstNonNull(
-                configuredPropValue(DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY),
-                currentValue, fromTemplate, Boolean.FALSE.toString())));
     }
 
     /**
@@ -437,11 +439,11 @@ public class DbEndpointResolver {
     static List<String> dialectPropertyPrefixes(SQLDialect dialect) throws UnsupportedDialectException {
         switch (dialect) {
             case MYSQL:
-                return Arrays.asList("dbs.mysqlDefault", "dbs.mariadbDefault", null);
+                return Arrays.asList("dbs.mysqlDefault", "dbs.mariadbDefault");
             case MARIADB:
-                return Arrays.asList("dbs.mariadbDefault", "dbs.mysqlDefault", null);
+                return Arrays.asList("dbs.mariadbDefault", "dbs.mysqlDefault");
             case POSTGRES:
-                return Arrays.asList("dbs.postgresDefault", null);
+                return Arrays.asList("dbs.postgresDefault");
             default:
                 throw new UnsupportedDialectException(dialect);
         }

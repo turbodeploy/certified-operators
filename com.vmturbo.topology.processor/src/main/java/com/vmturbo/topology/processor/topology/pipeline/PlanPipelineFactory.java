@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinitionBuilder;
+import com.vmturbo.components.common.pipeline.SegmentStage.SegmentDefinition;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
@@ -265,16 +266,20 @@ public class PlanPipelineFactory {
             .addStage(new GraphCreationStage())
             .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
             .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
-            .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-            .addStage(new EnvironmentTypeStage(environmentTypeInjector))
-            .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
-            .addStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
-            .addStage(new PolicyStage(policyManager, changes))
-            .addStage(new IgnoreConstraintsStage(groupServiceClient, changes))
-            .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
-            .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingConfig))
-            .addStage(new SettingsUploadStage(entitySettingsResolver))
-            .addStage(new SettingsApplicationStage(settingsApplicator))
+            .addStage(SegmentDefinition
+                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
+                .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
+                .finalStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
+                .asStage("ScopingSegment"))
+            .addStage(SegmentDefinition
+                .addStage(new PolicyStage(policyManager, changes))
+                .addStage(new IgnoreConstraintsStage(groupServiceClient, changes))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
+                .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingConfig))
+                .addStage(new SettingsUploadStage(entitySettingsResolver))
+                .finalStage(new SettingsApplicationStage(settingsApplicator))
+                .asStage("SettingsAndPoliciesSegment"))
             .addStage(new PostStitchingStage(stitchingManager))
             .addStage(new EntityValidationStage(entityValidator, true))
             .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))

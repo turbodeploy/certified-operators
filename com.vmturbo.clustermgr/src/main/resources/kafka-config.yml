@@ -106,4 +106,5 @@ topics:
       retention.ms: 86400000 # 86400k ms = 24 hr
   - topic: exporter
     properties:
-      retention.ms: 7200000 # 2 hrs
+      retention.ms: 3600000 # 1 hour
+      compression.type: snappy # reduce kafka disk usage with compression on the json object

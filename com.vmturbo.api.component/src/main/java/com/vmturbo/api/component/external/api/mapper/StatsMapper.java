@@ -664,6 +664,11 @@ public class StatsMapper {
                         commodityRequestBuilder.setRelatedEntityType(
                             normalizeRelatedType(stat.getRelatedEntityType()));
                     }
+                    if (stat.getHistoryType() != null) {
+                        // this is the type of history requested for the commodity.
+                        // TODO: use this instead of groupBy for percentile.
+                        commodityRequestBuilder.setHistoryType(stat.getHistoryType().getHistoryTypeName());
+                    }
                     filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
                 }
             }

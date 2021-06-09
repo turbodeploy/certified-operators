@@ -29,6 +29,7 @@ import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -116,6 +117,7 @@ public class BoughtCommoditiesInfoTest {
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -126,9 +128,12 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(2)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(4).setMin(1).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder().setUsage(usageStat)
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setCapacity(TWO_VALUE_STAT).build())
                 .build();
 
         final StatRecord record =
@@ -167,6 +172,7 @@ public class BoughtCommoditiesInfoTest {
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -177,9 +183,12 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(1)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
                 .setPeak(StatValue.newBuilder().setAvg(1).setMax(2).setMin(1).setTotal(1).setTotalMax(2).setTotalMin(1).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder().setUsage(usageStat)
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setCapacity(StatsAccumulator.singleStatValue((float)providerCapacity)).build())
                 .build();
 
         final StatRecord record =
@@ -233,6 +242,7 @@ public class BoughtCommoditiesInfoTest {
                         Collections.singleton(vmBuyingTwiceSameProvider.getOid()), Collections.emptySet())
                         .orElseThrow(() -> new RuntimeException("expected record"));
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -243,9 +253,12 @@ public class BoughtCommoditiesInfoTest {
                 .setCurrentValue(3)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).setTotalMax(6).setTotalMin(6).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(TWO_VALUE_STAT).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -266,6 +279,7 @@ public class BoughtCommoditiesInfoTest {
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -275,9 +289,12 @@ public class BoughtCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(TWO_VALUE_STAT).build())
                 .build();
 
         final StatRecord record =
@@ -303,6 +320,7 @@ public class BoughtCommoditiesInfoTest {
                 info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_1.getOid()), Collections.emptySet())
                         .orElseThrow(() -> new RuntimeException("Expected record"));
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
@@ -313,9 +331,12 @@ public class BoughtCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue((float)providerCapacity)).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -345,15 +366,19 @@ public class BoughtCommoditiesInfoTest {
                 info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_NO_PROVIDER.getOid()), Collections.emptySet())
                         .orElseThrow(() -> new RuntimeException("Expected record"));
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 .setCapacity(StatsAccumulator.singleStatValue(0))
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 .setCurrentValue(2)
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue(0)).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -385,16 +410,21 @@ public class BoughtCommoditiesInfoTest {
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
 
+        StatValue usageStat = StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build();
+        StatValue capacityStat = new StatsAccumulator().record(0).record(providerCapacity).toStatValue();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
-                .setCapacity(new StatsAccumulator().record(0).record(providerCapacity).toStatValue())
+                .setCapacity(capacityStat)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 .setCurrentValue(4)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
                 .setPeak(StatValue.newBuilder().setAvg(4).setMax(9).setMin(2).setTotal(8).setTotalMax(12).setTotalMin(8).build())
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(capacityStat).build())
                 .build();
 
         final StatRecord record =
@@ -582,6 +612,8 @@ public class BoughtCommoditiesInfoTest {
         final float expectedUsed = (float)provider1used;
         final float expectedPeak = (float)provider1peak;
         final float expectedCapacity = provider1Capacity.get().floatValue();
+        StatValue usageStat = StatValue.newBuilder().setAvg(expectedUsed).setMax(expectedPeak).setMin(expectedUsed)
+                .setTotal(expectedUsed).setTotalMax(expectedPeak).setTotalMin(expectedUsed).build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 .setProviderUuid(String.valueOf(provider1Oid))
@@ -589,10 +621,12 @@ public class BoughtCommoditiesInfoTest {
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 .setCurrentValue(expectedUsed)
-                .setUsed(StatValue.newBuilder().setAvg(expectedUsed).setMax(expectedPeak).setMin(expectedUsed).setTotal(expectedUsed).setTotalMax(expectedPeak).setTotalMin(expectedUsed).build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder().setAvg(expectedUsed).setMax(expectedPeak).setMin(expectedUsed).setTotal(expectedUsed).setTotalMax(expectedPeak).setTotalMin(expectedUsed).build())
                 .setPeak(StatValue.newBuilder().setAvg(expectedUsed).setMax(expectedPeak).setMin(expectedUsed).setTotal(expectedUsed).setTotalMax(expectedPeak).setTotalMin(expectedUsed).build())
-
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(StatsAccumulator.singleStatValue(expectedCapacity)).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -652,27 +686,29 @@ public class BoughtCommoditiesInfoTest {
 
 
         final float expectedAverage = (float)(provider1used + provider2used) / 2;
+        StatValue usageStat = StatValue.newBuilder()
+                .setAvg(expectedAverage)
+                .setMax((float)Math.max(provider1peak, provider2peak))
+                .setMin((float)Math.min(provider1used, provider2used))
+                .setTotal((float)(provider1used + provider2used))
+                .setTotalMax((float)(provider1peak + provider2peak))
+                .setTotalMin((float)(provider1used + provider2used))
+                .build();
+        StatValue capacityStat = StatValue.newBuilder()
+                .setAvg((float)(provider1Capacity.get() + provider2Capacity.get()) / 2)
+                .setMax((float)Math.max(provider1Capacity.get(), provider2Capacity.get()))
+                .setMin((float)Math.min(provider1Capacity.get(), provider2Capacity.get()))
+                .setTotal((float)(provider1Capacity.get() + provider2Capacity.get()))
+                .setTotalMax((float)(provider1Capacity.get() + provider2Capacity.get()))
+                .setTotalMin((float)(provider1Capacity.get() + provider2Capacity.get()))
+                .build();
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
-                .setCapacity(StatValue.newBuilder()
-                        .setAvg((float)(provider1Capacity.get() + provider2Capacity.get()) / 2)
-                        .setMax((float)Math.max(provider1Capacity.get(), provider2Capacity.get()))
-                        .setMin((float)Math.min(provider1Capacity.get(), provider2Capacity.get()))
-                        .setTotal((float)(provider1Capacity.get() + provider2Capacity.get()))
-                        .setTotalMax((float)(provider1Capacity.get() + provider2Capacity.get()))
-                        .setTotalMin((float)(provider1Capacity.get() + provider2Capacity.get()))
-                        .build())
+                .setCapacity(capacityStat)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 .setCurrentValue(expectedAverage)
-                .setUsed(StatValue.newBuilder()
-                        .setAvg(expectedAverage)
-                        .setMax((float)Math.max(provider1peak, provider2peak))
-                        .setMin((float)Math.min(provider1used, provider2used))
-                        .setTotal((float)(provider1used + provider2used))
-                        .setTotalMax((float)(provider1peak + provider2peak))
-                        .setTotalMin((float)(provider1used + provider2used))
-                        .build())
+                .setUsed(usageStat)
                 .setValues(StatValue.newBuilder()
                         .setAvg(expectedAverage)
                         .setMax((float)Math.max(provider1peak, provider2peak))
@@ -689,7 +725,10 @@ public class BoughtCommoditiesInfoTest {
                         .setTotalMax((float)(provider1peak + provider2peak))
                         .setTotalMin((float)(provider1used + provider2used))
                         .build())
-                .build();
+                .addHistUtilizationValue(StatRecord.HistUtilizationValue.newBuilder()
+                        .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                        .setUsage(usageStat).setCapacity(capacityStat)
+                        .build()).build();
         assertEquals(expectedStatRecord, record);
     }
 

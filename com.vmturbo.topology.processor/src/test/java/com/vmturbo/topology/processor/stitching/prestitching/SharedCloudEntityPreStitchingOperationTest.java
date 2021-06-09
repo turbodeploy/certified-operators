@@ -3,7 +3,9 @@ package com.vmturbo.topology.processor.stitching.prestitching;
 import static com.vmturbo.stitching.PreStitchingOperationLibrary.AZURE_ENTITY_TYPES;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -30,6 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -251,6 +254,46 @@ public class SharedCloudEntityPreStitchingOperationTest {
     }
 
     /**
+     * Test that shared entities are merged properly when one of the entities is a proxy.
+     */
+    @Test
+    public void testMergeSharedEntitiesWithProxy() {
+        final StitchingContext.Builder stitchingContextBuilder =
+                StitchingContext.newBuilder(2, targetStore)
+                        .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
+
+        final long regionOid = 1;
+        final String regionId = "azure-West US";
+
+        // Target 1 sends proxy Region entity with more recent last update time
+        final EntityDTO.Builder region1 = newEntity(regionId, EntityType.REGION)
+                .setOrigin(EntityOrigin.PROXY);
+        final Map<String, StitchingEntityData> entityByLocalId1 = new HashMap<>();
+        addStitchingEntity(entityByLocalId1, region1, regionOid, 1, 2000);
+        entityByLocalId1.values().forEach(d -> stitchingContextBuilder.addEntity(d, entityByLocalId1));
+
+        // Target 2 sends real Region entity
+        final EntityDTO.Builder region2 = newEntity(regionId, EntityType.REGION)
+                .setOrigin(EntityOrigin.DISCOVERED);
+        final Map<String, StitchingEntityData> entityByLocalId2 = new HashMap<>();
+        addStitchingEntity(entityByLocalId2, region2, regionOid, 2, 1000);
+        entityByLocalId2.values().forEach(d -> stitchingContextBuilder.addEntity(d, entityByLocalId2));
+
+        final StitchingContext stitchingContext = stitchingContextBuilder.build();
+
+        // Perform operations
+        performOperations(stitchingContext, AZURE_OPERATIONS);
+
+        // We expect one merged Region entity
+        assertEquals(1, stitchingContext.getStitchingGraph().entityCount());
+        assertEquals(1, stitchingContext.getEntitiesOfType(EntityType.REGION).count());
+
+        // The proxy region should be discarded, the real region should be preserved
+        assertFalse(stitchingContext.getEntity(region1).isPresent());
+        assertTrue(stitchingContext.getEntity(region2).isPresent());
+    }
+
+    /**
      * Benchmark for {@link SharedCloudEntityPreStitchingOperation}.
      */
     @Ignore("Time-consuming test")
@@ -289,14 +332,27 @@ public class SharedCloudEntityPreStitchingOperationTest {
                 .setEntityType(entityType);
     }
 
-    private static void addStitchingEntity(Map<String, StitchingEntityData> entityByLocalId,
-            Builder entityDtoBuilder, long oid, long targetId) {
+    private static void addStitchingEntity(
+            final Map<String, StitchingEntityData> entityByLocalId,
+            final Builder entityDtoBuilder,
+            final long oid,
+            final long targetId,
+            final long lastUpdatedTime) {
         entityByLocalId.put(entityDtoBuilder.getId(),
                 StitchingEntityData.newBuilder(entityDtoBuilder)
                         .oid(oid)
                         .targetId(targetId)
                         .supportsConnectedTo(true)
+                        .lastUpdatedTime(lastUpdatedTime)
                         .build());
+    }
+
+    private static void addStitchingEntity(
+            final Map<String, StitchingEntityData> entityByLocalId,
+            final Builder entityDtoBuilder,
+            final long oid,
+            final long targetId) {
+        addStitchingEntity(entityByLocalId, entityDtoBuilder, oid, targetId, 0);
     }
 
     private void performOperations(StitchingContext stitchingContext,

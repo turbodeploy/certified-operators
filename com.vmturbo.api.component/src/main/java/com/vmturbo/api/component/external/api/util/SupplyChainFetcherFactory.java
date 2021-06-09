@@ -58,11 +58,11 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -275,6 +275,20 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
+     * Calls the expand aggregate function with {@link #ENTITY_TYPES_TO_EXPAND}.
+     *
+     * @param entityOidsToExpand the input set of ServiceEntity oids
+     * @return the input set with oids of aggregating entities substituted by their expansions along with the types
+     *     that were included in expansion.
+     */
+    public ScopeExpansionResult expandAggregatedEntitiesWithTypes(Set<Long> entityOidsToExpand) {
+        return expandAggregatedEntitiesWithTypes(
+                Collections.singletonMap(PLACEHOLDER_KEY, entityOidsToExpand),
+                ApiEntityType.ENTITY_TYPES_TO_EXPAND)
+                .get(PLACEHOLDER_KEY);
+    }
+
+    /**
      * Expand aggregator entities according to the a given entity map.
      *
      * <p>The method takes a set of entity oids. It expands each entity whose type
@@ -290,6 +304,26 @@ public class SupplyChainFetcherFactory {
      */
     private Map<Long, Set<Long>> expandAggregatedEntities(Map<Long, Set<Long>> entityOidsToExpand,
                                               Map<ApiEntityType, Set<ApiEntityType>>  expandingMap) {
+        return expandAggregatedEntitiesWithTypes(entityOidsToExpand, expandingMap).entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, mapEntry -> mapEntry.getValue().getExpandedScope()));
+    }
+
+    /**
+     * Expand aggregator entities according to the a given entity map.
+     *
+     * <p>The method takes a set of entity oids. It expands each entity whose type
+     * is in the key set of the given map to the aggregated entities
+     * of the corresponding type. It will leave all other entities unchanged. For
+     * example, if the input set of oids contains the oids of a datacenter and a VM,
+     * the result will contain the oids of the VM and all the PMs aggregated by
+     * the datacenter.</p>
+     *
+     * @param entityOidsToExpand the input set of ServiceEntity oids
+     * @return the input set with oids of aggregating entities substituted by their
+     *         expansions
+     */
+    private Map<Long, ScopeExpansionResult> expandAggregatedEntitiesWithTypes(Map<Long, Set<Long>> entityOidsToExpand,
+                                                          Map<ApiEntityType, Set<ApiEntityType>>  expandingMap) {
         // Build up a list of ApiIds for all the ids in the input. This is to help do the
         // expansion in bulk, and utilize any client-side cached information about these ids.
         Map<Long, ApiId> allIds = entityOidsToExpand.values().stream()
@@ -298,7 +332,10 @@ public class SupplyChainFetcherFactory {
                     (o1, o2) -> o1));
         if (allIds.isEmpty()) {
             // If there are no entities we just have a bunch of empty lists.
-            return entityOidsToExpand;
+            return entityOidsToExpand.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            mapEntry -> new ScopeExpansionResult(Collections.emptySet(), mapEntry.getValue())));
         }
 
         // Ensure that the entity oids are resolved (i.e. we know if its an entity).
@@ -309,13 +346,13 @@ public class SupplyChainFetcherFactory {
         List<SupplyChainSeed> supplyChainSeeds = new ArrayList<>(entityOidsToExpand.size());
         // This will be the response, containing the set of entities each seed should be expanded
         // to.
-        final Map<Long, Set<Long>> expandedResponse = new HashMap<>(entityOidsToExpand.size());
+        final Map<Long, ScopeExpansionResult> expandedResponse = new HashMap<>(entityOidsToExpand.size());
         for (Entry<Long, Set<Long>> inputOidGroup : entityOidsToExpand.entrySet()) {
             Long oidGroupIdx = inputOidGroup.getKey();
             Collection<Long> oidGroup = inputOidGroup.getValue();
             Set<Long> unexpandedOids = new HashSet<>();
             Set<Long> oidsToExpand = new HashSet<>();
-            Set<ApiEntityType> typesToExpandTo = new HashSet<>();
+            Set<ApiEntityType> apiEntityTypesToExpandTo = new HashSet<>();
             oidGroup.forEach(oid -> {
                 ApiId id = allIds.get(oid);
                 if (id.isEntity()) {
@@ -324,7 +361,7 @@ public class SupplyChainFetcherFactory {
                         Set<ApiEntityType> expandTo = expandingMap.get(entityInfo.getEntityType());
                         if (!CollectionUtils.isEmpty(expandTo)) {
                             oidsToExpand.add(oid);
-                            typesToExpandTo.addAll(expandTo);
+                            apiEntityTypesToExpandTo.addAll(expandTo);
                         } else {
                             unexpandedOids.add(oid);
                         }
@@ -336,7 +373,8 @@ public class SupplyChainFetcherFactory {
             });
 
             // This adds the unexpanded oids to the response at the right index.
-            expandedResponse.put(oidGroupIdx, unexpandedOids);
+            Set<Integer> typesToExpandTo = apiEntityTypesToExpandTo.stream().map(ApiEntityType::typeNumber).collect(Collectors.toSet());
+            expandedResponse.put(oidGroupIdx, new ScopeExpansionResult(typesToExpandTo, unexpandedOids));
 
             // If some of the entities in this group of oids need to be expanded, we add a
             // supply chain seed for this group.
@@ -347,7 +385,7 @@ public class SupplyChainFetcherFactory {
                         .setScope(SupplyChainScope.newBuilder()
                             .addAllStartingEntityOid(oidsToExpand));
                 // Only want the types we are looking to expand to.
-                typesToExpandTo.forEach(t -> seedBldr.getScopeBuilder().addEntityTypesToInclude(t.typeNumber()));
+                typesToExpandTo.forEach(t -> seedBldr.getScopeBuilder().addEntityTypesToInclude(t));
                 supplyChainSeeds.add(seedBldr.build());
             }
         }
@@ -361,14 +399,19 @@ public class SupplyChainFetcherFactory {
                         for (SupplyChainNode relatedEntities : response.getSupplyChain().getSupplyChainNodesList()) {
                             // Add the expanded entities into the response at the index specified by
                             // the seed.
-                            expandedResponse.computeIfAbsent(response.getSeedOid(), k -> new HashSet<>()).addAll(
-                                    RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                            expandedResponse.computeIfAbsent(
+                                    response.getSeedOid(),
+                                    k -> new ScopeExpansionResult(Collections.emptySet(), Collections.emptySet()))
+                                    .addAllToExpandedScope(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
                         }
                     } else if (response.hasError()) {
                         if (response.hasSeedOid()) {
+                            final long seedOid = response.getSeedOid();
                             logger.error("Failed to get supply chain for seed {}. Error: {}",
-                                    entityOidsToExpand.get(response.getSeedOid()), response.getError());
-                            expandedResponse.put(response.getSeedOid(), entityOidsToExpand.get(response.getSeedOid()));
+                                    entityOidsToExpand.get(seedOid), response.getError());
+                            expandedResponse.put(seedOid,
+                                    new ScopeExpansionResult(Collections.emptySet(),
+                                            entityOidsToExpand.get(seedOid)));
                         } else {
                             logger.error("Failed to get supply chain. Error: {}", response.getError());
                         }
@@ -378,7 +421,10 @@ public class SupplyChainFetcherFactory {
                 logger.error("Failed to query supply chain service. Error: {}. Returning unexpanded seeds.", e.toString());
                 supplyChainSeeds.forEach(seed -> {
                     // Include unexpanded seed.
-                    expandedResponse.put(seed.getSeedOid(), entityOidsToExpand.get(seed.getSeedOid()));
+                    final long seedOid = seed.getSeedOid();
+                    expandedResponse.put(seedOid,
+                            new ScopeExpansionResult(Collections.emptySet(),
+                                    entityOidsToExpand.get(seedOid)));
                 });
             }
         }
@@ -1506,6 +1552,41 @@ public class SupplyChainFetcherFactory {
                     .add("includeHealthSummary", includeHealthSummary)
                     .add("actionOrchestratorAvailable", actionOrchestratorAvailable)
                     .toString();
+        }
+    }
+
+    /**
+     * A representation of the results of scope expansion.
+     */
+    public class ScopeExpansionResult {
+
+        // The set of expanded entity ids
+        private Set<Long> expandedScope;
+
+        // The types of entities for which scope expansion was attempted
+        private Set<Integer> derivedTypes;
+
+        /**
+         * Create a representation of the results of scope expansion.
+         *
+         * @param derivedTypes the entity types for which scope expansion was attempted (if any)
+         * @param expandedScope the resulting scope after scope expansion
+         */
+        public ScopeExpansionResult(Set<Integer> derivedTypes, Set<Long> expandedScope) {
+            this.expandedScope = new HashSet<>(expandedScope);
+            this.derivedTypes = Collections.unmodifiableSet(derivedTypes);
+        }
+
+        public void addAllToExpandedScope(Set<Long> allMemberOids) {
+            expandedScope.addAll(allMemberOids);
+        }
+
+        public Set<Long> getExpandedScope() {
+            return expandedScope;
+        }
+
+        public Set<Integer> getDerivedTypes() {
+            return derivedTypes;
         }
     }
 }

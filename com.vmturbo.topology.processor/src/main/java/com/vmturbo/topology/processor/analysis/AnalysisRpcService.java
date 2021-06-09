@@ -133,9 +133,9 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
     }
 
     /**
-     * Get the types of analysis which should be run for this plan. MARKET_ANALYSIS is always
-     * added. Only run WASTED_FILES if there are related targets added, and do not run it for
-     * cloud migration plan.
+     * Get the types of analysis which should be run for this plan. MARKET_ANALYSIS will be added
+     * for most plan types that do not handle buying RIs.  Plans that buy RIs will run
+     * BUY_RI_IMPACT_ANALYSIS. WASTED_FILES will be added alongside MARKET_ANALYSIS in some circumstances.
      *
      * @param planType the type of the plan
      * @param planSubType the sub-type of the plan
@@ -146,21 +146,19 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
     Set<AnalysisType> getAnalysisTypes(@Nonnull String planType,
                                                @Nonnull String planSubType,
                                                @Nonnull TopologyHandler topologyHandler) {
-        // Run buy RI impact analysis on newly Bought RIs (Buy RI recommendations), if this is OCP with RI buy only,
-        // or it is OCP with RI Buy plus Optimize Services and allowBoughtRiInAnalysis is false.
-        // OCP RI Buy Only => Always run Buy RI Impact Analysis, as Market analysis is not relevant here.
-        // OCP Optimize only (Market Optimization) => There will be no Bought RIs, hence neither Market Analysis nor
-        // Buy RI Impact Analysis is relevant here.
-        // OCP Buy RI + Optimize (Market Optimization) => Do only Market analysis of Bought RIs if allowBoughtRiInAnalysis
-        // is true (default).  Run Buy RI Impact Analysis only if allowBoughtRiInAnalysis is false.
         final Set<AnalysisType> analysisTypes = new HashSet<>();
-        if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(planType) &&
-            (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)
-             || (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType)
-                 && allowBoughtRiInAnalysis == false))) {
+        if (AnalysisRpcService.shouldRunBuyRIImpactAnalysis(planType, planSubType, allowBoughtRiInAnalysis)) {
+            // Relevant for plans that require buying RIs without optimization:
+            //  - OCP Option 1 (Buy RI + Optimize) when allowBoughtRiInAnalysis == false
+            //  - OCP Option 3 (Buy RI Only)
+            //  - Buy RI Plan
             analysisTypes.add(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
-        } else {    // real-time, on-prem plans, OCP Option 2 (Optimize only) or OCP Option 1 (Buy RI + Optimize) with
-                    // allowBoughtRiInAnalysis == true
+        } else {
+            // Relevant for plans requiring optimizations:
+            //   - Realtime
+            //   - On-Prem Plans, Cloud Migration, Optimize Container Cluster
+            //   - OCP Option 2 (Optimize Only)
+            //   - OCP Option 1 (Buy RI + Optimize) when allowBoughtRiInAnalysis == true
             analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
             // do not run wasted files analysis for Cloud Migration plan or if no related targets
             if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
@@ -170,6 +168,31 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
         }
 
         return analysisTypes;
+    }
+
+    /**
+     * Whether or not BUY_RI_IMPACT_ANALYSIS should be run.
+     *
+     * @param planType the type of plan.
+     * @param planSubType the sub type for the given plan.
+     * @param allowBoughtRIs whether the plan should allow bought RIs.
+     * @return whether or not BUY_RI_IMPACT_ANALYSIS should be run.
+     */
+    private static boolean shouldRunBuyRIImpactAnalysis(@Nonnull String planType,
+                                                        @Nonnull String planSubType,
+                                                        boolean allowBoughtRIs) {
+        if (StringConstants.BUY_RI_PLAN.equals(planType)) {
+            //Always run BUY_RI_IMPACT_ANALYSIS for Buy RI Plan
+            return true;
+        }
+        if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(planType)) {
+            // OCP RI Buy Only => Always run Buy RI Impact Analysis, as Market analysis is not relevant here.
+            // OCP Buy RI + Optimize (Market Optimization) => Run Buy RI Impact Analysis only if allowBoughtRiInAnalysis is false.
+            return (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)
+                || (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType)
+                && !allowBoughtRIs));
+        }
+        return false;
     }
 
     /**

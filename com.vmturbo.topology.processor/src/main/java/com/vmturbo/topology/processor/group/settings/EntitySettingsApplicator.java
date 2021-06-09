@@ -26,13 +26,14 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
@@ -47,7 +48,6 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStoreCommoditiesCreator;
@@ -152,8 +152,7 @@ public class EntitySettingsApplicator {
                         CommodityType.NET_THROUGHPUT),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.SwappingUtilization,
                         CommodityType.SWAPPING),
-                new UtilizationThresholdApplicator(EntitySettingSpecs.ReadyQueueUtilization,
-                        CommodityType.QN_VCPU),
+                new ReadyQueueUtilizationThresholdApplicator(),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.StorageAmountUtilization,
                         CommodityType.STORAGE_AMOUNT),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.StorageProvisionedUtilization,
@@ -180,6 +179,8 @@ public class EntitySettingsApplicator {
                         CommodityType.POOL_STORAGE),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.DBMemUtilization,
                         CommodityType.DB_MEM),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
+                        CommodityType.STORAGE_AMOUNT),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
@@ -289,15 +290,24 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
                         CommodityType.IO_THROUGHPUT),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIops, CommodityType.STORAGE_ACCESS),
+                // Applies to cloud entities only.
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationStorageAmount,
+                        CommodityType.STORAGE_AMOUNT),
                 new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
                                         new VmInstanceStoreCommoditiesCreator(),
-                                        new ComputeTierInstanceStoreCommoditiesCreator()),
+                                        new ComputeTierInstanceStoreCommoditiesCreator(),
+                                        topologyInfo),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.ACTIVE_SESSIONS),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.TOTAL_SESSIONS),
                 new OverrideCapacityByUserApplicator(EntitySettingSpecs.LatencyCapacity,
                                                CommodityType.STORAGE_LATENCY, graphWithSettings),
+                new OverrideCapacityByUserApplicator(EntitySettingSpecs.IOPSCapacity,
+                        CommodityType.STORAGE_ACCESS, graphWithSettings),
                 new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
@@ -891,6 +901,33 @@ public class EntitySettingsApplicator {
                     commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
+        }
+    }
+
+    /**
+     * Applies the CPU Ready Queue Utilization threshold setting to all the relevant commodities.
+     */
+    @ThreadSafe
+    private static class ReadyQueueUtilizationThresholdApplicator extends SingleSettingApplicator {
+
+        private static final Set<Integer> allQueueCommodities = ImmutableSet.of(
+                CommodityType.Q1_VCPU_VALUE, CommodityType.Q2_VCPU_VALUE,
+                CommodityType.Q3_VCPU_VALUE, CommodityType.Q4_VCPU_VALUE,
+                CommodityType.Q5_VCPU_VALUE, CommodityType.Q6_VCPU_VALUE,
+                CommodityType.Q7_VCPU_VALUE, CommodityType.Q8_VCPU_VALUE,
+                CommodityType.Q16_VCPU_VALUE, CommodityType.Q32_VCPU_VALUE,
+                CommodityType.Q64_VCPU_VALUE, CommodityType.QN_VCPU_VALUE);
+
+        private ReadyQueueUtilizationThresholdApplicator() {
+            super(EntitySettingSpecs.ReadyQueueUtilization);
+        }
+
+        @Override
+        protected void apply(@NotNull Builder entity, @NotNull Setting setting) {
+            final float settingValue = setting.getNumericSettingValue().getValue();
+            entity.getCommoditySoldListBuilderList().stream()
+                    .filter(commodity -> allQueueCommodities.contains(commodity.getCommodityType().getType()))
+                    .forEach(commodity -> commodity.setEffectiveCapacityPercentage(settingValue));
         }
     }
 

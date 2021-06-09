@@ -8,6 +8,8 @@ import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "CloudCostDTO.proto";
 import "CommonCost.proto";
+import "cost/EntityUptime.proto";
+import "cloud/CloudCommitmentDTO.proto";
 
 // NB All messages in this set of declarations are serialized in rdbms.
 // They are not modifiable, only extendable.
@@ -408,6 +410,35 @@ message Scale {
     // In this case we don't have information about current tier in change provider and we need to
     // get this information to be added to the action explanation.
     optional ActionEntity primary_provider = 5;
+
+    // Defines the cloud cost details
+    optional CloudSavingsDetails cloud_savings_details = 6;
+}
+
+message CloudSavingsDetails {
+    // cost details of the source provider.
+    optional TierCostDetails source_tier_cost_details = 1;
+    //cost details of the projected provider.
+    optional TierCostDetails projected_tier_cost_details = 2;
+
+    message TierCostDetails {
+        //on-demand rate of the tier.
+        optional common_dto.CurrencyAmount on_demand_rate  = 1;
+        //on demand cost of the tier.
+        optional common_dto.CurrencyAmount on_demand_cost  = 2;
+        //the cloud commitment info of the tier.
+        optional CloudCommitmentCoverage cloud_commitment_coverage = 3;
+    }
+
+    message CloudCommitmentCoverage {
+        //the coupons needed for the tier.
+        optional cloud_commitment_dto.CloudCommitmentAmount capacity = 1;
+        // the coupons covered for the tier
+        optional cloud_commitment_dto.CloudCommitmentAmount used = 2;
+    }
+
+    //the entity uptime.
+    optional cost.EntityUptimeDTO entity_uptime = 3;
 }
 
 message ChangeProvider {
@@ -470,6 +501,9 @@ message Resize {
     // The supplier who triggers the resize
     // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
     optional ActionEntity resize_trigger_trader = 9;
+
+    // The reason for the commodity being resized is populated for commodities with byProducts while resizing up.
+    optional topology.CommodityType reason = 10;
 }
 
 // Activate an existing deactivated entity.
@@ -588,6 +622,9 @@ message Allocate {
     // Workload tier that workload belongs to. It can be Compute Tier, Database Tier or Database
     // Server Tier.
     required ActionEntity workloadTier = 2;
+
+    // Defines the cloud cost details
+    optional CloudSavingsDetails cloud_savings_details = 3;
 }
 
 // Contains the information describing the recommendation for what

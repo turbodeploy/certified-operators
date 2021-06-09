@@ -1,11 +1,13 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
 
@@ -14,6 +16,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -42,7 +46,7 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
      */
     private final TraxNumber hourlyCost;
 
-    private final CostSource costSource;
+    private final CostSource costSource = CostSource.UNCLASSIFIED;
 
     private final CostCategory costCategory;
 
@@ -53,23 +57,20 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
      * @param couponsCovered the number of coupons covered by the RI
      * @param hourlyCost the hourly cost for using the RI
      * @param costCategory the cost category to record the journal entry
-     * @param costSource the cost source for the journal entry
      */
     public RIJournalEntry(
             @Nonnull final ReservedInstanceData riData,
             @Nonnull final TraxNumber couponsCovered,
             @Nonnull final TraxNumber hourlyCost,
-            @Nonnull final CostCategory costCategory,
-            @Nullable final CostSource costSource) {
+            @Nonnull final CostCategory costCategory) {
         this.riData = riData;
         this.couponsCovered = couponsCovered;
         this.hourlyCost = hourlyCost;
         this.costCategory = costCategory;
-        this.costSource = costSource;
     }
 
     @Override
-    public TraxNumber calculateHourlyCost(
+    public Collection<CostItem> calculateHourlyCost(
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
@@ -87,13 +88,19 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
         final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
         final TraxNumber fullPricePercentage =
                 Trax.trax(1.0, "100%").minus(discountPercentage).compute("full price portion");
-        return hourlyCost.times(fullPricePercentage).compute("hourly discounted RI");
+        final TraxNumber discountedHourlyCost = hourlyCost.times(fullPricePercentage).compute("hourly discounted RI");
+
+        return ImmutableList.of(
+                CostItem.builder()
+                        .costSourceLink(CostSourceLink.of(costSource))
+                        .cost(discountedHourlyCost)
+                        .build());
     }
 
     @Nonnull
     @Override
     public Optional<CostSource> getCostSource() {
-        return Optional.ofNullable(costSource);
+        return Optional.of(costSource);
     }
 
     @Nonnull

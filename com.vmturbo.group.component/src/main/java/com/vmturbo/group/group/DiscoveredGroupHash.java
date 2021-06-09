@@ -38,6 +38,8 @@ public class DiscoveredGroupHash {
             dos.write(0);
             dos.writeUTF(discoveredGroup.getSourceIdentifier());
             dos.write(0);
+            dos.writeBoolean(discoveredGroup.stitchAcrossTargets());
+            dos.write(0);
             for (long targetId : new TreeSet<>(discoveredGroup.getTargetIds())) {
                 dos.writeLong(targetId);
             }

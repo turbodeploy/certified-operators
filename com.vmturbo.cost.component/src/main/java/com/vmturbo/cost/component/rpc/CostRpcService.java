@@ -17,7 +17,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 
 import javax.annotation.Nonnull;
@@ -26,13 +25,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -78,13 +76,12 @@ import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.savings.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntitySavingsStore;
-import com.vmturbo.cost.component.savings.EntitySavingsTracker;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
@@ -125,7 +122,7 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntityCostStore entityCostStore;
 
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
 
@@ -159,7 +156,7 @@ public class CostRpcService extends CostServiceImplBase {
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
                           @Nonnull final EntityCostStore costStoreHouse,
-                          @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+                          @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
                           @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
                           @Nonnull final TimeFrameCalculator timeFrameCalculator,
                           @Nonnull final BusinessAccountHelper businessAccountHelper,
@@ -227,21 +224,19 @@ public class CostRpcService extends CostServiceImplBase {
                             .build())
                     .latestTimestampRequested(true)
                     .costSources(false,
-                        Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
+                        Collections.singleton(CostSource.ON_DEMAND_RATE))
                     .build());
             Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
             // Because we requested latest timestamp, every entity will have only one record.
             queryResult.forEach((timestamp, costByIdMap) ->
-                    costByIdMap.forEach((entityId, entityCost) -> {
-                        beforeEntityCostbyOid.put(entityId, entityCost);
-            }));
+                    costByIdMap.forEach(beforeEntityCostbyOid::put));
             final Map<Long, EntityCost> afterEntityCostbyOid;
             if (isPlanRequest) {
                 afterEntityCostbyOid = planProjectedEntityCostStore
                         .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId());
             } else {
                 final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
-                afterEntityCostbyOid = projectedEntityCostStore.getProjectedEntityCosts(filterBuilder.build());
+                afterEntityCostbyOid = projectedEntityCostStore.getEntityCosts(filterBuilder.build());
             }
             Map<Long, CurrencyAmount> beforeCurrencyAmountByOid = new HashMap<>();
             Map<Long, CurrencyAmount> afterCurrencyAmountByOid = new HashMap<>();
@@ -255,8 +250,8 @@ public class CostRpcService extends CostServiceImplBase {
                     CurrencyAmount amount = cost.getComponentCost(0).getAmount();
                     beforeCurrencyAmountByOid.put(id, amount);
                 } else {
-                    logger.error("No costs could be retrieved from database for entity having oid {}" +
-                            " .This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
+                    logger.error("No costs could be retrieved from database for entity having oid {}"
+                            + " .This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
                 }
             }
             for (Map.Entry<Long, EntityCost> entry : afterEntityCostbyOid.entrySet()) {
@@ -269,8 +264,8 @@ public class CostRpcService extends CostServiceImplBase {
                 if (componentCost != null) {
                     afterCurrencyAmountByOid.put(id, componentCost.getAmount());
                 } else {
-                    logger.debug("Projected on demand rate could not be found for entity having oid {}." +
-                            " This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
+                    logger.debug("Projected on demand rate could not be found for entity having oid {}."
+                            + " This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
                 }
             }
             responseObserver.onNext(GetTierPriceForEntitiesResponse.newBuilder()
@@ -546,8 +541,8 @@ public class CostRpcService extends CostServiceImplBase {
             // cost is requested
         } else {
             if (request.hasStartDate() || request.hasEndDate()) {
-                logger.warn("Request for account expense stats should have both start and end date" +
-                    " or neither of them. Ignoring the duration. Request : {}", request);
+                logger.warn("Request for account expense stats should have both start and end date"
+                        + " or neither of them. Ignoring the duration. Request : {}", request);
             }
 
             filterBuilder = AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST, realtimeTopologyContextId)
@@ -642,13 +637,14 @@ public class CostRpcService extends CostServiceImplBase {
                 responseObserver.onError(Status.INTERNAL
                         .withDescription("The request does not contain any queries.")
                         .asException());
+                return;
             }
             for (CloudCostStatsQuery request : getCloudCostStatsRequest.getCloudCostStatsQueryList()) {
                 final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
                 final EntityCostFilter entityCostFilter = filterBuilder.build();
 
-                Map<Long, Collection<StatRecord>> snapshotToEntityCostMap = entityCostStore
-                        .getEntityCostStats(entityCostFilter);
+                Map<Long, Collection<StatRecord>> snapshotToEntityCostMap = new HashMap<>();
+                snapshotToEntityCostMap.putAll(entityCostStore.getEntityCostStats(entityCostFilter));
 
                 Long projectedStatTime = null;
                 if (request.getRequestProjected()) {
@@ -663,10 +659,10 @@ public class CostRpcService extends CostServiceImplBase {
                                         request.getGroupByList(), entityCostFilter,
                                         request.getTopologyContextId());
                     } else if (projectCostStoreReady ) {
-                        projectedStatRecords = request.getGroupByList().isEmpty() ?
-                            projectedEntityCostStore.getProjectedStatRecords(entityCostFilter) :
-                            projectedEntityCostStore.getProjectedStatRecordsByGroup(request.getGroupByList(),
-                                    entityCostFilter);
+                        projectedStatRecords = request.getGroupByList().isEmpty()
+                                ? projectedEntityCostStore.getEntityCostStatRecords(entityCostFilter)
+                                : projectedEntityCostStore.getEntityCostStatRecordsByGroup(request.getGroupByList(),
+                                entityCostFilter);
                     }
                     if (projectCostStoreReady || isPlanRequest) {
                         snapshotToEntityCostMap.put(projectedStatTime, projectedStatRecords);
@@ -687,13 +683,13 @@ public class CostRpcService extends CostServiceImplBase {
                             Collection<StatRecord> entityCostMap = Iterables.getOnlyElement(values);
                             snapshotToEntityCostMap.put(projectedStatTime, entityCostMap);
                         } catch (IllegalArgumentException ex) {
-                            logger.warn("Found more than one entry for latest entity cost for " +
-                                            "following filter {}. Setting projected entity cost to empty",
+                            logger.warn("Found more than one entry for latest entity cost for "
+                                            + "following filter {}. Setting projected entity cost to empty",
                                     latestFilter);
                             snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyList());
                         } catch (NoSuchElementException ex) {
-                            logger.warn("Unable to find latest entity cost for filter {}. Setting" +
-                                            " projected entity cost to empty",
+                            logger.warn("Unable to find latest entity cost for filter {}. Setting"
+                                            + " projected entity cost to empty",
                                     latestFilter);
                             snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyList());
                         }
@@ -730,18 +726,18 @@ public class CostRpcService extends CostServiceImplBase {
                     responseBuilder.addCloudStatRecord(outerRecord);
                     innerRecordCount += outerRecord.getStatRecordsCount();
                 } else {
-                    logger.debug("Sending response chunk containing {} StatsRecords within " +
-                        "{} CloudCostStatRecords", innerRecordCount,
-                        responseBuilder.getCloudStatRecordCount());
+                    logger.debug("Sending response chunk containing {} StatsRecords within "
+                                    + "{} CloudCostStatRecords", innerRecordCount,
+                            responseBuilder.getCloudStatRecordCount());
                     responseObserver.onNext(responseBuilder.build());
                     responseBuilder.clear().addCloudStatRecord(outerRecord);
                     innerRecordCount = outerRecord.getStatRecordsCount();
                 }
             }
             if (innerRecordCount > 0) {
-                logger.debug("Sending response chunk containing {} StatsRecords within " +
-                        "{} CloudCostStatRecords", innerRecordCount,
-                    responseBuilder.getCloudStatRecordCount());
+                logger.debug("Sending response chunk containing {} StatsRecords within "
+                                + "{} CloudCostStatRecords", innerRecordCount,
+                        responseBuilder.getCloudStatRecordCount());
                 responseObserver.onNext(responseBuilder.build());
             }
             responseObserver.onCompleted();
@@ -766,8 +762,8 @@ public class CostRpcService extends CostServiceImplBase {
             // cost is requested
         } else {
             if (request.hasStartDate() || request.hasEndDate()) {
-                logger.warn("Request for cloud cost stats should have both start and end date" +
-                    " or neither of them. Ignoring the duration. Request : {}", request);
+                logger.warn("Request for cloud cost stats should have both start and end date"
+                        + " or neither of them. Ignoring the duration. Request : {}", request);
             }
 
             filterBuilder = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, realtimeTopologyContextId)
@@ -797,10 +793,7 @@ public class CostRpcService extends CostServiceImplBase {
 
         if (request.hasCostSourceFilter()) {
             filterBuilder.costSources(request.getCostSourceFilter().getExclusionFilter(),
-                request.getCostSourceFilter().getCostSourcesList()
-                    .stream()
-                    .map(CostSource::getNumber)
-                    .collect(Collectors.toSet()));
+                request.getCostSourceFilter().getCostSourcesList());
         }
 
         if (request.hasCostCategoryFilter()) {
@@ -822,6 +815,12 @@ public class CostRpcService extends CostServiceImplBase {
         if (request.hasRegionFilter()) {
             filterBuilder.regionIds(request.getRegionFilter().getRegionIdList());
         }
+
+        if (!request.getGroupByList().isEmpty()) {
+            filterBuilder.requestedGroupByEnums(request.getGroupByList());
+        }
+
+        filterBuilder.totalValuesRequested(request.getRequestTotalValues());
 
         return filterBuilder;
     }
@@ -860,9 +859,9 @@ public class CostRpcService extends CostServiceImplBase {
     }
 
     private Discount getDiscount(final UpdateDiscountRequest request) throws DiscountNotFoundException, DbException {
-        final List<Discount> discounts = request.hasAssociatedAccountId() ?
-                discountStore.getDiscountByAssociatedAccountId(request.getAssociatedAccountId()) :
-                discountStore.getDiscountByDiscountId(request.getDiscountId());
+        final List<Discount> discounts = request.hasAssociatedAccountId()
+                ? discountStore.getDiscountByAssociatedAccountId(request.getAssociatedAccountId())
+                : discountStore.getDiscountByDiscountId(request.getDiscountId());
         return discounts.stream()
                 .findFirst()
                 .orElseThrow(() -> new DiscountNotFoundException(FAILED_TO_FIND_THE_UPDATED_DISCOUNT));
@@ -883,7 +882,10 @@ public class CostRpcService extends CostServiceImplBase {
             final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
                     timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
-                    request.getEntityFilter().getEntityIdList());
+                    request.getEntityFilter().getEntityIdList(),
+                    request.getEntityTypeFilter().getEntityTypeIdList(),
+                    request.getBillingFamilyFilter().getBillingFamilyOidList(),
+                    request.getResourceGroupFilter().getResourceGroupOidList());
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
             records.forEach(responseObserver::onNext);
@@ -913,12 +915,11 @@ public class CostRpcService extends CostServiceImplBase {
         groupedStats.forEach((timestamp, statsList) -> {
             final EntitySavingsStatsRecord.Builder recBuilder = EntitySavingsStatsRecord.newBuilder()
                     .setSnapshotDate(timestamp);
-            statsList.forEach(aStat -> {
-                recBuilder.addStatRecords(SavingsRecord.newBuilder()
-                        .setName(aStat.getType().name())
-                        .setValue(aStat.getValue().floatValue())
-                        .build());
-            });
+            statsList.forEach(aStat ->
+                    recBuilder.addStatRecords(SavingsRecord.newBuilder()
+                            .setName(aStat.getType().name())
+                            .setValue(aStat.getValue().floatValue())
+                            .build()));
             records.add(recBuilder.build());
         });
         return records;

@@ -135,11 +135,23 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         }
     }
 
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
     @Override
     public String getDbSchemaName() {
         return dbSchemaName;
     }
 
+    @Override
+    public String getDbUsername() {
+        return authDbUsername;
+    }
     /**
      * Returns the root SQL DB username.
      * 1. if db username passed in from environment, use it, also store it to Consul.

@@ -16,12 +16,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 @ThreadSafe
 public class StitchingOperationStore {
     private final Logger logger = LogManager.getLogger();
+    private final CachedStitchingOperations cachedStitchingOperations;
 
     /**
      * A map from probeId to the list of stitching operations that that probe
@@ -57,8 +58,17 @@ public class StitchingOperationStore {
 
     private final StitchingOperationLibrary stitchingOperationLibrary;
 
-    public StitchingOperationStore(@Nonnull final StitchingOperationLibrary stitchingOperationLibrary) {
+    /**
+     * Creates an instance of a StitchingOperationStore
+     * @param stitchingOperationLibrary A library of stitching operations.
+     * @param stitchingMergeKubernetesProbeTypes Whether or not to cache stitching operations for
+     *                                   kubernetes probes
+     */
+    public StitchingOperationStore(@Nonnull final StitchingOperationLibrary stitchingOperationLibrary,
+                                   final boolean stitchingMergeKubernetesProbeTypes) {
         this.stitchingOperationLibrary = Objects.requireNonNull(stitchingOperationLibrary);
+        this.cachedStitchingOperations =
+            new CachedStitchingOperations(stitchingMergeKubernetesProbeTypes);
     }
 
     /**
@@ -106,9 +116,12 @@ public class StitchingOperationStore {
             // we have a data driven probe with no scope to stitch with, assume it is one of these
             // cases and sets probe scope to the probe's category.  This will go away once we
             // allow the probe scope to be set in a data driven manner.
-            List<StitchingOperation<?, ?>> operations =
-                    createStitchingOperationsFromProbeInfo(probeInfo,
-                            (probeScope.isEmpty() && category != ProbeCategory.CUSTOM) ? ImmutableSet.of(category) : probeScope);
+            final Set<ProbeCategory> updatedProbeScope =
+                probeScope.isEmpty() && category != ProbeCategory.CUSTOM ? ImmutableSet.of(category) : probeScope;
+            final List<StitchingOperation<?, ?>> operations =
+                cachedStitchingOperations.createOrGetCachedStitchingOperationsFromProbeInfo(probeInfo,
+                    updatedProbeScope);
+
             List<StitchingOperation<?, ?>> customOperations = stitchingOperationLibrary.stitchingOperationsFor(
                     probeInfo.getProbeType(), category);
 
@@ -174,20 +187,23 @@ public class StitchingOperationStore {
     private static List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
                     @Nonnull final ProbeInfo probeInfo,
                     @Nonnull final Set<ProbeCategory> probeScope) {
+        final ProbeCategory probeCategory = ProbeCategory.create(probeInfo.getProbeCategory());
         return probeInfo.getSupplyChainDefinitionSetList().stream()
                     .filter(TemplateDTO::hasMergedEntityMetaData)
-                    .map(tDTO -> createStitchingOperation(tDTO, probeScope))
+                    .map(tDTO -> createStitchingOperation(tDTO, probeScope, probeCategory))
                     .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Nullable
     private static StitchingOperation<?, ?> createStitchingOperation(
                     @Nonnull final TemplateDTO templateDTO,
-                    @Nonnull final Set<ProbeCategory> probeScope) {
+                    @Nonnull final Set<ProbeCategory> probeScope,
+                    @Nonnull ProbeCategory probeCategory) {
         final MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
         return new StringsToStringsDataDrivenStitchingOperation(
                         new StringsToStringsStitchingMatchingMetaData(
-                                        templateDTO.getTemplateClass(), memd), probeScope);
+                                        templateDTO.getTemplateClass(), memd), probeScope,
+                probeCategory);
     }
 
     @VisibleForTesting
@@ -259,6 +275,55 @@ public class StitchingOperationStore {
      */
     public void clearOperations() {
         operations.clear();
+    }
+
+    /**
+     * Class to handle the caching of stitching operations. Currently we only cache stitching
+     * operations for Kubernetes probes.
+     */
+    private class CachedStitchingOperations {
+
+        private static final String KUBERNETES = "Kubernetes";
+
+        private final boolean stitchingMergeKubernetesProbeTypes;
+        private final Map<String, List<StitchingOperation<?, ?>>> cachedOperationsPerProbeType =
+            new HashMap<>();
+
+        CachedStitchingOperations(final boolean stitchingMergeKubernetesProbeTypes) {
+            this.stitchingMergeKubernetesProbeTypes = stitchingMergeKubernetesProbeTypes;
+        }
+
+        List<StitchingOperation<?, ?>> createOrGetCachedStitchingOperationsFromProbeInfo(@Nonnull final ProbeInfo probeInfo,
+                                                                              @Nonnull final Set<ProbeCategory> probeScope) {
+            if (probeInfo.getProbeType().startsWith(KUBERNETES) && stitchingMergeKubernetesProbeTypes) {
+                return createStitchingOpsForKubernetes(probeInfo, probeScope);
+            }
+            return createStitchingOperationsFromProbeInfo(probeInfo, probeScope);
+        }
+
+        /**
+         * Create stitching operations for kubernetes probes. This method differs from
+         * {@link #createStitchingOperationsFromProbeInfo} in the fact that the operations are created
+         * only once and then cached. Subsequent calls will just get the cached operation. We need
+         * this for performance, since we have a configuration in which each kubernetes target is
+         * represented by a different probe type, even though they share the same properties. This
+         * special behavior should be removed once we address OM-70926.
+         * @param probeInfo Info for the probe whose operations should be added. The type and category
+         *                  fields of the info must be populated.
+         * @param probeScope Set of ProbeCategory that gives the ProbeCategories that the probe of
+         *                  this type stitches with.
+         * @return a list of stitching operations
+         */
+        private List<StitchingOperation<?, ?>> createStitchingOpsForKubernetes(@Nonnull final ProbeInfo probeInfo,
+        @Nonnull final Set<ProbeCategory> probeScope) {
+            if (cachedOperationsPerProbeType.containsKey(KUBERNETES)) {
+                return cachedOperationsPerProbeType.get(KUBERNETES);
+            }
+            final List<StitchingOperation<?, ?>> operations =
+                createStitchingOperationsFromProbeInfo(probeInfo, probeScope);
+            cachedOperationsPerProbeType.put(KUBERNETES, operations);
+            return operations;
+        }
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -86,10 +88,21 @@ public class TopologyConversionUtils {
                         .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
     }
 
+    /**
+     * Convert the Volume commodities that from market to the correct amount that comply with
+     * TopologyEntotyDTO unit.
+     *
+     * @param commodityType a commodity type
+     * @param valueToConvert the amount to be converted
+     * @param entityDTO the TopologyEntityDTO
+     * @param isCloudMigration whether the topology is cloud migration plan
+     * @return the amount after conversion
+     */
     static double convertMarketUnitToTopologyUnit(final int commodityType,
                                                   final double valueToConvert,
-                                                  @Nullable final TopologyEntityDTO entityDTO) {
-        if (entityDTO != null && isEntityConsumingCloud(entityDTO)
+                                                  @Nullable final TopologyEntityDTO entityDTO,
+                                                  final boolean isCloudMigration) {
+        if (entityDTO != null && (isEntityConsumingCloud(entityDTO) || isCloudMigration)
             && entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
             && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return valueToConvert * Units.KBYTE;
@@ -217,7 +230,7 @@ public class TopologyConversionUtils {
         if (actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE
                 && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return Units.KBYTE;
-        } else if (actionTargetEntityType == EntityType.DATABASE_VALUE && commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+        } else if (ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(actionTargetEntityType) && commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
             return Units.KBYTE;
         }
         return 1.0f;

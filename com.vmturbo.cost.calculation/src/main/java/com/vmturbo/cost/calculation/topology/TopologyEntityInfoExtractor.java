@@ -100,11 +100,11 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
     @Nonnull
     @Override
-    public Optional<Float> getRDBStorageCapacity(@Nonnull final TopologyEntityDTO entity) {
+    public Optional<Float> getRDBCommodityCapacity(@Nonnull final TopologyEntityDTO entity, @Nonnull CommodityType commodityType) {
         switch (entity.getEntityType()) {
             case EntityType.DATABASE_VALUE:
             case EntityType.DATABASE_SERVER_VALUE:
-                return getRawCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT);
+                return getRawCommodityCapacity(entity, commodityType);
             default:
                 return Optional.empty();
         }

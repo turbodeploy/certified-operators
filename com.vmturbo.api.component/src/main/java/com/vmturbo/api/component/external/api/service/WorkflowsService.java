@@ -1,8 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -12,13 +14,19 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Lists;
 
 import io.grpc.StatusRuntimeException;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
@@ -32,13 +40,16 @@ public class WorkflowsService implements IWorkflowsService {
     private final WorkflowServiceBlockingStub workflowServiceRpc;
     private final TargetsService targetsService;
     private final WorkflowMapper workflowMapper;
+    private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
 
     public WorkflowsService(@Nonnull WorkflowServiceBlockingStub workflowServiceRpc,
                             @Nonnull TargetsService targetsService,
-                            @Nonnull WorkflowMapper workflowMapper) {
+                            @Nonnull WorkflowMapper workflowMapper,
+                            @Nonnull SettingPolicyServiceBlockingStub settingsPoliciesService) {
         this.workflowServiceRpc = Objects.requireNonNull(workflowServiceRpc);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.workflowMapper = Objects.requireNonNull(workflowMapper);
+        this.settingPolicyRpcService = Objects.requireNonNull(settingsPoliciesService);
     }
 
     /**
@@ -54,7 +65,7 @@ public class WorkflowsService implements IWorkflowsService {
         // should we filter the workflows by Type?
         if (apiWorkflowType != null) {
             fetchWorkflowsBuilder.setOrchestratorType(WorkflowDTO.OrchestratorType
-                    .valueOf(apiWorkflowType.getName()));
+                    .valueOf(apiWorkflowType.name()));
         }
         // fetch the workflows
         WorkflowDTO.FetchWorkflowsResponse workflowsResponse = workflowServiceRpc
@@ -70,8 +81,12 @@ public class WorkflowsService implements IWorkflowsService {
             // check the local store for the corresponding targetApiDTO
             TargetApiDTO targetApiDTO = targetMap.get(workflowTargetOid);
             if (targetApiDTO == null) {
-                // Workflows with no valid target should not be included in the response
-                continue;
+                if (workflow.getWorkflowInfo().getType() == WorkflowDTO.OrchestratorType.WEBHOOK) {
+                    targetApiDTO = new TargetApiDTO();
+                } else {
+                    // Workflows with no valid target should not be included in the response
+                    continue;
+                }
             }
             WorkflowApiDTO dto = workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
             answer.add(dto);
@@ -89,25 +104,146 @@ public class WorkflowsService implements IWorkflowsService {
      * @throws UnknownObjectException if the target is not found
      */
     @Override
-    public WorkflowApiDTO getWorkflowByUuid(@Nonnull String workflowUuid) throws Exception {
+    public WorkflowApiDTO getWorkflowByUuid(@Nonnull String workflowUuid) throws UnknownObjectException {
         Objects.requireNonNull(workflowUuid);
         // fetch the desired workflow
-        WorkflowDTO.FetchWorkflowResponse fetchWorkflowResponse = workflowServiceRpc.fetchWorkflow(
-                WorkflowDTO.FetchWorkflowRequest.newBuilder()
-                        .setId(Long.valueOf(workflowUuid))
-                        .build());
-        // test to see if the workflow with that ID was found
-        if (fetchWorkflowResponse.hasWorkflow()) {
-            // found one
-            WorkflowDTO.Workflow workflow = fetchWorkflowResponse.getWorkflow();
-            // fetch the corresponding target
-            String workflowTargetOid = Long.toString(workflow.getWorkflowInfo().getTargetId());
-            TargetApiDTO targetApiDTO = targetsService.getTarget(workflowTargetOid);
-            // map the workflow and the target to {@link WorkflowApiDTO} and return it
-            return workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
-        } else {
-            // not found
-            throw new UnknownObjectException("Workflow with id: " + workflowUuid + " not found");
+        final WorkflowDTO.Workflow workflow = getWorkflowById(Long.parseLong(workflowUuid));
+        // fetch the corresponding target
+        String workflowTargetOid = Long.toString(workflow.getWorkflowInfo().getTargetId());
+        TargetApiDTO targetApiDTO = targetsService.getTarget(workflowTargetOid);
+        // map the workflow and the target to {@link WorkflowApiDTO} and return it
+        return workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
+    }
+
+    @Override
+    public WorkflowApiDTO addWorkflow(@Nonnull WorkflowApiDTO workflowApiDTO) throws InvalidOperationException {
+        if (workflowApiDTO.getType() != OrchestratorType.WEBHOOK) {
+            throw new InvalidOperationException("Workflows of type \"" + workflowApiDTO.getType()
+                + "\" cannot be added through API.");
         }
+
+        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
+                UUID.randomUUID().toString());
+        final WorkflowDTO.Workflow addedWorkflow =  workflowServiceRpc.createWorkflow(
+            WorkflowDTO.CreateWorkflowRequest
+                .newBuilder()
+                .setWorkflow(workflow)
+                .build())
+            .getWorkflow();
+
+        return workflowMapper.toUiWorkflowApiDTO(addedWorkflow, new TargetApiDTO());
+    }
+
+    @Override
+    public WorkflowApiDTO editWorkflow(@Nonnull String workflowUuid,
+                                       @Nonnull WorkflowApiDTO workflowApiDTO) throws UnknownObjectException, InvalidOperationException {
+        final long workflowId = Long.parseLong(workflowUuid);
+        final WorkflowDTO.Workflow currentWorkflow = getWorkflowById(workflowId);
+
+        verifyWorkflowCanBeModified(currentWorkflow);
+
+        // make sure we are still sending webhook information
+        if (workflowApiDTO.getType() != OrchestratorType.WEBHOOK) {
+            throw new InvalidOperationException("The type workflow \""
+                + currentWorkflow.getWorkflowInfo().getType() + "\" cannot be changed.");
+        }
+
+        final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
+                currentWorkflow.getWorkflowInfo().getName());
+        final WorkflowDTO.Workflow updatedWorkflow =  workflowServiceRpc.updateWorkflow(
+            WorkflowDTO.UpdateWorkflowRequest
+                .newBuilder()
+                .setId(workflowId)
+                .setWorkflow(workflow)
+                .build())
+            .getWorkflow();
+
+        return workflowMapper.toUiWorkflowApiDTO(updatedWorkflow, new TargetApiDTO());
+    }
+
+    @Override
+    public void deleteWorkflow(@Nonnull String workflowUuid) throws UnknownObjectException,
+          InvalidOperationException {
+        final long workflowId = Long.parseLong(workflowUuid);
+        final WorkflowDTO.Workflow currentWorkflow = getWorkflowById(workflowId);
+
+        verifyWorkflowCanBeModified(currentWorkflow);
+
+        // verify that workflow is not being used by a policy
+        List<SettingProto.SettingPolicy> workflows = getAssociatedPolicies(workflowId);
+
+        if (!workflows.isEmpty()) {
+            final String policyNames = workflows.stream()
+                .map(SettingProto.SettingPolicy::getInfo)
+                .map(SettingProto.SettingPolicyInfo::getDisplayName)
+                .collect(Collectors.joining(", "));
+            throw new InvalidOperationException("The workflow cannot be deleted as it is being used "
+                + " in the follow policies: " + policyNames + " .");
+        }
+
+        workflowServiceRpc.deleteWorkflow(WorkflowDTO.DeleteWorkflowRequest.newBuilder()
+            .setId(workflowId)
+            .build());
+    }
+
+    @Override
+    public void validateInput(@Nonnull WorkflowApiDTO workflowApiDTO) {
+        if (StringUtils.isEmpty(workflowApiDTO.getDisplayName())) {
+            throw new IllegalArgumentException("The \"displayName\" field cannot be blank.");
+        }
+
+        if (workflowApiDTO.getType() == OrchestratorType.WEBHOOK) {
+            if (workflowApiDTO.getScriptPath() != null) {
+                throw new IllegalArgumentException("\"scriptPath\" should not be set for webhook"
+                    + " workflows.");
+            }
+
+            if (CollectionUtils.isNotEmpty(workflowApiDTO.getParameters())) {
+                throw new IllegalArgumentException("\"parameters\" should not be set for webhook "
+                    + "workflows");
+            }
+
+            // if the type of workflow is webhook, the webhook details should be provided
+            if (!(workflowApiDTO.getTypeSpecificDetails() instanceof WebhookApiDTO)) {
+                throw new IllegalArgumentException("The \"typeSpecificDetails\" field should be of "
+                    + "type \"WebhookApiDTO\"");
+            }
+            final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+
+            if (!webhookApiDTO.getUrl().startsWith("http://")
+                  && !webhookApiDTO.getUrl().startsWith("https://") ) {
+                throw new IllegalArgumentException("The \"url\" field should start with \"http://\" or "
+                    + " \"https://\".");
+            }
+        }
+    }
+
+    @Nonnull
+    private WorkflowDTO.Workflow getWorkflowById(long workflowId) throws UnknownObjectException {
+        final WorkflowDTO.FetchWorkflowResponse fetchWorkflowResponse = workflowServiceRpc.fetchWorkflow(
+            WorkflowDTO.FetchWorkflowRequest.newBuilder()
+                .setId(workflowId)
+                .build());
+        if (fetchWorkflowResponse.hasWorkflow()) {
+            return fetchWorkflowResponse.getWorkflow();
+        } else {
+            throw new UnknownObjectException("Workflow with id: " + workflowId + " not found");
+        }
+    }
+
+    private void verifyWorkflowCanBeModified(@Nonnull WorkflowDTO.Workflow currentWorkflow) throws InvalidOperationException {
+        if (currentWorkflow.getWorkflowInfo().getType() != WorkflowDTO.OrchestratorType.WEBHOOK) {
+            throw new InvalidOperationException("The workflows of type \""
+                + currentWorkflow.getWorkflowInfo().getType() + "\" cannot be modified through API.");
+        }
+    }
+
+    private List<SettingProto.SettingPolicy> getAssociatedPolicies(long workflowId) {
+        final List<SettingProto.SettingPolicy> settingPolicies = new ArrayList<>();
+        settingPolicyRpcService.listSettingPolicies(SettingProto.ListSettingPoliciesRequest
+            .newBuilder()
+            .addWorkflowId(workflowId)
+            .build()).forEachRemaining(settingPolicies::add);
+        return settingPolicies;
     }
 }

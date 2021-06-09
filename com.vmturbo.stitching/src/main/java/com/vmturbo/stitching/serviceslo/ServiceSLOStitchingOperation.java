@@ -24,8 +24,10 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
 public class ServiceSLOStitchingOperation extends StringsToStringsDataDrivenStitchingOperation {
     /**
      * Create an instance of {@link ServiceSLOStitchingOperation} class.
+     *
+     * @param category the ProbeCategory of the probe associated with the operation.
      */
-    public ServiceSLOStitchingOperation() {
+    public ServiceSLOStitchingOperation(ProbeCategory category) {
         super(new StringsToStringsStitchingMatchingMetaData(EntityType.SERVICE,
                     new MergedEntityMetadataBuilder()
                             .internalMatchingProperty("IP", ",")
@@ -37,7 +39,7 @@ public class ServiceSLOStitchingOperation extends StringsToStringsDataDrivenStit
                                     ImmutableList.of(CommodityType.TRANSACTION,
                                             CommodityType.RESPONSE_TIME))
                             .build()),
-                ImmutableSet.of(ProbeCategory.CLOUD_NATIVE)
+                ImmutableSet.of(ProbeCategory.CLOUD_NATIVE), category
         );
     }
 

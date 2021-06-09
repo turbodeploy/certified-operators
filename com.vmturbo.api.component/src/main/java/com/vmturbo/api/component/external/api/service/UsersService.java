@@ -954,8 +954,14 @@ public class UsersService implements IUsersService {
         }
     }
 
+    /**
+     * Validates the input user api object.
+     *
+     * @param inputDTO  Object to validate
+     * @param e         Spring framework validation errors, not actually used in our validations
+     */
     @Override
-    public void validateInput(final Object o, final Errors errors) {
+    public void validateInput(final UserApiDTO inputDTO, final Errors e) {
     }
 
     /**

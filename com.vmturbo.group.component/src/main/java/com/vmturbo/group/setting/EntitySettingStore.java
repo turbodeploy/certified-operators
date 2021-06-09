@@ -112,7 +112,9 @@ public class EntitySettingStore {
     private static final List<String> settingSpecsToSave = ImmutableList.of(
             EntitySettingSpecs.PercentileAggressivenessVirtualMachine.getSettingName(),
             EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName(),
-            EntitySettingSpecs.ExcludedTemplates.getSettingName());
+            EntitySettingSpecs.ExcludedTemplates.getSettingName(),
+            EntitySettingSpecs.VmVmemIncrement.getSettingName(),
+            EntitySettingSpecs.VmVcpuIncrement.getSettingName());
 
     private static final Set<String> settingSpecsWithUnionTireBreaker =
         EntitySettingSpecs.getEntitySettingSpecByTierBreaker(SettingTiebreaker.UNION)

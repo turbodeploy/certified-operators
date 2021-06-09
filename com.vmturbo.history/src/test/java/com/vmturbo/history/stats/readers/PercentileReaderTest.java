@@ -29,11 +29,10 @@ import org.jooq.impl.DSL;
 import org.jooq.tools.jdbc.MockConnection;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
@@ -51,15 +50,13 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 public class PercentileReaderTest {
 
     private static final PercentileBlobs PERCENTILE_BLOBS_TABLE = PercentileBlobs.PERCENTILE_BLOBS;
-    private static final int GRPC_TIMEOUT_MS = 100000;
+    private static final long GRPC_TIMEOUT_MS = 100000;
     private static final String SOURCE_DATA = "Some_long_more_than_chunk_size_item string for test bytes";
-
-    /**
-     * Helps to check that testing code is throwing exceptions of the desired type with desired
-     * causes and desired messages.
-     */
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    private static final long START_TIMESTAMP = 20L;
+    private static final long PERIOD = 3L;
+    private static final String TIMEOUT_EXCEPTION_FORMAT =
+            "Cannot read percentile data for start timestamp '%s' and period '%s' because of exceeding GRPC timeout '%s' ms";
+    private static final int CHUNK_SIZE = 10;
 
     private HistorydbIO historyDbIo;
     private LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse;
@@ -78,7 +75,7 @@ public class PercentileReaderTest {
         sqlRequestToResponse = new LinkedList<>();
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenAnswer(invocation -> System.currentTimeMillis());
-        percentileReader = new PercentileReader(10, GRPC_TIMEOUT_MS, clock, historyDbIo);
+        percentileReader = new PercentileReader(CHUNK_SIZE, GRPC_TIMEOUT_MS, clock, historyDbIo);
         final Connection connection =
                         new MockConnection(new TestDataProvider(sqlRequestToResponse));
         Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
@@ -97,7 +94,7 @@ public class PercentileReaderTest {
         final List<PercentileChunk> result = new ArrayList<>();
         final StreamObserver<PercentileChunk> responseObserver = createStreamObserver(result, true);
         percentileReader.processRequest(
-                        GetPercentileCountsRequest.newBuilder().setChunkSize(10).build(),
+                        GetPercentileCountsRequest.newBuilder().setChunkSize(CHUNK_SIZE).build(),
                         responseObserver);
         Assert.assertThat(result, CoreMatchers.is(Collections.emptyList()));
     }
@@ -137,7 +134,7 @@ public class PercentileReaderTest {
         final StreamObserver<PercentileChunk> streamObserver =
                         createStreamObserver(new ArrayList<>(), true);
         percentileReader.processRequest(
-                        GetPercentileCountsRequest.newBuilder().setChunkSize(10).build(),
+                        GetPercentileCountsRequest.newBuilder().setChunkSize(CHUNK_SIZE).build(),
                         streamObserver);
         Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(Mockito.any());
     }
@@ -154,10 +151,11 @@ public class PercentileReaderTest {
         final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(20L)), result));
+                                        Collections.singletonList(START_TIMESTAMP)), result));
         final List<PercentileChunk> records = new ArrayList<>();
-        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
-                        .setStartTimestamp(20).build(), createStreamObserver(records, true));
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(
+                CHUNK_SIZE)
+                        .setStartTimestamp(START_TIMESTAMP).build(), createStreamObserver(records, true));
         Assert.assertThat(records.size(), CoreMatchers.is(6));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (PercentileChunk chunk : records) {
@@ -183,15 +181,16 @@ public class PercentileReaderTest {
                         " bytes"};
         for (int i = 0; i < chunks.length; i++) {
             final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
-                            .values(20L, 3L, chunks[i].getBytes(StandardCharsets.UTF_8), i);
+                            .values(START_TIMESTAMP, PERIOD, chunks[i].getBytes(StandardCharsets.UTF_8), i);
             result.add(values);
         }
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(20L)), result));
+                                        Collections.singletonList(START_TIMESTAMP)), result));
         final List<PercentileChunk> records = new ArrayList<>();
-        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
-                        .setStartTimestamp(20).build(), createStreamObserver(records, true));
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(
+                CHUNK_SIZE)
+                        .setStartTimestamp(START_TIMESTAMP).build(), createStreamObserver(records, true));
         Assert.assertThat(records.size(), CoreMatchers.is(8));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (PercentileChunk chunk : records) {
@@ -204,7 +203,7 @@ public class PercentileReaderTest {
         final DSLContext context = DSL.using(SQLDialect.MARIADB);
         final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
         final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
-                        .values(20L, 3L, sourceData.getBytes(), 0);
+                        .values(START_TIMESTAMP, PERIOD, sourceData.getBytes(), 0);
         result.add(values);
         return result;
     }
@@ -219,16 +218,99 @@ public class PercentileReaderTest {
                         .collect(Collectors.toCollection(LinkedList::new));
         Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
         sqlRequestToResponse.add(Pair.create(
-                        Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(0L)), result));
+                Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
+                        Collections.singletonList(START_TIMESTAMP)), result));
         final StreamObserver<PercentileChunk> streamObserver =
                         createStreamObserver(Collections.emptyList(), false);
-        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
-                        .setStartTimestamp(0).build(), streamObserver);
-        final ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
-        Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(errorCaptor.capture());
-        Assert.assertThat(errorCaptor.getValue().getMessage(),
-                        CoreMatchers.containsString("because of exceeding GRPC timeout"));
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(
+                CHUNK_SIZE).setStartTimestamp(START_TIMESTAMP).build(), streamObserver);
+        checkException(streamObserver,
+                String.format(TIMEOUT_EXCEPTION_FORMAT, START_TIMESTAMP, PERIOD, GRPC_TIMEOUT_MS));
     }
 
+    private void checkException(StreamObserver<PercentileChunk> streamObserver,
+            String message) {
+        final ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
+        Mockito.verify(streamObserver, Mockito.atLeastOnce()).onError(errorCaptor.capture());
+        Assert.assertThat(errorCaptor.getValue().getMessage(), CoreMatchers.containsString(message));
+    }
+
+    /**
+     * Checks the successful reading of data in parts when the ready state of the stream observer is
+     * constantly switched.
+     *
+     * @throws IOException in case of error during reading from the DB.
+     */
+    @Test
+    public void checkReadInChunksWhenStreamObserverStateChanges() throws IOException {
+        final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
+        sqlRequestToResponse.add(Pair.create(
+                Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
+                        Collections.singletonList(START_TIMESTAMP)), result));
+        final List<PercentileChunk> records = new ArrayList<>();
+        final boolean isReady = true;
+        final ServerCallStreamObserver<PercentileChunk> streamObserver =
+                (ServerCallStreamObserver<PercentileChunk>)createStreamObserver(records, isReady);
+        Mockito.when(streamObserver.isReady()).thenAnswer(new SwitcherAnswer(isReady));
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder()
+                .setChunkSize(CHUNK_SIZE)
+                .setStartTimestamp(START_TIMESTAMP)
+                .build(), streamObserver);
+        final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
+        for (PercentileChunk chunk : records) {
+            receivedData.write(chunk.getContent().toByteArray());
+        }
+        Mockito.verify(streamObserver, Mockito.times(1)).onCompleted();
+        Assert.assertThat(receivedData.toString(), CoreMatchers.is(SOURCE_DATA));
+    }
+
+    /**
+     * Checks that reading will be interrupted by GRPC timeout after successful reading one chunk.
+     */
+    @Test
+    public void checkTimeoutWhenStreamObserverStateChanges() {
+        final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
+        final Queue<Long> currentTimeValues = Stream.of(0L, GRPC_TIMEOUT_MS, GRPC_TIMEOUT_MS, GRPC_TIMEOUT_MS + 1L)
+                .collect(Collectors.toCollection(LinkedList::new));
+        Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
+        sqlRequestToResponse.add(Pair.create(
+                Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
+                        Collections.singletonList(START_TIMESTAMP)), result));
+        final List<PercentileChunk> records = new ArrayList<>();
+        final boolean isReady = true;
+        final ServerCallStreamObserver<PercentileChunk> streamObserver =
+                (ServerCallStreamObserver<PercentileChunk>)createStreamObserver(records, isReady);
+        Mockito.when(streamObserver.isReady()).thenAnswer(new SwitcherAnswer(isReady));
+        Mockito.doAnswer(invocation -> {
+            Mockito.when(streamObserver.isReady()).thenReturn(false);
+            return null;
+        }).when(streamObserver).onNext(Mockito.any());
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(
+                CHUNK_SIZE).setStartTimestamp(START_TIMESTAMP).build(), streamObserver);
+        checkException(streamObserver,
+                String.format(TIMEOUT_EXCEPTION_FORMAT, START_TIMESTAMP, PERIOD, GRPC_TIMEOUT_MS));
+        Mockito.verify(streamObserver, Mockito.atLeastOnce()).onNext(Mockito.any());
+    }
+
+    /**
+     * Class for changing the state of {@link StreamObserver}.
+     */
+    private static class SwitcherAnswer implements Answer<Boolean> {
+        private boolean isReady;
+
+        /**
+         * Creates {@link SwitcherAnswer} instance.
+         *
+         * @param isReady the state of {@link StreamObserver}.
+         */
+        SwitcherAnswer(boolean isReady) {
+            this.isReady = isReady;
+        }
+
+        @Override
+        public Boolean answer(InvocationOnMock invocationOnMock) throws Throwable {
+            isReady = !isReady;
+            return isReady;
+        }
+    }
 }

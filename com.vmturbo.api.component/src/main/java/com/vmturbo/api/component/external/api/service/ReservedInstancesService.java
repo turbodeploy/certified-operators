@@ -18,6 +18,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
@@ -42,8 +44,9 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -51,7 +54,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRe
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -69,6 +71,11 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class ReservedInstancesService implements IReservedInstancesService {
+
+    /**
+     * Logger.
+     */
+    private static final Logger logger = LogManager.getLogger();
 
     private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService;
 
@@ -128,7 +135,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
 
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
-        final AccountFilterType accountFilterType = filterType == null ? AccountFilterType.PURCHASED_BY
+        final AccountReferenceType accountFilterType = filterType == null
+                ? AccountReferenceType.PURCHASED_BY
                 : ReservedInstanceMapper.mapApiAccountFilterTypeToXl(filterType.name());
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable, accountFilterType);
@@ -167,7 +175,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      */
     private Collection<ReservedInstanceBought> getReservedInstancesBought(
             @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable,
-            final AccountFilterType accountFilterType)
+            final AccountReferenceType accountFilterType)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
@@ -205,7 +213,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                  This should be cleaned by by a follow up story where
                  the account filter type sent in by the UI should be moved outside
                  as a generic RI filter type. */
-                if (accountFilterType == AccountFilterType.USED_AND_PURCHASED_BY) {
+                if (accountFilterType == AccountReferenceType.USED_AND_PURCHASED_BY) {
                     requestBuilder.setExcludeUndiscoveredUnused(true);
                 }
 
@@ -228,7 +236,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             break;
                         case BUSINESS_ACCOUNT:
                             requestBuilder.setAccountFilter(
-                                    AccountFilter.newBuilder()
+                                    AccountReferenceFilter.newBuilder()
                                             .addAllAccountId(entityOids)
                                             .setAccountFilterType(accountFilterType)
                                             .build());
@@ -373,7 +381,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * of the same type can be added and separated by the pipe character (|). The filterType is also set
      * indicating if the scope id is for Regions, Accounts, Billing Families, Cloud Service providers,
      * Groups or Resource Groups. For Groups, we support only VM Groups and Resource Groups containing VMs.
-     * For all other group types, we throw an Exception.
+     * For all other group types, we log an error and return an empty list.
      *
      * @param filterApiDTOList list of {@link FilterApiDTO}
      * @return list of {@link ReservedInstanceApiDTO}
@@ -384,6 +392,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
+        boolean requestBuilderPopulated = false;
         for (FilterApiDTO filterApiDTO : filterApiDTOList) {
             final String filterType = filterApiDTO.getFilterType();
             final String expVal = filterApiDTO.getExpVal();
@@ -392,6 +401,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
             final String[] splitOids = expVal.split("\\|");
             final List<Long> oidList = Arrays.asList(splitOids).stream().map(a -> Long.parseLong(a.trim()))
                             .collect(Collectors.toList());
+            if (oidList.isEmpty()) {
+                return Collections.emptyList();
+            }
 
             List<Long> accountOids = new ArrayList<>();
             final Optional<RIFilter> riFilterOptional = RIFilter.valueOfRIFilter(filterType);
@@ -406,45 +418,42 @@ public class ReservedInstancesService implements IReservedInstancesService {
             switch(riFilter) {
                 case RI_BY_REGION:
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(oidList));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_USED:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.USED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_PURCHASED:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_ACCOUNT_ALL:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.USED_AND_PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_AND_PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_USED:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.USED_BY));
+                    //Aggregate list of Account oids within a Billing Family.
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_PURCHASED:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.PURCHASED_BY));
+                    //Aggregate list of Account oids within a Billing Family.
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_BILLING_FAMILY_ALL:
-                    //For every billing family, get all it's account OIDs and aggregate them.
-                    for (Long billingFamilyOid : oidList) {
-                        final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
-                        accountOids.addAll(scope.getScopeOids());
-                    }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.USED_AND_PURCHASED_BY));
+                    accountOids = aggrgegateAccountOidsForBillingFamily(oidList);
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_AND_PURCHASED_BY));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_CLOUD_PROVIDER:
@@ -452,6 +461,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     final Set<Long> regionOids = repositoryApi.expandServiceProvidersToRegions(
                                     new HashSet<>(oidList));
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(regionOids));
+                    requestBuilderPopulated = true;
                     break;
 
                 case RI_BY_GROUP:
@@ -459,13 +469,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     //Get virtual machines associated with the group.
                     final Set<Long> virtualMachineOids = getVmOids(oidList);
                     if (virtualMachineOids.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any virtual machines.");
+                        logger.error("Group / Resource Group does not contain any virtual machines.");
+                        continue;
                     }
 
                     //Get business accounts associated with the VMs.
-                    List<Long> allAccountOids = getAllBusinessAccounts(virtualMachineOids);
+                    List<Long> allAccountOids = getAllBusinessAccountsForVMs(virtualMachineOids);
                     if (allAccountOids.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any business accounts");
+                        logger.error("Group / Resource Group does not contain any business accounts.");
+                        continue;
                     }
 
                     //Get regions associated with the VMs.
@@ -474,12 +486,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                                     .map(a -> a.getOid())
                                                     .collect(Collectors.toSet());
                     if (regionOidSet.size() == 0) {
-                        throw new UnsupportedOperationException("Group / Resource Group does not contain any regions.");
+                        logger.error("Group / Resource Group does not contain any regions.");
+                        continue;
                     }
 
                     requestBuilder.setAccountFilter(createAccountFilter(allAccountOids,
-                                    AccountFilterType.USED_AND_PURCHASED_BY));
+                            AccountReferenceType.USED_AND_PURCHASED_BY));
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(regionOidSet));
+                    requestBuilderPopulated = true;
                     break;
                 default:
                     final StringBuilder errorMessageBuilder = new StringBuilder("Unsupported filter type. Please pick a valid filter type among the list");
@@ -490,12 +504,55 @@ public class ReservedInstancesService implements IReservedInstancesService {
             };
         }
 
+        if (requestBuilderPopulated == false) {
+            return Collections.emptyList();
+        }
+
         final List<ReservedInstanceBought> reservedInstanceBoughtList =
                         reservedInstanceService.getReservedInstanceBoughtByFilter(
                                         requestBuilder.build())
                                         .getReservedInstanceBoughtsList();
 
         return buildReservedInstanceApiDTO(reservedInstanceBoughtList);
+    }
+
+    private List<Long> aggrgegateAccountOidsForBillingFamily(List<Long> oidList) {
+        List<Long> aggregatedAccountOids = new ArrayList<>();
+        // First check if the oids we have is that of billing family or account oids
+        if (isBillingFamily(oidList)) {
+            //dealing with a billing family
+            //For every billing family, get all it's account OIDs and aggregate them.
+            for (Long billingFamilyOid : oidList) {
+                final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
+                aggregatedAccountOids.addAll(scope.getScopeOids());
+            }
+        } else {
+            // dealing with an account
+            aggregatedAccountOids.addAll(getAllBusinessAccounts(oidList.stream().collect(Collectors.toSet())));
+        }
+        return aggregatedAccountOids;
+    }
+
+    /**
+     * Given a list of oids, we check the first oid to determine if this list contains a list of billing family oids or
+     * business account oids. Please note that the list is expected to contain a homogenous list of oids. i.e they should
+     * all be either billing family oids or business account oids. A mix of billing family oids or business account oids
+     * is not handled.
+     *
+     * @param oidList a homogenous list of billing family oids or business account oids.
+     * @return boolean indicating if oid list contains billingFamily oids or not. A false indicates it conatins business account oids.
+     */
+    private boolean isBillingFamily(List<Long> oidList) {
+        Long oid = oidList.get(0);
+        logger.info("Using the first oid in the list {} to determine if oid is a billing family or a business account", oid);
+        Optional<Grouping> group = groupExpander.getGroup(Long.toString(oid));
+        if (group.isPresent() && CommonDTO.GroupDTO.GroupType.BILLING_FAMILY  == group.get().getDefinition().getType()) {
+            logger.info("Oid {} is a Billing Family", oid);
+            return true;
+        } else {
+            logger.info("Oid {} is a Business Account", oid);
+            return false;
+        }
     }
 
     private Set<Long> getVmOids(List<Long> oidList) {
@@ -522,21 +579,22 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 vmMembersOptional.get();
                 virtualMachineOids.addAll(staticMembersByType.getMembersList());
             } else {
-                // throw Unsupported Exception
-                final String errorMessage = "Currently we support this call only for Resource Groups which contain VMs and Groups of VMs";
-                throw new UnsupportedOperationException(errorMessage);
+                logger.error("No VMs found in group {}. Currently we support this call only for Resource Groups which contain VMs and Groups of VMs", groupOid);
             }
         }
         return virtualMachineOids;
     }
 
-
-    private List<Long> getAllBusinessAccounts(Set<Long> virtualMachineOids) {
+    private List<Long> getAllBusinessAccountsForVMs (Set<Long> virtualMachineOids) {
         // Given a Set of vm oids, get the billing family that they belong to and return all business accounts within the BF
         // For every VM, get a list of the Business Accounts associated with them
-        List<Long> accountOids = new ArrayList<>();
         final Set<Long> businessAccountOids = repositoryApi.getOwningBusinessAccount(virtualMachineOids)
-                        .getEntities().map(a -> a.getOid()).collect(Collectors.toSet());
+                .getEntities().map(a -> a.getOid()).collect(Collectors.toSet());
+        return getAllBusinessAccounts(businessAccountOids);
+    }
+
+    private List<Long> getAllBusinessAccounts(Set<Long> businessAccountOids) {
+        List<Long> accountOids = new ArrayList<>();
 
         // For every account, get the billing family that it belongs to
         final GroupDTO.GetGroupsForEntitiesResponse groupsForEntitiesResponse = groupServiceBlockingStub.getGroupsForEntities(
@@ -625,8 +683,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
         return results;
     }
 
-    private AccountFilter.Builder createAccountFilter(List<Long> accountOidList, AccountFilterType accountFilterType) {
-        final AccountFilter.Builder accountFilterBuilder = AccountFilter.newBuilder();
+    private AccountReferenceFilter.Builder createAccountFilter(List<Long> accountOidList, AccountReferenceType accountFilterType) {
+        final AccountReferenceFilter.Builder accountFilterBuilder = AccountReferenceFilter.newBuilder();
         accountFilterBuilder.setAccountFilterType(accountFilterType).addAllAccountId(accountOidList);
         return accountFilterBuilder;
     }

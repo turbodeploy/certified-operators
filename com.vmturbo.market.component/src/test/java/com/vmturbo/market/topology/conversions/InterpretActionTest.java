@@ -8,7 +8,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySet;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Before;
@@ -45,13 +44,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -95,11 +97,14 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -169,7 +174,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false);
+        converter.setConvertToMarketComplete();
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -210,7 +216,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
+        converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
                 .setType(11 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).build());
@@ -267,7 +274,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
+        converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -354,6 +362,98 @@ public class InterpretActionTest {
         ChangeProvider changeProvider = actionWithMaintenanceSource.getInfo().getMove().getChanges(0);
         assertEquals(srcId1, changeProvider.getSource().getId());
         assertEquals(destId, changeProvider.getDestination().getId());
+
+        Action configVolumeAction = converter.interpretAction(
+            ActionTO.newBuilder()
+                .setImportance(0.1)
+                .setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                    .setShoppingListToMove(shoppingList1.getOid())
+                    .setDestination(destId)
+                    .setMoveExplanation(MoveExplanation.getDefaultInstance())).build(),
+            projectedTopology, null, null, null).get(0);
+
+    }
+
+    /**
+     * Config volume move won't be interpreted.
+     *
+     * @throws IOException In case of file loading error.
+     */
+    @Test
+    public void testInterpretConfigVolumeMoveAction() throws IOException {
+        TopologyDTO.TopologyEntityDTO vm =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        TopologyDTO.TopologyEntityDTO source =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+        TopologyDTO.TopologyEntityDTO destination =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/ds-2.dto.json");
+        TopologyDTO.TopologyEntityDTO configVolume =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/volume-2.dto.json");
+        TopologyDTO.TopologyEntityDTO regularVolume =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/volume-3.dto.json");
+
+        final long shoppingListId1 = 5L;
+        final ShoppingListInfo slInfo1 = new ShoppingListInfo(shoppingListId1, vm.getOid(), source.getOid(),
+            Collections.emptySet(), configVolume.getOid(), source.getEntityType(), Arrays.asList());
+        final long shoppingListId2 = 6L;
+        final ShoppingListInfo slInfo2 = new ShoppingListInfo(shoppingListId2, vm.getOid(), source.getOid(),
+            Collections.emptySet(), regularVolume.getOid(), source.getEntityType(), Arrays.asList());
+        final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(
+            shoppingListId1, slInfo1, shoppingListId2, slInfo2);
+
+        final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(
+            vm.getOid(), vm, source.getOid(), source, destination.getOid(), destination,
+            configVolume.getOid(), configVolume, regularVolume.getOid(), regularVolume);
+
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+            vm.getOid(), entity(vm),
+            source.getOid(), entity(source),
+            destination.getOid(), entity(destination),
+            configVolume.getOid(), entity(configVolume),
+            regularVolume.getOid(), entity(regularVolume));
+
+        final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+
+        final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
+            slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+            new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+            CommodityIndex.newFactory()::newIndex, null);
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+            new TopologyEntityCloudTopologyFactory
+                .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                .newCloudTopology(originalTopology.values().stream());
+
+        final MoveTO configVolumeMove = MoveTO.newBuilder()
+            .setShoppingListToMove(shoppingListId1)
+            .setSource(source.getOid())
+            .setDestination(destination.getOid())
+            .setMoveExplanation(MoveExplanation.getDefaultInstance())
+            .build();
+
+        final Optional<Move> moveOptional = interpreter.interpretMoveAction(
+            configVolumeMove, projectedTopology, originalCloudTopology);
+        assertFalse(moveOptional.isPresent());
+
+        final MoveTO regularVolumeMove = MoveTO.newBuilder()
+            .setShoppingListToMove(shoppingListId2)
+            .setSource(source.getOid())
+            .setDestination(destination.getOid())
+            .setMoveExplanation(MoveExplanation.getDefaultInstance())
+            .build();
+
+        final Optional<Move> moveOptional1 = interpreter.interpretMoveAction(
+            regularVolumeMove, projectedTopology, originalCloudTopology);
+        assertTrue(moveOptional1.isPresent());
+        final Move move = moveOptional1.get();
+        assertThat(move.getTarget().getId(), is(vm.getOid()));
+        assertThat(move.getChangesCount(), is(1));
+        assertThat(move.getChanges(0).getSource().getId(), is(source.getOid()));
+        assertThat(move.getChanges(0).getDestination().getId(), is(destination.getOid()));
+        assertThat(move.getChanges(0).getResourceCount(), is(1));
+        assertThat(move.getChanges(0).getResource(0).getId(), is(regularVolume.getOid()));
     }
 
     /**
@@ -457,6 +557,7 @@ public class InterpretActionTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         CloudTopology cloudTopology = mock(CloudTopology.class);
+        TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
         when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
@@ -467,7 +568,8 @@ public class InterpretActionTest {
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology,
-                false);
+                false, false);
+        topologyConverter.setConvertToMarketComplete();
         Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         assertNotNull(vmTraderTO);
@@ -508,7 +610,7 @@ public class InterpretActionTest {
                                 .setPerformance(Performance.getDefaultInstance())))
                 .build();
         final List<Action> actionList = topologyConverter.interpretAction(actionTO, projectedTopology,
-                originalCloudTopology, Collections.emptyMap(), null);
+                originalCloudTopology, Collections.emptyMap(), topologyCostCalculator);
         assertEquals(1, actionList.size());
         Action action = actionList.get(0);
         assertNotNull(action);
@@ -614,7 +716,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
+        converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -651,7 +754,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
+        converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -684,7 +788,8 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
+        converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
                     .setKey("Seg")
@@ -714,12 +819,13 @@ public class InterpretActionTest {
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
             ImmutableMap.of(entityToResize, entity(entityToResize, entityType, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
-        final TopologyConverter converter = spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
 
@@ -756,12 +862,13 @@ public class InterpretActionTest {
             ImmutableMap.of(entityToResize, entity(entityToResize, entityType, EnvironmentType.ON_PREM),
                 resizeTriggerTrader, entity(resizeTriggerTrader, entityType2, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
-        final TopologyConverter converter = spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
 
@@ -801,12 +908,13 @@ public class InterpretActionTest {
             ImmutableMap.of(entityToResize, entity(entityToResize, entityType, EnvironmentType.ON_PREM),
                 resizeTriggerTrader, entity(resizeTriggerTrader, entityType2, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
-        final TopologyConverter converter = spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+                false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
 
@@ -838,12 +946,13 @@ public class InterpretActionTest {
             ImmutableMap.of(entityToActivate, entity(entityToActivate, entityType, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
 
-        final TopologyConverter converter = spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = spy(topologyConverter);
         // Insert the commodity type into the converter's mapping
         final CommodityType expectedCommodityType = CommodityType.newBuilder()
             .setType(12)
@@ -897,18 +1006,19 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretDeactivateAction() {
+    public void testInterpretDeactivateAction()  throws IOException {
         long entityToDeactivate = 1;
         int  entityType = 1;
         final Map<Long, ProjectedTopologyEntity> projectedTopology =
             ImmutableMap.of(entityToDeactivate, entity(entityToDeactivate, entityType, EnvironmentType.ON_PREM));
         final CommodityConverter commConverter = mock(CommodityConverter.class);
-        final TopologyConverter converter = spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false));
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+            false, false);
+        topologyConverter.setConvertToMarketComplete();
+        final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
                 .when(commConverter).marketToTopologyCommodity(eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))
@@ -980,6 +1090,8 @@ public class InterpretActionTest {
             }
         }
 
+        EntityReservedInstanceCoverage ricovergae = EntityReservedInstanceCoverage
+                .newBuilder().putCouponsCoveredByRi(123L, 4).setEntityCouponCapacity(6d).build();
         MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
         MarketTier destMarketTier = new OnDemandMarketTier(m1Medium);
         when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
@@ -988,6 +1100,7 @@ public class InterpretActionTest {
         when(mockCloudTc.isMarketTier(2l)).thenReturn(true);
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(true))).thenReturn(Optional.of(m1Large.getOid()));
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(false))).thenReturn(Optional.of(m1Medium.getOid()));
+        when(mockCloudTc.getRiCoverageForEntity(anyLong())).thenReturn(Optional.of(ricovergae));
 
         ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
                         null, null, Arrays.asList());
@@ -996,11 +1109,11 @@ public class InterpretActionTest {
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(0d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
         when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
         // Total Source cost = 20
-        when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(20d));
+        when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
 
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
@@ -1011,7 +1124,7 @@ public class InterpretActionTest {
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(2d));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(5d));
         // Total destination cost = 15
-        when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(15d));
+        when(projectedCostJournal.getTotalHourlyCost()).thenReturn(trax(15d));
         projectedCosts.put(vm.getOid(), projectedCostJournal);
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
@@ -1047,19 +1160,403 @@ public class InterpretActionTest {
 
         assertTrue(!actions.isEmpty());
         Action action = actions.get(0);
-        // Savings = 19 - 17 = 2
-        assertEquals(2, action.getSavingsPerHour().getAmount(), 0.0001);
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getId(), is(m1Large.getOid()));
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
-        assertThat(action.getInfo().getMove().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
+        // Savings = 17 - 16 = 1
+        assertEquals(1, action.getSavingsPerHour().getAmount(), 0.0001);
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getId(), is(m1Large.getOid()));
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));
 
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getId(), is(m1Medium.getOid()));
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getType(), is(m1Medium.getEntityType()));
-        assertThat(action.getInfo().getMove().getChanges(0).getDestination().getEnvironmentType(), is(m1Medium.getEnvironmentType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getId(), is(m1Medium.getOid()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getType(), is(m1Medium.getEntityType()));
+        assertThat(action.getInfo().getScale().getChanges(0).getDestination().getEnvironmentType(), is(m1Medium.getEnvironmentType()));
 
-        assertThat(action.getInfo().getMove().getTarget().getId(), is(vm.getOid()));
-        assertThat(action.getInfo().getMove().getTarget().getType(), is(vm.getEntityType()));
-        assertThat(action.getInfo().getMove().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
+        assertThat(action.getInfo().getScale().getTarget().getId(), is(vm.getOid()));
+        assertThat(action.getInfo().getScale().getTarget().getType(), is(vm.getEntityType()));
+        assertThat(action.getInfo().getScale().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
+
+        //cloud savings details
+        assertEquals(16, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
+        assertEquals(11, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
+        assertEquals(17, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
+        assertEquals(13, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
+        assertEquals(6, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getCapacity().getCoupons(), 0.0001);
+        assertEquals(4, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getUsed().getCoupons(), 0.0001);
+
         verify(sourceCostJournal, never()).getHourlyCostFilterEntries(eq(CostCategory.STORAGE), any());
+    }
+
+    /**
+     * Check that Deactivate/Suspend action shows savings if the cost journal for the
+     * provisioned entity is available.
+     * @throws IOException
+     */
+    @Test
+    public void interpretDeactivateWithCost()
+            throws IOException {
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders
+                = TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile();
+        TopologyEntityDTO.Builder vmBuilder = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+
+        Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                .map(builder -> builder.build()).collect(Collectors.toSet());
+        Map<Long, TopologyEntityDTO> originalTopology = topologyEntityDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+
+        // Get handle to the templates, region and BA TopologyEntityDTO
+        TopologyEntityDTO m1Large = null;
+        TopologyEntityDTO vm = null;
+        for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
+            if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Large = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                        && vmBuilder.getOid() == topologyEntityDTO.getOid()) {
+                vm = topologyEntityDTO; //get DTO for the vmBuilder above
+            }
+        }
+
+        MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
+        when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
+        when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
+
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
+                null, null, Arrays.asList());
+        Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
+
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+
+        // We need cost journal of the VM in the original topology
+        CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
+        // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
+
+        when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm)))
+                                        .thenReturn(Optional.of(sourceCostJournal));
+
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+
+        CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
+        CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
+        when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
+        Mockito.doReturn(Optional.of(topologyCommodity1))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity1));
+        Mockito.doReturn(Optional.of(topologyCommodity2))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity2));
+
+        // We don't create projected topology entries for the "fake" traders (1 and 2), since
+        // those are completely internal to the market.
+        Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                vm.getOid(), entity(vm),
+                m1Large.getOid(), entity(m1Large));
+
+        EconomyDTOs.TraderTO traderTO = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(vmBuilder.getOid())
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                                    .setOid(-1L)
+                                    .setSupplier(1l)
+                                .build())
+                .build();
+
+        Map<Long, EconomyDTOs.TraderTO>  oidToTraderTOMap
+                    = ImmutableMap.of(vmBuilder.getOid(), traderTO);
+
+        ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
+                slInfoMap,
+                mockCloudTc,
+                originalTopology,
+                oidToTraderTOMap,
+                new CommoditiesResizeTracker(),
+                mock(ProjectedRICoverageCalculator.class),
+                mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex,
+                null);
+        interpreter.enableContainerClusterScalingCost(true);
+
+        final ActionTO deactivateActionTO = ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setDeactivate(DeactivateTO.newBuilder()
+                        .setTraderToDeactivate(vmBuilder.getOid())
+                        .addTriggeringBasket(economyCommodity1)
+                        .addTriggeringBasket(economyCommodity2)
+                        .build())
+                .build();
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+                new TopologyEntityCloudTopologyFactory
+                        .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                        .newCloudTopology(originalTopology.values().stream());
+
+        List<Action> actions = interpreter.interpretAction(deactivateActionTO, projectedTopology,
+                originalCloudTopology, projectedCosts,
+                mockTopologyCostCalculator);
+
+        assertTrue(!actions.isEmpty());
+
+        Action action = actions.get(0);
+        assertEquals(action.getSavingsPerHour(),
+                CurrencyAmount.newBuilder().setAmount(17.0).build());
+    }
+
+    /**
+     * Check that Provision action shows savings if the cost journal for the
+     * provisioned entity is available.
+     * @throws IOException
+     */
+    @Test
+    public void interpretProvisionWithCost()
+            throws IOException {
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders
+                = TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile();
+        TopologyEntityDTO.Builder vmBuilder = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+
+        Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                .map(builder -> builder.build()).collect(Collectors.toSet());
+        Map<Long, TopologyEntityDTO> originalTopology = topologyEntityDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+
+        // Get handle to the templates, region and BA TopologyEntityDTO
+        TopologyEntityDTO m1Large = null;
+        TopologyEntityDTO vm = null;
+        for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
+            if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Large = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                    && vmBuilder.getOid() == topologyEntityDTO.getOid()) {
+                vm = topologyEntityDTO; //get DTO for the vmBuilder above
+            }
+        }
+
+        MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
+        when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
+        when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
+
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
+                null, null, Arrays.asList());
+        Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
+
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+        // We need cost journal of the VM in the projected topology
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+        CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
+        // Destination compute cost = 9 + 1 + 2 + 5 = 19
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
+                eq(CostJournal.CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER))).thenReturn(trax(10d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
+
+        projectedCosts.put(vm.getOid(), projectedCostJournal);
+
+        CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
+        CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
+        when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
+        Mockito.doReturn(Optional.of(topologyCommodity1))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity1));
+        Mockito.doReturn(Optional.of(topologyCommodity2))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity2));
+
+        // We don't create projected topology entries for the "fake" traders (1 and 2), since
+        // those are completely internal to the market.
+        Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                vm.getOid(), entity(vm),
+                m1Large.getOid(), entity(m1Large));
+
+        EconomyDTOs.TraderTO traderTO = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(vmBuilder.getOid())
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(-1L)
+                        .setSupplier(1l)
+                        .build())
+                .build();
+
+        Map<Long, EconomyDTOs.TraderTO>  oidToTraderTOMap
+                = ImmutableMap.of(vmBuilder.getOid(), traderTO);
+
+        ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
+                slInfoMap,
+                mockCloudTc,
+                originalTopology,
+                oidToTraderTOMap,
+                new CommoditiesResizeTracker(),
+                mock(ProjectedRICoverageCalculator.class),
+                mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex,
+                null);
+
+        interpreter.enableContainerClusterScalingCost(true);
+        CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
+                .commoditySpecification(CommodityType.newBuilder()
+                        .setKey("Seg")
+                        .setType(11 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).build());
+
+        final ActionTO provisionBySupplyActionTO = ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
+                        .setModelSeller(vmBuilder.getOid())
+                        .setProvisionedSeller(22l)
+                        .setMostExpensiveCommodity(economyCommodity1)
+                        .build())
+                .build();
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+                new TopologyEntityCloudTopologyFactory
+                        .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                        .newCloudTopology(originalTopology.values().stream());
+
+        List<Action> actions = interpreter.interpretAction(provisionBySupplyActionTO, projectedTopology,
+                originalCloudTopology, projectedCosts,
+                mockTopologyCostCalculator);
+
+        assertTrue(!actions.isEmpty());
+
+        Action action = actions.get(0);
+        assertEquals(action.getSavingsPerHour(),
+                        CurrencyAmount.newBuilder().setAmount(-17.0).build());
+    }
+
+    @Test
+    public void interpretProvisionWithCostUsingRealTimeTopology()
+            throws IOException {
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders
+                = TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile();
+        TopologyEntityDTO.Builder vmBuilder = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+
+        Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                .map(builder -> builder.build()).collect(Collectors.toSet());
+        Map<Long, TopologyEntityDTO> originalTopology = topologyEntityDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+
+        // Get handle to the templates, region and BA TopologyEntityDTO
+        TopologyEntityDTO m1Large = null;
+        TopologyEntityDTO vm = null;
+        for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
+            if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Large = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                    && vmBuilder.getOid() == topologyEntityDTO.getOid()) {
+                vm = topologyEntityDTO; //get DTO for the vmBuilder above
+            }
+        }
+
+        MarketTier sourceMarketTier = new OnDemandMarketTier(m1Large);
+        when(mockCloudTc.getMarketTier(1)).thenReturn(sourceMarketTier);
+        when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
+
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
+                null, null, Arrays.asList());
+        Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
+
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+        // Cost journal of the VM in the projected topology contains no costs,
+        // cost from the real time topology below will be used
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+        CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
+        // Destination compute cost = 9 + 1 + 2 + 5 = 19
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(0d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0d));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(0d));
+
+        projectedCosts.put(vm.getOid(), projectedCostJournal);
+
+        CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
+        CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
+        when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
+        Mockito.doReturn(Optional.of(topologyCommodity1))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity1));
+        Mockito.doReturn(Optional.of(topologyCommodity2))
+                .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity2));
+
+        // We don't create projected topology entries for the "fake" traders (1 and 2), since
+        // those are completely internal to the market.
+        Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                vm.getOid(), entity(vm),
+                m1Large.getOid(), entity(m1Large));
+
+        EconomyDTOs.TraderTO traderTO = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(vmBuilder.getOid())
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(-1L)
+                        .setSupplier(1l)
+                        .build())
+                .build();
+
+        Map<Long, EconomyDTOs.TraderTO>  oidToTraderTOMap
+                = ImmutableMap.of(vmBuilder.getOid(), traderTO);
+
+        ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
+                slInfoMap,
+                mockCloudTc,
+                originalTopology,
+                oidToTraderTOMap,
+                new CommoditiesResizeTracker(),
+                mock(ProjectedRICoverageCalculator.class),
+                mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex,
+                null);
+
+        interpreter.enableContainerClusterScalingCost(true);
+        CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
+                .commoditySpecification(CommodityType.newBuilder()
+                        .setKey("Seg")
+                        .setType(11 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).build());
+
+        final ActionTO provisionBySupplyActionTO = ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
+                        .setModelSeller(vmBuilder.getOid())
+                        .setProvisionedSeller(22l)
+                        .setMostExpensiveCommodity(economyCommodity1)
+                        .build())
+                .build();
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+                new TopologyEntityCloudTopologyFactory
+                        .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                        .newCloudTopology(originalTopology.values().stream());
+
+        CostJournal<TopologyEntityDTO> entityCostJournal = mock(CostJournal.class);
+        // Destination compute cost = 9 + 1 + 2 + 5 = 19
+        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
+        when(entityCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
+        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
+        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
+
+        when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm)))
+                .thenReturn(Optional.of(entityCostJournal));
+
+        List<Action> actions = interpreter.interpretAction(provisionBySupplyActionTO, projectedTopology,
+                originalCloudTopology, projectedCosts,
+                mockTopologyCostCalculator);
+
+        assertTrue(!actions.isEmpty());
+
+        Action action = actions.get(0);
+        assertEquals(action.getSavingsPerHour(),
+                CurrencyAmount.newBuilder().setAmount(-17.0).build());
     }
 }

@@ -106,6 +106,12 @@ public class MarketRunnerConfig {
     @Value("${suspensionThrottlingPerCluster:true}")
     private boolean suspensionThrottlingPerCluster;
 
+    @Value("${fastProvisionEnabled:true}")
+    private boolean fastProvisionEnabled;
+
+    @Value("${branchAndBoundEnabled:true}")
+    private boolean branchAndBoundEnabled;
+
     // The plan market and cloud entity move cost factor is currently always 0
     @Value("${liveMarketMoveCostFactor:0.05}")
     private float liveMarketMoveCostFactor;
@@ -138,6 +144,13 @@ public class MarketRunnerConfig {
      */
     @Value("${shouldPopulateByProducts:false}")
     private boolean shouldPopulateByProducts;
+
+    /**
+     * Whether we should compute and represent the action savings or investment costs
+     * for horizontal scaling actions that are recommended for container platform clusters.
+     */
+    @Value("${enableContainerClusterScalingCost:false}")
+    private boolean enableContainerClusterScalingCost;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
@@ -211,7 +224,10 @@ public class MarketRunnerConfig {
                 commodityIdUpdater(),
                 licensePriceWeightScale,
                 enableOP,
-                shouldPopulateByProducts);
+                shouldPopulateByProducts,
+                fastProvisionEnabled,
+                branchAndBoundEnabled,
+                enableContainerClusterScalingCost);
     }
 
     /**

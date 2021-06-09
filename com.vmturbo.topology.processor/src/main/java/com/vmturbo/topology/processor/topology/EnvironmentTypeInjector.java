@@ -59,8 +59,8 @@ public class EnvironmentTypeInjector {
     private static final Map<Integer, Function<TopologyEntity, Collection<TopologyEntity>>> ALTERNATE_TRAVERSAL_MAP =
         ImmutableMap.of(
             // ContainerSpecs are connected to their on-prem/cloud infrastructure through the Containers
-            // they aggregate.
-            EntityType.CONTAINER_SPEC_VALUE, TopologyEntity::getAggregatedEntities,
+            // they control.
+            EntityType.CONTAINER_SPEC_VALUE, TopologyEntity::getAggregatedAndControlledEntities,
             // WorkloadControllers are connected to their on-prem/cloud infrastructure through the ContainerPods
             // that consume from them.
             EntityType.WORKLOAD_CONTROLLER_VALUE, TopologyEntity::getConsumers,

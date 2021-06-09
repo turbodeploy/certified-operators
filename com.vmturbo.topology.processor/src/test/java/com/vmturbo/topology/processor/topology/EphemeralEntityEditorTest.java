@@ -127,7 +127,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithNoRelationships() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.emptyList());
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.emptyList());
 
         editor.applyEdits(graph, true);
     }
@@ -139,7 +139,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithNoCommoditiesOnPersistent() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(Collections.emptyMap());
 
         editor.applyEdits(graph, true);
@@ -152,7 +152,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithNoMatchingCommodities() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -171,7 +171,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithNoCommodityKey() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -189,7 +189,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithCommodityKeyNotMatching() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -208,7 +208,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithCommodityKeyMatching() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -227,7 +227,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testDoNotOverrideEphemeralNotResizable() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -246,7 +246,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testOverridesEphemeralResizableTrue() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
@@ -265,7 +265,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEntityWithMultipleMatchingCommodities() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder first = CommoditySoldDTO.newBuilder()
@@ -287,7 +287,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testMultipleEntities() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder first = CommoditySoldDTO.newBuilder()
@@ -312,7 +312,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testDisableInconsistentCapacities() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder vcpuSold = CommoditySoldDTO.newBuilder()
@@ -340,7 +340,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testDisableInconsistentCapacitiesBecauseOfScalingFactor() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         ephemeralBuilder.addCommoditySoldList(vcpuSold());
@@ -370,7 +370,7 @@ public class EphemeralEntityEditorTest {
         setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
@@ -406,7 +406,7 @@ public class EphemeralEntityEditorTest {
         setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
@@ -438,7 +438,7 @@ public class EphemeralEntityEditorTest {
         setupVmProvider(container2, 222L, 3.0, 3, 1.0f);
 
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
-        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.getAggregatedAndControlledEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));

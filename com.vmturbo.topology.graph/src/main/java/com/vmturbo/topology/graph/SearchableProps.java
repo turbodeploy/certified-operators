@@ -9,7 +9,6 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
 /**
@@ -253,7 +252,7 @@ public interface SearchableProps {
          * @return DB edition.
          */
         @Nonnull
-        DatabaseEdition getDatabaseEdition();
+        String getDatabaseEdition();
 
         /**
          * Database version.

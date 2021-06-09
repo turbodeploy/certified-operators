@@ -64,7 +64,7 @@ public abstract class StitchingIntegrationTest {
 
     protected final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     protected final StitchingOperationStore stitchingOperationStore =
-            new StitchingOperationStore(stitchingOperationLibrary);
+            new StitchingOperationStore(stitchingOperationLibrary, false);
     protected final PreStitchingOperationLibrary preStitchingOperationLibrary =
             new PreStitchingOperationLibrary();
     protected PostStitchingOperationLibrary postStitchingOperationLibrary;
@@ -75,8 +75,8 @@ public abstract class StitchingIntegrationTest {
     protected CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
-            Clock.systemUTC());
+    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, 0.3F, true, Collections.singletonList(sender),
+            Clock.systemUTC(), false);
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);
 
@@ -116,11 +116,11 @@ public abstract class StitchingIntegrationTest {
     @Nonnull
     protected static StringsToStringsDataDrivenStitchingOperation createDataDrivenStitchingOperation(
                     MergedEntityMetadata mergedEntityMetadata, EntityType entityType,
-                    ProbeCategory probeCategory) {
+                    ProbeCategory probeCategoryToStitchWith, ProbeCategory probeCategory) {
         return new StringsToStringsDataDrivenStitchingOperation(
                         new StringsToStringsStitchingMatchingMetaData(entityType,
                                         mergedEntityMetadata),
-                        Collections.singleton(probeCategory));
+                        Collections.singleton(probeCategoryToStitchWith), probeCategory);
     }
 
     protected void setOperationsForProbe(final long probeId,

@@ -78,14 +78,14 @@ public enum EntitySettingSpecs {
      */
     ResizeVmemMinThreshold("resizeVmemMinThreshold", "VMEM Resize Min Threshold (in MB)",
             Collections.emptyList(), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 512), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 100000000, 512), true),
 
     /**
      * The maximum number of vmem cores which is the threshold to decide automation mode.
      */
     ResizeVmemMaxThreshold("resizeVmemMaxThreshold", "VMEM Resize Max Threshold (in MB)",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 100000000, 131072), true),
 
     /**
      * The minimum number of VCPU request millicores which is the threshold to decide automation mode.
@@ -98,7 +98,7 @@ public enum EntitySettingSpecs {
      */
     ResizeVcpuLimitMinThreshold("resizeVcpuLimitMinThreshold", "VCPU Limit Resize Min Threshold (in millicores)",
         Collections.emptyList(), SettingTiebreaker.BIGGER,
-        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 10), true),
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 500), true),
 
     /**
      * The maximum number of VCPU limit millicores which is the threshold to decide automation mode.
@@ -214,6 +214,8 @@ public enum EntitySettingSpecs {
             numeric(0f, 100f, 90f),
             true),
 
+
+
     /**
      * Storage provisioned utilization threshold.
      */
@@ -240,6 +242,15 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DATABASE),
             numeric(0f, 100f, 70.0f), true),
+
+    /**
+     * Storage amount utilization scaling constraints. Used for cloud entities only.
+     */
+    ResizeTargetUtilizationStorageAmount("resizeTargetUtilizationStorageAmount", "Scaling Target Storage Amount Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0f, 100f, 90f),
+            true),
 
     /**
      * IOPS utilization threshold.
@@ -516,10 +527,10 @@ public enum EntitySettingSpecs {
     /**
      * Resize target Utilization for IOPs.
      */
-    ResizeTargetUtilizationIops("resizeTargetUtilizationIops", "Scaling Target IOPs Utilization",
+    ResizeTargetUtilizationIops("resizeTargetUtilizationIops", "Scaling Target IOPS Utilization",
         //path is needed for the UI to display this setting in a separate category
         Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER),
         numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**

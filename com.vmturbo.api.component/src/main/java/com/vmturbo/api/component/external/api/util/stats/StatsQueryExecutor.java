@@ -23,9 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -46,15 +43,18 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.ProbeUseCase;
@@ -152,7 +152,7 @@ public class StatsQueryExecutor {
 
         // Check if there is anything in the scope.
         if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getScopeOids().isEmpty()
-            && !scopeHasBusinessAccounts(scope)) {
+            && !scopeHasBusinessAccounts(scope) && !uuidMapper.fromUuid(scope.uuid()).isCluster()) {
             // In case that the scope is a business account / billing family / group of business
             // accounts, the expanded scope will be empty and the input scope will be used directly
             // in CloudCostsStatsSubQuery#getCloudExpensesRecordList.

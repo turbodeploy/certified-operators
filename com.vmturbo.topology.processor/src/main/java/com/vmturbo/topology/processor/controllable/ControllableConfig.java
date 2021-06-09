@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +28,12 @@ public class ControllableConfig {
     @Value("${resizeSucceedRecordExpiredSeconds:14400}")
     private int resizeSucceedRecordExpiredSeconds;
 
+    @Value("${accountForVendorAutomation:false}")
+    private boolean accountForVendorAutomation;
+
+    @Value("${drsMaintenanceProtectionWindow:1800}")
+    private int drsMaintenanceProtectionWindow;
+
     @Autowired
     private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
@@ -37,7 +45,13 @@ public class ControllableConfig {
     }
 
     @Bean
+    public EntityMaintenanceTimeDao entityMaintenanceTimeDao() {
+        return new EntityMaintenanceTimeDao(topologyProcessorDBConfig.dsl(), drsMaintenanceProtectionWindow,
+            Clock.systemUTC(), accountForVendorAutomation);
+    }
+
+    @Bean
     public ControllableManager controllableManager() {
-        return new ControllableManager(entityActionDaoImp());
+        return new ControllableManager(entityActionDaoImp(), entityMaintenanceTimeDao(), accountForVendorAutomation);
     }
 }

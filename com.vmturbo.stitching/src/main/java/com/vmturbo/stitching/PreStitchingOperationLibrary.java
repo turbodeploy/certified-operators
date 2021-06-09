@@ -16,6 +16,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.CloudCommitmentPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
@@ -107,7 +108,10 @@ public class PreStitchingOperationLibrary {
                                 EntityType.BUSINESS_USER), Collections.singletonMap(
                         "common_dto.EntityDTO.BusinessUserData.sessionData",
                         Comparator.comparing(lhs -> ((SessionData)lhs).getVirtualMachine()))),
-                new SharedEntityCustomProbePreStitchingOperation())
+                new SharedEntityCustomProbePreStitchingOperation(),
+                // This operation should go after SharedCloudEntityPreStitchingOperation because it
+                // depends on merging shared Regions.
+                new CloudCommitmentPreStitchingOperation())
             .build();
     }
 

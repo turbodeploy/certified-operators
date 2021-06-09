@@ -46,13 +46,11 @@ public class EntitySavingsTracker {
 
     private final SavingsCalculator savingsCalculator;
 
-    private final AuditLogWriter auditLogWriter;
-
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
     private final RepositoryClient repositoryClient;
 
-    private long realtimeTopologyContextId;
+    private final long realtimeTopologyContextId;
 
     private final int chunkSize;
 
@@ -65,7 +63,6 @@ public class EntitySavingsTracker {
      * @param entityEventsJournal entityEventsJournal
      * @param entityStateStore Persistent state store.
      * @param clock clock
-     * @param auditLogWriter Audit log writer helper.
      * @param cloudTopologyFactory cloud topology factory
      * @param repositoryClient repository client
      * @param realtimeTopologyContextId realtime topology context ID
@@ -75,7 +72,6 @@ public class EntitySavingsTracker {
                          @Nonnull EntityEventsJournal entityEventsJournal,
                          @Nonnull EntityStateStore entityStateStore,
                          @Nonnull final Clock clock,
-                         @Nonnull AuditLogWriter auditLogWriter,
                          @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                          @Nonnull RepositoryClient repositoryClient,
                          long realtimeTopologyContextId,
@@ -85,7 +81,6 @@ public class EntitySavingsTracker {
         this.entityStateStore = Objects.requireNonNull(entityStateStore);
         this.savingsCalculator = new SavingsCalculator();
         this.clock = clock;
-        this.auditLogWriter = auditLogWriter;
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
@@ -152,7 +147,6 @@ public class EntitySavingsTracker {
                 // Update entity states. Also insert new states to track new entities.
                 entityStateStore.updateEntityStates(entityStates, createCloudTopology(entityStates.keySet()));
 
-                auditLogWriter.write(events);
                 try {
                     // create stats records from state map for this period.
                     generateStats(startTimeMillis);
@@ -268,8 +262,7 @@ public class EntitySavingsTracker {
         // It is because the number of regions and service providers is finite.
         // The logic to find the connected regions of availability zones requires all regions anyways.
         List<Long> regionAndAServiceProviderOids =
-                repositoryClient.getEntitiesByType(realtimeTopologyContextId,
-                        Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER))
+                repositoryClient.getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER))
                 .map(TopologyEntityDTO::getOid)
                 .collect(Collectors.toList());
 

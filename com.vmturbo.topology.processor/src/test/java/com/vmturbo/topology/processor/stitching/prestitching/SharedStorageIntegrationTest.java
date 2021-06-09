@@ -78,7 +78,7 @@ public class SharedStorageIntegrationTest {
     private StatsHistoryServiceBlockingStub statsServiceClient;
     private final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     private final StitchingOperationStore stitchingOperationStore =
-        new StitchingOperationStore(stitchingOperationLibrary);
+        new StitchingOperationStore(stitchingOperationLibrary, false);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary =
         new PreStitchingOperationLibrary();
     private PostStitchingOperationLibrary postStitchingOperationLibrary;
@@ -93,8 +93,8 @@ public class SharedStorageIntegrationTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
-            0.3F, true, entityClock);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
+            0.3F, true, Collections.singletonList(sender), entityClock, false);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =

@@ -40,7 +40,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -322,7 +322,7 @@ public class CloudCommitmentAnalysisRunner {
                 if (purchaseProfile != null) {
                     purchaseProfileByRegionMap.put(region.getOid(), purchaseProfile.getRiType());
                 } else {
-                    logger.error("Unable to find purchase constraints for region (Region OID={} SP OID={})",
+                    logger.warn("Unable to find purchase constraints for region (Region OID={} SP OID={})",
                             region.getOid(), serviceProvider.get().getOid());
                 }
             } else {

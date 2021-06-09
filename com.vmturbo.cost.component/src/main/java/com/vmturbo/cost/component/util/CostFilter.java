@@ -35,6 +35,8 @@ public abstract class CostFilter {
     protected final String snapshotTime;
     protected final boolean latestTimeStampRequested;
     protected final Long topologyContextId;
+
+
     protected final long realtimeTopologyContextId;
 
 
@@ -89,6 +91,15 @@ public abstract class CostFilter {
     @Nonnull
     public Optional<Set<Integer>> getEntityTypeFilters() {
         return Optional.ofNullable(entityTypeFilters);
+    }
+
+    /**
+     * Returns the real time topology context id.
+     *
+     * @return real time topology context id.
+     */
+    public long getRealtimeTopologyContextId() {
+        return realtimeTopologyContextId;
     }
 
     @Nonnull

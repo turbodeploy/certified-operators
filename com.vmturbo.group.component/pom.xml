@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>8.1.6-SNAPSHOT</version>
+        <version>8.2.3-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -21,8 +21,6 @@
         <guava-retrying.version>2.0.0</guava-retrying.version>
         <immutables.version>2.3.10</immutables.version>
         <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
-        <javaslang.version>2.0.5</javaslang.version>
-        <reactor.version>3.0.3.RELEASE</reactor.version>
         <ical4j.version>3.0.10</ical4j.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
@@ -178,12 +176,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.projectreactor.addons</groupId>
-            <artifactId>reactor-test</artifactId>
-            <version>${reactor.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>it.unimi.dsi</groupId>
             <artifactId>fastutil</artifactId>
         </dependency>
@@ -336,6 +328,7 @@
                         </database>
                         <generate>
                             <pojos>true</pojos>
+                            <pojosEqualsAndHashCode>true</pojosEqualsAndHashCode>
                         </generate>
                         <target>
                             <packageName>com.vmturbo.group.db</packageName>

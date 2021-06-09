@@ -55,6 +55,11 @@ public class ExportUtils {
     public static final String TAGS_JSON_KEY_NAME = "tags";
 
     /**
+     * JSON key for targets info in attrs.
+     */
+    public static final String TARGETS_JSON_KEY_NAME = "targets";
+
+    /**
      * Private constructor to avoid creating new instance.
      */
     private ExportUtils() {}

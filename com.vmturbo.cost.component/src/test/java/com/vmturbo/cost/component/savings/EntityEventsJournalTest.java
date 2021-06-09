@@ -5,10 +5,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -39,14 +39,12 @@ public class EntityEventsJournalTest {
     private static final long action1Id = 1001L;
     private static final long action2Id = 1002L;
 
-    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
-
     /**
      * Initializing store.
      */
     @Before
     public void setup() {
-        store = new InMemoryEntityEventsJournal();
+        store = new InMemoryEntityEventsJournal(mock(AuditLogWriter.class));
     }
 
     @Nonnull

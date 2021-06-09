@@ -167,10 +167,18 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
         for (CommodityRequest request : statsFilter.getCommodityRequestsList()) {
             final int propertyId =
                             UICommodityType.fromString(request.getCommodityName()).typeNumber();
-            final Collection<Integer> utilizationTypes = getRequestedIds(request.getGroupByList(),
+            Collection<Integer> utilizationTypes = getRequestedIds(request.getGroupByList(),
                             HistoryUtilizationType::ordinal, HistoryUtilizationType.values());
-            propertyTypeToUtilizationTypes.computeIfAbsent(propertyId, k -> new HashSet<>())
-                            .addAll(utilizationTypes);
+            // TODO: use historyType to request for percentile in the future.
+            if (request.hasHistoryType()) {
+                utilizationTypes.addAll(getRequestedIds(Lists.newArrayList(request.getHistoryType()),
+                        HistoryUtilizationType::ordinal, HistoryUtilizationType.values()));
+            }
+            if (!utilizationTypes.isEmpty()) {
+                // populate property to utilization mapping only for records with a constraint to lookup.
+                propertyTypeToUtilizationTypes.computeIfAbsent(propertyId, k -> new HashSet<>())
+                        .addAll(utilizationTypes);
+            }
         }
         return propertyTypeToUtilizationTypes;
     }
@@ -182,11 +190,11 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
         final Collection<Integer> result = new HashSet<>();
         for (String parameter : parameters) {
             for (E value : values) {
-                if (parameter.contains(value.name().toLowerCase())) {
+                if (parameter.toLowerCase().contains(value.name().toLowerCase())) {
                     result.add(idGetter.apply(value));
                 }
             }
         }
-        return Collections.unmodifiableCollection(result);
+        return result;
     }
 }

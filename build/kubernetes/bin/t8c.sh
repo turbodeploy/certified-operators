@@ -8,7 +8,12 @@
 # Exit out if running as root or sudo
 
 # Variable to use if a non-turbonomic deployment
-deploymentBrand=${1}
+while getopts b:h: flag
+do
+    case "${flag}" in
+        h) hostName=${OPTARG};;
+    esac
+done
 serviceAccountFile="/opt/turbonomic/kubernetes/operator/deploy/service_account.yaml"
 roleFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml"
 roleBindingFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml"
@@ -16,6 +21,8 @@ crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd
 operatorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
 chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
 localStorageDataDirectory="/data/turbonomic/"
+yamlBasePath="/opt/turbonomic/kubernetes/yaml"
+glusterDeployPath="/opt/gluster-kubernetes/deploy"
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
@@ -42,6 +49,16 @@ source /opt/local/etc/turbo.conf
 
 # Update the yaml files to run offline
 #/opt/local/bin/offlineUpdate.sh
+
+if grep -q "$localStorageDataDirectory" /etc/fstab
+then
+  echo ""
+  echo "Detected existing installation..."
+  echo "exiting......"
+  echo "Please do not re-run t8c.sh on an existing install."
+  echo ""
+  exit 0
+fi
 
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
@@ -168,6 +185,14 @@ else
     sudo cp /usr/local/bin/{kubeadm,calicoctl} /tmp/releases/.
 fi
 
+# Set the hostname if it is passed in
+if [ ! -z "${hostName}" ]
+then
+  sed -i "s/node1/${hostName}/g" ${inventoryPath}/hosts.yml
+  sed -i "s/node1/${hostName}/g" ${glusterDeployPath}/topology.json
+  sed -i "s/node1/${hostName}/g" ${yamlBasePath}/persistent-volumes/local-storage-pv.yaml
+fi
+
 # Run ansible kubespray install
 /usr/local/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
@@ -240,6 +265,7 @@ then
   # Perform the initial setup for local storage
   # Local storage should be used when shared storage (Gluster) is not desired.
   # This should *only* be run once, before the installation of the Kubernetes environment (i.e., within t8c.sh).
+  sudo umount ${localStorageDataDirectory}
   sudo /usr/sbin/wipefs -a /dev/sdb
 
   # Format the partition and mount it in the desired data directory
@@ -247,7 +273,10 @@ then
   sudo mkfs.xfs -f ${device}
   sudo mkdir -p $localStorageDataDirectory
   sudo chown -R turbo.turbo $localStorageDataDirectory
-  echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | sudo tee --append /etc/fstab
+  if ! grep -q "$localStorageDataDirectory" /etc/fstab
+  then
+    echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | sudo tee --append /etc/fstab
+  fi
   sudo mount -a
   # This check needs to be better. But no time right now
   localStatus=$?
@@ -451,16 +480,6 @@ then
   if [ $result -ne 0 ]; then
     sed -i "/tag:/a\
 \    externalIP: ${node}\n" ${chartsFile}
-  fi
-
-  # Set branding if not turbonomic
-  if [ ! -z "${deploymentBrand}" ]
-  then
-    # Adjust regular installs
-    echo "  ui:" >> ${chartsFile}
-    echo "    image:" >> ${chartsFile}
-    echo "      repository: ${deploymentBrand}" >> ${chartsFile}
-    echo "      tag: ${turboVersion}" >> ${chartsFile}
   fi
 
   # Enable services for gluster

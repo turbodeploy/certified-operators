@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -18,6 +20,7 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.api.mappers.AccountTypeMapper;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
@@ -92,7 +95,8 @@ public class BusinessAccountMapper {
      * @param supplementaryData Supplementary data required to produce the final API DTO.
      * @return The API DTO that can be returned to the UI.
      */
-    private BusinessUnitApiDTO buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO businessAccount,
+    @VisibleForTesting
+    BusinessUnitApiDTO buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO businessAccount,
             @Nonnull final SupplementaryData supplementaryData) {
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         final long businessAccountOid = businessAccount.getOid();
@@ -128,10 +132,12 @@ public class BusinessAccountMapper {
 
         businessUnitApiDTO.setDisplayName(businessAccount.getDisplayName());
         if (businessAccount.getTypeSpecificInfo().hasBusinessAccount()) {
-            final boolean riSupported =
-                    businessAccount.getTypeSpecificInfo().getBusinessAccount().getRiSupported();
-            businessUnitApiDTO.setRiSupported(riSupported);
             final BusinessAccountInfo bizInfo = businessAccount.getTypeSpecificInfo().getBusinessAccount();
+            businessUnitApiDTO.setRiSupported(bizInfo.getRiSupported());
+
+            if (bizInfo.hasAccountType()) {
+                businessUnitApiDTO.setAccountType(AccountTypeMapper.fromXLToApi(bizInfo.getAccountType()));
+            }
             if (bizInfo.hasAccountId()) {
                 businessUnitApiDTO.setAccountId(bizInfo.getAccountId());
             }

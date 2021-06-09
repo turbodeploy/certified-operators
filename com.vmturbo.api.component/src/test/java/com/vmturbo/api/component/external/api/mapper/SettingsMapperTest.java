@@ -47,6 +47,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -91,6 +93,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Entit
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -113,6 +116,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -396,6 +400,34 @@ public class SettingsMapperTest {
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
         assertTrue(mapper.toManagerDtos(Collections.singleton(settingSpec1), Optional.empty(),
             false).isEmpty());
+    }
+
+    @Rule
+    public GrpcTestServer settingServiceGrpc = GrpcTestServer.newServer(new TestSettingService());
+
+    @Test
+    public void testGlobalSettings() throws IOException {
+        final SettingsMapper mapper = new SettingsMapper(
+                SettingServiceGrpc.newBlockingStub(settingServiceGrpc.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                (new SettingsManagerMappingLoader("globalSettingManagersTest.json")).getMapping(),
+                (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping(),
+                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                scheduleMapper,
+                Collections.emptyMap());
+        SettingPolicy globalPolicy = SettingPolicy.newBuilder()
+                .setSettingPolicyType(Type.DEFAULT)
+                .setId(SettingsMapper.GLOBAL_SETTING_POLICY_ID)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                        .setName(SettingsMapper.GLOBAL_SETTING_POLICY_NAME)
+                        .setEnabled(true))
+                .build();
+        SettingsPolicyApiDTO outputPolicy = mapper.convertSettingPolicy(globalPolicy);
+        // Assert that we got a policy back with the global policy id
+        // also assert that there are settings in the policy, which are contained within the settings managers
+        Assert.assertEquals(outputPolicy.getUuid(), String.valueOf(SettingsMapper.GLOBAL_SETTING_POLICY_ID));
+        Assert.assertFalse(outputPolicy.getSettingsManagers().isEmpty());
     }
 
     @Test
@@ -1771,5 +1803,34 @@ public class SettingsMapperTest {
                 .getOrDefault(Feature.ApplicationMinMaxReplicas, Collections.emptyMap());
         Assert.assertEquals(1, disabledSettings.size());
         Assert.assertEquals(expected, disabledSettings);
+    }
+
+    private class TestSettingService extends SettingServiceImplBase {
+        @Override
+        /** The following are the current global settings.  If more global settings are added,
+         * this test will need to be updated.
+         * @param request the request to get multiple global settings
+         * @param responseObserver the StreamObserver handling the response
+         */
+        public void getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest request,
+                StreamObserver<Setting> responseObserver) {
+            Setting setting1 = Setting.newBuilder().setSettingSpecName("disableAllActions")
+                    .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
+                    .build();
+            Setting setting2 = Setting.newBuilder().setSettingSpecName("maxVMGrowthObservationPeriod")
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1).build())
+                    .build();
+            Setting setting3 = Setting.newBuilder().setSettingSpecName("allowUnlimitedHostOverprovisioning")
+                    .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
+                    .build();
+            Setting setting4 = Setting.newBuilder().setSettingSpecName("onPremVolumeAnalysis")
+                    .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
+                    .build();
+            responseObserver.onNext(setting1);
+            responseObserver.onNext(setting2);
+            responseObserver.onNext(setting3);
+            responseObserver.onNext(setting4);
+            responseObserver.onCompleted();
+        }
     }
 }

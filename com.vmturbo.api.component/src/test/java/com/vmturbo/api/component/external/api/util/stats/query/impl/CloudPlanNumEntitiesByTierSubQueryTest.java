@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -53,6 +55,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -210,7 +214,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         Mockito.when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(builder);
         final StatApiInputDTO requestedStats =
                                              new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
-                                                                 null, null, null);
+                                                                 null, null, null, null);
         final PlanInstance planInstance = PlanInstance.newBuilder()
             .setStartTime(BEFORE_TIME)
             .setEndTime(AFTER_TIME)
@@ -244,7 +248,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         final Stream<MinimalEntity> projectedTierEntities = createTiersEntities(3, STORAGE_TIER_IO);
         final StatApiInputDTO requestedStats =
                 new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
-                        null, null, null);
+                        null, null, null, null);
         final PlanInstance planInstance = PlanInstance.newBuilder()
                 .setProjectType(PlanProjectType.CLOUD_MIGRATION)
                 .setStartTime(BEFORE_TIME)
@@ -285,6 +289,53 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
                 .getAggregateStats(Collections.singleton(requestedStats), context);
 
         checkResult(result, AFTER_TIME, 1);
+    }
+
+    /**
+     * Test `applicableInContext()` returns true when given BUY_RI_PLAN.
+     */
+    @Test
+    public void testApplicableInPlanForBuyRI() {
+        final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
+        final PlanInstance buyRIPlan = CloudPlanNumEntitiesByTierSubQueryTest.buildCloudPlan(StringConstants.BUY_RI_PLAN);
+
+        when(context.getPlanInstance()).thenReturn(Optional.of(buyRIPlan));
+
+        assertTrue(query.applicableInContext(context));
+    }
+
+    /**
+     * Test `applicableInContext()` returns true when given OCP.
+     */
+    @Test
+    public void testApplicableInPlanForOCP() {
+        final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
+        final PlanInstance ocp = CloudPlanNumEntitiesByTierSubQueryTest.buildCloudPlan(StringConstants.OPTIMIZE_CLOUD_PLAN);
+
+        when(context.getPlanInstance()).thenReturn(Optional.of(ocp));
+
+        assertTrue(query.applicableInContext(context));
+    }
+
+    /**
+     * Test `applicableInContext()` returns false when given HARDWARE_REFRESH.
+     */
+    @Test
+    public void testApplicableInPlanForAnOnPremPlan() {
+        final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
+        final PlanInstance hrPlan = CloudPlanNumEntitiesByTierSubQueryTest.buildCloudPlan("HARDWARE_REFRESH");
+
+        when(context.getPlanInstance()).thenReturn(Optional.of(hrPlan));
+
+        assertFalse(query.applicableInContext(context));
+    }
+
+    private static PlanInstance buildCloudPlan(String planType) {
+        return PlanInstance.newBuilder()
+            .setScenario(Scenario.newBuilder()
+                .setScenarioInfo(ScenarioInfo.newBuilder()
+                    .setType(planType)))
+            .setPlanId(0L).setStatus(PlanStatus.SUCCEEDED).build();
     }
 
     private static void checkResult(List<StatSnapshotApiDTO> result, Long time, int filtersSize) {

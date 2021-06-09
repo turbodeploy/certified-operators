@@ -32,7 +32,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistin
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
-import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -283,7 +283,7 @@ public class ReservationManager implements ReservationDeletedListener {
             try {
                 // TODO We should have a timeout on this.
                 FindInitialPlacementRequest initialPlacementRequest =
-                        buildIntialPlacementRequest(currentReservations);
+                        buildInitialPlacementRequest(currentReservations);
                 FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
                         .findInitialPlacement(initialPlacementRequest);
                 updatedReservations = updateProviderInfoForReservations(response.getInitialPlacementBuyerPlacementInfoList(),
@@ -417,35 +417,34 @@ public class ReservationManager implements ReservationDeletedListener {
 
     /**
      * Build the InitialPlacementBuyerList.
-     * @param reservations  the input set of reservations.
-     * @return the list of InitialPlacementBuyer for the reservations.
+     * @param reservation the input set of reservation.
+     * @return the list of InitialPlacementBuyer for the reservation.
      */
-    public List<InitialPlacementBuyer> buildInitialPlacementBuyerList(Set<Reservation> reservations) {
+    @Nonnull
+    public List<InitialPlacementBuyer> buildInitialPlacementBuyerList(@Nonnull Reservation reservation) {
         List<InitialPlacementBuyer> initialPlacementBuyerList = new ArrayList<>();
-        for (Reservation reservation : reservations) {
-            for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
-                    .getReservationTemplateList()) {
-                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                    long buyerId = reservationInstance.getEntityId();
-                    InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
-                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId)
-                                    .setReservationId(reservation.getId())
-                                    .setDeployed(reservation.getDeployed());
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
-                                InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
-                                        .setCommoditiesBoughtFromProviderId(placementInfo
-                                                .getPlacementInfoId())
-                                        .setCommoditiesBoughtFromProvider(TopologyEntityDTO
-                                                .CommoditiesBoughtFromProvider.newBuilder()
-                                                .setProviderEntityType(placementInfo
-                                                        .getProviderType())
-                                                .setProviderId(placementInfo.getProviderId())
-                                                .addAllCommodityBought(placementInfo
-                                                        .getCommodityBoughtList())));
-                    }
-                    initialPlacementBuyerList.add(intialPlacementBuyerBuilder.build());
+        for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
+                .getReservationTemplateList()) {
+            for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                long buyerId = reservationInstance.getEntityId();
+                InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
+                        InitialPlacementBuyer.newBuilder().setBuyerId(buyerId)
+                                .setReservationId(reservation.getId())
+                                .setDeployed(reservation.getDeployed());
+                for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                    intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
+                            InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
+                                    .setCommoditiesBoughtFromProviderId(placementInfo
+                                            .getPlacementInfoId())
+                                    .setCommoditiesBoughtFromProvider(TopologyEntityDTO
+                                            .CommoditiesBoughtFromProvider.newBuilder()
+                                            .setProviderEntityType(placementInfo
+                                                    .getProviderType())
+                                            .setProviderId(placementInfo.getProviderId())
+                                            .addAllCommodityBought(placementInfo
+                                                    .getCommodityBoughtList())));
                 }
+                initialPlacementBuyerList.add(intialPlacementBuyerBuilder.build());
             }
         }
         return initialPlacementBuyerList;
@@ -457,10 +456,17 @@ public class ReservationManager implements ReservationDeletedListener {
      * @param reservations the input set of reservations.
      * @return the constructed initial placement request.
      */
-    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
+    @Nonnull
+    public FindInitialPlacementRequest buildInitialPlacementRequest(@Nonnull Set<Reservation> reservations) {
         FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
-        buildInitialPlacementBuyerList(reservations).stream()
-                .forEach(buyer -> initialPlacementRequestBuilder.addInitialPlacementBuyer(buyer));
+        reservations.forEach(reservation -> {
+            InitialPlacementDTO.Builder findInitialPlacement = InitialPlacementDTO.newBuilder()
+                .addAllInitialPlacementBuyer(buildInitialPlacementBuyerList(reservation))
+                .setReservationMode(reservation.getReservationMode())
+                .setReservationGrouping(reservation.getReservationGrouping())
+                .setId(reservation.getId());
+            initialPlacementRequestBuilder.addInitialPlacement(findInitialPlacement.build());
+        });
         return initialPlacementRequestBuilder.build();
     }
 

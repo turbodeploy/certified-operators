@@ -367,7 +367,10 @@ public class PlanRpcService extends PlanServiceImplBase {
         @Nullable ScenarioInfo scenarioInfo = planInstance.hasScenario() ?
                 planInstance.getScenario().getScenarioInfo() : null;
         long planId = planInstance.getPlanId();
-        if (scenarioInfo != null && scenarioInfo.getType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)) {
+        final String scenarioType = scenarioInfo != null ? scenarioInfo.getType() : null;
+        if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioType) ||
+            StringConstants.BUY_RI_PLAN.equals(scenarioType)) {
+
             List<ScenarioChange> riScenario = scenarioInfo.getChangesList()
                     .stream()
                     .filter(c -> c.hasRiSetting())

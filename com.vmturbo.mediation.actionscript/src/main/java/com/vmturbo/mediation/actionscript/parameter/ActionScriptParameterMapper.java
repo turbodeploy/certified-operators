@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.actionscript.exception.ParameterMappingException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -99,6 +100,15 @@ public class ActionScriptParameterMapper {
         public String getDescription() {
             return description;
         }
+
+        @Override
+        public String toString() {
+            return "ActionScriptParameter{"
+                + "name='" + name + '\''
+                + ", value='" + value + '\''
+                + ", description='" + description + '\''
+                + '}';
+        }
     }
 
     /**
@@ -110,11 +120,22 @@ public class ActionScriptParameterMapper {
     private static Map<ActionScriptParameterDefinition, Function<ActionExecutionDTO, Optional<String>>> createParamNameToValueGetters() {
         final Map<ActionScriptParameterDefinition, Function<ActionExecutionDTO, Optional<String>>> typeToFunction =
             new EnumMap<>(ActionScriptParameterDefinition.class);
-        // TODO: Supply this value.
-        // The action ID is not currently part of the ActionExecuctionDTO, but will be added in OM-40659
-        typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_INTERNAL, action -> Optional.empty());
-        // TODO: Supply this value. This is not currently available in XL.
-        typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_NAME, action -> Optional.empty());
+
+        typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_INTERNAL,
+            action -> Optional.of(action)
+                .filter(ActionExecutionDTO::hasActionOid)
+                .map(ActionExecutionDTO::getActionOid)
+                .map(String::valueOf)
+            );
+
+        // display name of the action to be consistent with the rest of the *_NAME fields
+        typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_NAME,
+            action -> action.getActionItemList().stream()
+                .findFirst()
+                .filter(ActionItemDTO::hasDescription)
+                .map(ActionItemDTO::getDescription)
+            );
+
         // Use the OID for the internal name. The customer needs to be able to use this ID to
         // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_CURRENT_INTERNAL,
@@ -123,6 +144,7 @@ public class ActionScriptParameterMapper {
                 .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_CURRENT_NAME,
             action -> getCurrentSE(action).map(EntityDTO::getDisplayName));
+
         // Use the OID for the internal name. The customer needs to be able to use this ID to
         // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_NEW_INTERNAL,
@@ -131,6 +153,7 @@ public class ActionScriptParameterMapper {
                 .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_NEW_NAME,
             action -> getNewSE(action).map(EntityDTO::getDisplayName));
+
         // Use the OID for the internal name. The customer needs to be able to use this ID to
         // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_INTERNAL,
@@ -139,9 +162,11 @@ public class ActionScriptParameterMapper {
                 .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_NAME,
             action -> getTargetSE(action).map(EntityDTO::getDisplayName));
+
         // This needs to be the 3rd party, external id that the discovering probe provided.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_UUID,
-            action -> getTargetSE(action).map(EntityDTO::getId));
+            action -> getTargetSE(action)
+                .map(EntityDTO::getId));
 
         return Collections.unmodifiableMap(typeToFunction);
     }
@@ -188,21 +213,21 @@ public class ActionScriptParameterMapper {
     }
 
     private static Optional<EntityDTO> getTargetSE(ActionExecutionDTO actionExecutionDTO) {
-        if (actionExecutionDTO.getActionItemCount() > 0) {
+        if (actionExecutionDTO.getActionItemCount() > 0 && actionExecutionDTO.getActionItem(0).hasTargetSE()) {
             return Optional.of(actionExecutionDTO.getActionItem(0).getTargetSE());
         }
         return Optional.empty();
     }
 
     private static Optional<EntityDTO> getCurrentSE(ActionExecutionDTO actionExecutionDTO) {
-        if (actionExecutionDTO.getActionItemCount() > 0) {
+        if (actionExecutionDTO.getActionItemCount() > 0 && actionExecutionDTO.getActionItem(0).hasCurrentSE()) {
             return Optional.of(actionExecutionDTO.getActionItem(0).getCurrentSE());
         }
         return Optional.empty();
     }
 
     private static Optional<EntityDTO> getNewSE(ActionExecutionDTO actionExecutionDTO) {
-        if (actionExecutionDTO.getActionItemCount() > 0) {
+        if (actionExecutionDTO.getActionItemCount() > 0 && actionExecutionDTO.getActionItem(0).hasNewSE()) {
             return Optional.of(actionExecutionDTO.getActionItem(0).getNewSE());
         }
         return Optional.empty();

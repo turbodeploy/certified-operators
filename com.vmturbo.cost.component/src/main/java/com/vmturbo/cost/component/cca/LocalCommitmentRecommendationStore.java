@@ -35,7 +35,7 @@ import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;

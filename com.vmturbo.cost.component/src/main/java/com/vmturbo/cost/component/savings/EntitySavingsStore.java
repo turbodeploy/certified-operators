@@ -33,6 +33,9 @@ public interface EntitySavingsStore {
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
+     * @param entityTypes entity types
+     * @param billingFamilies billing families
+     * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
@@ -40,7 +43,10 @@ public interface EntitySavingsStore {
     List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull Collection<Long> entityOids)
+            @Nonnull Collection<Long> entityOids,
+            @Nonnull Collection<Integer> entityTypes,
+            @Nonnull Collection<Long> billingFamilies,
+            @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
     /**
@@ -50,13 +56,19 @@ public interface EntitySavingsStore {
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
+     * @param entityTypes entity types
+     * @param billingFamilies billing family OIDs
+     * @param resourceGroups resource group OIDs
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getHourlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull Collection<Long> entityOids)
+            @Nonnull Collection<Long> entityOids,
+            @Nonnull Collection<Integer> entityTypes,
+            @Nonnull Collection<Long> billingFamilies,
+            @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
     /**
@@ -66,13 +78,19 @@ public interface EntitySavingsStore {
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
+     * @param entityTypes entity types
+     * @param billingFamilies billing family OIDs
+     * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getDailyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull Collection<Long> entityOids)
+            @Nonnull Collection<Long> entityOids,
+            @Nonnull Collection<Integer> entityTypes,
+            @Nonnull Collection<Long> billingFamilies,
+            @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
     /**
@@ -82,14 +100,44 @@ public interface EntitySavingsStore {
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
+     * @param entityTypes entity types
+     * @param billingFamilies billing family OIDs
+     * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getMonthlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull Collection<Long> entityOids)
+            @Nonnull Collection<Long> entityOids,
+            @Nonnull Collection<Integer> entityTypes,
+            @Nonnull Collection<Long> billingFamilies,
+            @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant hourly table.
+     *
+     * @param timestamp Min epoch millis for hourly stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanHourly(long timestamp);
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant daily table.
+     *
+     * @param timestamp Min epoch millis for daily stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanDaily(long timestamp);
+
+    /**
+     * Deletes stats records older than the given timestamp from the relevant monthly table.
+     *
+     * @param timestamp Min epoch millis for monthly stats table that will be kept.
+     * @return Count of records deleted.
+     */
+    int deleteOlderThanMonthly(long timestamp);
 
     /**
      * Get metadata about last time rollup was done.

@@ -50,4 +50,9 @@ public class ClustermgrDBConfig extends SQLDatabaseConfig {
     public String getDbSchemaName() {
         return dbSchemaName;
     }
+
+    @Override
+    public String getDbUsername() {
+        return clustermgrDbUsername;
+    }
 }

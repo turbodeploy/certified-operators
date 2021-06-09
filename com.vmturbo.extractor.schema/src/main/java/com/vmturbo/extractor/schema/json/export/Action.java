@@ -8,8 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 
-import com.vmturbo.extractor.schema.json.common.ActionEntity;
-
 /**
  * Class containing all the fields of an entity or action that need to be exported.
  * Note: Json property order is set to alphabetically to ensure all fields are in same order in
@@ -29,7 +27,7 @@ public class Action extends ExporterActionAttributes {
     private String description;
     private String explanation;
     private CostAmount savings;
-    private ActionEntity target;
+
     // mapping from related entity type key to list of related entities
     private Map<String, List<RelatedEntity>> related;
 
@@ -111,14 +109,6 @@ public class Action extends ExporterActionAttributes {
 
     public void setExplanation(String explanation) {
         this.explanation = explanation;
-    }
-
-    public ActionEntity getTarget() {
-        return target;
-    }
-
-    public void setTarget(ActionEntity target) {
-        this.target = target;
     }
 
     public CostAmount getSavings() {

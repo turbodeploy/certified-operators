@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
@@ -49,6 +50,7 @@ public abstract class BaseTopologyStore<T extends BaseTopology<E>, S extends Bas
     private void updateRealtimeSourceTopology(@Nonnull final T newSourceRealtimeTopology) {
         synchronized (topologyLock) {
             this.realtimeTopology = Optional.of(newSourceRealtimeTopology);
+            topologyLock.notifyAll();
         }
         long sourceTopologyId =  newSourceRealtimeTopology.topologyInfo().getTopologyId();
         logger.info("Updated realtime topology with id {}. New topology has {} entities.",
@@ -72,6 +74,26 @@ public abstract class BaseTopologyStore<T extends BaseTopology<E>, S extends Bas
     @Nonnull
     public Optional<T> getSourceTopology() {
         synchronized (topologyLock) {
+            return realtimeTopology;
+        }
+    }
+
+    /**
+     * Get the current topology. If there is no current topology, wait for the topology to
+     * become available.
+     * @param wait Amount of time to wait.
+     * @param waitTime Time units.
+     * @return An optional containing the topology. Empty optional if no topology is available after
+     *         the wait time has elapsed.
+     * @throws InterruptedException If thread is interrupted while waiting.
+     */
+    @Nonnull
+    public Optional<T> getSourceTopology(final long wait, @Nonnull final TimeUnit waitTime)
+            throws InterruptedException {
+        synchronized (topologyLock) {
+            if (!realtimeTopology.isPresent()) {
+                topologyLock.wait(waitTime.toMillis(wait));
+            }
             return realtimeTopology;
         }
     }

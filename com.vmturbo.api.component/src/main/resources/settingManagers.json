@@ -226,6 +226,7 @@
         "resizeVStorage",
         "preferSavingsOverReversibility",
         "dtuUtilization",
+        "resizeTargetUtilizationStorageAmount",
         "allowUnlimitedHostOverprovisioning",
         "onPremVolumeAnalysis",
         "minReplicas",
@@ -323,6 +324,14 @@
         "cca.max.demand.percentage",
         "cca.min.savings.onDemand",
         "cca.include.terminated.entities"
+      ]
+    },
+    "cloudsavingsmanager": {
+      "displayName": "",
+      "defaultCategory": "Cloud Savings",
+      "settings": [
+          "expire.action",
+          "expire.deleteVolume"
       ]
     },
     "osmigrationmanager": {

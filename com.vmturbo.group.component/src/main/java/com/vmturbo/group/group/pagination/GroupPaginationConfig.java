@@ -18,9 +18,9 @@ public class GroupPaginationConfig {
 
     /**
      * The maximum page limit for group component. If a paginated request has a limit that exceeds
-     * this value, it will be discarded and this will be used instead.
+     * this value, the request's value will be discarded and this will be used instead.
      */
-    @Value("${groupPaginationMaxLimit:500}")
+    @Value("${groupPaginationMaxLimit:100000}")
     private int groupPaginationMaxLimit;
 
     /**

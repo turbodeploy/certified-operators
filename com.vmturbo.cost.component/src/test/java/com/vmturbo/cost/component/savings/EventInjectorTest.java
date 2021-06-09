@@ -103,9 +103,9 @@ public class EventInjectorTest {
 
     List<ExpectedEvent> expectedEvents = ImmutableList.of(
         new ExpectedEvent(1612908000000L, ActionEventType.RECOMMENDATION_ADDED),
-        new ExpectedEvent(1612908000000L, ActionEventType.EXECUTION_SUCCESS),
+        new ExpectedEvent(1612908000000L, ActionEventType.SCALE_EXECUTION_SUCCESS),
         new ExpectedEvent(1612940400000L, ActionEventType.RECOMMENDATION_ADDED),
-        new ExpectedEvent(1612940400000L, ActionEventType.EXECUTION_SUCCESS),
+        new ExpectedEvent(1612940400000L, ActionEventType.SCALE_EXECUTION_SUCCESS),
         new ExpectedEvent(1612947600000L),
         new ExpectedEvent(1612972800000L),
         new ExpectedEvent(1612976400000L),

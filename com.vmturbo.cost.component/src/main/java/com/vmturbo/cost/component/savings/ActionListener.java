@@ -11,11 +11,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
@@ -28,7 +28,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -37,6 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
@@ -48,16 +51,21 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.util.EntityCostFilter;
+import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * Listens for events from the action orchestrator and inserts events into the internal
@@ -69,11 +77,6 @@ public class ActionListener implements ActionsListener {
      * Logger.
      */
     private final Logger logger = LogManager.getLogger();
-
-    /**
-     * Action State Map.
-     */
-    private final Map<Long, ActionState> entityActionStateMap = new ConcurrentHashMap<>();
 
     /**
      * The In Memory Events Journal.
@@ -93,11 +96,6 @@ public class ActionListener implements ActionsListener {
     private final ActionsServiceBlockingStub actionsService;
 
     /**
-     * For making Grpc calls to Cost.
-     */
-    private final CostServiceBlockingStub costService;
-
-    /**
      * Real-time context id.
      */
     private final Long realTimeTopologyContextId;
@@ -111,81 +109,95 @@ public class ActionListener implements ActionsListener {
      * Pending Action MODES. (Maybe we need to check if executable ? )
      */
     private final ImmutableSet<ActionMode> pendingActionModes = ImmutableSet.of(ActionMode.MANUAL,
-                                                                                ActionMode.RECOMMEND);
-    /**
-     * Pending Action States.
-     */
-    private final ImmutableSet<ActionState> pendingActionStates = ImmutableSet.of(ActionState.READY);
+                                                                                ActionMode.RECOMMEND,
+                                                                                ActionMode.AUTOMATIC);
     /**
      * Pending Action Entity Types.
      */
     private final Set<Integer> pendingWorkloadTypes;
 
     /**
+     * The current entity costs store.
+     */
+    private final EntityCostStore currentEntityCostStore;
+
+    /**
+     * The projected entity costs store.
+     */
+    private final InMemoryEntityCostStore projectedEntityCostStore;
+
+    /**
      * Map of entity type to a set of cost categories for which costs need to be queried for.
+     * The current entity costs store.
      */
     private static final Map<Integer, Set<CostCategory>> costCategoriesByEntityType = new HashMap<>();
 
+    /**
+     * Set of Cost Sources for which costs are queried.
+     */
+    private static final ImmutableSet<CostSource> costSources = ImmutableSet.of(
+            CostSource.ON_DEMAND_RATE,
+            CostSource.RI_INVENTORY_DISCOUNT);
+
+    /**
+     * String to describe before action costs for an entity.
+     */
+    private final String beforeCosts = "Before Costs";
+    /**
+     * String to describe after action costs for an entity.
+     */
+    private final String afterCosts = "After Costs";
+
     static {
         costCategoriesByEntityType.put(EntityType.VIRTUAL_MACHINE_VALUE,
-                ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.ON_DEMAND_LICENSE));
+                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
+                                                       CostCategory.ON_DEMAND_LICENSE,
+                                                       CostCategory.RESERVED_LICENSE));
         costCategoriesByEntityType.put(EntityType.VIRTUAL_VOLUME_VALUE,
-                ImmutableSet.of(CostCategory.STORAGE));
+                                       ImmutableSet.of(CostCategory.STORAGE));
         costCategoriesByEntityType.put(EntityType.DATABASE_VALUE,
-                ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.STORAGE));
+                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
+                                                       CostCategory.STORAGE));
+        costCategoriesByEntityType.put(EntityType.DATABASE_SERVER_VALUE,
+                                       ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE,
+                                                       CostCategory.STORAGE));
     }
-
-    /**
-     * Convenience to represent 0 costs, to avoid recreating it each time.
-     */
-    private final CurrencyAmount zeroCosts = CurrencyAmount.newBuilder().setAmount(0d).build();
-
-    /**
-     * Convenience to represent empty price change, to avoid recreating it each time.
-     */
-    private final EntityPriceChange emptyPriceChange = new EntityPriceChange.Builder()
-            .sourceOid(0L)
-            .sourceCost(0.0)
-            .destinationOid(0L)
-            .destinationCost(0.0)
-            .build();
 
     /**
      * Action lifetimes.
      */
-    private final Long actionLifetimeMs;
-    private final Long deleteVolumeActionLifetimeMs;
+    private final EntitySavingsRetentionConfig retentionConfig;
 
     /**
      * Constructor.
      *
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
      * @param actionsServiceBlockingStub Stub for Grpc calls to actions service.
-     * @param costServiceBlockingStub Stub for Grpc calls to cost service.
+     * @param costStoreHouse Entity cost store
+     * @param projectedEntityCostStore Projected entity cost store
      * @param realTimeContextId The real-time topology context id.
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
-     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
-     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
+     * @param retentionConfig savings action retention configuration.
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
-                    @Nonnull CostServiceBlockingStub costServiceBlockingStub,
+                    @Nonnull final EntityCostStore costStoreHouse,
+                    @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
-                    @Nonnull final Long actionLifetimeMs,
-                    @Nonnull final Long deleteVolumeActionLifetimeMs) {
-        entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
-        costService = Objects.requireNonNull(costServiceBlockingStub);
-        realTimeTopologyContextId = realTimeContextId;
-        pendingWorkloadTypes = supportedEntityTypes.stream()
+                    @Nonnull EntitySavingsRetentionConfig retentionConfig) {
+        this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
+        this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
+        this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
+        this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
+        this.realTimeTopologyContextId = realTimeContextId;
+        this.pendingWorkloadTypes = supportedEntityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
-        pendingActionTypes = supportedActionTypes;
-        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
-        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
+        this.pendingActionTypes = supportedActionTypes;
+        this.retentionConfig = retentionConfig;
     }
 
     /**
@@ -200,52 +212,46 @@ public class ActionListener implements ActionsListener {
      */
     @Override
     public void onActionSuccess(@Nonnull ActionSuccess actionSuccess) {
+        // Refresh action expiration settings
+        retentionConfig.updateValues();
         // Locate the target entity in the internal entity state.  If not present, create an
         //  - entry for it.
         final Long actionId = actionSuccess.getActionId();
-        ActionState prevActionState = entityActionStateMap.get(actionId);
-        // Check if a SUCCEEDED action id hasn't already been added, in order to to avoid processing
-        // an action more than once if multiple SUCCEEDED notifications were to be received.
-        // There could be a previous READY/PENDING_ACCEPT entry, and that's fine.
-        if (prevActionState != ActionState.SUCCEEDED) {
-            logger.info("Action {} changed from {} to SUCCEEDED", actionId, prevActionState);
-            // Add a Succeeded Action event to the Events Journal with time-stamp as the completion time.
-            ActionEntity entity;
-            try {
-                final ActionSpec actionSpec = actionSuccess.getActionSpec();
-                entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                if (pendingWorkloadTypes.contains(entity.getType())) {
-                    final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
-                    final Long entityId = entity.getId();
-                    Map<Long, EntityActionInfo> entityIdToActionInfoMap = new HashMap<>();
-                    entityIdToActionInfoMap.put(entityId, new EntityActionInfo(actionSpec, entity));
-                    final Map<Long, EntityPriceChange> entityPriceChangeMap = getEntityCosts(
-                                     ImmutableMap.of(entityId, new EntityActionInfo(actionSpec, entity)));
-                    final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
-                    if (actionPriceChange != null) {
-                        EntityPriceChange actionPriceChangeWithExpiration =
-                                new EntityPriceChange.Builder()
-                                        .from(actionPriceChange)
-                                        .expirationTime(Optional.of(completionTime + actionLifetimeMs))
-                                        .build();
-                        final SavingsEvent successEvent = createActionEvent(entity.getId(),
-                                completionTime,
-                                ActionEventType.EXECUTION_SUCCESS,
-                                actionId,
-                                actionPriceChangeWithExpiration);
-                        entityEventsJournal.addEvent(successEvent);
-                        entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
-                        logger.debug("Added action {} for entity {}, completion time {}, recommendation"
-                                        + " time {}, journal size {}",
-                                     actionId, entityId, completionTime,
-                                     actionSpec.getRecommendationTime(),
-                                     entityEventsJournal.size());
-                    }
-                }
-            } catch (UnsupportedActionException e) {
-                logger.error("Cannot create action Savings event due to unsupported action type",
-                            e);
+        logger.debug("Got success notification for action {}", actionId);
+        try {
+            final ActionSpec actionSpec = actionSuccess.getActionSpec();
+            final ActionState actionState = actionSpec.getActionState();
+            logger.info("Action State of Action {} changed to {}", actionId, actionState);
+            // Multiple SUCCEEDED notifications could likely still be received from probes,
+            // However the Savings Calculator will only process the first Savings event
+            // related to action execution and drop the rest.
+            ActionEntity entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+            final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
+            if (pendingWorkloadTypes.contains(entity.getType())) {
+                final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
+                final Long entityId = entity.getId();
+                // The Savings Calculator preserves the recommendation prices, hence executions events don't
+                // need to have a EntityPriceChange with before and after costs populated.
+                long expirationTime = completionTime
+                        + (ActionEventType.DELETE_EXECUTION_SUCCESS
+                                .equals(entityActionInfo.getActionEventType())
+                                        ? retentionConfig.getVolumeDeleteRetentionMs()
+                                        : retentionConfig.getActionRetentionMs());
+                final SavingsEvent successEvent = createActionEvent(entity.getId(),
+                        completionTime,
+                        entityActionInfo.getActionEventType(),
+                        actionId, null,
+                        entityActionInfo, Optional.of(expirationTime));
+                entityEventsJournal.addEvent(successEvent);
+                logger.debug("Added action {} for entity {}, completion time {}, recommendation"
+                                + " time {}, journal size {}",
+                             actionId, entityId, completionTime,
+                             actionSpec.getRecommendationTime(),
+                             entityEventsJournal.size());
             }
+        } catch (UnsupportedActionException e) {
+            logger.error("Cannot create action Savings event due to unsupported action type for action {}",
+                         actionId, e);
         }
     }
 
@@ -313,9 +319,20 @@ public class ActionListener implements ActionsListener {
                                     continue;
                                 }
                                 final Long entityId = entity.getId();
-                                logger.debug("Saving Info for Pending Action {}, at {} for entity {}", actionId,
-                                             actionSpec.getRecommendationTime(), entityId);
-                                newPendingActionsInfoToEntityId.put(new EntityActionInfo(actionSpec, entity), entityId);
+                                logger.debug("Saving Info for Action {}, of type {}, at {}"
+                                                        + " for entity {}", actionId,
+                                                     ActionDTOUtil.getActionInfoActionType(
+                                                                   actionSpec.getRecommendation()),
+                                                     actionSpec.getRecommendationTime(), entityId);
+                                try {
+                                    final EntityActionInfo eai = new EntityActionInfo(actionSpec, entity);
+                                    newPendingActionsInfoToEntityId.put(eai, entityId);
+                                } catch (IllegalArgumentException e) {
+                                     logger.warn("Discarding action {} because the entity {} already has an action associated with it. "
+                                                     + "An entity cannot have more than one action at the moment. "
+                                                     + "This could be a duplicate action for a multi-attach volume. {}",
+                                                        actionId, entityId, e.getMessage());
+                                }
                             }
                         } else if (filteredActionResponse.hasPaginationResponse()) {
                             cursor.set(filteredActionResponse.getPaginationResponse().getNextCursor());
@@ -336,56 +353,58 @@ public class ActionListener implements ActionsListener {
      * being processed.
      */
     private void generateRecommendationEvents(@Nonnull final BiMap<EntityActionInfo, Long> newPendingActionsInfoToEntityId) {
-        // Add new pending action events.
+
+        Map<Long, EntityActionInfo> newPendingEntityIdToActionsInfo =
+                                                                    newPendingActionsInfoToEntityId
+                                                                                    .inverse();
+        // Query for action costs and update the action info of the new cycle actions.
+        Map<Long, EntityPriceChange> entityPriceChangeMap =
+                                                  getEntityCosts(newPendingEntityIdToActionsInfo);
+
+        Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
+        // Add new recommendation action events.
         // Compare the old and new actions and create SavingsEvents for new ActionId's.
         // entriesOnlyOnLeft() returns newly added actions, and entriesOnlyOnRight()
         // returns actions no longer being generated by or replaced by Market.
         MapDifference<EntityActionInfo, Long> actionChanges = Maps
                         .difference(newPendingActionsInfoToEntityId,
                                     existingPendingActionsInfoToEntityId);
-        Map<Long, EntityActionInfo> newPendingEntityIdToActionsInfo =
-                                                                    newPendingActionsInfoToEntityId
-                                                                                    .inverse();
-        Map<Long, EntityPriceChange> entityPriceChangeMap =
-                                                  getEntityCosts(newPendingEntityIdToActionsInfo);
-        Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
-        actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionInfo -> {
+        actionChanges.entriesOnlyOnLeft().forEach((newActionInfo, entityId) -> {
             final Long newActionId = newActionInfo.getActionId();
             final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
-            if (actionPriceChange != null) {
-                logger.trace("New action price change for {}, {}, {}, {}:",
-                        newActionInfo,
+            // We need to create RECOMMENDATION_ADDED events for actions in READY (PENDING_ACCEPT)
+            // states only.
+            if (actionPriceChange != null && actionState == ActionState.READY) {
+                logger.debug("New action price change for {}, {}, {}, {}:",
+                        newActionId,
                         actionState, actionPriceChange.getSourceCost(),
                         actionPriceChange.getDestinationCost());
-                ActionState prevActionState = entityActionStateMap.get(newActionId);
-                if (prevActionState != ActionState.SUCCEEDED) {
-                    entityActionStateMap.put(newActionId, actionState);
-                    final Long entityId = newPendingActionsInfoToEntityId
-                            .get(newActionInfo);
-                    SavingsEvent pendingActionEvent =
-                            createActionEvent(entityId,
-                                    newActionInfo.getRecommendationTime(),
-                                    ActionEventType.RECOMMENDATION_ADDED,
-                                    newActionId,
-                                    actionPriceChange);
-                    newPendingActionEvents.add(pendingActionEvent);
-                    logger.debug("Added new pending event for action {}, entity {},"
-                                    + " action state {}, source oid {}, destination oid {}, entity type {}",
-                                    newActionId, entityId, actionState, newActionInfo.getSourceOid(),
-                                    newActionInfo.getDestinationOid(),
-                                    newActionInfo.getEntityType());
-                }
+                SavingsEvent pendingActionEvent = createActionEvent(entityId,
+                                                        newActionInfo.getRecommendationTime(),
+                                                        ActionEventType.RECOMMENDATION_ADDED,
+                                                        newActionId,
+                                                        actionPriceChange,
+                                                        newActionInfo, Optional.empty());
+                newPendingActionEvents.add(pendingActionEvent);
+                logger.debug("Added new pending event for action {}, entity {},"
+                         + " action state {}, source oid {}, destination oid {},"
+                         + " entity type {}",
+                         newActionId, entityId, actionState,
+                         newActionInfo.getSourceOid(),
+                         newActionInfo.getDestinationOid(),
+                         newActionInfo.getEntityType());
             }
         });
         entityEventsJournal.addEvents(newPendingActionEvents);
+
         // Add events related to stale actions.
         // entityIdsOnLeft represents entities with new actions, or those with a different new action
         // than Market has recommended in previous cycle(s).
         // entityIdsOnRight represents entities with old actions.
-        Set<Long> entityIdsOfExistingActions = actionChanges.entriesOnlyOnLeft().values().stream()
+        Set<Long> entityIdsOfNewActions = actionChanges.entriesOnlyOnLeft().values().stream()
                         .collect(Collectors.toSet());
-        Set<Long> entityIdsOfNewActions = actionChanges.entriesOnlyOnRight().values().stream()
+        Set<Long> entityIdsOfExistingActions = actionChanges.entriesOnlyOnRight().values().stream()
                         .collect(Collectors.toSet());
         // This intersection of the maps values represent entities that had an action in a previous cycle
         // and have a different (replaced) action in the current cycle.  From this point on missed
@@ -401,27 +420,25 @@ public class ActionListener implements ActionsListener {
             // current time, as this will make it higher than the recommendation time of
             // all the actions being removed, as they would have been recommended in a prior cycle.
             final long currentTimeInMillis = System.currentTimeMillis();
-            actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionInfo -> {
+            actionChanges.entriesOnlyOnRight().forEach((staleActionInfo, entityId) -> {
                 final Long staleActionId = staleActionInfo.getActionId();
-                final Long entityId = existingPendingActionsInfoToEntityId
-                        .get(staleActionInfo);
                 if (!entitiesWithReplacedActions.contains(entityId)) {
                     SavingsEvent staleActionEvent =
-                                                    createActionEvent(entityId,
-                                                                      currentTimeInMillis,
-                                                      ActionEventType.RECOMMENDATION_REMOVED,
-                                                      staleActionId,
-                                                      emptyPriceChange);
+                                                  createActionEvent(entityId,
+                                                            currentTimeInMillis,
+                                                            ActionEventType.RECOMMENDATION_REMOVED,
+                                                            staleActionId,
+                                                            null,
+                                                            staleActionInfo, Optional.empty());
                     staleActionEvents.add(staleActionEvent);
                     logger.debug("Added stale event for action {}, entity {},"
                                  + "  source oid {}, destination oid {}, entity type {}",
                                  staleActionId, entityId, staleActionInfo.getSourceOid(),
                                  staleActionInfo.getDestinationOid(),
                                  staleActionInfo.getEntityType());
-                    entityActionStateMap.remove(staleActionId);
                 } else {
-                    logger.debug("Entity {} with old action {} has a different action {} this cycle."
-                                    + " No stale event generated",
+                    logger.debug("Entity {} with old action {} has a different action {} this "
+                                    + "cycle. No stale event generated",
                                  entityId, staleActionId);
                 }
             });
@@ -451,7 +468,6 @@ public class ActionListener implements ActionsListener {
                                             .newBuilder()
                                             .setVisible(true)
                                             .addAllTypes(pendingActionTypes)
-                                            .addAllStates(pendingActionStates)
                                             .addAllModes(pendingActionModes)
                                             .setEnvironmentType(EnvironmentType.CLOUD))
                                         .build())
@@ -467,28 +483,33 @@ public class ActionListener implements ActionsListener {
      * @param actionType The action type.
      * @param actionId the action ID.
      * @param priceChange the price change associated with the action.
+     * @param actionInfo Additional info about action.
+     * @param expiration Time in milliseconds after execution when the action will expire.
      * @return The SavingsEvent.
      */
-    private static SavingsEvent createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
-                              long actionId, @Nonnull final EntityPriceChange priceChange) {
-        return new SavingsEvent.Builder()
-                        .actionEvent(new ActionEvent.Builder()
-                                        .actionId(actionId)
-                                        .eventType(actionType).build())
+    private static SavingsEvent
+            createActionEvent(Long entityId, Long timestamp, ActionEventType actionType,
+                              long actionId, @Nullable final EntityPriceChange priceChange,
+                              final EntityActionInfo actionInfo, final Optional<Long> expiration) {
+        final ActionEvent.Builder actionEventBuilder = new ActionEvent.Builder()
+                        .actionId(actionId)
+                        .eventType(actionType)
+                        .description(actionInfo.getDescription())
+                        .entityType(actionInfo.entityType)
+                        .actionType(actionInfo.actionType.getNumber())
+                        .actionCategory(actionInfo.actionCategory.getNumber());
+        if (expiration.isPresent()) {
+            actionEventBuilder.expirationTime(expiration);
+        }
+        final SavingsEvent.Builder builder = new SavingsEvent.Builder()
+                        .actionEvent(actionEventBuilder
+                                        .build())
                         .entityId(entityId)
-                        .timestamp(timestamp)
-                        .entityPriceChange(priceChange)
-                        .build();
-    }
-
-    /**
-     * Getter for entityActionStateMap.
-     *
-     * @return entityActionStateMap;
-     */
-    @VisibleForTesting
-    protected Map<Long, ActionState> getEntityActionStateMap() {
-        return entityActionStateMap;
+                        .timestamp(timestamp);
+        if (priceChange != null) {
+            builder.entityPriceChange(priceChange);
+        }
+        return builder.build();
     }
 
     /**
@@ -497,7 +518,7 @@ public class ActionListener implements ActionsListener {
      * @return currentPendingActionsActionSpecToEntityIdMap.
      */
     @VisibleForTesting
-    protected Map<EntityActionInfo, Long> getCurrentPendingActionsActionSpecToEntityIdMap() {
+    Map<EntityActionInfo, Long> getExistingPendingActionsInfoToEntityIdMap() {
         return existingPendingActionsInfoToEntityId;
     }
 
@@ -511,65 +532,117 @@ public class ActionListener implements ActionsListener {
     private Map<Long, EntityPriceChange> getEntityCosts(
             @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
         Map<Long, EntityPriceChange> actionIdToEntityPriceChange = new HashMap<>();
-        // Get subset of entity ids by cost category, we can only make 1 request for each category.
-        Map<CostCategory, Set<Long>> categoryToEntities = new HashMap<>();
-        entityIdToActionInfoMap.forEach((entityId, entityActionInfo) -> {
-            Set<CostCategory> cat = costCategoriesByEntityType.get(entityActionInfo.entityType);
-            if (CollectionUtils.isNotEmpty(cat)) {
-                cat.forEach(eachCategory -> {
-                    categoryToEntities.computeIfAbsent(eachCategory, k -> new HashSet<>()).add(entityId);
-                });
-            }
-        });
 
-        // Make the Grpc call to get before and after costs for those categories.
-        queryEntityCosts(categoryToEntities, entityIdToActionInfoMap);
+        //Get before and after costs for the defined costSources.
+        queryEntityCosts(entityIdToActionInfoMap);
 
         // Update total costs in return map.
         entityIdToActionInfoMap.forEach((entityId, entityActionInfo) -> {
-            final EntityActionCosts totalCosts = entityActionInfo.getTotalCosts();
+            final EntityActionCosts entityActionCosts = entityActionInfo.getEntityActionCosts();
             final EntityPriceChange actionPriceChange = new EntityPriceChange.Builder()
-                    .sourceOid(entityActionInfo.sourceOid)
-                    .sourceCost(totalCosts.beforeCosts)
-                    .destinationOid(entityActionInfo.destinationOid)
-                    .destinationCost(totalCosts.afterCosts)
-                    .build();
+                            .sourceOid(entityActionInfo.sourceOid)
+                            .sourceCost(entityActionCosts.beforeCosts)
+                            .destinationOid(entityActionInfo.destinationOid)
+                            .destinationCost(entityActionCosts.afterCosts)
+                            .build();
+            logger.debug("Adding a price change for action {} --> Before Costs {}, After Cost {}",
+                         entityActionInfo.getActionId(),
+                         entityActionCosts.beforeCosts, entityActionCosts.afterCosts);
             actionIdToEntityPriceChange.put(entityActionInfo.getActionId(), actionPriceChange);
         });
         return actionIdToEntityPriceChange;
     }
 
     /**
-     * Makes the CostRpc calls to get the before and after costs for the given set of entities,
-     * for the categories specified.
+     * Fetches from entityCostStore the before and after costs for the given set of entities,
+     * for the CostSources ON_DEMAND_RATE and RI_INVENTORY_DISCOUNT.
      *
-     * @param categoryToEntities Map of CostCategory to a list of entities for which those costs
-     *      need to be fetched. An api call is made per category.
      * @param entityIdToActionInfoMap Input map that is updated with fetched costs.
      */
     @VisibleForTesting
-    void queryEntityCosts(@Nonnull final Map<CostCategory, Set<Long>> categoryToEntities,
-            @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
-        categoryToEntities.forEach((category, entities) -> {
-            final GetTierPriceForEntitiesRequest.Builder request = GetTierPriceForEntitiesRequest
-                    .newBuilder()
-                    .addAllOids(entities)
-                    .setCostCategory(category);
-            request.setTopologyContextId(realTimeTopologyContextId);
+    void queryEntityCosts(@Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
+        try {
+            final Set<CostCategory> costCategories = costCategoriesByEntityType.values()
+                                                            .stream()
+                                                            .flatMap(x -> x.stream())
+                                                            .collect(Collectors.toSet());
+            final EntityCostFilter filterBuilder = EntityCostFilterBuilder
+                            .newBuilder(TimeFrame.LATEST,
+                                        realTimeTopologyContextId)
+                            .entityIds(entityIdToActionInfoMap.keySet())
+                            .costCategoryFilter(CostCategoryFilter.newBuilder()
+                                            .setExclusionFilter(false)
+                                            .addAllCostCategory(costCategories)
+                                            .build())
+                            .latestTimestampRequested(true)
+                            .costSources(false, costSources)
+                            .build();
 
-            final GetTierPriceForEntitiesResponse response = costService.getTierPriceForEntities(
-                    request.build());
-            final Map<Long, CurrencyAmount> beforeCosts = response.getBeforeTierPriceByEntityOidMap();
-            final Map<Long, CurrencyAmount> afterCosts = response.getAfterTierPriceByEntityOidMap();
+            Map<Long, Map<Long, EntityCost>> queryResult =
+                                                         currentEntityCostStore
+                                                         .getEntityCosts(filterBuilder);
+            Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
+            queryResult.values().forEach(beforeEntityCostbyOid::putAll);
 
-            entities.forEach(entityId -> {
-                final EntityActionInfo entityActionInfo = entityIdToActionInfoMap.get(entityId);
-                double beforeAmount = beforeCosts.getOrDefault(entityId, zeroCosts).getAmount();
-                double afterAmount = afterCosts.getOrDefault(entityId, zeroCosts).getAmount();
-                entityActionInfo.costsByCategory.put(category, new EntityActionCosts(beforeAmount,
-                        afterAmount));
-            });
-        });
+            final Map<Long, EntityCost> afterEntityCostByOid = projectedEntityCostStore.getEntityCosts(filterBuilder);
+
+            // Populate before costs for entity.
+            populateCostsForEntity(beforeEntityCostbyOid, entityIdToActionInfoMap, true);
+            // Populate after costs for entity.
+            populateCostsForEntity(afterEntityCostByOid, entityIdToActionInfoMap, false);
+        } catch (DbException e) {
+            logger.warn("ActionListener Error retrieving entity costs", e);
+        }
+    }
+
+    /**
+     * Populate before or after costs for an entity.
+     *
+     * @param costsMap The entity's cost map.
+     * @param entityIdToActionInfoMap  Entity Id to EntityActionInfo {@link EntityActionInfo} map
+     * @param isBeforeCosts specifies whether it's the before costs or after posts that need to be populated.
+     */
+    private void populateCostsForEntity(@Nonnull Map<Long, EntityCost> costsMap,
+                                        @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap,
+                                       final boolean isBeforeCosts) {
+        int noOfEntitieswithError = 0;
+        final String costDescription = isBeforeCosts ? beforeCosts : afterCosts;
+        for (Map.Entry<Long, EntityCost> entry : costsMap.entrySet()) {
+            final Long entityId = entry.getKey();
+            final EntityCost cost = entry.getValue();
+            final EntityActionInfo entityActionInfo = entityIdToActionInfoMap.get(entityId);
+            if (CollectionUtils.isNotEmpty(cost.getComponentCostList())) {
+                AtomicReference<Double> atomicSum = new AtomicReference<>(0.0);
+                cost.getComponentCostList().forEach(componentCost -> {
+                    // Consider only the Cost Categories relevant for an Entity Type.
+                    if (costCategoriesByEntityType.get(entityIdToActionInfoMap
+                                    .get(entityId).getEntityType())
+                                    .contains(componentCost.getCategory())
+                        && componentCost.hasAmount()) {
+                        logger.debug("Entity {} {} --> CostSource {} : {} : {}",
+                                     entityId, costDescription,
+                                     componentCost.getCostSource(),
+                                     componentCost.getCategory(),
+                                     componentCost.getAmount().getAmount());
+                        atomicSum.accumulateAndGet(componentCost.getAmount()
+                                        .getAmount(), (x, y) -> x + y);
+                    }
+                });
+                final double totalCosts = atomicSum.get();
+                if (isBeforeCosts) {
+                    logger.debug("Total before costs for entity {} : {}", entityId, totalCosts);
+                    entityActionInfo.getEntityActionCosts().setBeforeCosts(totalCosts);
+                } else {
+                    logger.debug("Total after costs for entity {} : {}", entityId, totalCosts);
+                    entityActionInfo.getEntityActionCosts().setAfterCosts(totalCosts);
+                }
+            } else {
+                noOfEntitieswithError++;
+                logger.warn("No costs could be retrieved from database for entity having oid {}",
+                             entityId);
+            }
+        }
+        logger.warn("ActionListener total number of entities with cost retrieval issues {}.", noOfEntitieswithError);
     }
 
     /**
@@ -603,17 +676,77 @@ public class ActionListener implements ActionsListener {
         /**
          * RecommendationTime of the original action.
          */
-        private long recommendationTime;
+        private final long recommendationTime;
 
         /**
-         * Stores before and after costs per category.
+         * The before and after costs associated with the action.
          */
-        private final Map<CostCategory, EntityActionCosts> costsByCategory;
+        @Nonnull
+        private final EntityActionCosts entityActionCosts;
 
         /**
          * Id of action.
          */
         private final long actionId;
+
+        /**
+         * The action type.
+         */
+        private ActionEventType actionEventType;
+
+        /**
+         * Action description text.
+         */
+        private String description;
+
+        /**
+         * Optional additional info for some actions, e.g scale compliance.
+         */
+        @Nullable
+        private String explanation;
+
+        /**
+         * Type of action - SCALE or DELETE.
+         */
+        private ActionType actionType;
+
+        /**
+         * Performance or Efficiency category.
+         */
+        private ActionCategory actionCategory;
+
+        /**
+         * Saving/hr that is set in action. Only set (can be 0.0) if it is present, some action
+         * types like Reconfigure will not have this value set. Here mainly for logging/description.
+         */
+        @Nullable
+        private Double savingsPerHour;
+
+        /**
+         * For trimming redundant text from action description, what to replace.
+         */
+        private static final String[] descriptionToReplace = new String[] {
+                "Scale Virtual Machine ",
+                "Scale Database ",
+                "Scale Database Server ",
+                "Scale Volume ",
+                "Delete Unattached ",
+                "Scale ",
+                "Auto Scaling Groups: "
+        };
+
+        /**
+         * What to replace with.
+         */
+        private static final String[] descriptionReplaceWith = new String[] {
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                StringUtils.EMPTY
+        };
 
         /**
          * Constructor.
@@ -627,11 +760,16 @@ public class ActionListener implements ActionsListener {
             this.recommendationTime = actionSpec.getRecommendationTime();
             this.entityType = entity.getType();
             this.actionState = actionSpec.getActionState();
-            this.costsByCategory = new HashMap<>();
-            if (action.hasInfo() && action.getInfo().hasScale()) {
-                final Scale scale = action.getInfo().getScale();
+            this.entityActionCosts = new EntityActionCosts(0, 0);
+            if (!action.hasInfo()) {
+                return;
+            }
+            ActionInfo actionInfo = action.getInfo();
+            if (actionInfo.hasScale()) {
+                this.actionEventType = ActionEventType.SCALE_EXECUTION_SUCCESS;
+                final Scale scale = actionInfo.getScale();
                 if (scale.getChangesCount() > 0) {
-                    final ChangeProvider changeProvider = action.getInfo().getScale().getChanges(0);
+                    final ChangeProvider changeProvider = scale.getChanges(0);
                     if (changeProvider.hasSource()) {
                         this.sourceOid = changeProvider.getSource().getId();
                     }
@@ -643,19 +781,22 @@ public class ActionListener implements ActionsListener {
                     this.sourceOid = scale.getPrimaryProvider().getId();
                     this.destinationOid = scale.getPrimaryProvider().getId();
                 }
+            } else if (actionInfo.hasDelete()) {
+                this.actionEventType = ActionEventType.DELETE_EXECUTION_SUCCESS;
+                final Delete delete = actionInfo.getDelete();
+                if (delete.hasSource()) {
+                    // A delete is modeled as a resize to zero, so ensure that the destination
+                    // OID is zero, which will map to a zero cost.
+                    this.sourceOid = delete.getSource().getId();
+                    this.destinationOid = 0L;
+                }
             }
-        }
-
-        /**
-         * Gets summed up costs, across all applicable categories, for this entity.
-         *
-         * @return Total costs, containing pre and post action costs.
-         */
-        @Nonnull
-        EntityActionCosts getTotalCosts() {
-            final EntityActionCosts totalCosts = new EntityActionCosts();
-            costsByCategory.values().forEach(totalCosts::add);
-            return totalCosts;
+            this.description = actionSpec.getDescription();
+            this.actionCategory = actionSpec.getCategory();
+            if (action.hasSavingsPerHour() && action.getSavingsPerHour().hasAmount()) {
+                this.savingsPerHour = action.getSavingsPerHour().getAmount();
+            }
+            processActionType(actionSpec);
         }
 
         /**
@@ -686,15 +827,6 @@ public class ActionListener implements ActionsListener {
         }
 
         /**
-         * Getter for costsByCategory.
-         *
-         * @return costsByCategory.
-         */
-        protected Map<CostCategory, EntityActionCosts> getCostsByCategory() {
-            return costsByCategory;
-        }
-
-        /**
          * Getter for actionId.
          *
          * @return actionId.
@@ -713,12 +845,40 @@ public class ActionListener implements ActionsListener {
         }
 
         /**
+         * Setter for actionState.
+         *
+         * @param actionState new action state.
+         */
+        public void setActionState(ActionState actionState) {
+            this.actionState = actionState;
+        }
+
+        /**
          * Getter for recommendationTime.
          *
          * @return recommendationTime.
          */
         protected long getRecommendationTime() {
             return recommendationTime;
+        }
+
+        /**
+         * Getter for action type.
+         *
+         * @return the action type.
+         */
+        protected ActionEventType getActionEventType() {
+            return actionEventType;
+        }
+
+        /**
+         *  Getter for EntityActionCosts.
+         *
+         * @return EntityActionCosts.
+         */
+        @Nonnull
+        protected EntityActionCosts getEntityActionCosts() {
+            return entityActionCosts;
         }
 
         /**
@@ -732,7 +892,7 @@ public class ActionListener implements ActionsListener {
          */
         @Override
         public int hashCode() {
-            return Objects.hash(actionId, sourceOid, destinationOid, entityType);
+            return Objects.hash(actionId, sourceOid, destinationOid, entityType, entityActionCosts);
         }
 
         /**
@@ -768,7 +928,71 @@ public class ActionListener implements ActionsListener {
             if (sourceOid != other.sourceOid) {
                 return false;
             }
+            if (!entityActionCosts.equals(other.getEntityActionCosts())) {
+                return false;
+            }
             return true;
+        }
+
+        /**
+         * Method to extract Action type from ActionSpec. Would have been nice if spec had a type field!
+         * For scale action type, also tries to set the provider oid details.
+         *
+         * @param actionSpec ActionSpec to check.
+         */
+        private void processActionType(@Nonnull final ActionSpec actionSpec) {
+            this.actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+
+            if (this.actionType == ActionType.SCALE
+                    && actionSpec.getRecommendation().getInfo().hasScale()) {
+                processProviderDetails(actionSpec.getRecommendation().getInfo().getScale());
+                if (actionSpec.hasExplanation()) {
+                    String exp = actionSpec.getExplanation();
+                    if (StringUtils.isNotBlank(exp)) {
+                        this.explanation = exp.replace("(^_^)~", "");
+                    }
+                }
+            }
+        }
+
+        /**
+         * For scale actions, sets the details of source and destination provider.
+         *
+         * @param scale Scale action info.
+         */
+        private void processProviderDetails(@Nonnull final Scale scale) {
+            if (scale.getChangesCount() > 0) {
+                final ChangeProvider changeProvider = scale.getChanges(0);
+                if (changeProvider.hasSource()) {
+                    this.sourceOid = changeProvider.getSource().getId();
+                }
+                if (changeProvider.hasDestination()) {
+                    this.destinationOid = changeProvider.getDestination().getId();
+                }
+            } else if (scale.hasPrimaryProvider()) {
+                // Scaling within same tier, like some UltraSSDs.
+                this.sourceOid = scale.getPrimaryProvider().getId();
+                this.destinationOid = scale.getPrimaryProvider().getId();
+            }
+        }
+
+        /**
+         * Gets the description to use in action event to be added to journal.
+         *
+         * @return Description, plus optionally savings/hr and/or explanation.
+         */
+        @Nonnull
+        String getDescription() {
+            final StringBuilder sb = new StringBuilder();
+            sb.append(description);
+            if (savingsPerHour != null) {
+                sb.append(", sph: ").append(savingsPerHour);
+            }
+            if (StringUtils.isNotBlank(explanation)) {
+                sb.append(", exp: ").append(explanation);
+            }
+            String title = sb.toString();
+            return StringUtils.replaceEach(title, descriptionToReplace, descriptionReplaceWith);
         }
     }
 
@@ -806,14 +1030,71 @@ public class ActionListener implements ActionsListener {
         }
 
         /**
-         * Adds input costs to the costs of this instance. Used to make up total costs from all
-         * the individual category costs.
+         * Getter for beforeCosts.
          *
-         * @param other Category costs to add to this instance.
+         * @return beforeCosts.
          */
-        void add(@Nonnull final EntityActionCosts other) {
-            beforeCosts += other.beforeCosts;
-            afterCosts += other.afterCosts;
+        protected double getBeforeCosts() {
+            return beforeCosts;
+        }
+
+        /**
+         * Setter for beforeCosts.
+         *
+         * @param beforeCosts The before costs.
+         */
+        protected void setBeforeCosts(double beforeCosts) {
+            this.beforeCosts = beforeCosts;
+        }
+
+        /**
+         * Getter for afterCosts.
+         *
+         * @return afterCosts.
+         */
+        protected double getAfterCosts() {
+            return afterCosts;
+        }
+
+        /**
+         * Setter for afterCosts.
+         *
+         * @param afterCosts The after costs.
+         */
+        protected void setAfterCosts(double afterCosts) {
+            this.afterCosts = afterCosts;
+        }
+
+        /**
+         * hashCode() method.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(afterCosts, beforeCosts);
+        }
+
+        /**
+         * equals() method.
+         */
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            EntityActionCosts other = (EntityActionCosts)obj;
+            if (Double.compare(afterCosts, other.afterCosts) != 0) {
+                return false;
+            }
+            if (Double.compare(beforeCosts, other.beforeCosts) != 0) {
+                return false;
+            }
+            return true;
         }
     }
 }

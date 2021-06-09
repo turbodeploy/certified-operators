@@ -25,6 +25,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -267,6 +269,11 @@ public class IdentityProviderImpl implements IdentityProvider {
             perProbeMetadata.put(probeId,
                     new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
         }
+    }
+
+    @Override
+    public LongSet getCurrentOidsInIdentityCache() throws IdentityUninitializedException {
+        return identityServiceInMemoryUnderlyingStore.getCurrentOidsInIdentityCache();
     }
 
     @Override

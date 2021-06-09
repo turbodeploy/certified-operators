@@ -52,9 +52,9 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * <p/>
  * Note that this class does no maintenance, settings lookups, etc. Instead, all the work
  * for these functions is done on the entities where we aggregate shared ephemeral entity
- * history (ie CONTAINER_SPEC). This stage performs a very simple and naive copy
- * of that shared history onto the individual ephemeral entities that contribute to that
- * shared history. Entities inserted or modified by plan scenario changes should
+ * history by the controller entity (ie CONTAINER_SPEC). This stage performs a very simple
+ * and naive copy of that shared history onto the individual ephemeral entities that contribute
+ * to that shared history. Entities inserted or modified by plan scenario changes should
  * set up their relationships so that they get the correct behavior from this stage.
  * <p/>
  * Right now only sold commodities are edited because only sold commodities are resized.
@@ -67,7 +67,7 @@ public class EphemeralEntityEditor {
     /**
      * CONTAINER_SPEC entity store shared, persistent history for ephemeral CONTAINER replicas.
      * <p/>
-     * CONTAINER_SPEC entities are connected to CONTAINER entities via "aggregates"
+     * CONTAINER_SPEC entities are connected to CONTAINER entities via "Controlled_By"
      * relationships. This editor copies the shared history from the CONTAINER_SPEC
      * BACK onto the individual CONTAINER instances by traversing these connections
      * in the topology graph.
@@ -138,8 +138,8 @@ public class EphemeralEntityEditor {
         final Map<Integer, Double> requiredConsistentCommodityValues = new HashMap<>();
         final Set<Integer> inconsistentCommodities = new HashSet<>();
 
-        // As of now all persistent entities aggregate their ephemeral counterparts.
-        persistentEntity.getAggregatedEntities().forEach(ephemeralEntity -> {
+        // As of now all persistent entities (containerSpecs) control their ephemeral counterparts.
+        persistentEntity.getAggregatedAndControlledEntities().forEach(ephemeralEntity -> {
             logger.debug("Copying commodity history from persistent entity {} to ephemeral entity {}",
                 () -> persistentEntity, () -> ephemeralEntity);
             copyCommodityHistory(persistentSoldCommodities,
@@ -154,7 +154,7 @@ public class EphemeralEntityEditor {
             logger.debug("Disabling resize on commodities {} for scaling group identified "
                 + "by persistent entity {}", inconsistentCommodities, persistentEntity.getDisplayName());
             editSummary.incrementInconsistentScalingGroups();
-            persistentEntity.getAggregatedEntities().forEach(ephemeralEntity ->
+            persistentEntity.getAggregatedAndControlledEntities().forEach(ephemeralEntity ->
                 ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
                     .filter(builder -> inconsistentCommodities.contains(builder.getCommodityType().getType()))
                     .forEach(builder -> builder.setIsResizeable(false)));

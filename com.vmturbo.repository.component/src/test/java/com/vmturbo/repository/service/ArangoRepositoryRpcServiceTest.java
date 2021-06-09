@@ -41,6 +41,7 @@ import org.mockito.stubbing.Answer;
 
 import javaslang.control.Either;
 
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -124,10 +125,12 @@ public class ArangoRepositoryRpcServiceTest {
 
     private final PlanEntityFilterConverter planEntityFilterConverter = mock(PlanEntityFilterConverter.class);
 
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+
     private final ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,
         planStatsService, partialEntityConverter, 10,
-        planEntityStore, planEntityFilterConverter);
+        planEntityStore, planEntityFilterConverter, userSessionContext);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -139,6 +142,7 @@ public class ArangoRepositoryRpcServiceTest {
     public void setUp() throws Exception {
         repoClient = new RepositoryClient(grpcServer.getChannel(), realtimeTopologyContextId);
         repositoryService = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        when(userSessionContext.isUserScoped()).thenReturn(false);
     }
 
     @Test
@@ -559,7 +563,7 @@ public class ArangoRepositoryRpcServiceTest {
         // Create the stats response
         final PlanEntityStats planEntityStats = PlanEntityStats.newBuilder()
             .setPlanEntity(partialEntityConverter
-                .createPartialEntity(topologyEntityDTO.getEntity(), returnType))
+                .createPartialEntity(topologyEntityDTO.getEntity(), returnType, userSessionContext))
             .setPlanEntityStats(stats)
             .build();
 
@@ -844,7 +848,7 @@ public class ArangoRepositoryRpcServiceTest {
         final EntityStats.Builder stats = EntityStats.newBuilder();
         if (sourceEntity != null) {
             builder.setPlanSourceEntity(partialEntityConverter
-                    .createPartialEntity(sourceEntity.getEntity(), Type.MINIMAL));
+                    .createPartialEntity(sourceEntity.getEntity(), Type.MINIMAL, userSessionContext));
             stats.setOid(sourceEntity.getEntity().getOid())
                 .addStatSnapshots(StatSnapshot.newBuilder()
                     .setStatEpoch(StatEpoch.PLAN_SOURCE)
@@ -854,7 +858,7 @@ public class ArangoRepositoryRpcServiceTest {
 
         if (projectedEntity != null) {
             builder.setPlanProjectedEntity(partialEntityConverter
-                .createPartialEntity(projectedEntity.getEntity(), Type.MINIMAL));
+                .createPartialEntity(projectedEntity.getEntity(), Type.MINIMAL, userSessionContext));
             stats.setOid(projectedEntity.getEntity().getOid())
                 .addStatSnapshots(StatSnapshot.newBuilder()
                     .setStatEpoch(StatEpoch.PLAN_PROJECTED)

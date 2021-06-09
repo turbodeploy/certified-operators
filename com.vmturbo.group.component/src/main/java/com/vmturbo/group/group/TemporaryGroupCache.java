@@ -4,20 +4,26 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ArrayListMultimap;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -36,12 +42,20 @@ public class TemporaryGroupCache {
 
     private final IdentityProvider identityProvider;
 
+    private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver;
+
+    private final GroupSeverityCalculator groupSeverityCalculator;
+
     private final Cache<Long, Grouping> tempGroupingCache;
 
     public TemporaryGroupCache(@Nonnull final IdentityProvider identityProvider,
+                               @Nonnull GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
+                               @Nonnull GroupSeverityCalculator groupSeverityCalculator,
                                final long expirationTime,
                                final TimeUnit expirationUnit) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.groupEnvironmentTypeResolver = Objects.requireNonNull(groupEnvironmentTypeResolver);
+        this.groupSeverityCalculator = Objects.requireNonNull(groupSeverityCalculator);
 
         tempGroupingCache = CacheBuilder.newBuilder()
                         .expireAfterAccess(expirationTime, expirationUnit)
@@ -55,14 +69,53 @@ public class TemporaryGroupCache {
      * @param groupDefinition The info object describing the group to create.
      * @param origin The info object describing properties of the origin of the group.
      * @param expectedTypes The list of expected entity and group types in this group.
+     * @param entitiesWithEnvironment A list with the group's entities and info about their
+     *                                environment, to be used in calculation of the group's
+     *                                severity, environment & cloud type.
      * @return The newly created {@link Grouping}.
-     * @throws InvalidTempGroupException If the info object describing the group is illegal.
      */
     @Nonnull
     public Grouping create(@Nonnull final GroupDefinition groupDefinition,
-                    @Nonnull final GroupDTO.Origin origin, Collection<MemberType> expectedTypes)
-                                    throws InvalidTempGroupException {
+            @Nonnull final GroupDTO.Origin origin,
+            Collection<MemberType> expectedTypes,
+            List<PartialEntity> entitiesWithEnvironment) {
         final long oid = identityProvider.next();
+        final GroupEnvironment calculatedGroupEnvironment;
+        final Severity groupSeverity;
+
+        // Calculate information derived from entities
+        if (entitiesWithEnvironment != null) {
+            // calculate environment type based on members environment type
+            calculatedGroupEnvironment =
+                    groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(oid,
+                            entitiesWithEnvironment.stream()
+                                    .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toSet()), ArrayListMultimap.create());
+            // calculate severity based on members severity
+            groupSeverity = groupSeverityCalculator.calculateSeverity(
+                    entitiesWithEnvironment
+                            .stream()
+                            .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                            .filter(Objects::nonNull)
+                            .map(EntityWithOnlyEnvironmentTypeAndTargets::getOid)
+                            .collect(Collectors.toSet()));
+        } else {
+            // if we can't calculate supplementary info, fall back to defaults
+            calculatedGroupEnvironment = new GroupEnvironment();
+            groupSeverity = Severity.NORMAL;
+        }
+        // If environment type is explicitly specified (e.g. by the ui due to specific
+        // conventions), use this instead of the calculated one.
+        final GroupEnvironment groupEnvironment;
+        if (groupDefinition.hasOptimizationMetadata()
+                && groupDefinition.getOptimizationMetadata().hasEnvironmentType()) {
+            groupEnvironment = new GroupEnvironment(
+                    groupDefinition.getOptimizationMetadata().getEnvironmentType(),
+                    calculatedGroupEnvironment.getCloudType());
+        } else {
+            groupEnvironment = calculatedGroupEnvironment;
+        }
 
         final Grouping group = Grouping.newBuilder()
                         .setId(oid)
@@ -70,6 +123,9 @@ public class TemporaryGroupCache {
                         .setDefinition(groupDefinition)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
+                        .setEnvironmentType(groupEnvironment.getEnvironmentType())
+                        .setCloudType(groupEnvironment.getCloudType())
+                        .setSeverity(groupSeverity)
                         .build();
 
         tempGroupingCache.put(oid, group);
@@ -99,15 +155,5 @@ public class TemporaryGroupCache {
     @Nonnull
     public Optional<Grouping> getGrouping(long id) {
         return Optional.ofNullable(tempGroupingCache.getIfPresent(id));
-    }
-
-    /**
-     * An exception thrown when the {@link GroupDefinition} describing a group is illegal.
-     */
-    public static class InvalidTempGroupException extends Exception {
-
-        public InvalidTempGroupException(final List<String> errors) {
-            super("Errors in temporary group's info object: " + StringUtils.join(errors, "\n"));
-        }
     }
 }

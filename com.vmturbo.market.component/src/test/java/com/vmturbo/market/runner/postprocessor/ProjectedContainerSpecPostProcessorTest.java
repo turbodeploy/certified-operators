@@ -98,6 +98,13 @@ public class ProjectedContainerSpecPostProcessorTest {
                         .setPercentile(10)
                         .build())
                     .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
+                                .build())
+                        .setCapacity(100)
+                        .setUsed(50)
+                        .build())
                 .build())
             .build();
         long containerOID1 = 22L;
@@ -109,8 +116,15 @@ public class ProjectedContainerSpecPostProcessorTest {
                     .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.VCPU_VALUE)
                         .build())
-                    .setCapacity(2)
+                    .setCapacity(4)
                     .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
+                                .build())
+                        .setCapacity(100)
+                        .setUsed(20)
+                        .build())
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(containerSpecOID)
                     .build())
@@ -127,6 +141,13 @@ public class ProjectedContainerSpecPostProcessorTest {
                         .build())
                     .setCapacity(2)
                     .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
+                                .build())
+                        .setCapacity(100)
+                        .setUsed(10)
+                        .build())
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(containerSpecOID)
                     .build())
@@ -150,10 +171,16 @@ public class ProjectedContainerSpecPostProcessorTest {
         ProjectedTopologyEntity updatedProjectedContainerSpec =
             projectedTopologyEntityMap.get(containerSpecOID);
         Assert.assertNotNull(updatedProjectedContainerSpec);
-        Assert.assertEquals(2,
+        // Updated VCPU capacity value of container spec is the max capacity value of all corresponding
+        // container replicas.
+        Assert.assertEquals(4,
             updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getCapacity(), DELTA);
-        Assert.assertEquals(5,
+        Assert.assertEquals(2.5,
             updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getHistoricalUsed().getPercentile(), DELTA);
+        // Updated VCPUThrottling used value of container spec is the average used value of all corresponding
+        // container replicas.
+        Assert.assertEquals(15,
+                updatedProjectedContainerSpec.getEntity().getCommoditySoldList(1).getUsed(), DELTA);
     }
 
     private ActionTO mockActionTO(long entityOID, int commodityType) {

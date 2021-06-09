@@ -40,7 +40,7 @@ public class TestGroupGenerator {
         final List<MemberType> types = Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                 MemberType.newBuilder().setGroup(GroupType.REGULAR).build());
         return new DiscoveredGroup(counter.getAndIncrement(), groupDefinition, srcId,
-                new HashSet<>(targetIds), types, false);
+                false, new HashSet<>(targetIds), types, false);
     }
 
     /**

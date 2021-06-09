@@ -42,9 +42,22 @@ public class TopologyProcessorDBConfig extends SQLDatabaseConfig {
                 !Strings.isEmpty(topologyProcessorDbPassword) ? topologyProcessorDbPassword : null));
     }
 
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
+    }
+
     @Override
     public String getDbSchemaName() {
         return dbSchemaName;
+    }
+
+    @Override
+    public String getDbUsername() {
+        return topologyProcessorDbUsername;
     }
 }
 

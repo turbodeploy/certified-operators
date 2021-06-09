@@ -9,6 +9,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -30,9 +31,12 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
@@ -49,7 +53,7 @@ public class EntityCostFilter extends CostFilter {
     private static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
 
     private final boolean excludeCostSources;
-    private final Set<Integer> costSources;
+    private final Set<CostSource> costSources;
     private final CostCategoryFilter costCategoryFilter;
     private final Set<Long> accountIds;
     private final Set<Long> availabilityZoneIds;
@@ -60,21 +64,30 @@ public class EntityCostFilter extends CostFilter {
     @Nullable
     private final CostGroupBy costGroupBy;
 
+    /**
+     * Preserve the group by enums received in the RPC request.
+     */
+    private final List<GroupBy> requestedGroupByEnums;
+
+    private final boolean totalValuesRequested;
+
     EntityCostFilter(@Nullable final Set<Long> entityFilters,
                      @Nullable final Set<Integer> entityTypeFilters,
                      @Nullable final Long startDateMillis,
                      @Nullable final Long endDateMillis,
                      @Nullable final TimeFrame timeFrame,
-                     @Nonnull Set<String> groupByFields,
+                     @Nonnull final Set<String> groupByFields,
                      final boolean excludeCostSources,
-                     @Nullable final Set<Integer> costSources,
+                     @Nullable final Set<CostSource> costSources,
                      @Nullable final CostCategoryFilter costCategoryFilter,
                      @Nullable final Set<Long> accountIds,
                      @Nullable final Set<Long> availabilityZoneIds,
                      @Nullable final Set<Long> regionIds,
                      final boolean latestTimeStampRequested,
                      @Nullable final Long topologyContextId,
-                     long realtimeTopologyContextId) {
+                     final long realtimeTopologyContextId,
+                     final List<GroupBy> requestedGroupByEnums,
+                     final boolean totalValuesRequested) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
             CREATED_TIME, latestTimeStampRequested, topologyContextId, realtimeTopologyContextId);
         this.excludeCostSources = excludeCostSources;
@@ -85,6 +98,63 @@ public class EntityCostFilter extends CostFilter {
         this.regionIds = regionIds;
         this.costGroupBy = createGroupByFieldString(groupByFields);
         this.conditions = generateConditions();
+        this.requestedGroupByEnums = requestedGroupByEnums;
+        this.totalValuesRequested = totalValuesRequested;
+    }
+
+    /**
+     * Creates a mew builder initialized with the filter fields.
+     * @return a new EntityCostFilterBuilder
+     */
+    @Nonnull
+    public  EntityCostFilterBuilder toNewBuilder() {
+        EntityCostFilterBuilder builder =
+                new EntityCostFilterBuilder(timeFrame, realtimeTopologyContextId);
+        if (costSources != null) {
+            builder.costSources(excludeCostSources, costSources);
+        }
+        if (costCategoryFilter != null) {
+            builder.costCategoryFilter(costCategoryFilter);
+        }
+        if (entityTypeFilters != null) {
+            builder.entityTypes(entityTypeFilters);
+        }
+        if (costGroupBy != null && costGroupBy.getReceivedGroupByFields() != null) {
+            builder.groupByFields(costGroupBy.getReceivedGroupByFields());
+        }
+        if (requestedGroupByEnums != null) {
+            builder.requestedGroupBy = requestedGroupByEnums;
+        }
+        if (regionIds != null) {
+            builder.regionIds(regionIds);
+        }
+        if (accountIds != null) {
+            builder.accountIds(accountIds);
+        }
+        if (availabilityZoneIds != null) {
+            builder.availabilityZoneIds(availabilityZoneIds);
+        }
+        if (entityFilters != null) {
+            builder.entityIds(entityFilters);
+        }
+        if (startDateMillis != null) {
+            builder.startDateMillis = startDateMillis;
+        }
+        if (endDateMillis != null) {
+            builder.endDateMillis = endDateMillis;
+        }
+        builder.latestTimestampRequested(latestTimeStampRequested);
+        builder.totalValuesRequested(totalValuesRequested);
+
+        return builder;
+    }
+
+    /**
+     * Preserve the group by enums received in the RPC request.
+     * @return the original group by enums
+     */
+    public List<GroupBy> getRequestedGroupBy() {
+        return requestedGroupByEnums;
     }
 
     @Nullable
@@ -104,6 +174,7 @@ public class EntityCostFilter extends CostFilter {
      *
      * @return a list of {@link Condition}.
      */
+    @Override
     public List<Condition> generateConditions() {
         final List<Condition> conditions = new ArrayList<>();
         final Table<?> table = getTable();
@@ -133,19 +204,26 @@ public class EntityCostFilter extends CostFilter {
                     .map(CostCategory::getNumber)
                     .collect(ImmutableSet.toImmutableSet());
 
-            if (costCategoryFilter.getExclusionFilter()) {
-                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).notIn(costCategoryValues));
-            } else {
-                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).in(costCategoryValues));
+            if (!costCategoryValues.isEmpty()) {
+                if (costCategoryFilter.getExclusionFilter()) {
+                    conditions.add(table.field(ENTITY_COST.COST_TYPE.getName())
+                                    .notIn(costCategoryValues));
+                } else {
+                    conditions.add(table.field(ENTITY_COST.COST_TYPE.getName())
+                                    .in(costCategoryValues));
+                }
             }
         }
 
         if (costSources != null && !costSources.isEmpty()) {
+            final Set<Integer> costSourceValues = costSources.stream()
+                    .map(CostSource::getNumber)
+                    .collect(ImmutableSet.toImmutableSet());
             if (getTable() == ENTITY_COST || getTable() == PLAN_ENTITY_COST) {
                 if (excludeCostSources) {
-                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSources));
+                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).notIn(costSourceValues));
                 } else {
-                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).in(costSources));
+                    conditions.add(table.field(ENTITY_COST.COST_SOURCE.getName()).in(costSourceValues));
                 }
             } else {
                 logger.warn("Cost source filter has been set on a query on a table other than the"
@@ -200,7 +278,7 @@ public class EntityCostFilter extends CostFilter {
         return excludeCostSources;
     }
 
-    public Optional<Set<Integer>> getCostSources() {
+    public Optional<Set<CostSource>> getCostSources() {
         return Optional.ofNullable(costSources);
     }
 
@@ -246,6 +324,17 @@ public class EntityCostFilter extends CostFilter {
                 && !getCostSources().isPresent();
     }
 
+    /**
+     * Gets the flag indicating to return values and their units depending on the requested time
+     * interval.
+     *
+     * @return the flag indicating to return values and their units depending on the requested time
+     *         interval.
+     */
+    public boolean isTotalValuesRequested() {
+        return totalValuesRequested;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
@@ -256,7 +345,8 @@ public class EntityCostFilter extends CostFilter {
                 && Objects.equals(accountIds, other.accountIds)
                 && Objects.equals(availabilityZoneIds, other.availabilityZoneIds)
                 && Objects.equals(regionIds, other.regionIds)
-                && Objects.equals(topologyContextId, other.topologyContextId);
+                && Objects.equals(topologyContextId, other.topologyContextId)
+                && totalValuesRequested == other.totalValuesRequested;
         }
         return false;
     }
@@ -268,7 +358,7 @@ public class EntityCostFilter extends CostFilter {
         return Objects.hash(setHashCode.apply(costSources),
             costCategoryFilter,
             excludeCostSources, setHashCode.apply(accountIds), setHashCode.apply(availabilityZoneIds),
-            setHashCode.apply(regionIds), super.hashCode());
+            setHashCode.apply(regionIds), super.hashCode(), totalValuesRequested);
     }
 
     @Override
@@ -296,23 +386,41 @@ public class EntityCostFilter extends CostFilter {
             builder.append(
                     conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
         }
+        builder.append("\n total values requested: ");
+        builder.append(totalValuesRequested);
         return builder.toString();
+    }
+
+    private Set<CostSource> resolveCostSources(@Nonnull CostSourceLinkDTO costSourceLink) {
+
+        final ImmutableSet.Builder<CostSource> costSources = ImmutableSet.<CostSource>builder()
+                .add(costSourceLink.getCostSource());
+
+        if (costSourceLink.hasDiscountCostSourceLink()) {
+            costSources.addAll(resolveCostSources(costSourceLink.getDiscountCostSourceLink()));
+        }
+
+        return costSources.build();
     }
 
     private boolean filterComponentCostByCostSource(@Nonnull EntityCost.ComponentCost componentCost) {
 
+        final Set<CostSource> componentCostSources = componentCost.hasCostSourceLink()
+                ? resolveCostSources(componentCost.getCostSourceLink())
+                : Collections.EMPTY_SET;
+
         return getCostSources().map(costSources -> {
 
             // If this is exclusion filter, it covers those entries that don't have cost source and
-            // those that have cost source and is in the filter
+            // those that don't have any of the filtered costs sources in the cost source chain.
             if (excludeCostSources) {
-                return !componentCost.hasCostSource()
-                        || !costSources.contains(componentCost.getCostSource().getNumber());
+                return Sets.intersection(costSources, componentCostSources).isEmpty();
             } else {
                 // if this is inclusion filter only return true if the cost component has a cost source
-                // and its value is in input filter
-                return componentCost.hasCostSource()
-                        && costSources.contains(componentCost.getCostSource().getNumber());
+                // chain and all cost sources in the chain are included in the filter
+                final Set<CostSource> costSourceIntersection = Sets.intersection(costSources, componentCostSources);
+                return !componentCostSources.isEmpty()
+                        && costSourceIntersection.size() == componentCostSources.size();
             }
         }).orElse(true);
     }
@@ -333,12 +441,14 @@ public class EntityCostFilter extends CostFilter {
     public static class EntityCostFilterBuilder extends CostFilterBuilder<EntityCostFilterBuilder,
             EntityCostFilter> {
         private boolean excludeCostSources = false;
-        private Set<Integer> costSources = null;
+        private Set<CostSource> costSources = null;
         private CostCategoryFilter costCategoryFilter = null;
         private Set<Long> accountIds = null;
         private Set<Long> availabilityZoneIds = null;
         private Set<Long> regionIds = null;
         private Long topologyContextId = null;
+        private List<GroupBy> requestedGroupBy = null;
+        private boolean totalValuesRequested = false;
 
         private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame,
                 long realtimeTopologyContextId) {
@@ -362,9 +472,10 @@ public class EntityCostFilter extends CostFilter {
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
-                    endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources, costCategoryFilter,
-                    accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested,
-                    topologyContextId, realtimeTopologyContextId);
+                    endDateMillis, timeFrame, groupByFields, excludeCostSources, costSources,
+                    costCategoryFilter, accountIds, availabilityZoneIds, regionIds,
+                    latestTimeStampRequested, topologyContextId, realtimeTopologyContextId,
+                    requestedGroupBy, totalValuesRequested);
         }
 
         /**
@@ -377,9 +488,9 @@ public class EntityCostFilter extends CostFilter {
          */
         @Nonnull
         public EntityCostFilterBuilder costSources(boolean excludeCostSources,
-                @Nonnull Set<Integer> costSources) {
+                @Nonnull Collection<CostSource> costSources) {
             this.excludeCostSources = excludeCostSources;
-            this.costSources = costSources;
+            this.costSources = ImmutableSet.copyOf(costSources);
             return this;
         }
 
@@ -403,6 +514,17 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilterBuilder accountIds(
             @Nonnull Collection<Long> accountIds) {
             this.accountIds = new HashSet<>(accountIds);
+            return this;
+        }
+
+        /**
+         * Return the original group by enums from the request.
+         * @param requestedGroupBy requested group by enum.
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder requestedGroupByEnums(@Nonnull List<GroupBy> requestedGroupBy) {
+            this.requestedGroupBy = new ArrayList<>(requestedGroupBy);
             return this;
         }
 
@@ -440,12 +562,27 @@ public class EntityCostFilter extends CostFilter {
             this.topologyContextId = topologyContextId;
             return this;
         }
+
+        /**
+         * Set the flag indicating to return values and their units depending on the requested time
+         * interval.
+         *
+         * @param totalValuesRequested the flag indicating to return values and their units
+         *         depending on the requested time interval.
+         * @return this builder
+         */
+        @Nonnull
+        public EntityCostFilterBuilder totalValuesRequested(final boolean totalValuesRequested) {
+            this.totalValuesRequested = totalValuesRequested;
+            return this;
+        }
     }
 
     /**
      * GroupBy for {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord}.
      * @return null if there was no groupBy property in request.
      */
+    @Override
     @Nullable
     public CostGroupBy getCostGroupBy() {
         return costGroupBy;

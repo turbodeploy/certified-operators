@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.cost.component.db.Tables;
 
@@ -84,7 +85,7 @@ public class PlanProjectedEntityReservedInstanceMappingFilter extends EntityRese
         }
 
         @Nonnull
-        public PlanProjectedEntityReservedInstanceMappingFilter.Builder entityFilter(@Nullable Cost.EntityFilter entityFilter) {
+        public PlanProjectedEntityReservedInstanceMappingFilter.Builder entityFilter(@Nullable EntityFilter entityFilter) {
             super.entityFilter(entityFilter);
             return this;
         }

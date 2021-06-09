@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import org.hamcrest.Matchers;
@@ -23,6 +25,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.TestEntityClass;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
@@ -77,7 +80,10 @@ public class CostJournalTest {
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
         final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(),
                 closeTo(PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT, VALID_DELTA));
     }
@@ -95,7 +101,10 @@ public class CostJournalTest {
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         //TODO fix this
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
@@ -111,7 +120,10 @@ public class CostJournalTest {
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
@@ -127,7 +139,10 @@ public class CostJournalTest {
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
@@ -144,7 +159,10 @@ public class CostJournalTest {
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
@@ -159,7 +177,10 @@ public class CostJournalTest {
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(TOTAL_PRICE, VALID_DELTA));
     }
 
@@ -178,10 +199,13 @@ public class CostJournalTest {
                                 .build());
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new RIJournalEntry<>(riData, Trax.trax(1), Trax.trax(hourlyCost),
-                        CostCategory.RI_COMPUTE, null);
+                        CostCategory.RI_COMPUTE);
         Mockito.when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(Trax.trax(0.1));
         final TraxNumber finalCost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(finalCost.getValue(), closeTo(9, VALID_DELTA));
     }
 
@@ -200,9 +224,12 @@ public class CostJournalTest {
                                 .build());
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new RIJournalEntry<>(riData, Trax.trax(1), Trax.trax(hourlyCost),
-                        CostCategory.RI_COMPUTE, null);
+                        CostCategory.RI_COMPUTE);
         final TraxNumber finalCost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(finalCost.getValue(), Matchers.is(hourlyCost));
     }
 
@@ -280,8 +307,8 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
         assertThat(ans.getValue(), Matchers.is(100.0));
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
-                        CostSource.RI_INVENTORY_DISCOUNT).getValue(), Matchers.is(-25.0));
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL)
+                        .get(CostSource.RI_INVENTORY_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
         System.out.println(ans);
     }
@@ -360,8 +387,8 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
         assertThat(ans.getValue(), Matchers.is(100.0));
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
-                        CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(-25.0));
+                journal.getFilteredCategoryCostsBySource(CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.INCLUDE_ALL)
+                        .get(CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
         System.out.println(ans);
     }
@@ -386,17 +413,20 @@ public class CostJournalTest {
                 new ReservedLicenseJournalEntry<>(price, riData, riBoughtPercentage,
                         CostCategory.RESERVED_LICENSE, Optional.of(CostSource.BUY_RI_DISCOUNT));
         final TraxNumber reservedLicensePrice =
-                reservedLicenseEntry.calculateHourlyCost(infoExtractor, discountApplicator,
-                        rateExtractor);
+                reservedLicenseEntry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(reservedLicensePrice.getValue(), Matchers.is(0.125));
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
                                 riBoughtPercentage, price, true)
                         .build();
+        Map<CostSource, TraxNumber> filteredCategoryCostsBySource = journal.getFilteredCategoryCostsBySource(CostCategory.RESERVED_LICENSE, CostSourceFilter.INCLUDE_ALL);
         assertThat(
-                journal.getHourlyCostBySourceAndCategory(CostCategory.RESERVED_LICENSE,
-                        CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
+                filteredCategoryCostsBySource
+                        .get(CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
         System.out.println(journal);
     }
 
@@ -424,10 +454,16 @@ public class CostJournalTest {
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(discountPercent));
         Mockito.when(rateExtractor.lookupCostWithFilter(eq(CostCategory.ON_DEMAND_COMPUTE), any()))
-                .thenReturn(Trax.trax(TOTAL_PRICE));
+                .thenReturn(Collections.singleton(CostItem.builder()
+                        .cost(Trax.trax(TOTAL_PRICE))
+                        .costSourceLink(CostSourceLink.of(CostSource.ON_DEMAND_RATE))
+                        .build()));
         final double discountedCost = -TOTAL_PRICE;
         final TraxNumber cost =
-                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor)
+                        .stream()
+                        .map(CostItem::cost)
+                        .reduce(Trax.trax(0), (t1, t2) -> t1.plus(t2).compute());
         assertThat(cost.getValue(), closeTo(discountedCost, VALID_DELTA));
     }
 
@@ -461,13 +497,70 @@ public class CostJournalTest {
                 journal.getHourlyCostFilterEntries(
                         CostCategory.ON_DEMAND_COMPUTE,
                         CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+        final TraxNumber uptimeDiscount = journal.getFilteredCategoryCostsBySource(
+                CostCategory.ON_DEMAND_COMPUTE,
+                CostSourceFilter.INCLUDE_ALL).get(CostSource.ENTITY_UPTIME_DISCOUNT);
+        final TraxNumber onDemandRateExcludingUptime = journal.getFilteredCategoryCostsBySource(
+                CostCategory.ON_DEMAND_COMPUTE,
+                CostSourceFilter.EXCLUDE_UPTIME).get(CostSource.ON_DEMAND_RATE);
         final TraxNumber buyRIDiscount =
-                journal.getHourlyCostFilterEntries(
+                journal.getFilteredCategoryCostsBySource(
                         CostCategory.ON_DEMAND_COMPUTE,
-                        cs -> cs == CostSource.BUY_RI_DISCOUNT);
+                        CostSourceFilter.INCLUDE_ALL).get(CostSource.BUY_RI_DISCOUNT);
+        final TraxNumber buyRIDiscountExcludingUptime =
+                journal.getFilteredCategoryCostsBySource(
+                        CostCategory.ON_DEMAND_COMPUTE,
+                        CostSourceFilter.EXCLUDE_UPTIME).get(CostSource.BUY_RI_DISCOUNT);
 
+        assertThat(onDemandRateExcludingUptime.getValue(), closeTo(TOTAL_PRICE, VALID_DELTA));
+        assertThat(uptimeDiscount.getValue(), closeTo(TOTAL_PRICE * -0.25, VALID_DELTA));
         assertThat(computeCostMinusBuyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75, VALID_DELTA));
         assertThat(buyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75 * -.5, VALID_DELTA));
+        assertThat(buyRIDiscountExcludingUptime.getValue(), closeTo(TOTAL_PRICE * -.5, VALID_DELTA));
+    }
+
+    /**
+     * Tests a reserved license from a BUY RI recommendation, along with entity uptime. The intent is to
+     * verify the entity uptime discount on the BUY RI reserved license is also filtered when the
+     * BUY RI cost source is filtered.
+     */
+    @Test
+    public void testBuyRILicenseWithEntityUptime() {
+
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
+        final TestEntityClass region = TestEntityClass.newBuilder(77).build(infoExtractor);
+        final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
+        final ReservedInstanceData riData =
+                new ReservedInstanceData(ReservedInstanceBought.getDefaultInstance(),
+                        ReservedInstanceSpec.newBuilder()
+                                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                        .setTierId(payee.getId()))
+                                .build());
+        final CostJournal<TestEntityClass> journal =
+                CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
+                        .recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
+                                Trax.trax(1), createPrice(Unit.HOURS, 2.0), true)
+                        // Uptime = 75% so 25% discount
+                        .addUptimeDiscountToAllCategories(Trax.trax(.25))
+                        .build();
+
+
+        final TraxNumber licenseCost = journal.getHourlyCostForCategory(CostCategory.RESERVED_LICENSE);
+        final TraxNumber licenseCostMinusBuyRI =
+                journal.getHourlyCostFilterEntries(
+                        CostCategory.RESERVED_LICENSE,
+                        CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+        final TraxNumber licenseCostMinusUptime = journal.getFilteredCategoryCostsBySource(
+                CostCategory.RESERVED_LICENSE,
+                CostSourceFilter.EXCLUDE_UPTIME
+        ).get(CostSource.BUY_RI_DISCOUNT);
+
+        // $2 with a 25% discount = $1.5
+        assertThat(licenseCost.getValue(), closeTo(1.5, VALID_DELTA));
+        // ignoring uptime, should be discounted for the full price
+        assertThat(licenseCostMinusUptime.getValue(), closeTo(2.0, VALID_DELTA));
+        // ignoring the buy RI discount, the license cost should be 0
+        assertThat(licenseCostMinusBuyRI.getValue(), closeTo(0, VALID_DELTA));
     }
 
     private Price createPrice(final Unit timeUnit, final double amount) {

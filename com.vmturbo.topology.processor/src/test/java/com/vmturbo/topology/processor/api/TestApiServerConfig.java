@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -283,8 +284,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public EntityStore entityRepository() {
-        return new EntityStore(targetStore(), identityProvider(),
-            topologyProcessorNotificationSender(), 0.3F, true, Clock.systemUTC());
+        return new EntityStore(targetStore(), identityProvider(), 0.3F, true, Collections.singletonList(topologyProcessorNotificationSender()), Clock.systemUTC(), false);
     }
 
     @Bean

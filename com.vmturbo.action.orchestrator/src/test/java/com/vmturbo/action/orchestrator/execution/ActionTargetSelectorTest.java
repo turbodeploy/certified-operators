@@ -1,8 +1,14 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -12,7 +18,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
@@ -23,6 +28,9 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTarg
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintType;
@@ -37,18 +45,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Unit tests for the {@link ActionTargetSelector} class.
@@ -61,18 +65,10 @@ public class ActionTargetSelectorTest {
     private ActionTargetSelector actionTargetSelector;
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
-            Mockito.mock(EntitiesAndSettingsSnapshotFactory.class);
+            mock(EntitiesAndSettingsSnapshotFactory.class);
 
     private final EntitiesAndSettingsSnapshot snapshot =
-            Mockito.mock(EntitiesAndSettingsSnapshot.class);
-
-    private RepositoryServiceMole repositoryServiceSpy = Mockito.spy(new RepositoryServiceMole());
-
-    /**
-     * GRPC test server.
-     */
-    @Rule
-    public final GrpcTestServer repoServer = GrpcTestServer.newServer(repositoryServiceSpy);
+            mock(EntitiesAndSettingsSnapshot.class);
 
     /**
      * Expected exception rule.
@@ -80,12 +76,15 @@ public class ActionTargetSelectorTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private ProbeCapabilityCache probeCapabilityCache = Mockito.mock(ProbeCapabilityCache.class);
+    private ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
+
+    private ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
+    private TopologyGraph<ActionGraphEntity> graph = mock(TopologyGraph.class);
 
     private ActionConstraintStoreFactory actionConstraintStoreFactory =
-            Mockito.mock(ActionConstraintStoreFactory.class);
+            mock(ActionConstraintStoreFactory.class);
 
-    private CachedCapabilities cachedCapabilities = Mockito.mock(CachedCapabilities.class);
+    private CachedCapabilities cachedCapabilities = mock(CachedCapabilities.class);
 
     // A test helper class for building move actions
     TestActionBuilder testActionBuilder = new TestActionBuilder();
@@ -96,12 +95,16 @@ public class ActionTargetSelectorTest {
      */
     @Before
     public void setup() {
-        Mockito.when(snapshot.getOwnerAccountOfEntity(Mockito.anyLong()))
+        ActionRealtimeTopology realtimeTopology = mock(ActionRealtimeTopology.class);
+        when(realtimeTopology.entityGraph()).thenReturn(graph);
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(realtimeTopology));
+
+        when(snapshot.getOwnerAccountOfEntity(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
-        Mockito.when(snapshot.getResourceGroupForEntity(Mockito.anyLong()))
+        when(snapshot.getResourceGroupForEntity(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
-        Mockito.when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
-        Mockito.when(entitySettingsCache.emptySnapshot())
+        when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
+        when(entitySettingsCache.emptySnapshot())
                 .thenReturn(new EntitiesAndSettingsSnapshot(Collections.emptyMap(),
                         Collections.emptyMap(), null, Collections.emptyMap(),
                         Collections.emptyMap(), Collections.emptyMap(), 0, TopologyType.SOURCE,
@@ -109,8 +112,7 @@ public class ActionTargetSelectorTest {
         MockitoAnnotations.initMocks(this);
         // The class under test
         actionTargetSelector = new ActionTargetSelector(probeCapabilityCache,
-                Mockito.mock(ActionConstraintStoreFactory.class), repoServer.getChannel(),
-                REALTIME_CONTEXT_ID);
+                mock(ActionConstraintStoreFactory.class), actionTopologyStore);
         targetInfoResolver =
                 new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory,
                         new EntityAndActionTypeBasedEntitySelector());
@@ -122,8 +124,15 @@ public class ActionTargetSelectorTest {
                         .addNames("ScaleGroupId"))
                 .build();
         azureScaleSetInfoStore.updateActionConstraintInfo(aci);
-        Mockito.when(actionConstraintStoreFactory.getAzureScaleSetInfoStore())
+        when(actionConstraintStoreFactory.getAzureScaleSetInfoStore())
                 .thenReturn(azureScaleSetInfoStore);
+    }
+
+    private ActionGraphEntity mockGraphEntity(ActionPartialEntity partialEntity) {
+        ActionGraphEntity e = mock(ActionGraphEntity.class);
+        when(e.getOid()).thenReturn(partialEntity.getOid());
+        when(e.asPartialEntity()).thenReturn(partialEntity);
+        return e;
     }
 
     /**
@@ -138,15 +147,11 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 3;
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 4, 5, 6, 5);
-        final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
+        final ActionGraphEntity actionPartialEntity = mockGraphEntity(ActionPartialEntity.newBuilder()
                 .setOid(selectedEntityId)
                 .addAllDiscoveringTargetIds(Collections.singletonList(hypervisorTargetId))
-                .build();
-        final PartialEntityBatch batch = PartialEntityBatch.newBuilder()
-                .addEntities(PartialEntity.newBuilder().setAction(actionPartialEntity).build())
-                .build();
-        Mockito.when(repositoryServiceSpy.retrieveTopologyEntities(Mockito.any()))
-                .thenReturn(Collections.singletonList(batch));
+                .build());
+        when(graph.getEntities(any())).thenAnswer(invocation -> Stream.of(actionPartialEntity));
 
         // REPLACE workflow associated with the action
         final Workflow workflow = Workflow.newBuilder()
@@ -182,21 +187,17 @@ public class ActionTargetSelectorTest {
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 4, 5, 6, 5);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
-        final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
+        final ActionGraphEntity actionPartialEntity = mockGraphEntity(ActionPartialEntity.newBuilder()
                 .setOid(selectedEntityId)
                 .addAllDiscoveringTargetIds(Collections.singletonList(hypervisorTargetId))
-                .build();
-        final PartialEntityBatch batch = PartialEntityBatch.newBuilder()
-                .addEntities(PartialEntity.newBuilder().setAction(actionPartialEntity).build())
-                .build();
-        Mockito.when(repositoryServiceSpy.retrieveTopologyEntities(Mockito.any()))
-                .thenReturn(Collections.singletonList(batch));
+                .build());
+        when(graph.getEntities(any())).thenAnswer(invocation -> Stream.of(actionPartialEntity));
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity,
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity,
                 hypervisorProbeId)).thenReturn(MergedActionCapability.createShowOnly());
-        Mockito.when(cachedCapabilities.getProbeCategory(hypervisorProbeId))
+        when(cachedCapabilities.getProbeCategory(hypervisorProbeId))
                 .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(hypervisorTargetId))
+        when(cachedCapabilities.getProbeFromTarget(hypervisorTargetId))
                 .thenReturn(Optional.of(hypervisorProbeId));
 
         final ActionTargetInfo executionTarget =
@@ -220,19 +221,19 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createShowOnly());
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a "lower" probe category priority, but a higher support level.
         // The higher support level should win out.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -253,11 +254,11 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Collections.singletonList(target1Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createNotSupported());
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -275,7 +276,7 @@ public class ActionTargetSelectorTest {
                 ActionPartialEntity.newBuilder().setOid(actionEntity.getId())
                         // No targets discovered this entity... somehow.
                         .build();
-        Mockito.when(cachedCapabilities.getProbeFromTarget(1L)).thenReturn(Optional.of(2L));
+        when(cachedCapabilities.getProbeFromTarget(1L)).thenReturn(Optional.of(2L));
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
                 Collections.singletonMap(actionPartialEntity.getOid(), actionPartialEntity),
                 snapshot, Collections.emptyMap());
@@ -296,19 +297,19 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has a lower priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a higher priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -331,19 +332,19 @@ public class ActionTargetSelectorTest {
                 .setOid(actionEntity.getId())
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has the lowest explicitly-specified priority (last probe in the list).
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.GUEST_OS_PROCESSES));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has no known probe category. This shouldn't happen regularly, but
         // might happen based on the interface definition.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id)).thenReturn(Optional.empty());
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id)).thenReturn(Optional.empty());
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
                 Collections.singletonMap(actionPartialEntity.getOid(), actionPartialEntity),
@@ -367,19 +368,19 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Collections.singletonList(target1Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has the lowest explicitly-specified priority (last probe in the list).
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.GUEST_OS_PROCESSES));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has some unknown probe category.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.UNKNOWN));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -391,51 +392,39 @@ public class ActionTargetSelectorTest {
     }
 
     @Test
-    public void testMove() {
+    public void testMove() throws Exception {
         final long probeId = 10;
         final long targetId = 7;
         final long selectedEntityId = 1;
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 3L, 1);
         final ActionDTO.ActionEntity selectedEntity = action.getInfo().getMove().getTarget();
-        final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
+        final ActionGraphEntity actionPartialEntity = mockGraphEntity(ActionPartialEntity.newBuilder()
                 .setOid(selectedEntityId)
                 .addAllDiscoveringTargetIds(Collections.singletonList(targetId))
-                .build();
-        // No target selection for action execution special cases apply, return the normal
+                .build());
+        // No target selection for action execution special cases apply, return the norma
         // primary entity.
-        PartialEntityBatch batch = PartialEntityBatch.newBuilder()
-                .addEntities(PartialEntity.newBuilder().setAction(actionPartialEntity).build())
-                .build();
-        Mockito.when(repositoryServiceSpy.retrieveTopologyEntities(Mockito.any()))
-                .thenReturn(Collections.singletonList(batch));
+        when(graph.getEntities(any())).thenAnswer(invocation -> Stream.of(actionPartialEntity));
 
         final ActionTargetInfo actionTargetInfo = ImmutableActionTargetInfo.builder()
                 .targetId(targetId)
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .build();
 
-        Mockito.when(cachedCapabilities.getProbeFromTarget(targetId))
+        when(cachedCapabilities.getProbeFromTarget(targetId))
                 .thenReturn(Optional.of(probeId));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, selectedEntity, probeId))
+        when(cachedCapabilities.getMergedActionCapability(action, selectedEntity, probeId))
                 .thenReturn(MergedActionCapability.createSupported());
-        Mockito.when(cachedCapabilities.getProbeCategory(probeId))
+        when(cachedCapabilities.getProbeCategory(probeId))
                 .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
 
         Assert.assertEquals(actionTargetInfo,
                 actionTargetSelector.getTargetForAction(action, entitySettingsCache, Optional.empty()));
-        // However, the backend should have been called, and we can capture
-        // and examine the arguments.
-        final ArgumentCaptor<RetrieveTopologyEntitiesRequest> entitiesRequestCaptor =
-                ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
-        Mockito.verify(repositoryServiceSpy)
-                .retrieveTopologyEntities(entitiesRequestCaptor.capture());
-        final RetrieveTopologyEntitiesRequest sentRequest = entitiesRequestCaptor.getValue();
 
-        // Verify that one entity info was requested...
-        Assert.assertEquals(3, sentRequest.getEntityOidsCount());
-        // ...and that its id matches the selectedEntityId
-        Assert.assertEquals(selectedEntityId, sentRequest.getEntityOids(0));
+        // However, the graph should have been called, and we can capture
+        // and examine the arguments.
+        verify(graph).getEntities(ActionDTOUtil.getInvolvedEntityIds(action));
     }
 
     @Test
@@ -445,23 +434,17 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 1;
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 4L, 1);
-        final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
+        final ActionGraphEntity actionPartialEntity = mockGraphEntity(ActionPartialEntity.newBuilder()
                 .setOid(2)
                 .addAllDiscoveringTargetIds(Collections.singletonList(targetId))
-                .build();
+                .build());
         // No target selection for action execution special cases apply, return the normal
         // primary entity.
-        PartialEntityBatch batch = PartialEntityBatch.newBuilder()
-                .addEntities(PartialEntity.newBuilder().setAction(actionPartialEntity).build())
-                .build();
-        Mockito.when(repositoryServiceSpy.retrieveTopologyEntities(Mockito.any()))
-                .thenReturn(Collections.singletonList(batch));
+        when(graph.getEntities(any())).thenAnswer(invocation -> Stream.of(actionPartialEntity));
         // The entity info returned will not include the requested entity (the selectedEntityId)
-        Mockito.when(cachedCapabilities.getProbeFromTarget(targetId))
+        when(cachedCapabilities.getProbeFromTarget(targetId))
                 .thenReturn(Optional.of(probeId));
 
-        Mockito.when(repositoryServiceSpy.retrieveTopologyEntities(Mockito.any()))
-                .thenReturn(Collections.singletonList(batch));
         // No target will be selected since we don't have entity data for the selected entity.
         Assert.assertThat(
                 actionTargetSelector.getTargetForAction(action, entitySettingsCache, Optional.empty())
@@ -470,6 +453,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testUnsupportedAction() {
+        when(graph.getEntities(any())).thenReturn(Stream.empty());
         final Action bogusAction = Action.newBuilder()
                 .setId(23)
                 .setDeprecatedImportance(1)
@@ -488,6 +472,7 @@ public class ActionTargetSelectorTest {
     @Test
     public void testNoSelectedEntity() {
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1L, 2L, 1, 4L, 1);
+        when(graph.getEntities(any())).thenReturn(Stream.empty());
         // Expect a no target, because we can't select an entity to be the primary entity.
         Assert.assertThat(actionTargetSelector.getTargetForAction(action, entitySettingsCache, Optional.empty())
                 .supportingLevel(), Matchers.is(SupportLevel.UNSUPPORTED));
@@ -539,14 +524,14 @@ public class ActionTargetSelectorTest {
                 .setOid(sourceOid)
                 .addAllDiscoveringTargetIds(Collections.singletonList(targetId2))
                 .build();
-        Mockito.when(
+        when(
                 cachedCapabilities.getMergedActionCapability(action, ActionDTOUtil.getPrimaryEntity(action),
                         probeId)).thenReturn(MergedActionCapability.createSupported());
-        Mockito.when(cachedCapabilities.getProbeCategory(probeId))
+        when(cachedCapabilities.getProbeCategory(probeId))
                 .thenReturn(Optional.of(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(targetId1))
+        when(cachedCapabilities.getProbeFromTarget(targetId1))
                 .thenReturn(Optional.of(probeId));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(targetId2))
+        when(cachedCapabilities.getProbeFromTarget(targetId2))
                 .thenReturn(Optional.of(probeId));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -570,21 +555,21 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has a lower priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a higher priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
-        Mockito.when(snapshot.getResourceGroupForEntity(target1Id))
+        when(snapshot.getResourceGroupForEntity(target1Id))
                 .thenReturn(Optional.of(10L));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
@@ -614,21 +599,21 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has a lower priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+        when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
-        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
                 .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a higher priority.
-        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+        when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+        when(cachedCapabilities.getProbeFromTarget(target1Id))
                 .thenReturn(Optional.of(probe1Id));
-        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+        when(cachedCapabilities.getProbeFromTarget(target2Id))
                 .thenReturn(Optional.of(probe2Id));
-        Mockito.when(snapshot.getResourceGroupForEntity(target1Id))
+        when(snapshot.getResourceGroupForEntity(target1Id))
                 .thenReturn(Optional.of(10L));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,

@@ -1,0 +1,33 @@
+[
+    {
+        "destTier": 0,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1618579200000,
+        "sourceTier": 60,
+        "timestamp": 1618572000000,
+        "uuid": 2116
+    },
+    {
+        "eventType": "DELETE_EXECUTED",
+        "expirationTimestamp": 1618579800000,
+        "sourceTier": 60,
+        "timestamp": 1618572600000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 160,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1618659600000,
+        "sourceTier": 100,
+        "timestamp": 1618573200000,
+        "uuid": 1111
+    },
+    {
+        "destTier": 160,
+        "eventType": "RESIZE_EXECUTED",
+        "expirationTimestamp": 1618660200000,
+        "sourceTier": 100,
+        "timestamp": 1618573800000,
+        "uuid": 1111
+    }
+]

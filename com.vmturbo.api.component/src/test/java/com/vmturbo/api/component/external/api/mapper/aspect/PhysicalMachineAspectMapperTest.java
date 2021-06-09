@@ -12,6 +12,8 @@ import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
@@ -33,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
@@ -200,5 +203,33 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
         final PMEntityAspectApiDTO networkEntityAspect = mapper.mapEntityToAspect(entityDto);
         Assert.assertEquals(1, networkEntityAspect.getConnectedNetworks().size());
         Assert.assertEquals(NETWORK_COMMODITY_NAME, networkEntityAspect.getConnectedNetworks().get(0));
+    }
+
+    /**
+     * Test automation level setting.
+     */
+    @Test
+    public void testAutomationLevel() {
+        final PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(repositoryApi);
+        Assert.assertEquals(com.vmturbo.api.enums.AutomationLevel.FULLY_AUTOMATED,
+            mapper.mapEntityToAspect(createPmWithAutomationLevel(
+                AutomationLevel.FULLY_AUTOMATED)).getAutomationLevel());
+        Assert.assertEquals(com.vmturbo.api.enums.AutomationLevel.PARTIALLY_AUTOMATED,
+            mapper.mapEntityToAspect(createPmWithAutomationLevel(
+                AutomationLevel.PARTIALLY_AUTOMATED)).getAutomationLevel());
+        Assert.assertEquals(com.vmturbo.api.enums.AutomationLevel.NOT_AUTOMATED,
+            mapper.mapEntityToAspect(createPmWithAutomationLevel(
+                AutomationLevel.NOT_AUTOMATED)).getAutomationLevel());
+    }
+
+    @Nonnull
+    private static TopologyEntityDTO createPmWithAutomationLevel(
+        @Nonnull final AutomationLevel automationLevel) {
+        return TopologyEntityDTO.newBuilder().setTypeSpecificInfo(
+            TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                PhysicalMachineInfo.newBuilder().setAutomationLevel(automationLevel)
+                    .build()
+            ).build()
+        ).buildPartial();
     }
 }

@@ -276,6 +276,10 @@ public class ThickSearchableProps implements SearchableProps {
             return entityOrBldr.getTypeSpecificInfo().getDatabase().hasEdition();
         }
 
+        private boolean hasDatabaseRawEdition() {
+            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasRawEdition();
+        }
+
         private boolean hasDatabaseVersion() {
             return entityOrBldr.getTypeSpecificInfo().getDatabase().hasVersion();
         }
@@ -291,11 +295,13 @@ public class ThickSearchableProps implements SearchableProps {
 
         @Override
         @Nonnull
-        public DatabaseEdition getDatabaseEdition() {
+        public String getDatabaseEdition() {
             if (hasDatabaseEdition()) {
-                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEdition();
+                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEdition().name();
+            } else if (hasDatabaseRawEdition()) {
+                return entityOrBldr.getTypeSpecificInfo().getDatabase().getRawEdition();
             }
-            return DatabaseEdition.NONE;
+            return DatabaseEdition.NONE.name();
         }
 
         @Override

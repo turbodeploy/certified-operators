@@ -23,8 +23,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -139,6 +142,61 @@ public class EntitiesWithNewStateCacheTest {
         assertTrue(actions.getAction(moveInAction.getId()).isPresent());
         assertTrue(actions.getAction(moveOutAction.getId()).isPresent());
         assertTrue(actions.getAction(notAffectingAction.getId()).isPresent());
+    }
+
+    /**
+     * Tests that the right actions get cleared for a host going into maintenance and for a host
+     * going out of maintenance.
+     */
+    @Test
+    public void testUpdateHostsWithNewStateAutomationLevel() {
+        final long hostD = 0xD;
+        final long hostE = 0xE;
+
+        EntitiesWithNewState entitiesWithNewState = EntitiesWithNewState.newBuilder()
+            .setStateChangeId(3)
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostB).setEntityState(EntityState.MAINTENANCE)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build())
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostC).setEntityState(EntityState.MAINTENANCE)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                    PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.FULLY_AUTOMATED))).build())
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostD).setEntityState(EntityState.MAINTENANCE)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                    PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.PARTIALLY_AUTOMATED))).build())
+            .addTopologyEntity(TopologyEntityDTO
+                .newBuilder().setOid(hostE).setEntityState(EntityState.MAINTENANCE)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                    PhysicalMachineInfo.newBuilder().setAutomationLevel(AutomationLevel.NOT_AUTOMATED))).build())
+            .build();
+
+        final Action moveOutAction1 = new Action(move(vm1, hostB, vmType, hostA,
+            vmType).setDeprecatedImportance(1).setExecutable(false).build(), firstPlanId,
+            actionModeCalculator, 1);
+        final Action moveOutAction2 = new Action(move(vm1, hostC, vmType, hostA,
+            vmType).setDeprecatedImportance(1).setExecutable(false).build(), firstPlanId,
+            actionModeCalculator, 2);
+        final Action moveOutAction3 = new Action(move(vm1, hostD, vmType, hostA,
+            vmType).setDeprecatedImportance(1).setExecutable(false).build(), firstPlanId,
+            actionModeCalculator, 3);
+        final Action moveOutAction4 = new Action(move(vm1, hostE, vmType, hostA,
+            vmType).setDeprecatedImportance(1).setExecutable(false).build(), firstPlanId,
+            actionModeCalculator, 4);
+
+        actions.replaceMarketActions(Stream.of(moveOutAction1, moveOutAction2,
+            moveOutAction3, moveOutAction4));
+        entitiesWithNewStateCache.updateHostsWithNewState(entitiesWithNewState);
+
+
+        assertTrue(actions.getAction(moveOutAction1.getId()).isPresent());
+        assertFalse(actions.getAction(moveOutAction2.getId()).isPresent());
+        assertTrue(actions.getAction(moveOutAction3.getId()).isPresent());
+        assertTrue(actions.getAction(moveOutAction4.getId()).isPresent());
     }
 
     private static ActionDTO.Action.Builder move(long targetId,

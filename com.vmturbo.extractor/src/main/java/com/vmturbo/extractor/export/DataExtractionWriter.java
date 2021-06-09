@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.TopologyWriterBase;
 import com.vmturbo.extractor.topology.WriterConfig;
+import com.vmturbo.search.metadata.SearchMetadataMapping;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
@@ -93,7 +95,13 @@ public class DataExtractionWriter extends TopologyWriterBase {
         // metrics
         entity.setMetric(metricsExtractor.extractMetrics(e, config.reportingCommodityWhitelist()));
         // attrs
-        entity.setAttrs(attrsExtractor.extractAttrs(e));
+        Map<String, Object> attrs = attrsExtractor.extractAttrs(e);
+        // remove vendor_id for data extraction since it is now represented in attrs.targets
+        // we don't want to remove it reporting attrs for now for safety.
+        if (attrs != null) {
+            attrs.remove(SearchMetadataMapping.PRIMITIVE_VENDOR_ID.getJsonKeyName());
+        }
+        entity.setAttrs(attrs);
         // cache entities to be sent to kafka later
         entities.add(entity);
     }
@@ -116,9 +124,11 @@ public class DataExtractionWriter extends TopologyWriterBase {
                 }).collect(Collectors.toList());
 
         final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
-                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
+                dataExtractionFactory.newRelatedEntitiesExtractor();
         final Optional<TopDownCostExtractor> topDownCostExtractor =
-                dataExtractionFactory.newTopDownCostExtractor(dataProvider);
+                dataExtractionFactory.newTopDownCostExtractor();
+        final Optional<BottomUpCostExtractor> bottomUpCostExtractor =
+                dataExtractionFactory.newBottomUpCostExtractor();
 
         // set related entities and related groups
         final String relatedStageLabel = "Populate related entities and groups";
@@ -130,6 +140,10 @@ public class DataExtractionWriter extends TopologyWriterBase {
                         extractor.extractRelatedEntities(entity.getOid())));
                     topDownCostExtractor.flatMap(extractor -> extractor.getExpenses(entity.getOid()))
                         .ifPresent(entity::setAccountExpenses);
+                    // set bottom up cost
+                    bottomUpCostExtractor.ifPresent(extractor ->
+                            entity.setCost(extractor.getCost(entity.getOid())));
+
                     final ExportedObject exportedObject = new ExportedObject();
                     exportedObject.setTimestamp(formattedTopologyCreationTime);
                     exportedObject.setEntity(entity);

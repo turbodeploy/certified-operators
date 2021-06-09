@@ -1,8 +1,10 @@
 package com.vmturbo.extractor.models;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
@@ -24,6 +26,68 @@ public class Constants {
      * time zone it won't get bumped into year-10000 in that literal.</p>
      */
     public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T00:00:00Z");
+
+    /**
+     * Default whitelist of comodities that we track for before/after metrics in action attributes.
+     * See: {@link com.vmturbo.extractor.schema.json.common.ActionImpactedEntity}.
+     *
+     * <p/>Hand-picked by looking through the commodities the UI requests for different action types.
+     */
+    public static final Set<CommodityType> REPORTING_ACTION_COMMODITY_TYPES_WHITELIST =
+        ImmutableSet.<CommodityType>builder()
+                .add(CommodityType.COOLING)
+                .add(CommodityType.CPU)
+                .add(CommodityType.CPU_PROVISIONED)
+                .add(CommodityType.DB_CACHE_HIT_RATE)
+                .add(CommodityType.DB_MEM)
+                .add(CommodityType.FLOW)
+                .add(CommodityType.FLOW_ALLOCATION)
+                .add(CommodityType.HEAP)
+                .add(CommodityType.IO_THROUGHPUT)
+                .add(CommodityType.MEM)
+                .add(CommodityType.MEM_PROVISIONED)
+                .add(CommodityType.NET_THROUGHPUT)
+                .add(CommodityType.POOL_CPU)
+                .add(CommodityType.POOL_MEM)
+                .add(CommodityType.POOL_STORAGE)
+                .add(CommodityType.PORT_CHANEL)
+                .add(CommodityType.POWER)
+                .add(CommodityType.STORAGE_ACCESS)
+                .add(CommodityType.STORAGE_ALLOCATION)
+                .add(CommodityType.STORAGE_AMOUNT)
+                .add(CommodityType.STORAGE_PROVISIONED)
+                .add(CommodityType.VCPU)
+                .add(CommodityType.VCPU_LIMIT_QUOTA)
+                .add(CommodityType.VCPU_REQUEST)
+                .add(CommodityType.VCPU_REQUEST_QUOTA)
+                .add(CommodityType.VMEM)
+                .add(CommodityType.VMEM_LIMIT_QUOTA)
+                .add(CommodityType.VMEM_REQUEST)
+                .add(CommodityType.VMEM_REQUEST_QUOTA)
+                .add(CommodityType.VSTORAGE)
+                .add(CommodityType.DTU)
+                .build();
+
+    /**
+     * Whitelist of bought commodities that we track for before/after metrics in action attributes,
+     * See: {@link com.vmturbo.extractor.schema.json.common.ActionImpactedEntity}, grouped by
+     * entity type and provider type.
+     *
+     * <p/>Hand-picked by looking through the commodities the UI requests for different action types.
+     * Currently only cloud scale action shows affected bought commodities.
+     */
+    public static final Map<Integer, Map<Integer, Set<Integer>>>
+            ACTION_IMPACT_BOUGHT_COMMODITIES_WHITELIST = ImmutableMap.of(
+                    EntityType.VIRTUAL_MACHINE_VALUE, ImmutableMap.of(
+                            EntityType.COMPUTE_TIER_VALUE, ImmutableSet.of(
+                                    CommodityType.STORAGE_ACCESS_VALUE,
+                                    CommodityType.STORAGE_AMOUNT_VALUE,
+                                    CommodityType.IO_THROUGHPUT_VALUE,
+                                    CommodityType.NET_THROUGHPUT_VALUE,
+                                    CommodityType.NUM_DISK_VALUE
+                            )
+                    )
+    );
 
     /**
      * Default whitelisted commodity types for reporting.

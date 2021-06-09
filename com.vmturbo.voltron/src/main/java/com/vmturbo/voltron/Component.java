@@ -445,6 +445,11 @@ public enum Component {
     MEDIATION_VPLEX("vplex", "com.vmturbo.mediation.vplex.component"),
 
     /**
+     * Webhook.
+     */
+    MEDIATION_WEBHOOK("webhook", "com.vmturbo.mediation.webhook.component"),
+
+    /**
      * XTremio.
      */
     MEDIATION_XTREMIO("xtremio", "com.vmturbo.mediation.xtremio.component"),
@@ -452,7 +457,12 @@ public enum Component {
     /**
      * ServiceNOW.
      */
-    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component");
+    MEDIATION_SERVICENOW("servicenow", "com.vmturbo.mediation.servicenow.component"),
+
+    /**
+     * Xen.
+     */
+    MEDIATION_XEN("xen", "com.vmturbo.mediation.xen.component");
 
     private final String shortName;
     private final String topLevelFolder;

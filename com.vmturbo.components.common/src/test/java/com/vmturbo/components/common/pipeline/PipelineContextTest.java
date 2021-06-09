@@ -4,12 +4,16 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import javax.annotation.Nullable;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineContextMemberException;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Tests for {@link PipelineContext}.
@@ -99,6 +103,18 @@ public class PipelineContextTest {
         @Override
         public String getPipelineName() {
             return "test-pipeline";
+        }
+
+        @Nullable
+        @Override
+        public DataMetricTimer startStageTimer(String stageName) {
+            return null;
+        }
+
+        @Nullable
+        @Override
+        public TracingScope startStageTrace(String stageName) {
+            return null;
         }
     }
 

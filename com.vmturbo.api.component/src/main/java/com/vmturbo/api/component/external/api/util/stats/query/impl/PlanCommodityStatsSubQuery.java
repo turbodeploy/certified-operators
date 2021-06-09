@@ -105,7 +105,7 @@ public class PlanCommodityStatsSubQuery implements StatsSubQuery {
                         } else {
                             final String newName = StringConstants.STAT_PREFIX_CURRENT + StringUtils.capitalize(stat.getName());
                             return new StatApiInputDTO(newName,
-                                stat.getRelatedEntityType(), stat.getFilters(), stat.getGroupBy());
+                                stat.getRelatedEntityType(), stat.getFilters(), stat.getGroupBy(), stat.getHistoryType());
                         }
                     })
                     .forEach(finalRequestedStats::add);

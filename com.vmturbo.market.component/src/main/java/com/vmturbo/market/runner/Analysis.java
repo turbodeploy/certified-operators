@@ -27,12 +27,12 @@ import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -707,8 +707,10 @@ public class Analysis {
                                 // Post process projected entities.
                                 for (ProjectedEntityPostProcessor postProcessor : PROJECTED_ENTITY_POST_PROCESSORS) {
                                     if (postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities)) {
-                                        postProcessor.process(topologyInfo, projectedEntities,
-                                            entityTypeToProjectedEntities, actionsList);
+                                        try (TracingScope postProcessorScope = Tracing.trace(postProcessor.getClass().getSimpleName())) {
+                                            postProcessor.process(topologyInfo, projectedEntities,
+                                                entityTypeToProjectedEntities, actionsList);
+                                        }
                                     }
                                 }
 

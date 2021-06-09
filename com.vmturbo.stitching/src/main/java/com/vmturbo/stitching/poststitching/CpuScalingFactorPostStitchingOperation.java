@@ -7,15 +7,16 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -79,6 +80,9 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * scalingFactors set multiple times during the updating process. Rather than always overwriting
      * the scalingFator for these entities with whatever host gets updated last, these entities
      * should get the LARGEST scaling factor of any host they are connected to.
+     * <p/>
+     * Entity types in this category should also skip updates to their consumers. This prevents
+     * triggering updates that do nothing too frequently for the same consumers of these entity types.
      */
     private static final Set<Integer> ENTITY_TYPES_REQUIRING_MAX = ImmutableSet.of(
         EntityType.WORKLOAD_CONTROLLER_VALUE,
@@ -86,11 +90,16 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     );
 
     /**
-     * Set of EntityTypes whose providers we need to propagate the update for CPU scalingFactor to.
+     * Map of EntityTypes to Set of supported provider EntityTypes where we need to propagate the
+     * update for CPU scalingFactor to.
+     *
+     * <p>Specifically, for ContainerPods, although VMs are also providers, we explicitly exclude
+     * them from pod providers to update here because the scalingFactor of VM should be set via hosts.
      */
-    private static final IntPredicate ENTITIES_TO_UPDATE_PROVIDERS =
-            (type) -> type == EntityType.CONTAINER_POD_VALUE
-                || type == EntityType.WORKLOAD_CONTROLLER_VALUE;
+    private static final Map<Integer, Set<Integer>> ENTITIES_TO_UPDATE_PROVIDERS =
+        ImmutableMap.of(EntityType.CONTAINER_POD_VALUE,
+            ImmutableSet.of(EntityType.WORKLOAD_CONTROLLER_VALUE, EntityType.NAMESPACE_VALUE),
+            EntityType.WORKLOAD_CONTROLLER_VALUE, ImmutableSet.of(EntityType.NAMESPACE_VALUE));
 
     private final CpuCapacityStore cpuCapacityStore;
     private final boolean enableConsistentScalingOnHeterogeneousProviders;
@@ -161,11 +170,12 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
         final long soldModified = updateScalingFactorForSoldCommodities(entityToUpdate, scalingFactor);
         final long boughtModified = updateScalingFactorForBoughtCommodities(entityToUpdate, scalingFactor);
         boolean firstAdded = updatedSet.add(entityToUpdate.getOid());
+        boolean shouldUpdateConsumers = firstAdded && !ENTITY_TYPES_REQUIRING_MAX.contains(entityToUpdate.getEntityType());
         // If we updated any sold commodities, go up to the consumers and make sure their respective
         // bought commodities are updated. To prevent infinite recursion along ENTITY_TYPES_REQUIRING_MAX,
         // we only permit recursive updates on consumer connections if this is the first time we saw
         // an entity.
-        if (soldModified > 0 && firstAdded) {
+        if (soldModified > 0 && shouldUpdateConsumers) {
             entityToUpdate.getConsumers().forEach(consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet));
         }
 
@@ -175,10 +185,13 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
         // respect reseller logic so that VCPULimitQuota commodity sold by WorkloadController and
         // Namespace is consistent with VCPU commodity bought by ContainerPod.
         // We only need to do this if we updated any bought commodities.
-        if (boughtModified > 0 && ENTITIES_TO_UPDATE_PROVIDERS.test(entityToUpdate.getEntityType())) {
-            entityToUpdate.getProviders().forEach(
-                provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
-            );
+        Set<Integer> providerTypesToUpdate = ENTITIES_TO_UPDATE_PROVIDERS.get(entityToUpdate.getEntityType());
+        if (boughtModified > 0 && providerTypesToUpdate != null) {
+            entityToUpdate.getProviders().stream()
+                .filter(provider -> providerTypesToUpdate.contains(provider.getEntityType()))
+                .forEach(
+                    provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
+                );
         }
     }
 
@@ -193,11 +206,11 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     private long updateScalingFactorForSoldCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-                .getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().stream()
+            .getTopologyEntityDtoBuilder()
+            .getCommoditySoldListBuilderList().stream()
             .filter(commoditySold -> commodityTypeShouldScale(commoditySold.getCommodityType()))
             .peek(commSold -> updateCommSoldScalingFactor(entityToUpdate, commSold, scalingFactor))
-                .count();
+            .count();
     }
 
     /**
@@ -211,14 +224,14 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     private long updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
         return Objects.requireNonNull(entityToUpdate)
-                .getTopologyEntityDtoBuilder()
+            .getTopologyEntityDtoBuilder()
             .getCommoditiesBoughtFromProvidersBuilderList().stream()
             .flatMap(commoditiesBoughtFromProvider ->
                 commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
             .filter(commodityBoughtFromProvider ->
                 commodityTypeShouldScale(commodityBoughtFromProvider.getCommodityType()))
             .peek(commBought -> updateCommBoughtScalingFactor(entityToUpdate, commBought, scalingFactor))
-                .count();
+            .count();
     }
 
     /**

@@ -43,7 +43,7 @@ import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 

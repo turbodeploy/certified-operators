@@ -32,6 +32,8 @@ public class Entity {
 
     private AccountExpenses accountExpenses;
 
+    private EntityCost cost;
+
     public Long getOid() {
         return oid;
     }
@@ -102,6 +104,14 @@ public class Entity {
 
     public void setAccountExpenses(AccountExpenses expenses) {
         this.accountExpenses = expenses;
+    }
+
+    public EntityCost getCost() {
+        return cost;
+    }
+
+    public void setCost(EntityCost cost) {
+        this.cost = cost;
     }
 
     @Override

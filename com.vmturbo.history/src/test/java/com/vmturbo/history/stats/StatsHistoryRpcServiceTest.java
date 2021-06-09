@@ -215,7 +215,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, c1Value2, propType, USED),
             newStatRecord(SNAPSHOT_TIME, c2Value, propType2, USED));
 
-        when(mockLivestatsreader.getRecords(anyObject(), anyObject()))
+        when(mockLivestatsreader.getRecords(anyObject(), anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
         Stats.GetAveragedEntityStatsRequest.Builder testStatsRequest =
                 Stats.GetAveragedEntityStatsRequest.newBuilder();
@@ -374,7 +374,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, 1, "c1", "c1-subtype"),
             newStatRecord(SNAPSHOT_TIME, 2, "c2", "c2-subtype"),
             newStatRecord(SNAPSHOT_TIME, 3, "c3", "c3-subtype"));
-        when(mockLivestatsreader.getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build())))
+        when(mockLivestatsreader.getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()), eq(Collections.emptyList())))
             .thenReturn(statsRecordsList);
 
         Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
@@ -387,7 +387,7 @@ public class StatsHistoryRpcServiceTest {
 
         // assert
         assertThat(snapshots.size(), is(1));
-        verify(mockLivestatsreader).getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()));
+        verify(mockLivestatsreader).getRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()), eq(Collections.emptyList()));
         verifyNoMoreInteractions(mockPlanStatsReader);
     }
 
@@ -429,7 +429,7 @@ public class StatsHistoryRpcServiceTest {
             newStatRecord(SNAPSHOT_TIME, 2f, "c1", UTILIZATION),
             newStatRecord(SNAPSHOT_TIME, 3f, "c1", UTILIZATION));
 
-        when(mockLivestatsreader.getRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
+        when(mockLivestatsreader.getRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build()), eq(Collections.emptyList())))
                 .thenReturn(statsRecordsList);
 
         // act

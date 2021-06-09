@@ -9,15 +9,18 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 
@@ -43,7 +46,7 @@ public class EntityCostFilterTest {
                             .addCostCategory(CostCategory.IP)
                             .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                             .build())
-            .costSources(true, Collections.singleton(8))
+            .costSources(true, Collections.singleton(CostSource.ON_DEMAND_RATE))
             .accountIds(ImmutableSet.of(20L, 21L))
             .regionIds(ImmutableSet.of(30L, 31L))
             .availabilityZoneIds(ImmutableSet.of(40L, 41L))
@@ -62,7 +65,7 @@ public class EntityCostFilterTest {
                             .addCostCategory(CostCategory.IP)
                             .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                             .build())
-                .costSources(true, Collections.singleton(8))
+                .costSources(true, Collections.singleton(CostSource.ON_DEMAND_RATE))
                 .accountIds(ImmutableSet.of(20L, 21L))
                 .regionIds(ImmutableSet.of(30L, 31L))
                 .availabilityZoneIds(ImmutableSet.of(40L, 41L));
@@ -82,7 +85,7 @@ public class EntityCostFilterTest {
                 .addCostCategory(CostCategory.IP)
                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                 .build());
-        builder.costSources(false, Collections.singleton(8));
+        builder.costSources(false, Collections.singleton(CostSource.ON_DEMAND_RATE));
         assertFalse(filter.equals(builder.build()));
 
         assertThat(filter.getAccountIds(), is(Optional.of(ImmutableSet.of(20L, 21L))));
@@ -138,26 +141,40 @@ public class EntityCostFilterTest {
     public void filterComponentCostBySourceInclusion() {
 
         final ComponentCost componentCost = ComponentCost.newBuilder()
-                .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                        .setCostSource(CostSource.ENTITY_UPTIME_DISCOUNT)
+                        .setDiscountCostSourceLink(CostSourceLinkDTO.newBuilder()
+                                .setCostSource(CostSource.BUY_RI_DISCOUNT)))
                 .build();
 
         /*
         SUT
          */
-        EntityCostFilter filter =
+        final EntityCostFilter filterWithBothCostSources =
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
-                        .costSources(false, Collections.singleton(
-                                CostSource.BUY_RI_DISCOUNT.getNumber()))
+                        .costSources(false, ImmutableSet.of(
+                                CostSource.BUY_RI_DISCOUNT,
+                                CostSource.ENTITY_UPTIME_DISCOUNT))
                         .build();
 
-        assertTrue(filter.filterComponentCost(componentCost));
+        final EntityCostFilter filterWithEntityUptime =
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
+                        .costSources(false, Collections.singleton(
+                                CostSource.ENTITY_UPTIME_DISCOUNT))
+                        .build();
+
+        assertTrue(filterWithBothCostSources.filterComponentCost(componentCost));
+        assertFalse(filterWithEntityUptime.filterComponentCost(componentCost));
     }
 
     @Test
     public void filterComponentCostBySourceExclusion() {
 
         final ComponentCost componentCost = ComponentCost.newBuilder()
-                .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                        .setCostSource(CostSource.ENTITY_UPTIME_DISCOUNT)
+                        .setDiscountCostSourceLink(CostSourceLinkDTO.newBuilder()
+                                .setCostSource(CostSource.BUY_RI_DISCOUNT)))
                 .build();
 
         /*
@@ -166,7 +183,7 @@ public class EntityCostFilterTest {
         EntityCostFilter filter =
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .costSources(true, Collections.singleton(
-                                CostSource.BUY_RI_DISCOUNT.getNumber()))
+                                CostSource.BUY_RI_DISCOUNT))
                         .build();
 
         assertFalse(filter.filterComponentCost(componentCost));
@@ -185,5 +202,33 @@ public class EntityCostFilterTest {
         // Include the plan ID, which makes plan_id valid
         filter = builder.topologyContextId(2116L).build();
         assertEquals(3, filter.getCostGroupBy().getGroupByFields().size());
+    }
+
+    /**
+     * Test for {@link EntityCostFilterBuilder#totalValuesRequested(boolean)}.
+     */
+    @Test
+    public void testTotalValuesRequested() {
+        Stream.of(true, false).forEach(isTotalValuesRequested -> {
+            final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(
+                    TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).totalValuesRequested(
+                    isTotalValuesRequested).build();
+            Assert.assertEquals(isTotalValuesRequested, entityCostFilter.isTotalValuesRequested());
+        });
+        final EntityCostFilter defaultEntityCostFilter = EntityCostFilterBuilder.newBuilder(
+                TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).build();
+        Assert.assertFalse(defaultEntityCostFilter.isTotalValuesRequested());
+    }
+
+    /**
+     * Test for {@link EntityCostFilter#toNewBuilder()}.
+     */
+    @Test
+    public void testToNewBuilder() {
+        final EntityCostFilter entityCostFilter = EntityCostFilterBuilder.newBuilder(
+                TimeFrame.LATEST, RT_TOPO_CONTEXT_ID).totalValuesRequested(true).build();
+        final EntityCostFilter newCostFilter = entityCostFilter.toNewBuilder().build();
+        Assert.assertNotSame(newCostFilter, entityCostFilter);
+        Assert.assertTrue(newCostFilter.isTotalValuesRequested());
     }
 }

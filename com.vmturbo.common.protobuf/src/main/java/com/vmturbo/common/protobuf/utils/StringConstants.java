@@ -131,6 +131,7 @@ public class StringConstants {
     public static final String NUM_NOTIFICATIONS = "numNotifications";
     public static final String RI_COUPON_COVERAGE = "RICouponCoverage";
     public static final String RI_COUPON_UNITS = "RICoupon";
+
     public static final String RI_COST = "RICost";
     public static final String HOST = "Host";
     public static final String DATABASE_SERVER = "DatabaseServer";
@@ -238,6 +239,7 @@ public class StringConstants {
     public static final String ACCOUNTID = "accountID";
     public static final String NUM_RI = "numRIs";
     public static final String RI_COUPON_UTILIZATION = "RICouponUtilization";
+    public static final String CLOUD_COMMITMENT_UTILIZATION = "CloudCommitmentUtilization";
     public static final String BILLING_FAMILY = "BillingFamily";
     public static final String DESKTOP_POOL = "DesktopPool";
     public static final String BUSINESS_USER = "BusinessUser";
@@ -313,7 +315,7 @@ public class StringConstants {
     public static final String CAPACITY_HEADROOM = "emptyClusterHeadroom";
     public static final String EXHAUSTION_DAYS = "exhaustionDays";
     public static final String MONTHLY_GROWTH = "monthlyGrowth";
-
+    public static final String UTILIZATION_PER_DAY = "$/day";
     public static final String COST_PRICE = "costPrice";
     public static final String SUPER_SAVINGS = "superSavings";
     public static final String RI_DISCOUNT = "riDiscount";
@@ -507,4 +509,19 @@ public class StringConstants {
      * Optimize container cluster plan type.
      */
     public static final String OPTIMIZE_CONTAINER_CLUSTER_PLAN = "OPTIMIZE_CONTAINER_CLUSTER";
+
+    /**
+     * Buy RI plan type.
+     */
+    public static final String BUY_RI_PLAN = "BUY_RI_PLAN";
+
+    /**
+     * To be used when a plan (like a BUY_RI_PLAN) which has no defined subtype.
+     */
+    public static final String PLAN__NO_SUB_TYPE = "PLAN_NO_SUB_TYPE";
+
+    /**
+     * Set of all Cloud Plan Types (not including sub plans).
+     */
+    public static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(OPTIMIZE_CLOUD_PLAN, CLOUD_MIGRATION_PLAN, BUY_RI_PLAN);
 }

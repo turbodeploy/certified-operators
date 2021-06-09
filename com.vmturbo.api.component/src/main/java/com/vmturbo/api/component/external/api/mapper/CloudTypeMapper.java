@@ -5,9 +5,12 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -31,6 +34,15 @@ public class CloudTypeMapper {
                     .put(SDKProbeType.GCP_COST.getProbeType(), CloudType.GCP)
                     .build();
 
+    private static final BiMap<CloudTypeEnum.CloudType, CloudType> CLOUD_TYPE_MAPPINGS =
+            new ImmutableBiMap.Builder<CloudTypeEnum.CloudType, CloudType>()
+                    .put(CloudTypeEnum.CloudType.UNKNOWN_CLOUD, CloudType.UNKNOWN)
+                    .put(CloudTypeEnum.CloudType.AWS, CloudType.AWS)
+                    .put(CloudTypeEnum.CloudType.AZURE, CloudType.AZURE)
+                    .put(CloudTypeEnum.CloudType.GCP, CloudType.GCP)
+                    .put(CloudTypeEnum.CloudType.HYBRID_CLOUD, CloudType.HYBRID)
+            .build();
+
     /**
      * Get Cloud type from target type.
      *
@@ -40,5 +52,29 @@ public class CloudTypeMapper {
     @Nonnull
     public Optional<CloudType> fromTargetType(@Nonnull final String targetType) {
         return Optional.ofNullable(probeTypeToCloudType.get(targetType));
+    }
+
+    /**
+     * Converts the internal XL cloud type protobuf enum to the corresponding api one.
+     *
+     * @param cloudType the {@link CloudTypeEnum.CloudType} to convert.
+     * @return the associated {@link CloudType}, or {@link CloudType#UNKNOWN}
+     */
+    @Nonnull
+    public static CloudType fromXlProtoEnumToApi(final CloudTypeEnum.CloudType cloudType) {
+        return CLOUD_TYPE_MAPPINGS.getOrDefault(cloudType, CloudType.UNKNOWN);
+    }
+
+    /**
+     * Converts the api cloud type enum to the corresponding internal XL protobuf one.
+     *
+     * @param cloudType the {@link CloudType} to convert.
+     * @return the associated {@link CloudTypeEnum.CloudType}, or
+     *         {@link CloudTypeEnum.CloudType#UNKNOWN_CLOUD}
+     */
+    @Nonnull
+    public static CloudTypeEnum.CloudType fromApiToXlProtoEnum(final CloudType cloudType) {
+        return CLOUD_TYPE_MAPPINGS.inverse().getOrDefault(
+                cloudType, CloudTypeEnum.CloudType.UNKNOWN_CLOUD);
     }
 }

@@ -864,6 +864,17 @@ services:
       instance_id: mediation-jboss-1
     restart: always
 
+  mediation-instana-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.instana.component
+    environment:
+      consul_host: consul
+      component_type: mediation-instana
+      instance_id: mediation-instana-1
+    restart: always
+
   mediation-udt-prod:
     extends:
       file: common-services.yml
@@ -994,4 +1005,26 @@ services:
       consul_host: consul
       component_type: mediation-actionstream-kafka
       instance_id: mediation-actionstream-kafka-1
+    restart: always
+
+  mediation-xen-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.xen.component
+    environment:
+      consul_host: consul
+      component_type: mediation-xen
+      instance_id: mediation-xen-1
+    restart: always
+
+  mediation-webhook-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.webhook.component
+    environment:
+      consul_host: consul
+      component_type: mediation-webhook
+      instance_id: mediation-webhook-1
     restart: always

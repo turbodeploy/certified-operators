@@ -41,6 +41,8 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.plan.orchestrator.api.NoSuchValueException;
+import com.vmturbo.plan.orchestrator.api.ReservationFieldsConverter;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationToTemplateRecord;
@@ -91,11 +93,18 @@ public class ReservationDaoImpl implements ReservationDao {
     @Nonnull
     @Override
     public Optional<ReservationDTO.Reservation> getReservationById(final long id) {
-        return Optional.ofNullable(dsl.selectFrom(RESERVATION)
+        Optional<Reservation> res = Optional.ofNullable(dsl.selectFrom(RESERVATION)
                 .where(RESERVATION.ID.eq(id))
                 .fetchOne())
-                .map(record -> record.into(Reservation.class))
-                .map(this::convertReservationToProto);
+                .map(record -> record.into(Reservation.class));
+        if (res.isPresent()) {
+            try {
+                return Optional.of(convertReservationToProto(res.get()));
+            } catch (NoSuchValueException e) {
+                logger.error("convertReservationToProto", e);
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -108,6 +117,7 @@ public class ReservationDaoImpl implements ReservationDao {
     @Nonnull
     @Override
     public Optional<ReservationDTO.Reservation> getReservationById(final long id, final boolean apiCallBlock) {
+        Optional.ofNullable("").map(record -> record).map(record1 -> record1);
         if (!apiCallBlock) {
             return getReservationById(id);
         } else {
@@ -155,11 +165,16 @@ public class ReservationDaoImpl implements ReservationDao {
     @Override
     public Set<ReservationDTO.Reservation> getReservationsByStatus(
             @Nonnull final ReservationStatus status) {
-        final List<Reservation> reservations = dsl.selectFrom(RESERVATION)
-                .where(RESERVATION.STATUS.eq(ReservationStatusConverter.typeToDb(status)))
-                .fetch()
-                .into(Reservation.class);
-        return convertReservationListToProto(reservations);
+        try {
+            final List<Reservation> reservations = dsl.selectFrom(RESERVATION)
+                    .where(RESERVATION.STATUS.eq(ReservationFieldsConverter.statusToDb(status)))
+                    .fetch()
+                    .into(Reservation.class);
+            return convertReservationListToProto(reservations);
+        } catch (NoSuchValueException e) {
+            logger.error("getReservationsByStatus", e);
+            return Collections.emptySet();
+        }
     }
 
     /**
@@ -275,7 +290,15 @@ public class ReservationDaoImpl implements ReservationDao {
                     final Map<Long, ReservationDTO.Reservation> reservationMap = reservations.stream()
                             .collect(Collectors.toMap(ReservationDTO.Reservation::getId, Function.identity()));
                     reservationRecords.stream()
-                            .map(record -> updateReservationRecord(reservationMap.get(record.getId()), record))
+                            .map(record -> {
+                                try {
+                                   return updateReservationRecord(reservationMap.get(record.getId()), record);
+                                } catch (NoSuchValueException e) {
+                                    logger.error("updateReservationRecord", e);
+                                    return null;
+                                }
+                            })
+                            .filter(Objects::nonNull)
                             .forEach(updateReservationRecords::add);
                     reservationRecords.stream()
                             .map(record -> reservationMap.get(record.getId()))
@@ -384,7 +407,15 @@ public class ReservationDaoImpl implements ReservationDao {
                     .into(RESERVATION);
             return reservationRecords.stream()
                     .map(record -> record.into(Reservation.class))
-                    .map(this::convertReservationToProto)
+                    .map(reservation -> {
+                        try {
+                            return convertReservationToProto(reservation);
+                        } catch (NoSuchValueException e) {
+                            logger.error("convertReservationToProto", e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
         });
     }
@@ -399,21 +430,31 @@ public class ReservationDaoImpl implements ReservationDao {
     private Set<ReservationDTO.Reservation> convertReservationListToProto(
             @Nonnull final List<Reservation> reservations) {
         return reservations.stream()
-                .map(this::convertReservationToProto)
+                .map(reservation -> {
+                    try {
+                        return convertReservationToProto(reservation);
+                    } catch (NoSuchValueException e) {
+                        logger.error("convertReservationToProto", e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
     }
 
     private ReservationDTO.Reservation convertReservationToProto(
-            @Nonnull final Reservation reservation) {
+            @Nonnull final Reservation reservation) throws NoSuchValueException {
         return ReservationDTO.Reservation.newBuilder()
                 .setId(reservation.getId())
                 .setName(reservation.getName())
                 .setStartDate(convertLocalDateToTimestamp(reservation.getStartTime()))
                 .setExpirationDate(convertLocalDateToTimestamp(reservation.getExpireTime()))
-                .setStatus(ReservationStatusConverter.typeFromDb(reservation.getStatus()))
+                .setStatus(ReservationFieldsConverter.statusFromDb(reservation.getStatus()))
                 .setReservationTemplateCollection(reservation.getReservationTemplateCollection())
                 .setConstraintInfoCollection(reservation.getConstraintInfoCollection())
                 .setDeployed(reservation.getDeployed() > 0)
+                .setReservationMode(ReservationFieldsConverter.modeFromDb(reservation.getMode()))
+                .setReservationGrouping(ReservationFieldsConverter.groupingFromDb(reservation.getGrouping()))
                 .build();
     }
 
@@ -430,7 +471,11 @@ public class ReservationDaoImpl implements ReservationDao {
      */
     private void updateReservationRecordWithStore(@Nonnull final ReservationDTO.Reservation reservation,
                                                   @Nonnull final ReservationRecord record) {
-        updateReservationRecord(reservation, record).store();
+        try {
+            updateReservationRecord(reservation, record).store();
+        } catch (NoSuchValueException e) {
+            logger.error("updateReservationRecord", e);
+        }
     }
 
     /**
@@ -440,17 +485,21 @@ public class ReservationDaoImpl implements ReservationDao {
      * @param reservation The reservation that represents the new information.
      * @param record {@link ReservationRecord} need to update.
      * @return {@link ReservationRecord} after updated.
+     * @throws NoSuchValueException if invalid reservation value is specified.
      */
     private ReservationRecord updateReservationRecord(@Nonnull final ReservationDTO.Reservation reservation,
-                                                      @Nonnull final ReservationRecord record) {
+                                                      @Nonnull final ReservationRecord record)
+                                                              throws NoSuchValueException {
         record.setId(reservation.getId());
         record.setName(reservation.getName());
         record.setStartTime(convertDateProtoToLocalDate(reservation.getStartDate()));
         record.setExpireTime(convertDateProtoToLocalDate(reservation.getExpirationDate()));
-        record.setStatus(ReservationStatusConverter.typeToDb(reservation.getStatus()));
+        record.setStatus(ReservationFieldsConverter.statusToDb(reservation.getStatus()));
         record.setReservationTemplateCollection(reservation.getReservationTemplateCollection());
         record.setConstraintInfoCollection(reservation.getConstraintInfoCollection());
         record.setDeployed(reservation.getDeployed() ? 1 : 0);
+        record.setMode(ReservationFieldsConverter.modeToDb(reservation.getReservationMode()));
+        record.setGrouping(ReservationFieldsConverter.groupingToDb(reservation.getReservationGrouping()));
         return record;
     }
 

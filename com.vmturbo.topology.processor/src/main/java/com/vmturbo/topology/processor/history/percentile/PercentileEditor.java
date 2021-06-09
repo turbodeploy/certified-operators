@@ -34,8 +34,11 @@ import io.grpc.StatusRuntimeException;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -78,6 +81,8 @@ import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 
 /**
@@ -144,6 +149,8 @@ public class PercentileEditor extends
     private final Clock clock;
     private final StatsHistoryServiceBlockingStub statsHistoryBlockingClient;
     private final SystemNotificationProducer systemNotificationProducer;
+    private final IdentityProvider identityProvider;
+    private final boolean enableExpiredOidFiltering;
 
     private boolean historyInitialized;
     // moment of most recent checkpoint i.e. save of full window in the persistent store
@@ -177,17 +184,22 @@ public class PercentileEditor extends
      * @param clock the {@link Clock}
      * @param historyLoadingTaskCreator creator of task to load or save data
      * @param systemNotificationProducer system notification producer
+     * @param identityProvider The identity provider used to get existing oids
+     * @param enableExpiredOidFiltering whether to apply filtering to expired oids or not
      */
     public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
-                    @Nonnull StatsHistoryServiceStub statsHistoryClient,
-                    @Nonnull StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
-                    @Nonnull Clock clock,
-                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator,
-                    @Nonnull SystemNotificationProducer systemNotificationProducer) {
+                            @Nonnull StatsHistoryServiceStub statsHistoryClient,
+                            @Nonnull StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
+                            @Nonnull Clock clock,
+                            @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator,
+                            @Nonnull SystemNotificationProducer systemNotificationProducer,
+                            @Nonnull IdentityProvider identityProvider, boolean enableExpiredOidFiltering) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
         this.statsHistoryBlockingClient = statsHistoryBlockingClient;
         this.systemNotificationProducer = systemNotificationProducer;
+        this.identityProvider = identityProvider;
+        this.enableExpiredOidFiltering = enableExpiredOidFiltering;
     }
 
     @Override
@@ -215,13 +227,18 @@ public class PercentileEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                         @Nullable TopologyInfo topoInfo) {
         if (commSold.hasUtilizationData()) {
             return true;
         }
         // sold commodities from cloud environments that need percentile calculation have
         // utilizationData set and don't rely on REQUIRED_SOLD_COMMODITY_TYPES map
-        if (entity.getEnvironmentType() == EnvironmentType.CLOUD) {
+        // MCP wil require the storage access to use percentile data. As the on prem volume migrating
+        // to cloud are considered as EnvironmentType.CLOUD, we have to return true here to allow the
+        // commodity included.
+        if (entity.getEnvironmentType() == EnvironmentType.CLOUD
+                && !TopologyDTOUtil.isCloudMigrationPlan(topoInfo)) {
             return false;
         }
         Set<EntityType> allowedTypes = REQUIRED_SOLD_COMMODITY_TYPES
@@ -267,16 +284,18 @@ public class PercentileEditor extends
         }
 
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+
+            LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache(identityProvider);
             // read the latest and full window blobs if haven't yet, set into cache
             loadPersistedData(context, latestTimestamp -> {
                 // latest
                 return Pair.create(null, createTask(latestTimestamp)
-                                .load(Collections.emptyList(), getConfig()));
+                                .load(Collections.emptyList(), getConfig(), currentOidsInIdentityCache));
             }, fullTimestamp -> {
                 // full
                 final PercentilePersistenceTask fullTask = createTask(fullTimestamp);
                 final Map<EntityCommodityFieldReference, PercentileRecord> records =
-                                fullTask.load(Collections.emptyList(), getConfig());
+                                fullTask.load(Collections.emptyList(), getConfig(), currentOidsInIdentityCache);
                 return Pair.create(fullTask.getLastCheckpointMs(), records);
             });
 
@@ -303,6 +322,15 @@ public class PercentileEditor extends
     @Override
     public void cleanupCache(@Nonnull final List<EntityCommodityReference> commodities) {
         // We don't need to clean up cache for percentile
+    }
+
+    private LongSet getCurrentOidsInInIdentityCache(@Nonnull final IdentityProvider identityProvider) throws HistoryCalculationException {
+        try {
+            return identityProvider.getCurrentOidsInIdentityCache();
+        } catch (IdentityUninitializedException e) {
+            throw new HistoryCalculationException("Could not get existing oids from the " +
+                "identity cache", e);
+        }
     }
 
     private void initializeCacheValues(@Nonnull HistoryAggregationContext context,
@@ -391,6 +419,9 @@ public class PercentileEditor extends
                     boolean reassembleRequired, boolean updateReassemblyCheckpoint)
                     throws InterruptedException {
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+            if (enableExpiredOidFiltering) {
+                expireStaleOidsFromCache(identityProvider);
+            }
             final PercentileCounts.Builder full =
                             createFullForPersistence(potentialNewCheckpoint, reassembleRequired,
                                             maintenanceRequired);
@@ -452,6 +483,21 @@ public class PercentileEditor extends
             return createBlob(store -> store.checkpoint(Collections.emptyList(), true));
         }
         return null;
+    }
+
+    /**
+     * Remove all the oids in the cache that are not contained in the identity cache.
+     * @param identityProvider that has access to the identity cache
+     * @throws HistoryCalculationException is oids can't be read from the identity cache
+     */
+    private void expireStaleOidsFromCache(final IdentityProvider identityProvider) throws HistoryCalculationException {
+        LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache(identityProvider);
+        int originalCacheSize = getCache().keySet().size();
+        getCache().keySet().removeIf(entityRef -> !currentOidsInIdentityCache.contains(entityRef.getEntityOid()));
+        int sizeAfterExpiration = originalCacheSize - getCache().keySet().size();
+        Level level = sizeAfterExpiration > 0 ? Level.INFO : Level.DEBUG;
+        logger.log(level, "{} expired oids were filtered out during maintenance",
+            sizeAfterExpiration);
     }
 
     private boolean shouldReassemble(long now) {
@@ -679,7 +725,8 @@ public class PercentileEditor extends
             for (long timestamp : timestamps) {
                 final Map<EntityCommodityFieldReference, PercentileRecord> page;
                 try {
-                    page = createTask(timestamp).load(Collections.emptyList(), getConfig());
+                    page = createTask(timestamp).load(Collections.emptyList(), getConfig(),
+                        getCurrentOidsInInIdentityCache(identityProvider));
                 } catch (InvalidHistoryDataException e) {
                     sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
                                     startTimestamp, "full page reassembly"), Severity.MAJOR);
@@ -793,7 +840,8 @@ public class PercentileEditor extends
 
                 final Map<EntityCommodityFieldReference, PercentileRecord> oldValues;
                 try {
-                    oldValues = loadOutdated.load(Collections.emptyList(), getConfig());
+                    oldValues = loadOutdated.load(Collections.emptyList(), getConfig(),
+                        getCurrentOidsInInIdentityCache(identityProvider));
                 } catch (InvalidHistoryDataException e) {
                     sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
                                     outdatedTimestamp, "maintenance"), Severity.MAJOR);
@@ -950,7 +998,8 @@ public class PercentileEditor extends
         try {
             final Map<EntityCommodityFieldReference, PercentileRecord> result =
                             PercentilePersistenceTask.parse(timestamp, source,
-                                            PercentileCounts::parseDelimitedFrom);
+                                            PercentileCounts::parseDelimitedFrom,
+                                LongSets.EMPTY_SET, false);
             logger.info("Loaded '{}' {} records for '{}' timestamp.", result.size(), partType,
                             timestamp);
             return Pair.create(timestamp, result);

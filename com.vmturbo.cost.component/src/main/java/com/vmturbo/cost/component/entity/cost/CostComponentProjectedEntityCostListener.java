@@ -33,14 +33,14 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
 
     private final CostNotificationSender costNotificationSender;
 
     CostComponentProjectedEntityCostListener(
-            @Nonnull final ProjectedEntityCostStore projectedEntityCostStore,
+            @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
             @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
             @Nonnull final CostNotificationSender costNotificationSender) {
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
@@ -66,30 +66,30 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                     }
                     chunkCount++;
                 } catch (InterruptedException e) {
-                    logger.error("Interrupted while waiting for processing projected entity costs chunk." +
-                            "Processed " + chunkCount + " chunks so far.", e);
+                    logger.error("Interrupted while waiting for processing projected entity costs chunk."
+                            + "Processed " + chunkCount + " chunks so far.", e);
                 } catch (TimeoutException e) {
-                    logger.error("Timed out waiting for next entity costs chunk." +
-                            " Processed " + chunkCount + " chunks so far.", e);
+                    logger.error("Timed out waiting for next entity costs chunk."
+                            + " Processed " + chunkCount + " chunks so far.", e);
                 } catch (CommunicationException e) {
-                    logger.error("Connection error when waiting for next entity costs chunk." +
-                            " Processed " + chunkCount + " chunks so far.", e);
+                    logger.error("Connection error when waiting for next entity costs chunk."
+                            + " Processed " + chunkCount + " chunks so far.", e);
                 }
             }
             if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
                 planProjectedEntityCostStore.insertPlanProjectedEntityCostsTableForPlan(
                         originalTopologyInfo, costList);
             } else {
-                projectedEntityCostStore.updateProjectedEntityCosts(costList);
+                projectedEntityCostStore.updateEntityCosts(costList);
             }
             // Send the projected cost status notification.
             sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
                     Status.SUCCESS));
-            logger.debug("Finished processing projected entity costs. Got costs for {} entities, " +
-                    "delivered in {} chunks.", costCount, chunkCount);
+            logger.debug("Finished processing projected entity costs. Got costs for {} entities, "
+                    + "delivered in {} chunks.", costCount, chunkCount);
         } catch (Exception e) {
-            logger.error("Error in processing the projected cost. Processed " +
-                    chunkCount + " chunks so far.", e);
+            logger.error("Error in processing the projected cost. Processed "
+                    + chunkCount + " chunks so far.", e);
             sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
                     Status.FAIL));
         }
@@ -103,11 +103,11 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
     private void sendProjectedCostNotification(
             @Nonnull final CostNotification projectedCostNotification) {
         try {
-            costNotificationSender.sendStatusNotification(projectedCostNotification);
+            costNotificationSender.sendCostNotification(projectedCostNotification);
             final StatusUpdate projectedCostUpdate =
                     projectedCostNotification.getStatusUpdate();
-            logger.debug("The projected cost notification has been sent successfully. topology " +
-                            "ID: {} topology context ID: {} status: {}",
+            logger.debug("The projected cost notification has been sent successfully. topology "
+                            + "ID: {} topology context ID: {} status: {}",
                     projectedCostUpdate.getTopologyId(),
                     projectedCostUpdate.getTopologyContextId(),
                     projectedCostUpdate.getStatus());

@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.pricing;
 
+import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -13,6 +14,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
+import com.vmturbo.platform.sdk.common.PricingDTO.ResourceRatioDependency;
 
 /**
  * A bundle of of possible prices for a (database server tier, region) combination. The possible
@@ -54,16 +56,18 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          * @param licenseModel The license mode.
          * @param hourlyPrice The hourly price.
          * @param storageOptions the storage options.
+         * @param ratioDependencies ratio dependencies for database server resources
          * @return A builder.
          */
         @Nonnull
         public Builder addPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
                 @Nonnull final DatabaseEdition dbEdition, @Nullable final DeploymentType depType,
                 @Nullable final LicenseModel licenseModel, final double hourlyPrice,
-                @Nonnull final List<DbsStorageOption> storageOptions) {
+                @Nonnull final List<DbsStorageOption> storageOptions,
+                @Nonnull List<ResourceRatioDependency> ratioDependencies) {
             priceBuilder.add(
                     new DatabaseServerPrice(accountId, dbEngine, dbEdition, depType, licenseModel,
-                            hourlyPrice, storageOptions));
+                            hourlyPrice, storageOptions, ratioDependencies));
             return this;
         }
 
@@ -83,6 +87,8 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
      */
     public static class DatabaseServerPrice extends GenericDbPriceBundle.GenericPrice {
 
+        private Collection<ResourceRatioDependency> ratioDependencies;
+
         /**
          * Constructor for the database price.
          *
@@ -93,33 +99,38 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
          * @param licenseModel The license model.
          * @param hourlyPrice The hourly price.
          * @param storageOptions The storage options.
+         * @param ratioDependencies ratio dependencies for database server resources
          */
         public DatabaseServerPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
                 @Nonnull final DatabaseEdition dbEdition, @Nullable final DeploymentType depType,
                 @Nullable final LicenseModel licenseModel, final double hourlyPrice,
-                @Nonnull final List<DbsStorageOption> storageOptions) {
+                @Nonnull final List<DbsStorageOption> storageOptions,
+                @Nonnull Collection<ResourceRatioDependency> ratioDependencies) {
             super(accountId, dbEngine, dbEdition, depType, licenseModel, hourlyPrice,
                     storageOptions);
+            this.ratioDependencies = ratioDependencies;
+        }
+
+        public Collection<ResourceRatioDependency> getRatioDependencies() {
+            return ratioDependencies;
         }
 
         /**
          * Class representing a storage option.
          */
         public static class DbsStorageOption extends GenericDbPriceBundle.GenericStorageOption {
-            // This is the possible increment in GB in this option (ex. 250GB).
-            final long percentIncrement;
+
+            final int commodityType;
 
             /**
-             * Defines the number of percents we use to calculate new commodity value:
-             * new value should be N% greater than previous.
-             * E.g. if this number is 10%, and we resize 500GB storage, miniumum new value
-             * is 500 + (500 * 10%) = 550GB.
+             * Get commodity type.
              *
-             * @return commodity minimum increase in percentage
+             * @return commodity type
              */
-            public long getPercentIncrement() {
-                return percentIncrement;
+            public int getCommodityType() {
+                return commodityType;
             }
+
 
             /**
              * Constructor for the storage option.
@@ -127,10 +138,11 @@ public class DatabaseServerPriceBundle extends GenericDbPriceBundle<DatabaseServ
              * @param increment the increment.
              * @param endRange The end range.
              * @param price The price.
+             * @param commodityType commodity type for which price is applied.
              */
-            public DbsStorageOption(long increment, long endRange, double price) {
-                super(endRange, price);
-                this.percentIncrement = increment;
+            public DbsStorageOption(long increment, long endRange, double price, int commodityType) {
+                super(increment, endRange, price);
+                this.commodityType = commodityType;
             }
         }
     }

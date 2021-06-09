@@ -15,6 +15,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.base.Function;
+
 import io.opentracing.SpanContext;
 
 import org.apache.logging.log4j.LogManager;
@@ -128,7 +130,10 @@ class LocalBusTopic<T> {
          * @param serverMsg The message.
          */
         public void sendMessage(final T serverMsg) {
-            try (TracingScope tracingScope = Tracing.trace(topicName + "/message-" + messageIndex.getAndIncrement())) {
+            final Function<String, TracingScope> tracingFunc = Tracing.isKafkaTracingEnabled()
+                ? Tracing::trace
+                : Tracing::noop;
+            try (TracingScope tracingScope = tracingFunc.apply(topicName + "/message-" + messageIndex.getAndIncrement())) {
                 final MessageContext<T> msg = new MessageContext<>(serverMsg, tracingScope.spanContext());
                 queue.add(msg);
             }

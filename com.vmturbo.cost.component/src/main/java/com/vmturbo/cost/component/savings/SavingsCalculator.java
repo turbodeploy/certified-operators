@@ -1,11 +1,14 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -27,13 +30,15 @@ import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 
 /**
  * This class implements the algorithm for calculating entity savings and investments.
- * TODO Remove this class or change the implementation to work with the new definition of EntityState and the new calculate API.
  */
 class SavingsCalculator {
     /**
      * Logger.
      */
     private final Logger logger = LogManager.getLogger();
+
+    // Current period end
+    private long periodEndtime;
 
     /**
      * Constructor.
@@ -123,8 +128,13 @@ class SavingsCalculator {
                           @Nonnull final List<SavingsEvent> events,
                           long periodStartTime, long periodEndTime) {
         logger.debug("Calculating savings/investment from {} to {}", periodStartTime, periodEndTime);
+        this.periodEndtime = periodEndTime;
+        // Convert the event list to a heap so that we can modify it while consuming it
+        PriorityQueue<SavingsEvent> eventHeap =
+                new PriorityQueue<>(SavingsEvent::compareConsideringTimestamp);
+        eventHeap.addAll(events);
         // Generate action expired events
-        createActionExpiredEvents(forcedEntityStates, events, periodEndTime);
+        createActionExpiredEvents(forcedEntityStates, eventHeap, periodEndTime);
         // Initialize algorithm state from the entity state list
         Map<Long, Algorithm> states = entityStates.values().stream()
                 .map(entityState -> {
@@ -138,11 +148,15 @@ class SavingsCalculator {
         Set<Long> entitiesWithEvents = new HashSet<>();
 
         // Process the events
-        for (SavingsEvent event : events) {
+        while (!eventHeap.isEmpty()) {
+            SavingsEvent event = eventHeap.poll();
             long timestamp = event.getTimestamp();
             long entityId = event.getEntityId();
             if (event.hasActionEvent()) {
-                handleActionEvent(states, timestamp, entityId, event);
+                SavingsEvent expirationEvent = handleActionEvent(states, timestamp, entityId, event);
+                if (expirationEvent != null) {
+                    eventHeap.offer(expirationEvent);
+                }
             }
             if (event.hasTopologyEvent()) {
                 handleTopologyEvent(states, timestamp, entityId, event);
@@ -173,41 +187,49 @@ class SavingsCalculator {
      *                      expired event.
      */
     private void createActionExpiredEvents(Collection<EntityState> forcedEntityStates,
-            List<SavingsEvent> events, long periodEndTime) {
+            PriorityQueue<SavingsEvent> events, long periodEndTime) {
         for (EntityState entityState : forcedEntityStates) {
             long entityId = entityState.getEntityId();
             Iterator<Double> deltas = entityState.getActionList().iterator();
             for (Long expirationTime : entityState.getExpirationList()) {
                 Double delta = deltas.next();
                 if (expirationTime <= periodEndTime) {
-                    // The EntityPriceChange isn't required by the algorithm, but it provides
-                    // useful information for the audit log to help correlate action creation
-                    // and expiration.  The source cost is forced to 0 and the destination cost
-                    // is set to the delta.  These are only set in order to force the calculated
-                    // delta in the EntityPriceChange to be correct.
-                    EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
-                            .sourceCost(0)
-                            .destinationCost(delta)
-                            .expirationTime(expirationTime)
-                            .build();
-                    SavingsEvent expiration = new SavingsEvent.Builder()
-                            .actionEvent(new ActionEvent.Builder()
-                                    .eventType(ActionEventType.ACTION_EXPIRED)
-                                    .actionId(entityId)
-                                    .build())
-                            .entityPriceChange(entityPriceChange)
-                            .entityId(entityId)
-                            .timestamp(expirationTime)
-                            .build();
-                    events.add(expiration);
-                } else {
-                    // Found an active action - no need to check the rest of the action list.
-                    break;
+                    events.offer(createActionExpiredEvent(entityId, expirationTime, delta));
                 }
             }
         }
-        // Sort the events by timestamp so that the expirations are processed at the correct time.
-        Collections.sort(events, SavingsEvent::compareConsideringTimestamp);
+    }
+
+    /**
+     * Create an action expired event.
+     *
+     * <p>The EntityPriceChange isn't required by the algorithm, but it provides
+     * useful information for the audit log to help correlate action creation
+     * and expiration.  The source cost is forced to 0 and the destination cost
+     * is set to the delta.  These are only set in order to force the calculated
+     * delta in the EntityPriceChange to be correct.
+     *
+     * @param entityId entity Id to create the event for
+     * @param expirationTime when the action expires
+     * @param delta cost difference.
+     * @return a SavingsEvent for the action expiration
+     */
+    private SavingsEvent createActionExpiredEvent(long entityId, Long expirationTime, Double delta) {
+        EntityPriceChange entityPriceChange = new EntityPriceChange.Builder()
+                .sourceCost(0)
+                .destinationCost(delta)
+                .build();
+        SavingsEvent expiration = new SavingsEvent.Builder()
+                .actionEvent(new ActionEvent.Builder()
+                        .eventType(ActionEventType.ACTION_EXPIRED)
+                        .actionId(entityId)
+                        .expirationTime(expirationTime)
+                        .build())
+                .entityPriceChange(entityPriceChange)
+                .entityId(entityId)
+                .timestamp(expirationTime)
+                .build();
+        return expiration;
     }
 
     /**
@@ -218,15 +240,19 @@ class SavingsCalculator {
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param savingsEvent the savings event to process
+     * @return if non-null, the expiration event for this resize that must be processed this period.
      */
-    private void handleActionEvent(@Nonnull Map<Long, Algorithm> states,
+    @Nullable
+    private SavingsEvent handleActionEvent(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent savingsEvent) {
+        SavingsEvent expirationEvent = null;
         ActionEvent event = savingsEvent.getActionEvent().get();
         ActionEventType eventType = event.getEventType();
         if (ActionEventType.ACTION_EXPIRED.equals(eventType)) {
             handleExpiredAction(states, timestamp, entityId);
-        } else if (ActionEventType.EXECUTION_SUCCESS.equals(eventType)) {
-            handleExecutionSuccess(states, timestamp, entityId, savingsEvent);
+        } else if (ActionEventType.SCALE_EXECUTION_SUCCESS.equals(eventType)
+                || ActionEventType.DELETE_EXECUTION_SUCCESS.equals(eventType)) {
+            expirationEvent = handleExecutionSuccess(states, timestamp, entityId, savingsEvent);
         } else if (ActionEventType.RECOMMENDATION_ADDED.equals(eventType)) {
             handleRecommendationAdded(states, timestamp, entityId, savingsEvent);
         } else if (ActionEventType.RECOMMENDATION_REMOVED.equals(eventType)) {
@@ -234,6 +260,7 @@ class SavingsCalculator {
         } else {
             logger.warn("Dropping unhandled action event type {}", eventType);
         }
+        return expirationEvent;
     }
 
     private void handleExpiredAction(Map<Long, Algorithm> states, long timestamp, long entityId) {
@@ -245,10 +272,10 @@ class SavingsCalculator {
             return;
         }
         algorithmState.endSegment(timestamp);
-        if (!algorithmState.removeAction(timestamp)) {
-            logger.error("Cannot remove expired action with timestamp {} from entity ID {}",
-                    timestamp, entityId);
-        }
+        // This removes ALL expired actions on or before the timestamp, so it's possible that other
+        // expired actions that are still in the event journal will also be removed.  This is okay.
+        //  removeActionsOnOrBefore() for those events' timestamps will be a no-op.
+        algorithmState.removeActionsOnOrBefore(timestamp);
     }
 
     /**
@@ -286,22 +313,21 @@ class SavingsCalculator {
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param savingsEvent action execution details
+     * @return if non-null, the expiration event for this resize that must be processed this period.
      */
-    private void handleExecutionSuccess(@Nonnull Map<Long, Algorithm> states,
+    @Nullable
+    private SavingsEvent handleExecutionSuccess(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle ExecutionSuccess for {} at {}", entityId, timestamp);
-        if (!savingsEvent.hasEntityPriceChange()) {
-            logger.warn("Cannot track action execution for {} at {} - missing price data",
-                    entityId, timestamp);
-            return;
-        }
-         commonResizeHandler(states, timestamp, entityId,
-                 savingsEvent.getEntityPriceChange().get(), false);
+        return commonResizeHandler(states, timestamp, entityId,
+                savingsEvent.getActionEvent().get().getEventType(),
+                savingsEvent.getActionEvent().get().getExpirationTime());
     }
 
     /**
-     * Handle a resize recommendation that has not yet been executed.  This starts accumulating
-     * missed savings or investments.
+     * Handle a resize or delete volume recommendation that has not yet been executed.  This starts
+     * accumulating missed savings or investments.
+     *
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
@@ -310,14 +336,14 @@ class SavingsCalculator {
     private void handleRecommendationAdded(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle RecommendationAdded for {} at {}", entityId, timestamp);
-        // We have a recommendation for an entity, so we are going to start tracking savings/investments.  Get the
-        // current savings for this entity, or create a new savings tracker for it.
-
         if (!savingsEvent.hasEntityPriceChange()) {
             logger.warn("Cannot track resize recommendation for {} at {} - missing price data",
                     entityId, timestamp);
             return;
         }
+        // We have a recommendation for an entity, so we are going to start tracking missed
+        // savings/investments.  Get the current savings for this entity, or create a new savings
+        // tracker for it.
         Algorithm algorithmState = getAlgorithmState(states, savingsEvent.getEntityId(), timestamp, true);
 
         // Close out the current segment and open a new with the new periodic missed savings/investment
@@ -335,9 +361,13 @@ class SavingsCalculator {
         // Close out the current segment and open a new with the new periodic missed savings/investment
         algorithmState.endSegment(timestamp);
 
-        // Clear the current recommendation.
-        // BCTODO only remove if the recommendation matches.
-        algorithmState.setCurrentRecommendation(null);
+        // Deactivate the current recommendation.
+        if (algorithmState.getCurrentRecommendation() != null) {
+            EntityPriceChange updatedRecommendation =
+                    new EntityPriceChange.Builder().from(algorithmState.getCurrentRecommendation())
+                            .active(false).build();
+            algorithmState.setCurrentRecommendation(updatedRecommendation);
+        }
     }
 
     /**
@@ -367,8 +397,11 @@ class SavingsCalculator {
         Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp, false);
         if (algorithmState != null) {
             algorithmState.endSegment(timestamp);
+            // In order to track savings for entities that have been removed, we must retain their
+            // state.  To prevent further accrual of stats, clear the action list and set the
+            // power state to off.
             algorithmState.setPowerFactor(0L);
-            algorithmState.setDeletePending(true);
+            algorithmState.clearActionList();
         }
     }
 
@@ -406,53 +439,71 @@ class SavingsCalculator {
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param event SavingsEvent containing details of the topology provider change as well as the
+     *              price change information.
+     * @return if non-null, the expiration event for this resize that must be processed this period.
      */
-    private void handleProviderChange(@Nonnull Map<Long, Algorithm> states,
+    @Nullable
+    private SavingsEvent handleProviderChange(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent event) {
         logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
+        // TODO: Make expiration be an optional field in SavingsEvent rather than just ActionEvent,
+        // and make TEP pass the expiration in based on action/ entity type.  For now using this
+        // temporary large value for expiration.
+        final long expirationTime = LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC)
+                        .toEpochMilli();
         if (event.getEntityPriceChange().isPresent()) {
-            commonResizeHandler(states, timestamp, entityId, event.getEntityPriceChange().get(), true);
+            return commonResizeHandler(states, timestamp, entityId,
+                                       ActionEventType.SCALE_EXECUTION_SUCCESS,
+                                       Optional.of(expirationTime));
         } else {
             logger.warn("ProviderChange event for {} at {} is missing price data - skipping",
                     entityId, timestamp);
         }
+        return null;
     }
 
     /**
      * Shared logic to track a resize.  This can be called by the action execution success logic
      * (solicited resize) or when an entity has changed providers (unsolicited resize due to
      * discovery or action script action executed).
-     *  @param states a map of algorithm states for entities whose states are being tracked
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param change price change information
-     * @param activeRecommendationRequired true if an active recommendation must exist.  If true
+     * @param actionEventType Triggering action type (resize success or volume delete success)
+     * @param expirationTimestamp Time in milliseconds after execution when the action will expire.
+     * @return if non-null, the expiration event for this resize that must be processed this period.
      */
-    private void commonResizeHandler(@Nonnull Map<Long, Algorithm> states,
-            long timestamp, long entityId, EntityPriceChange change,
-            boolean activeRecommendationRequired) {
+    @Nullable
+    private SavingsEvent commonResizeHandler(@Nonnull Map<Long, Algorithm> states, long timestamp,
+                                             long entityId, ActionEventType actionEventType,
+                                             final Optional<Long> expirationTimestamp) {
         // If this is an action execution, it's okay that we haven't seen this entity yet.
         // Create state for it and continue.
-        Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp,
-                !activeRecommendationRequired);
-        if (algorithmState == null || !change.getExpirationTime().isPresent()) {
+        Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp, false);
+        if (algorithmState == null || !expirationTimestamp.isPresent()) {
             // An active recommendation is required, which means the entity state must already
             // exist.  If it does not, there is nothing to do.
             logger.debug("Not processing resize - state for entity {} is missing", entityId);
-            return;
+            return null;
+        }
+        EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
+        if (currentRecommendation == null) {
+            // No active resize action, so ignore this.
+            logger.warn("Not processing resize for {} - no matching recommendation", entityId);
+            return null;
         }
         algorithmState.endSegment(timestamp);
-        EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
-        if (currentRecommendation != null) {
-            if (activeRecommendationRequired && !currentRecommendation.equals(change)) {
-                // There's a current recommendation, but it doesn't match this resize, so ignore it
-                return;
-            }
-            algorithmState.setCurrentRecommendation(null);
-        } else if (activeRecommendationRequired) {
-            // No active resize action, so ignore this.
-            return;
+        algorithmState.setCurrentRecommendation(null);
+        // If this is a volume delete, remove all existing active actions.
+        if (ActionEventType.DELETE_EXECUTION_SUCCESS.equals(actionEventType)) {
+            algorithmState.clearActionList();
         }
-        algorithmState.addAction(change.getDelta(), change.getExpirationTime().get());
+
+        algorithmState.addAction(currentRecommendation.getDelta(), expirationTimestamp.get());
+        // If this action will expire in this same period, insert its expiration event now.
+        return expirationTimestamp.get() < periodEndtime
+                        ? createActionExpiredEvent(entityId, expirationTimestamp.get(),
+                                                   currentRecommendation.getDelta())
+                        : null;
     }
 }

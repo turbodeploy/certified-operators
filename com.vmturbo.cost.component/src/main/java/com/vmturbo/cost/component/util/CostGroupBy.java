@@ -40,6 +40,12 @@ public class CostGroupBy {
     public static final String ENTITY_TYPE = ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName();
 
     private final Collection<String> groupByFields;
+
+    public Set<String> getReceivedGroupByFields() {
+        return receivedGroupByFields;
+    }
+
+    private final Set<String> receivedGroupByFields;
     private final TimeFrame timeFrame;
     private final long realtimeTopologyContextId;
     private Long topologyContextId = null;
@@ -63,6 +69,7 @@ public class CostGroupBy {
     public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame,
             final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        receivedGroupByFields = Sets.newHashSet(items);
         final Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(CREATED_TIME);
         groupByFields = listOfFields.stream().map(field -> GROUP_FIELD_CONVERTER.getOrDefault(field, field))
@@ -122,5 +129,10 @@ public class CostGroupBy {
         } else {
             return Tables.ENTITY_COST_BY_MONTH;
         }
+    }
+
+    @Nonnull
+    public TimeFrame getTimeFrame() {
+        return timeFrame;
     }
 }

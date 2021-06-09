@@ -1,11 +1,12 @@
 package com.vmturbo.history.db.bulk;
 
+import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
+import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
-import static com.vmturbo.history.schema.abstraction.tables.Entities.ENTITIES;
-import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -195,6 +196,10 @@ public class DbMock {
                         MARKET_STATS_LATEST.ENTITY_TYPE, MARKET_STATS_LATEST.RELATION))
                 .put(VOLUME_ATTACHMENT_HISTORY, key(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
                     VOLUME_ATTACHMENT_HISTORY.VM_OID))
+                .put(HIST_UTILIZATION, key(HIST_UTILIZATION.OID, HIST_UTILIZATION.PRODUCER_OID,
+                        HIST_UTILIZATION.PROPERTY_TYPE_ID, HIST_UTILIZATION.PROPERTY_SUBTYPE_ID,
+                        HIST_UTILIZATION.COMMODITY_KEY, HIST_UTILIZATION.VALUE_TYPE, HIST_UTILIZATION.PROPERTY_SLOT,
+                        HIST_UTILIZATION.UTILIZATION, HIST_UTILIZATION.CAPACITY))
                 .build());
 
         private static List<Field<?>> key(Field<?>... values) {

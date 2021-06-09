@@ -20,11 +20,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -42,9 +42,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.ClusterToHeadroomTemplateId;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
@@ -512,6 +512,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
      */
     private TemplateRecord addInfoToRecord(final @Nonnull TemplateDTO.Template template,
                                            final @Nonnull TemplateRecord record) {
+        validate(template);
+
         final TemplateInfo templateInfo = template.getTemplateInfo();
         record.setId(template.getId());
         record.setName(templateInfo.getName());
@@ -742,6 +744,28 @@ public class TemplatesDaoImpl implements TemplatesDao {
             return dsl.deleteFrom(TEMPLATE).execute();
         } catch (DataAccessException e) {
             return 0;
+        }
+    }
+
+    /**
+     * Validate the template object to insert against the Table DataType.
+     * If there are any validation errors it throws an IllegalArgumentException.
+     *
+     * @param template - input template DTO
+     */
+    private void validate(final @Nonnull TemplateDTO.Template template) {
+        final List<String> validationErrors = Lists.newArrayList();
+
+        if (template.getTemplateInfo().getName().length() > TEMPLATE.NAME.getDataType().length()) {
+            validationErrors.add("Template Name field too long, the max size is: "
+                    + TEMPLATE.NAME.getDataType().length()
+                    + " characters.");
+        }
+
+        if (!validationErrors.isEmpty()) {
+            final StringBuilder errorBuilder = new StringBuilder();
+            validationErrors.forEach(errorStr -> errorBuilder.append("\n").append(errorStr));
+            throw new IllegalArgumentException(errorBuilder.substring(1));
         }
     }
 }

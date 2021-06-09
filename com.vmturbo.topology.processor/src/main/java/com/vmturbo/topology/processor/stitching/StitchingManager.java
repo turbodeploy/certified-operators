@@ -28,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -47,6 +46,7 @@ import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
 import com.vmturbo.stitching.journal.JournalableOperation;
+import com.vmturbo.stitching.utilities.MissingFieldSummarizer;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -309,15 +309,33 @@ public class StitchingManager {
         stitchingJournal.markPhase(StitchingPhase.MAIN_STITCHING);
         final DataMetricTimer executionTimer = STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         final StitchingOperationTracer tracer = new StitchingOperationTracer();
+
+        // Because Kubernetes abuses probe types by creating different probe types with different
+        // probe IDs, we may have the same stitching operation shared among several Kubernetes
+        // "probe types". In that case, we don't want to call intializeOperationsBeforeStitching
+        // multiple times for the same stitching operation. So we keep a set of operations that
+        // have been initialized and don't initialize the same operation twice.
+        final Set<StitchingOperation<?,?>> initializedOperations = new HashSet<>();
         stitchingOperationStore.getAllOperations().stream()
                 .sorted(probeStore.getProbeOrdering())
-                .forEach(probeOperation ->
+                .forEach(probeOperation -> {
+                    final StitchingOperation<?,?> stitchingOperation =
+                            probeOperation.stitchingOperation;
+                    final String probeType = probeStore.getProbe(probeOperation.probeId).get()
+                            .getProbeType();
+                    logger.debug("Stitching operation for probe type {} entity type {}", probeType,
+                            stitchingOperation.getInternalEntityType().name());
+                    if (!initializedOperations.contains(stitchingOperation)) {
+                        logger.debug("Initializing operation {}", stitchingOperation);
+                        stitchingOperation.initializeOperationBeforeStitching(scopeFactory);
+                        initializedOperations.add(stitchingOperation);
+                    }
                     targetStore.getProbeTargets(probeOperation.probeId).forEach(target -> {
                         tracer.trace(probeOperation.stitchingOperation);
-                        applyOperationForTarget(probeOperation.stitchingOperation,
-                            scopeFactory, stitchingJournal, target.getId(),
-                            probeOperation.probeId);
-                    }));
+                        applyOperationForTarget(probeOperation.stitchingOperation, scopeFactory,
+                                stitchingJournal, target.getId(), probeOperation.probeId);
+                    });
+                });
         tracer.close();
         cleanupUnstitchedProxyEntities(scopeFactory, stitchingJournal);
         executionTimer.observe();
@@ -414,7 +432,9 @@ public class StitchingManager {
                                          @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
                                          final long targetId, final long probeId) {
+        MissingFieldSummarizer summarizer = MissingFieldSummarizer.getInstance();
         try {
+            summarizer.setTarget(targetId);
             Optional<EntityType> externalType = operation.getExternalEntityType();
             stitchingJournal.recordOperationBeginning(operation, operationDetailsForTarget(probeId, targetId));
             final TopologicalChangelog<StitchingEntity> results = externalType.map(extType ->
@@ -428,6 +448,8 @@ public class StitchingManager {
                 operation.getClass().getSimpleName() + " due to exception: ", e);
         } finally {
             stitchingJournal.recordOperationEnding();
+            summarizer.dump();
+            summarizer.clear();
         }
     }
 
@@ -536,11 +558,8 @@ public class StitchingManager {
             // the index provided by the operation.
             // Exclude entities that come from the same target as the one being stitched.
             final Stopwatch swExternalEntitiesCollected = Stopwatch.createStarted();
-            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory,
-                    targetId)
-                            .map(f -> f.entities().map(StitchingEntity.class::cast)
-                                            .filter(e -> e.getTargetId() != targetId)).orElseGet(() -> stitchingContext
-                                            .externalEntities(externalEntityType, targetId).map(StitchingEntity.class::cast));
+            final Map<EXTERNAL_SIGNATURE_TYPE, Collection<StitchingEntity>> externalEntities =
+                    operation.getExternalSignatures(scopeFactory, targetId);
             if (logger.isTraceEnabled()) {
                 logger.trace("{}External entities collected for '{}' operation '{}' on target in '{}' ms", prefix,
                                 operationId, targetId,
@@ -548,15 +567,17 @@ public class StitchingManager {
             }
 
             final Stopwatch swMmPopulation = Stopwatch.createStarted();
-            externalEntities.forEach(externalEntity -> {
-                operation.getExternalSignature(externalEntity).forEach(externalSignature -> {
-                    final StitchingEntity internalEntity =
-                                    signaturesToEntities.get(externalSignature);
-                    if (internalEntity != null) {
-                        matchMap.addMatch(internalEntity, externalEntity);
-                    }
-                });
-                stitchedTargets.add(new SymmetricPair<>(targetId, externalEntity.getTargetId()));
+            externalEntities.forEach((key, externalEntitySet) -> {
+                final StitchingEntity internalEntity = signaturesToEntities.get(key);
+                externalEntitySet.stream()
+                        .filter(externalEntity -> externalEntity.getTargetId() != targetId)
+                        .forEach(externalEntity -> {
+                            if (internalEntity != null) {
+                                matchMap.addMatch(internalEntity, externalEntity);
+                            }
+                            stitchedTargets.add(
+                                    new SymmetricPair<>(targetId, externalEntity.getTargetId()));
+                        });
             });
             if (logger.isTraceEnabled()) {
                 logger.trace("{}Matching map '{}' populated for '{}' operation '{}' on target in '{}' ms", prefix,

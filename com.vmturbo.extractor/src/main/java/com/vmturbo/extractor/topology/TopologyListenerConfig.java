@@ -11,6 +11,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -22,6 +24,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -32,10 +35,12 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.cost.api.impl.CostComponentImpl;
+import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
+import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -44,6 +49,7 @@ import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -54,6 +60,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for integration with the Topology Processor.
@@ -107,6 +114,12 @@ public class TopologyListenerConfig {
     @Value("${reportingCommodityWhitelistRemoved:#{null}}")
     private String[] reportingCommodityWhitelistRemoved;
 
+    @Value("${reportingActionCommodityWhitelistRemoved:#{null}}")
+    private String[] actionCommodityWhitelistAdded;
+
+    @Value("${reportingActionCommodityWhitelistAdded:#{null}}")
+    private String[] actionCommodityWhitelistRemoved;
+
     /**
      * The interval at which we will force-write historical attributes to the database even if
      * they have not changed.
@@ -140,14 +153,53 @@ public class TopologyListenerConfig {
     }
 
     /**
-     * Used to retrieve percentile-related data for actions.
+     * Set up to process cost data availability notifications from cost component.
      *
-     * @return The {@link ActionPercentileDataRetriever}.
+     * @return listener
      */
     @Bean
-    public ActionPercentileDataRetriever percentileActionDecorator() {
-        return new ActionPercentileDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
-                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+    public EntityCostListener entityCostListener() {
+        final ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
+        if (extractorFeatureFlags.isReportingEnabled() || extractorFeatureFlags.isExtractionEnabled()) {
+            final EntityCostListener entityCostListener = new EntityCostListener(
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig(),
+                    extractorFeatureFlags.isReportingEnabled());
+            costNotificationProcessor().addCostNotificationListener(entityCostListener);
+            return entityCostListener;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Set up billing cost processing listener if relevant flags are enabled.
+     *
+     * @return listener, or null if flags are not enabled.
+     */
+    @Bean
+    @Nullable
+    public AccountExpensesListener accountExpensesListener() {
+        final ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
+        if (extractorFeatureFlags.isExtractionEnabled()
+                || extractorFeatureFlags.isBillingCostReportingEnabled()) {
+            final AccountExpensesListener aeListener = new AccountExpensesListener(
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig());
+            costNotificationProcessor().addCostNotificationListener(aeListener);
+            return aeListener;
+        }
+        return null;
+    }
+
+    /**
+     * Used to retrieve percentile-related data for actions.
+     *
+     * @return The {@link ActionCommodityDataRetriever}.
+     */
+    @Bean
+    public ActionCommodityDataRetriever actionCommodityDataRetriever() {
+        return new ActionCommodityDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+                getActionCommodityWhiteList());
     }
 
     /**
@@ -171,24 +223,32 @@ public class TopologyListenerConfig {
      * @return set of commodity types in integer format
      */
     private Set<Integer> getReportingCommodityWhitelist() {
-        // use default whitelist as a basis
-        final Set<CommodityType> reportingCommodityTypes = Sets.newHashSet(
-                Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
+        return getCommodityWhitelist(Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST,
+                reportingCommodityWhitelistAdded, reportingCommodityWhitelistRemoved);
+    }
+
+    private Set<Integer> getActionCommodityWhiteList() {
+        return getCommodityWhitelist(Constants.REPORTING_ACTION_COMMODITY_TYPES_WHITELIST,
+                actionCommodityWhitelistAdded, actionCommodityWhitelistRemoved);
+    }
+
+    private Set<Integer> getCommodityWhitelist(Set<CommodityType> defaults, String[] added, String[] removed) {
+        final Set<CommodityType> retTypes = Sets.newHashSet(defaults);
         // add new commodities to whitelist if provided
-        if (reportingCommodityWhitelistAdded != null) {
-            reportingCommodityTypes.addAll(Arrays.stream(reportingCommodityWhitelistAdded)
+        if (added != null) {
+            retTypes.addAll(Arrays.stream(added)
                     .map(CommodityType::valueOf)
                     .collect(Collectors.toSet()));
         }
         // remove commodities from whitelist if provided
-        if (reportingCommodityWhitelistRemoved != null) {
-            reportingCommodityTypes.removeAll(Arrays.stream(reportingCommodityWhitelistRemoved)
+        if (removed != null) {
+            retTypes.removeAll(Arrays.stream(removed)
                     .map(CommodityType::valueOf)
                     .collect(Collectors.toSet()));
         }
-        return reportingCommodityTypes.stream()
-                .map(CommodityType::getNumber)
-                .collect(Collectors.toSet());
+        return retTypes.stream()
+            .map(CommodityType::getNumber)
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -200,7 +260,19 @@ public class TopologyListenerConfig {
     public TopologyProcessor topologyProcessor() {
         // Only listen to REALTIME SOURCE topologies.
         // TODO: Also listen for live topology summaries
-        return tpConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
+        return tpConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
+                TopologyProcessorSubscription.forTopic(Topic.Notifications));
+    }
+
+    /**
+     * Subscribe to cost component's notification kafka topic.
+     *
+     * @return cost notification processor
+     */
+    public CostComponentImpl costNotificationProcessor() {
+        return costClientConfig.costComponent(
+                CostSubscription.forTopic(CostSubscription.Topic.COST_STATUS_NOTIFICATION));
     }
 
     /**
@@ -238,15 +310,16 @@ public class TopologyListenerConfig {
         }
         if (featureFlags.isReportingEnabled()) {
             retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
-                    scopeManager(), oidPack(), pool()));
+                    scopeManager(), oidPack(), pool(), dataExtractionFactory()));
             retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
-            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
+            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(),
+                    dataExtractionFactory()));
         }
 
         if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
-            retFactories.add(() -> percentileActionDecorator());
+            retFactories.add(() -> actionCommodityDataRetriever());
         }
         return Collections.unmodifiableList(retFactories);
     }
@@ -324,9 +397,18 @@ public class TopologyListenerConfig {
      */
     @Bean
     public TopDownCostFetcherFactory topDownCostFetcherFactory() {
-        return new TopDownCostFetcherFactory(
-            CostServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-            RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+        return new TopDownCostFetcherFactory(costService(),
+                RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+    }
+
+    /**
+     * The {@link BottomUpCostFetcherFactory} for the {@link DataProvider}.
+     *
+     * @return the {@link BottomUpCostFetcherFactory}
+     */
+    @Bean
+    public BottomUpCostFetcherFactory bottomUpCostFetcherFactory() {
+        return new BottomUpCostFetcherFactory(costService());
     }
 
     /**
@@ -337,8 +419,9 @@ public class TopologyListenerConfig {
     @Bean
     public DataProvider dataProvider() {
         return new DataProvider(groupServiceBlockingStub(),
-            clusterStatsFetcherFactory(),
-            topDownCostFetcherFactory(),
+                clusterStatsFetcherFactory(),
+                topDownCostFetcherFactory(),
+                bottomUpCostFetcherFactory(),
                 extractorGlobalConfig.featureFlags());
     }
 
@@ -360,7 +443,28 @@ public class TopologyListenerConfig {
      */
     @Bean
     public DataExtractionFactory dataExtractionFactory() {
-        return new DataExtractionFactory();
+        return new DataExtractionFactory(dataProvider(), targetCache());
     }
+
+    /**
+     * Thin target cache.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public ThinTargetCache targetCache() {
+        return new ThinTargetCache(topologyProcessor());
+    }
+
+    /**
+     * Cost service endpoint.
+     *
+     * @return service endpoint
+     */
+    @Bean
+    public CostServiceBlockingStub costService() {
+        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
 }
 

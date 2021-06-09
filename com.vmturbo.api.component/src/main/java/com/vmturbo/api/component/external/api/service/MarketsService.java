@@ -196,6 +196,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  **/
 public class MarketsService implements IMarketsService {
 
+    private static final String USER_DOES_NOT_HAVE_ACCESS_TO_PLAN =
+            "User does not have access to plan.";
     private final Logger logger = LogManager.getLogger();
 
     private final PlanServiceBlockingStub planRpcService;
@@ -426,7 +428,9 @@ public class MarketsService implements IMarketsService {
         }
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);        // Look up the plan instance.
         final PlanInstance planInstance = getPlanInstance(apiId.oid());
+        planAccessAuthorizationEnforcement(planInstance);
         return getMarketApiDto(planInstance);
+
     }
 
     /**
@@ -512,12 +516,9 @@ public class MarketsService implements IMarketsService {
                                                            ActionApiInputDTO inputDto,
                                                            ActionPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
+        planAccessEnforcement(apiId);
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
                                                 inputDto, Optional.empty(), apiId);
-        if (apiId.isPlan()) {
-            // require the "planner" license feature to get plan actions
-            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
-        }
         return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
                 apiId.getTopologyContextId());
     }
@@ -603,6 +604,7 @@ public class MarketsService implements IMarketsService {
             // TODO (roman, Jan 22 2019) OM-54686: Add pagination parameters to the
             // retrieveTopologyEntities method, and convert this logic to use the repository's pagination.
             final PlanInstance planInstance = getPlanInstance(apiId.oid());
+            planAccessAuthorizationEnforcement(planInstance);
             final Optional<Long> projectedTopologyId =
                 planInstance.hasProjectedTopologyId()
                         ? Optional.of(planInstance.getProjectedTopologyId())
@@ -1118,9 +1120,7 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
-        }
+        planAccessEnforcement(apiId);
         try {
             final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(
@@ -1135,6 +1135,34 @@ public class MarketsService implements IMarketsService {
             } else {
                 throw e;
             }
+        }
+    }
+
+    /**
+     * Plan access enforcement on: </p>
+     * 1. The instance has planner feature. </p>
+     * 2. Current user is allowed to access this plan. </p>
+     *
+     * @param apiId API id
+     * @throws UnknownObjectException if cannot find the plan from the plan id.
+     */
+    private void planAccessEnforcement(@Nonnull final ApiId apiId) throws UnknownObjectException {
+        if (apiId != null && apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+            final PlanInstance planInstance = getPlanInstance(apiId.oid());
+            planAccessAuthorizationEnforcement(planInstance);
+        }
+    }
+
+    /**
+     * Enforce current user is allowed to access this plan.
+     *
+     * @param planInstance plan instance.
+     * @throws UserAccessException if the user is not allowed to access this plan instance.
+     */
+    private void planAccessAuthorizationEnforcement(@Nonnull final PlanInstance planInstance) {
+        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+            throw new UserAccessException(USER_DOES_NOT_HAVE_ACCESS_TO_PLAN);
         }
     }
 
@@ -1163,9 +1191,7 @@ public class MarketsService implements IMarketsService {
         final long planId = Long.parseLong(marketUuid);
         final PlanInstance planInstance = getPlanInstance(planId);
         // verify the user can access the plan
-        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
-            throw new UserAccessException("User does not have access to plan.");
-        }
+        planAccessAuthorizationEnforcement(planInstance);
 
         return planEntityStatsFetcher
             .getPlanEntityStats(planInstance, statScopesApiInputDTO, paginationRequest);
@@ -1242,6 +1268,8 @@ public class MarketsService implements IMarketsService {
         if (projectedTopologyId == 0) {
             return Collections.emptyList();
         }
+        planAccessAuthorizationEnforcement(plan);
+
         // If this is a migration plan, get the list of unplaced entities from the action
         // list instead.
         Set<Long> placedOids = new HashSet<>();

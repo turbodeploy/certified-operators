@@ -539,6 +539,13 @@ services:
 #      service: mediation-actionstream-kafka-prod
 #    mem_limit: 2048M
 #    depends_on: *clustermgrdep
+#
+#  mediation-xen:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-xen-prod
+#    mem_limit: 2024M
+#    depends_on: *clustermgrdep
 
 
   mediation-actionscript:
@@ -547,3 +554,10 @@ services:
       service: mediation-actionscript-prod
     mem_limit: 2048M
     depends_on: *clustermgrdep
+
+#  mediation-webhook:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-webhook-prod
+#    mem_limit: 2048M
+#    depends_on: *clustermgrdep

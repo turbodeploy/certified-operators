@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.conversions.typespecific;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
@@ -13,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.AccountType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
@@ -41,6 +41,7 @@ public class BusinessAccountInfoMapperTest {
             .setBusinessAccountData(BusinessAccountData.newBuilder()
                 .setDataDiscovered(DATA_DISCOVERED_FLAG)
                 .setAccountId(SUBSCRIPTION_ID)
+                .setAccountType(AccountType.Government_US)
                 .addPricingIdentifiers(PricingIdentifier.newBuilder()
                     .setIdentifierName(PricingIdentifierName.OFFER_ID)
                     .setIdentifierValue(OFFER_ID)
@@ -50,10 +51,11 @@ public class BusinessAccountInfoMapperTest {
                     .setIdentifierValue(ENROLLMENT_NUMBER)
                     .build())
                 .build());
-        TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
+        final TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
             .setBusinessAccount(BusinessAccountInfo.newBuilder()
                 .setAssociatedTargetId(DISCOVERING_TARGET_ID)
                 .setAccountId(SUBSCRIPTION_ID)
+                .setAccountType(AccountType.Government_US)
                 .setRiSupported(true)
                 .addAllPricingIdentifiers(businessAccountEntityDTO.getBusinessAccountData()
                     .getPricingIdentifiersList())
@@ -61,7 +63,7 @@ public class BusinessAccountInfoMapperTest {
             .build();
         final BusinessAccountInfoMapper testBuilder = new BusinessAccountInfoMapper();
         // act
-        TypeSpecificInfo result = testBuilder
+        final TypeSpecificInfo result = testBuilder
             .mapEntityDtoToTypeSpecificInfo(businessAccountEntityDTO, ENTITY_PROP_MAP);
         // assert
         assertThat(result, equalTo(expected));

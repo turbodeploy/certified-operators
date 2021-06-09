@@ -21,10 +21,12 @@ public class StringsToStringsDataDrivenStitchingOperation
      *                 properties.
      * @param stitchingScope probe categories that should be affected by this
      *                 operation.
+     * @param category the ProbeCategory of the probe associated with this operation.
      */
     public StringsToStringsDataDrivenStitchingOperation(
                     @Nonnull StitchingMatchingMetaData<String, String> matchingMetaData,
-                    @Nonnull final Set<ProbeCategory> stitchingScope) {
-        super(matchingMetaData, stitchingScope);
+                    @Nonnull final Set<ProbeCategory> stitchingScope,
+                    @Nonnull final ProbeCategory category) {
+        super(matchingMetaData, stitchingScope, category);
     }
 }

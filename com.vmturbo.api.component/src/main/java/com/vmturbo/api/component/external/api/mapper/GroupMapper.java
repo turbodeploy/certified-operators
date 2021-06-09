@@ -65,8 +65,9 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.cloud.CloudCommon;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
@@ -244,7 +245,8 @@ public class GroupMapper {
      * @throws ConversionException if the conversion fails.
      * @throws IllegalArgumentException if invalid group type.
      */
-    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException, IllegalArgumentException {
+    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto)
+                    throws ConversionException, IllegalArgumentException, OperationFailedException {
         GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
                         .setDisplayName(groupDto.getDisplayName())
                         .setType(GroupType.REGULAR)
@@ -283,7 +285,7 @@ public class GroupMapper {
             // this means this is dynamic group of entities
             errorIfInvalidGroupType(groupDto);
 
-            final List<SearchParameters> searchParameters = entityFilterMapper
+            final Collection<SearchParameters> searchParameters = entityFilterMapper
                             .convertToSearchParameters(groupDto.getCriteriaList(),
                                             groupDto.getGroupType());
 
@@ -301,7 +303,7 @@ public class GroupMapper {
             try {
                 groupFilter = groupFilterMapper.apiFilterToGroupFilter(nestedMemberGroupType,
                         mapLogicalOperator(groupDto.getLogicalOperator()),
-                        groupDto.getCriteriaList());
+                        groupDto.getCriteriaList()).build();
             } catch (OperationFailedException e) {
                 throw new ConversionException(
                         "Failed to apply filter criteria list for group " + groupDto.getUuid(), e);
@@ -623,8 +625,6 @@ public class GroupMapper {
                                       @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
         throws ConversionException, InterruptedException {
 
-        final EntityEnvironment envCloudType =
-                conversionContext.getEntityEnvironment(groupAndMembers.group().getId());
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
         outputDTO = convertToGroupApiDto(groupAndMembers, conversionContext);
@@ -632,7 +632,8 @@ public class GroupMapper {
         outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
 
-        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(envCloudType.getEnvironmentType()));
+        outputDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(group.getEnvironmentType()));
+        outputDTO.setCloudType(CloudTypeMapper.fromXlProtoEnumToApi(group.getCloudType()));
         outputDTO.setActiveEntitiesCount(
                 getActiveEntitiesCount(groupAndMembers, conversionContext.getActiveEntities()));
 
@@ -642,11 +643,10 @@ public class GroupMapper {
         }
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
-            outputDTO.setSeverity(conversionContext.getSeverityMap()
-                .calculateSeverity(groupAndMembers.entities())
-                .name());
+            outputDTO.setSeverity(group.hasSeverity()
+                    ? group.getSeverity().toString()
+                    : Severity.NORMAL.toString());
         }
-        outputDTO.setCloudType(envCloudType.getCloudType());
         return outputDTO;
     }
 
@@ -863,7 +863,7 @@ public class GroupMapper {
          if (group.hasOrigin()) {
 
              outputDTO.setGroupOrigin(GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN.get(group.getOrigin().getCreationOriginCase()));
-             if (group.getOrigin().hasDiscovered()) {
+             if (group.getOrigin().hasDiscovered() && !group.getOrigin().getDiscovered().getStitchAcrossTargets()) {
                  ThinTargetInfo source = null;
                  for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
                      Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);
@@ -1343,8 +1343,9 @@ public class GroupMapper {
         protected Map<Long, EntityEnvironment> createResult() {
             final Map<Long, EntityEnvironment> entityEnvironmentMap = new HashMap<>(groups.size());
             for (GroupAndMembers group : groups) {
-                entityEnvironmentMap.put(group.group().getId(),
-                        getEnvironmentAndCloudTypeForGroup(group, entities));
+                entityEnvironmentMap.put(group.group().getId(), new EntityEnvironment(
+                        EnvironmentTypeMapper.fromXLToApi(group.group().getEnvironmentType()),
+                        CloudTypeMapper.fromXlProtoEnumToApi(group.group().getCloudType())));
             }
             return Collections.unmodifiableMap(entityEnvironmentMap);
         }
@@ -1526,7 +1527,7 @@ public class GroupMapper {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                         .setEntityFilter(
-                                Cost.EntityFilter.newBuilder().addAllEntityId(members).build())
+                                CloudCommon.EntityFilter.newBuilder().addAllEntityId(members).build())
                         .build())
                 .build();
         costServiceStub.getCloudCostStats(request, observer);
@@ -1666,8 +1667,9 @@ public class GroupMapper {
             if (entityEnvironment == null) {
                 groupEnvironments = new HashMap<>();
                 for (GroupAndMembers group : groupsAndMembers) {
-                    groupEnvironments.put(group.group().getId(),
-                            getEnvironmentAndCloudTypeForGroup(group, entitiesFromRepository));
+                    groupEnvironments.put(group.group().getId(), new EntityEnvironment(
+                            EnvironmentTypeMapper.fromXLToApi(group.group().getEnvironmentType()),
+                            CloudTypeMapper.fromXlProtoEnumToApi(group.group().getCloudType())));
                 }
             }
 

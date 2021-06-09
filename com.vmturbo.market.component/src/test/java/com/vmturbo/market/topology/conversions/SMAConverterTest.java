@@ -12,6 +12,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -147,9 +150,12 @@ public class SMAConverterTest {
                 .addShoppingLists(sl2).build();
         projectedTraderDTOs.add(vm1);
         projectedTraderDTOs.add(vm2);
+        Set<Long> cloudVmComputeShoppingListIDs = ImmutableSet.of(70001L, 70002L);
+        when(converter.getCloudVmComputeShoppingListIDs())
+                .thenReturn(cloudVmComputeShoppingListIDs);
         smaConverter.updateWithSMAOutput(projectedTraderDTOs);
 
-        // vm1 (2000001L) is not matched to RI so has no couponid. It also
+                // vm1 (2000001L) is not matched to RI so has no couponid. It also
         // does not buy the coupon commodity.
         assertFalse(smaConverter.getProjectedTraderDTOsWithSMA()
                 .stream().filter(a -> a.getOid() == 2000001L)

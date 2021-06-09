@@ -21,10 +21,10 @@ import org.jooq.impl.DefaultDSLContext;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -110,8 +110,8 @@ public class ReservedInstanceBoughtFilterTest {
         ctx.settings().setRenderKeywordStyle(RenderKeywordStyle.UPPER);
         ReservedInstanceBoughtFilter testFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
-                        .accountFilter(AccountFilter.newBuilder()
-                                .setAccountFilterType(AccountFilterType.USED_BY)
+                        .accountFilter(AccountReferenceFilter.newBuilder()
+                                .setAccountFilterType(AccountReferenceType.USED_BY)
                                 .addAccountId(10).build())
                         .build();
         final List<Condition> conditions =
@@ -136,8 +136,8 @@ public class ReservedInstanceBoughtFilterTest {
         ctx.settings().setRenderKeywordStyle(RenderKeywordStyle.UPPER);
         ReservedInstanceBoughtFilter testFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
-                        .accountFilter(AccountFilter.newBuilder()
-                                .setAccountFilterType(AccountFilterType.USED_AND_PURCHASED_BY)
+                        .accountFilter(AccountReferenceFilter.newBuilder()
+                                .setAccountFilterType(AccountReferenceType.USED_AND_PURCHASED_BY)
                                 .addAccountId(10).build())
                         .build();
         final List<Condition> conditions =
@@ -171,7 +171,7 @@ public class ReservedInstanceBoughtFilterTest {
     public void testGenerateUsedByDiscoveredAccountsConditionAccount() {
         ReservedInstanceBoughtFilter testFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
-                        .accountFilter(AccountFilter.newBuilder()
+                        .accountFilter(AccountReferenceFilter.newBuilder()
                                 .addAccountId(10).build())
                         .build();
         testAndVerifyCondition(testFilter, USED_DISCOVERED_ACCOUNT_CLAUSE);

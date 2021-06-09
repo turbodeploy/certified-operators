@@ -50,7 +50,8 @@ public class SystemLoadEditor extends
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
-                                         TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                                         TopologyDTO.CommoditySoldDTO.Builder commSold,
+                                         TopologyInfo topoInfo) {
         // TODO dmitry implement
         return false;
     }

@@ -1,7 +1,7 @@
 [
     {
         "destTier": 4.0,
-        "eventType": "RESIZE_RECOMMENDATION",
+        "eventType": "RECOMMENDATION_ADDED",
         "sourceTier": 6.0,
         "timestamp": 1611871200000,
         "uuid": 74766790688767
@@ -15,7 +15,7 @@
     },
     {
         "destTier": 1.0,
-        "eventType": "RESIZE_RECOMMENDATION",
+        "eventType": "RECOMMENDATION_ADDED",
         "sourceTier": 4.0,
         "timestamp": 1611903600000,
         "uuid": 74766790688767

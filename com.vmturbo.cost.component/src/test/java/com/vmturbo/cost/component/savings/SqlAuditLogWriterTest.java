@@ -4,8 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.concurrent.TimeUnit;
-
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -25,8 +23,6 @@ import com.vmturbo.cost.component.savings.SqlAuditLogWriter.AuditLogEntry;
  * Tests for audit log writer.
  */
 public class SqlAuditLogWriterTest {
-
-    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
     /**
      * Check if the topology audit event is being translated correctly.
@@ -70,12 +66,8 @@ public class SqlAuditLogWriterTest {
 
         final String eventInfo = logEntry.getEventInfo();
         assertNotNull(eventInfo);
-        assertTrue(eventInfo.contains(String.format("\"sourceState\":\"%s\"",
-                sourceState.name())));
-        assertTrue(eventInfo.contains(String.format("\"destinationState\":\"%s\"",
-                destinationState.name())));
-        assertTrue(eventInfo.contains(String.format("\"eventTimestamp\":\"%d\"",
-                powerChangeTime)));
+        assertTrue(eventInfo.contains(String.format("\"ss\":%d", 0)));
+        assertTrue(eventInfo.contains(String.format("\"ds\":%d", 1)));
     }
 
     /**
@@ -88,14 +80,13 @@ public class SqlAuditLogWriterTest {
         long vmId = 101L;
         long actionId = 2001L;
         long timestamp = System.currentTimeMillis();
-        ActionEventType eventType = ActionEventType.EXECUTION_SUCCESS;
+        ActionEventType eventType = ActionEventType.SCALE_EXECUTION_SUCCESS;
         final double preActionCost = 10.01d;
         final double postActionCost = 20.15d;
 
         final SavingsEvent savingsEvent = new SavingsEvent.Builder()
                 .entityId(vmId)
                 .timestamp(timestamp)
-                // .expirationTime(timestamp + ACTION_EXPIRATION_TIME)
                 .entityPriceChange(new EntityPriceChange.Builder()
                         .sourceOid(501L)
                         .sourceCost(preActionCost)
@@ -119,7 +110,7 @@ public class SqlAuditLogWriterTest {
 
         final String eventInfo = logEntry.getEventInfo();
         assertNotNull(eventInfo);
-        assertTrue(eventInfo.contains(String.format("\"sourceCost\":%s", preActionCost)));
-        assertTrue(eventInfo.contains(String.format("\"destinationCost\":%s", postActionCost)));
+        assertTrue(eventInfo.contains(String.format("\"sc\":%s", preActionCost)));
+        assertTrue(eventInfo.contains(String.format("\"dc\":%s", postActionCost)));
     }
 }

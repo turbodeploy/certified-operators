@@ -149,9 +149,6 @@ public class CloudTopologyConverter {
         logger.info("Beginning creation of market tier trader TOs");
 
         final Map<Long, Set<AccountPricingData<TopologyEntityDTO>>> accountPricingDataByTier = new HashMap<>();
-        // Use HashSet to deduplicate market tier entityDTOs to create traderTOs because there could
-        // be same market tiers discovered from different BusinessAccounts.
-        Collection<TopologyEntityDTO> entityDTOs = new HashSet<>();
         for (Entry<AccountPricingData<TopologyEntityDTO>, Collection<Long>> entry: businessAccountOidByAccountPricingData
                 .asMap().entrySet()) {
             Collection<Long> businessAccountOids = entry.getValue();
@@ -159,20 +156,11 @@ public class CloudTopologyConverter {
             Set<TopologyEntityDTO> tiersAttachedToBusinessAccount = getTiersScopedToAccounts(
                     businessAccountOids);
             for (TopologyEntityDTO entityDTO : tiersAttachedToBusinessAccount) {
-                entityDTOs.add(entityDTO);
                 accountPricingDataByTier.computeIfAbsent(entityDTO.getOid(), t -> new HashSet<>()).add(accountPricingData);
             }
         }
-        // If it's OptimizeContainerCluster plan, create traderTOs for market tiers by iterating
-        // through all topology entities because currently BusinessAccount entities are not included
-        // in the plan scope for cloud container cluster.
-        // TODO Remove the logic of this if block after we update the scoping logic to include
-        //  BusinessAccount and other related cloud entities in the scope for OptimizeContainerCluster
-        //  plan for cost analysis.
-        if (isOptimizeContainerClusterPlan(topologyInfo) || businessAccountOidByAccountPricingData.isEmpty()) {
-            entityDTOs = topology.values();
-        }
-        for (TopologyEntityDTO entity : entityDTOs) {
+        Collection<TopologyEntityDTO> entitiesInTopology = topology.values();
+        for (TopologyEntityDTO entity : entitiesInTopology) {
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
                 Set<AccountPricingData<TopologyEntityDTO>> accountPricingData = accountPricingDataByTier.get(entity.getOid());
@@ -541,10 +529,17 @@ public class CloudTopologyConverter {
      */
     private Set<TopologyEntityDTO> getTopologyEntityDTODirectProvidersOfType(@Nonnull Set<TopologyEntityDTO> entities,
                                                                              int providerType) {
+        // MCP could have a different provider type for workloads before and after migration.
+        Set<Integer> possibleTypes = new HashSet();
+        possibleTypes.add(providerType);
+        if (TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
+            possibleTypes.add(EntityType.PHYSICAL_MACHINE_VALUE);
+            possibleTypes.add(EntityType.STORAGE_VALUE);
+        }
         return entities.stream()
                 .flatMap(e -> e.getCommoditiesBoughtFromProvidersList().stream())
                 .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == providerType)
+                .filter(commBought -> possibleTypes.contains(commBought.getProviderEntityType()))
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .map(topology::get)
                 .filter(Objects::nonNull)
@@ -758,6 +753,7 @@ public class CloudTopologyConverter {
      * @param entityId
      * @return EntityReservedInstanceCoverage corresponding to the given entity
      */
+    @Nonnull
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
         return cloudCostData.getFilteredRiCoverage(entityId);
     }

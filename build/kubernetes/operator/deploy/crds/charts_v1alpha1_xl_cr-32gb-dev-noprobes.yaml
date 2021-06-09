@@ -7,7 +7,7 @@ spec:
   # Global settings
   global:
     repository: turbonomic
-    tag: 8.1.6-SNAPSHOT
+    tag: 8.2.3-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -142,6 +142,8 @@ spec:
   websphere:
     enabled: false
   weblogic:
+    enabled: false
+  xen:
     enabled: false
 
   # Resource limits - Core Services
@@ -422,6 +424,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-weblogic:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-xen:
     resources:
       limits:
         memory: 512Mi

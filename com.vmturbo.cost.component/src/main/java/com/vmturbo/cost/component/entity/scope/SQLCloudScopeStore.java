@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.ForeignKey;
 import org.jooq.Record1;
 import org.jooq.SelectJoinStep;
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -69,6 +71,10 @@ public class SQLCloudScopeStore implements CloudScopeStore,
 
     private final int batchFetchSize;
 
+    /**
+     * Original number of DB columns in cloud scope table, before 2 columns were added in 8.1.6.
+     */
+    private final int pre816ColumnCount = 6;
 
     /**
      * Creates a {@link SQLCloudScopeStore} instance.
@@ -228,5 +234,24 @@ public class SQLCloudScopeStore implements CloudScopeStore,
     @Override
     public String getFileName() {
         return sqlCloudScopeStoreDump;
+    }
+
+    /**
+     * If we are trying to load a diagnostic that is before 8.1.6 version, then it only has 6
+     * data fields (missing the entityType and resourceGroupOid fields), so use default values
+     * for those 2 fields and insert them in the right position, before this data record could
+     * be loaded into the DB (of latest version).
+     *
+     * @param data Input data line (in JSON format) fields, could get updated.
+     * @param fields DB fields for the table to which record is to be inserted.
+     */
+    @Override
+    public void preProcessJsonData(@Nonnull List<Object> data, @Nonnull final Field<?>[] fields) {
+        if (data.size() == pre816ColumnCount) {
+            // Entity type for all was VM, before the scope table was expanded to support VV etc.
+            data.add(1, EntityType.VIRTUAL_MACHINE_VALUE);
+            // We don't know ResourceGroup, so set it to null. Data size should be 8 after this.
+            data.add(6, null);
+        }
     }
 }

@@ -1,10 +1,10 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 
 import java.text.MessageFormat;
 import java.util.List;
@@ -488,7 +488,7 @@ public class ActionDescriptionBuilder {
 
     /**
      * Helper method to retrieve additional action description involving additional
-     * commodities participating in an action. Only for entities in {@link #ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES}.
+     * commodities participating in an action. Only for entities in {@link TopologyDTOUtil#ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES}.
      *
      * @param recommendation  current action recommendation.
      * @param targetEntityDTO target source entity.

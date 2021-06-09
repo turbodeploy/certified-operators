@@ -1,153 +1,290 @@
 [
     {
         "destTier": 1,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617689400000,
+        "sourceTier": 0,
+        "timestamp": 1617682200000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 1,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617689400000.0,
+        "expirationTimestamp": 1617689400000,
         "sourceTier": 0,
         "timestamp": 1617682200000,
         "uuid": 2116
     },
     {
         "destTier": 2,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617690600000,
+        "sourceTier": 1,
+        "timestamp": 1617683400000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 2,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617690600000.0,
+        "expirationTimestamp": 1617690600000,
         "sourceTier": 1,
         "timestamp": 1617683400000,
         "uuid": 2116
     },
     {
         "destTier": 3,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617691800000,
+        "sourceTier": 2,
+        "timestamp": 1617684600000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 3,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617691800000.0,
+        "expirationTimestamp": 1617691800000,
         "sourceTier": 2,
         "timestamp": 1617684600000,
         "uuid": 2116
     },
     {
         "destTier": 4,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617693000000,
+        "sourceTier": 3,
+        "timestamp": 1617685800000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 4,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617693000000.0,
+        "expirationTimestamp": 1617693000000,
         "sourceTier": 3,
         "timestamp": 1617685800000,
         "uuid": 2116
     },
     {
         "destTier": 5,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617694200000,
+        "sourceTier": 4,
+        "timestamp": 1617687000000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 5,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617694200000.0,
+        "expirationTimestamp": 1617694200000,
         "sourceTier": 4,
         "timestamp": 1617687000000,
         "uuid": 2116
     },
     {
         "destTier": 6,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617695400000,
+        "sourceTier": 5,
+        "timestamp": 1617688200000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 6,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617695400000.0,
+        "expirationTimestamp": 1617695400000,
         "sourceTier": 5,
         "timestamp": 1617688200000,
         "uuid": 2116
     },
     {
         "destTier": 7,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617696600000,
+        "sourceTier": 6,
+        "timestamp": 1617689400000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 7,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617696600000.0,
+        "expirationTimestamp": 1617696600000,
         "sourceTier": 6,
         "timestamp": 1617689400000,
         "uuid": 2116
     },
     {
         "destTier": 8,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617697800000,
+        "sourceTier": 7,
+        "timestamp": 1617690600000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 8,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617697800000.0,
+        "expirationTimestamp": 1617697800000,
         "sourceTier": 7,
         "timestamp": 1617690600000,
         "uuid": 2116
     },
     {
         "destTier": 9,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617699000000,
+        "sourceTier": 8,
+        "timestamp": 1617691800000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 9,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617699000000.0,
+        "expirationTimestamp": 1617699000000,
         "sourceTier": 8,
         "timestamp": 1617691800000,
         "uuid": 2116
     },
     {
         "destTier": 10,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617700200000,
+        "sourceTier": 9,
+        "timestamp": 1617693000000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 10,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617700200000.0,
+        "expirationTimestamp": 1617700200000,
         "sourceTier": 9,
         "timestamp": 1617693000000,
         "uuid": 2116
     },
     {
         "destTier": 11,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617701400000,
+        "sourceTier": 10,
+        "timestamp": 1617694200000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 11,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617701400000.0,
+        "expirationTimestamp": 1617701400000,
         "sourceTier": 10,
         "timestamp": 1617694200000,
         "uuid": 2116
     },
     {
         "destTier": 12,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617702600000,
+        "sourceTier": 11,
+        "timestamp": 1617695400000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 12,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617702600000.0,
+        "expirationTimestamp": 1617702600000,
         "sourceTier": 11,
         "timestamp": 1617695400000,
         "uuid": 2116
     },
     {
         "destTier": 13,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617703800000,
+        "sourceTier": 12,
+        "timestamp": 1617696600000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 13,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617703800000.0,
+        "expirationTimestamp": 1617703800000,
         "sourceTier": 12,
         "timestamp": 1617696600000,
         "uuid": 2116
     },
     {
         "destTier": 14,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617705000000,
+        "sourceTier": 13,
+        "timestamp": 1617697800000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 14,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617705000000.0,
+        "expirationTimestamp": 1617705000000,
         "sourceTier": 13,
         "timestamp": 1617697800000,
         "uuid": 2116
     },
     {
         "destTier": 15,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617706200000,
+        "sourceTier": 14,
+        "timestamp": 1617699000000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 15,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617706200000.0,
+        "expirationTimestamp": 1617706200000,
         "sourceTier": 14,
         "timestamp": 1617699000000,
         "uuid": 2116
     },
     {
         "destTier": 16,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617707400000,
+        "sourceTier": 15,
+        "timestamp": 1617700200000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 16,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617707400000.0,
+        "expirationTimestamp": 1617707400000,
         "sourceTier": 15,
         "timestamp": 1617700200000,
         "uuid": 2116
     },
     {
         "destTier": 17,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617708600000,
+        "sourceTier": 16,
+        "timestamp": 1617701400000,
+        "uuid": 2116
+    },
+    {
+        "destTier": 17,
         "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617708600000.0,
+        "expirationTimestamp": 1617708600000,
         "sourceTier": 16,
         "timestamp": 1617701400000,
         "uuid": 2116
     },
     {
         "destTier": 18,
-        "eventType": "RESIZE_EXECUTED",
-        "expirationTimestamp": 1617709800000.0,
+        "eventType": "RECOMMENDATION_ADDED",
+        "expirationTimestamp": 1617709800000,
         "sourceTier": 17,
         "timestamp": 1617702600000,
         "uuid": 2116
     },
     {
-        "eventType": "POWER_STATE",
-        "expirationTimestamp": 1617724800000.0,
-        "state": "false",
-        "timestamp": 1617717600000,
-        "uuid": 74217393873767
+        "destTier": 18,
+        "eventType": "RESIZE_EXECUTED",
+        "expirationTimestamp": 1617709800000,
+        "sourceTier": 17,
+        "timestamp": 1617702600000,
+        "uuid": 2116
     }
 ]

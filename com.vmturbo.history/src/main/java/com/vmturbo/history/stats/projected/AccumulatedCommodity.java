@@ -72,6 +72,12 @@ abstract class AccumulatedCommodity {
                             .build());
         }
 
+        // return smoothed usage for use in actionImpact for commodities that do not use percentile.
+        builder.addHistUtilizationValue(HistUtilizationValue.newBuilder()
+                .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                .setUsage(statValue).setCapacity(capacityStatValue)
+                .build());
+
         final String commodityTypeUnit = CommodityTypeUnits.unitFromString(commodityName);
         if (commodityTypeUnit != null) {
             builder.setUnits(commodityTypeUnit);

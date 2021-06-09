@@ -28,18 +28,21 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
+import com.google.common.math.DoubleMath;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -49,6 +52,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Record;
+import org.jooq.Record1;
 import org.jooq.Record7;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
@@ -69,11 +73,13 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
@@ -82,6 +88,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.trax.TraxNumber;
@@ -112,10 +119,13 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
     private final EntityCostsByHourDiagsHelper entityCostsByHourDiagsHelper;
 
+    private final InMemoryEntityCostStore latestEntityCostStore;
+
     public SqlEntityCostStore(@Nonnull final DSLContext dsl,
                               @Nonnull final Clock clock,
                               @Nonnull ExecutorService batchExecutorService,
-                              final int chunkSize) {
+                              final int chunkSize,
+                              @Nonnull InMemoryEntityCostStore inMemoryEntityCostStore) {
         this.dsl = Objects.requireNonNull(dsl);
         this.clock = Objects.requireNonNull(clock);
         this.batchExecutorService = Objects.requireNonNull(batchExecutorService);
@@ -124,6 +134,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         this.entityCostsByMonthDiagsHelper = new EntityCostsByMonthDiagsHelper(dsl);
         this.entityCostsByDayDiagsHelper = new EntityCostsByDayDiagsHelper(dsl);
         this.entityCostsByHourDiagsHelper = new EntityCostsByHourDiagsHelper(dsl);
+        this.latestEntityCostStore = inMemoryEntityCostStore;
     }
 
     @Override
@@ -139,6 +150,11 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 Instant.ofEpochMilli(isPlan
                         ? System.currentTimeMillis()
                         : topologyCreationTimeOrContextId).atZone(ZoneOffset.UTC).toLocalDateTime();
+        if (!isPlan) {
+            final List<EntityCost> entityCosts = Collections2.transform(costJournals.values(),
+                     CostJournal::toEntityCostProto).stream().collect(Collectors.toList());
+            latestEntityCostStore.updateEntityCosts(entityCosts);
+        }
         final Optional<Long> planId = isPlan ? Optional.of(topologyCreationTimeOrContextId) : Optional.empty();
         final List<Runnable> bulkInsertTasks = Streams.stream(Iterables.partition(costJournals.values(), chunkSize))
                 .map(chunk -> (Runnable)() -> batchInsertTask(cloudTopology, chunk, planId, createdTime))
@@ -165,9 +181,22 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         logger.info("Persisted {} entity cost journals in {}", costJournals::size, stopwatch::elapsed);
     }
 
+    private boolean isInMemoryCostRequest(@Nonnull final CostFilter entityCostFilter) {
+        return (entityCostFilter.isLatest() || entityCostFilter.isLatestTimeStampRequested())
+                && entityCostFilter.getTimeFrame() == TimeFrame.LATEST
+                && !entityCostFilter.hasPlanTopologyContextId();
+    }
+
     @Override
     public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
+            if (isInMemoryCostRequest(entityCostFilter)) {
+                logger.debug("Current entity costs requetsed. All Account, Region, Zone filters will be transformed" +
+                        " to entity Id filters and duration filters ignored.");
+                EntityCostFilter entityFilter = transformFiltersToEntityIds((EntityCostFilter) entityCostFilter);
+                return ImmutableMap.of(System.currentTimeMillis(),
+                        latestEntityCostStore.getEntityCosts(entityFilter));
+            }
             final Table<?> table = entityCostFilter.getTable();
             final Field<Long> entityId = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID);
             final Field<LocalDateTime> createdTime = getField(table, ENTITY_COST.CREATED_TIME);
@@ -231,23 +260,72 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
     @Override
     public Map<Long, Collection<StatRecord>> getEntityCostStats(
-            @Nonnull final CostFilter entityCostFilter) throws DbException {
+            @Nonnull final EntityCostFilter entityCostFilter) throws DbException {
         try {
+            if (isInMemoryCostRequest(entityCostFilter)) {
+                logger.debug("Current entity costs requetsed. All Account, Region, Zone filters will be transformed" +
+                        " to entity Id filters and duration filters ignored.");
+                EntityCostFilter entityFilter = transformFiltersToEntityIds(entityCostFilter);
+                if (entityCostFilter.getCostGroupBy() != null && entityFilter.getRequestedGroupBy() != null) {
+                    return ImmutableMap.of(System.currentTimeMillis(),
+                            latestEntityCostStore.getEntityCostStatRecordsByGroup(entityFilter.getRequestedGroupBy(),
+                                    entityFilter));
+                } else {
+                    return ImmutableMap.of(System.currentTimeMillis(),
+                            latestEntityCostStore.getEntityCostStatRecords(entityFilter));
+
+                }
+            }
             if (entityCostFilter.getCostGroupBy() != null) {
                 // Queries based on filter and groupBy. Returns only fields used for grouping.
                 return fetchStatRecordsByGroup(entityCostFilter);
             } else {
                 // Queries based on filter only. Returns all fields.
-                return constructStatRecordsMap(fetchRecords(entityCostFilter));
+                final TimeFrame timeFrame =
+                        entityCostFilter.isTotalValuesRequested() ? entityCostFilter.getTimeFrame()
+                                : TimeFrame.HOUR;
+                return constructStatRecordsMap(fetchRecords(entityCostFilter), timeFrame);
             }
         } catch (final DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
+    private EntityCostFilter transformFiltersToEntityIds(final EntityCostFilter entityCostFilter) {
+
+        EntityCostFilter.EntityCostFilterBuilder filterBuilder =
+                entityCostFilter.toNewBuilder();
+
+        /**
+         * If the entity cost filter has either the region, account or zone filters,
+         * fetch entity ids for the entity costs recorded for these filters and
+         * create a cost filter with only entity ids.
+         */
+        if (entityCostFilter.getAccountIds().isPresent() ||
+                entityCostFilter.getRegionIds().isPresent() ||
+                entityCostFilter.getAvailabilityZoneIds().isPresent()) {
+            final Table<?> table = entityCostFilter.getTable();
+            final Field<Long> entityId = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID);
+            final Result<Record1<Long>> records = dsl
+                    .select(entityId)
+                    .from(table)
+                    .where(Arrays.asList(entityCostFilter.getConditions()))
+                    .and(getConditionForEntityCost(dsl, entityCostFilter, table))
+                    .fetch();
+            Set<Long> entityIds = records.stream()
+                    .map(r -> new RecordWrapper((r)))
+                    .map(r -> r.getAssociatedEntityId())
+                    .collect(Collectors.toSet());
+            filterBuilder.entityIds(entityIds);
+            // clear out the account Ids, availability zone ids and regions
+        }
+        return filterBuilder.build();
+
+    }
+
     @Nonnull
     private Map<Long, Collection<StatRecord>> fetchStatRecordsByGroup(
-            @Nonnull final CostFilter entityCostFilter) {
+            @Nonnull final EntityCostFilter entityCostFilter) {
         final CostGroupBy costGroupBy = entityCostFilter.getCostGroupBy();
         final Set<Field<?>> groupByFields = costGroupBy.getGroupByFields();
         final @Nonnull Table<?> table = costGroupBy.getTable();
@@ -262,7 +340,10 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 .and(getConditionForEntityCost(dsl, entityCostFilter, table))
                 .groupBy(groupByFields)
                 .fetch();
-        return createGroupByStatRecords(result, table, selectableFields);
+        final TimeFrame timeFrame =
+                entityCostFilter.isTotalValuesRequested() ? entityCostFilter.getTimeFrame()
+                        : TimeFrame.HOUR;
+        return createGroupByStatRecords(result, table, selectableFields, timeFrame);
     }
 
     @Nonnull
@@ -314,21 +395,22 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     }
 
     @Nonnull
-    private Map<Long, Collection<StatRecord>> createGroupByStatRecords(@Nonnull final Result<Record> res,
-            @Nonnull Table<?> table, @Nonnull final Set<Field<?>> selectableFields) {
+    private Map<Long, Collection<StatRecord>> createGroupByStatRecords(
+            @Nonnull final Result<Record> res, final @Nonnull Table<?> table,
+            @Nonnull final Set<Field<?>> selectableFields, final @Nonnull TimeFrame timeFrame) {
         final Map<Long, Collection<StatRecord>> statRecordsByTimeStamp = Maps.newHashMap();
         res.forEach(item -> {
             Collection<StatRecord> entityCosts = statRecordsByTimeStamp.computeIfAbsent(TimeUtil
                     .localDateTimeToMilli(item.getValue(ENTITY_COST.CREATED_TIME),
                     clock), k -> Sets.newHashSet());
-            entityCosts.add(mapToEntityCost(item, table, selectableFields));
+            entityCosts.add(mapToEntityCost(item, table, selectableFields, timeFrame));
         });
         return statRecordsByTimeStamp;
     }
 
     @Nonnull
-    private StatRecord mapToEntityCost(@Nonnull final Record item, @Nonnull Table<?> table,
-            @Nonnull final Set<Field<?>> selectableFields) {
+    private StatRecord mapToEntityCost(@Nonnull final Record item, @Nonnull final Table<?> table,
+            @Nonnull final Set<Field<?>> selectableFields, final @Nonnull TimeFrame timeFrame) {
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
         if (selectableFields.contains(getField(table, ENTITY_COST.COST_TYPE))) {
             statRecordBuilder.setCategory(CostCategory.forNumber(item.get(ENTITY_COST.COST_TYPE)));
@@ -348,19 +430,21 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
         setStatRecordValues(statRecordBuilder, item.getValue("avg", Float.class),
                 item.getValue("max", Float.class), item.getValue("min", Float.class),
-                item.getValue("sum", Float.class));
+                item.getValue("sum", Float.class), timeFrame);
         return statRecordBuilder.build();
     }
 
     private void setStatRecordValues(@Nonnull final StatRecord.Builder statRecordBuilder,
-            final float avg, final float max, final float min, final float sum) {
+            final float avg, final float max, final float min, final float sum,
+            final @Nonnull TimeFrame timeFrame) {
         statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setUnits(timeFrame.getUnits());
+        final double multiplier = timeFrame.getMultiplier();
         statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                .setAvg(avg)
-                .setMax(max)
-                .setMin(min)
-                .setTotal(sum)
+                .setAvg((float)(avg * multiplier))
+                .setMax((float)(max * multiplier))
+                .setMin((float)(min * multiplier))
+                .setTotal((float)(sum * multiplier))
                 .build());
     }
 
@@ -372,7 +456,8 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
      */
     @Nonnull
     private Map<Long, Collection<StatRecord>> constructStatRecordsMap(
-            @Nonnull final Result<? extends Record> entityCostRecords) {
+            @Nonnull final Result<? extends Record> entityCostRecords,
+            @Nonnull final TimeFrame timeFrame) {
         final Map<Long, Map<Long, EntityCost>> records = new HashMap<>();
         entityCostRecords.forEach(entityRecord -> {
             Map<Long, EntityCost> costsForTimestamp = records
@@ -390,8 +475,9 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         Map<Long, Collection<StatRecord>> result = Maps.newHashMap();
         records.forEach((time, costsByEntity) -> {
             for (EntityCost entityCost : costsByEntity.values()) {
-                final Collection<StatRecord> statRecords = EntityCostToStatRecordConverter
-                        .convertEntityToStatRecord(entityCost);
+                final Collection<StatRecord> statRecords =
+                        EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCost,
+                                timeFrame);
                 result.compute(time, (currentTime, currentValue) -> {
                     if (currentValue == null) {
                         currentValue = Lists.newArrayList();
@@ -471,6 +557,10 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                  @Nonnull LocalDateTime createdTime) {
 
         final Table table = planId.isPresent() ? PLAN_ENTITY_COST : ENTITY_COST;
+        final CostSourceFilter costSourceFilter = planId.isPresent()
+                ? CostSourceFilter.INCLUDE_ALL
+                : CostSourceFilter.EXCLUDE_UPTIME;
+
         dsl.transaction(transaction -> {
             try (DSLContext transactionContext = DSL.using(transaction)) {
                 // Initialize the batch.
@@ -493,12 +583,22 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
                 // Bind values to the batch insert statement. Each "bind" should have values for
                 // all fields set during batch initialization.
+
                 costJournals.forEach(journal -> journal.getCategories().forEach(costType -> {
-                    for (final CostSource costSource : CostSource.values()) {
-                        final TraxNumber categoryCost =
-                                journal.getHourlyCostBySourceAndCategory(costType,
-                                        costSource);
-                        if (categoryCost != null) {
+                    Map<CostSource, TraxNumber> filteredCostsBySource = journal
+                            .getFilteredCategoryCostsBySource(
+                                    costType,
+                                    costSourceFilter);
+                    filteredCostsBySource.forEach((costSource, categoryCost) -> {
+
+                        // We should always record the on-demand rate cost source, in order to properly
+                        // average the cost for an entity over time, including when an entity is powered
+                        // off and the on-demand rate is zero.
+                        final boolean persistCostItem = categoryCost != null
+                                && (costSource == CostSource.ON_DEMAND_RATE
+                                    || !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d));
+
+                        if (persistCostItem) {
                             final long entityOid = journal.getEntity().getOid();
                             if (planId.isPresent()) {
                                 batch.bind(entityOid,
@@ -536,7 +636,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                 );
                             }
                         }
-                    }
+                    });
                 }));
 
                 if (batch.size() > 0) {

@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -25,6 +26,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -35,6 +38,7 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
+import org.jooq.Row;
 import org.jooq.SQLDialect;
 import org.jooq.Select;
 import org.jooq.impl.DSL;
@@ -47,6 +51,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -66,6 +71,7 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class LiveStatsReaderTest {
 
@@ -362,5 +368,129 @@ public class LiveStatsReaderTest {
         when(liveStatsReader.getEntityDisplayNameForId(entityOid)).thenReturn(entityDisplayName);
         assertTrue(liveStatsReader.getEntityDisplayNameForId(null) == null);
         assertTrue(liveStatsReader.getEntityDisplayNameForId(entityOid).equals(entityDisplayName));
+    }
+
+    /**
+     * Test getting the counted stats, like 'numVMs'
+     */
+    @Test
+    public void testGetCountStats() throws VmtDbException {
+        // arrange
+        final Set<String> entityIds = Stream.of("1", "2", "3")
+                .collect(Collectors.toSet());
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .addCommodityRequests(
+                        CommodityRequest.newBuilder()
+                .setCommodityName("numVMs"))
+                .build();
+        // Simulates expansion of scope from Host -> VMs
+        final List<Integer> derivedEntityTypes = Stream.of(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber())
+                .collect(Collectors.toList());
+        // The original scope was a single host; scope expansion added two VMs to the scope
+        final Map<String, String> entityIdToTypeMap = new HashMap<>();
+        entityIdToTypeMap.put("1", ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        entityIdToTypeMap.put("2", ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        entityIdToTypeMap.put("3", ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        when(mockHistorydbIO.getTypesForEntities(entityIds)).thenReturn(entityIdToTypeMap);
+        final TimeRange timeRange = mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
+        when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRange.getStartTime()).thenReturn(0L);
+        when(timeRange.getEndTime()).thenReturn(0L);
+        when(timeRangeFactory.resolveTimeRange(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.of(timeRange));
+        when(statsQueryFactory.createStatsQuery(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        // act
+        List<Record> records = liveStatsReader.getRecords(entityIds, statsFilter, derivedEntityTypes);
+
+        // verify
+        assertEquals(1, records.size());
+        Optional<Record> numVMsRecord = records.stream()
+                .filter(record -> record.valuesRow().indexOf("numVMs") >= 0)
+                .findAny();
+        assertTrue(numVMsRecord.isPresent());
+        Record record = numVMsRecord.get();
+        assertEquals(2.0, (Double)record.getValue("avg_value"), 0.0);
+    }
+
+    /**
+     * Test getting the counted stats, like 'numVMs'
+     */
+    @Test
+    public void testGetCountStatsZeroResult() throws VmtDbException {
+        // arrange
+        final Set<String> entityIds = Stream.of("1")
+                .collect(Collectors.toSet());
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .addCommodityRequests(
+                        CommodityRequest.newBuilder()
+                                .setCommodityName("numVMs"))
+                .build();
+        // Simulates expansion of scope from Host -> VMs
+        final List<Integer> derivedEntityTypes = Stream.of(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber())
+                .collect(Collectors.toList());
+        // The original scope was a single host; scope expansion added zero VMs to the scope
+        final Map<String, String> entityIdToTypeMap = new HashMap<>();
+        entityIdToTypeMap.put("1", ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        when(mockHistorydbIO.getTypesForEntities(entityIds)).thenReturn(entityIdToTypeMap);
+        final TimeRange timeRange = mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
+        when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRange.getStartTime()).thenReturn(0L);
+        when(timeRange.getEndTime()).thenReturn(0L);
+        when(timeRangeFactory.resolveTimeRange(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.of(timeRange));
+        when(statsQueryFactory.createStatsQuery(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        // act
+        List<Record> records = liveStatsReader.getRecords(entityIds, statsFilter, derivedEntityTypes);
+
+        // verify
+        assertEquals(1, records.size());
+        Optional<Record> numVMsRecord = records.stream()
+                .filter(record -> record.valuesRow().indexOf("numVMs") >= 0)
+                .findAny();
+        assertTrue(numVMsRecord.isPresent());
+        Record record = numVMsRecord.get();
+        assertEquals(0.0, (Double)record.getValue("avg_value"), 0.0);
+    }
+
+    /**
+     * Test getting the counted stats, like 'numVMs'
+     */
+    @Test
+    public void testGetCountStatsNoResult() throws VmtDbException {
+        // arrange
+        final Set<String> entityIds = Stream.of("1")
+                .collect(Collectors.toSet());
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .addCommodityRequests(
+                        CommodityRequest.newBuilder()
+                                .setCommodityName("numVMs"))
+                .build();
+        // Simulates no scope expansion being performed
+        final List<Integer> derivedEntityTypes = Collections.emptyList();
+        // The original scope was a single host; scope expansion was not performed
+        final Map<String, String> entityIdToTypeMap = new HashMap<>();
+        entityIdToTypeMap.put("1", ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        when(mockHistorydbIO.getTypesForEntities(entityIds)).thenReturn(entityIdToTypeMap);
+        final TimeRange timeRange = mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
+        when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRange.getStartTime()).thenReturn(0L);
+        when(timeRange.getEndTime()).thenReturn(0L);
+        when(timeRangeFactory.resolveTimeRange(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.of(timeRange));
+        when(statsQueryFactory.createStatsQuery(any(), any(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+
+        // act
+        List<Record> records = liveStatsReader.getRecords(entityIds, statsFilter, derivedEntityTypes);
+
+        // verify
+        assertEquals(0, records.size());
     }
 }

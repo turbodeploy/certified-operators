@@ -663,4 +663,38 @@ public class SupplyChainStatisticianTest {
         assertFalse(supplementaryData.getResourceGroupId(entityId2).isPresent());
     }
 
+    /**
+     * Test getResourceGroupsById does not throw an exception when no resourceGroup is present.
+     */
+    @Test
+    public void testGetResourceGroupsById() {
+        final long entityId1 = 1L;
+
+        final SupplementaryDataFactory factory = new SupplementaryDataFactory(
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        final Map<Long, Groupings> entityToGroupsMap = new HashMap<>();
+        entityToGroupsMap.put(1L, Groupings.newBuilder().build());
+
+        final List<Long> entities = Collections.singletonList(entityId1);
+
+        final GetGroupsForEntitiesResponse getGroupsForEntitiesResponse =
+                GetGroupsForEntitiesResponse.newBuilder()
+                        .putAllEntityGroup(entityToGroupsMap)
+                        .build();
+
+        when(groupServiceMole.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addGroupType(GroupType.RESOURCE)
+                .addAllEntityId(entities)
+                .build())).thenReturn(getGroupsForEntitiesResponse);
+
+        final SupplementaryData supplementaryData = factory.newSupplementaryData(entities,
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP),
+                REALTIME_TOPOLOGY_CONTEXT_ID);
+
+        assertFalse(supplementaryData.getResourceGroupId(entityId1).isPresent());
+    }
+
 }

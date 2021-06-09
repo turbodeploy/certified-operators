@@ -30,6 +30,9 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsConfig;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentStatsRpcService;
+import com.vmturbo.cost.component.cloud.commitment.CloudCommitmentUploadRpcService;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -64,7 +67,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     ReservedInstanceSpecConfig.class,
     CostDiagnosticsConfig.class,
     MigratedWorkloadCloudCommitmentConfig.class,
-    EntityUptimeSpringConfig.class
+    EntityUptimeSpringConfig.class,
+    CloudCommitmentStatsConfig.class
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -92,6 +96,14 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private CostDiagnosticsConfig diagnosticsConfig;
+
+    //Defined in CloudCommitmentStatsConfig
+    @Autowired
+    private CloudCommitmentUploadRpcService cloudCommitmentUploadRpcService;
+
+    //Defined in CloudCommitmentStatsConfig
+    @Autowired
+    private CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -145,6 +157,10 @@ public class CostComponent extends BaseVmtComponent {
             .build(),
             new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
             Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
+
+        if (dbConfig.isDbMonitorEnabled()) {
+            dbConfig.startDbMonitor();
+        }
     }
 
     /**
@@ -165,20 +181,22 @@ public class CostComponent extends BaseVmtComponent {
     @Override
     public List<BindableService> getGrpcServices() {
         return Arrays.asList(pricingConfig.pricingRpcService(),
-            buyRIAnalysisConfig.buyReservedInstanceScheduleRpcService(),
-            reservedInstanceConfig.reservedInstanceBoughtRpcService(),
-            reservedInstanceConfig.planReservedInstanceRpcService(),
-            reservedInstanceSpecConfig.reservedInstanceSpecRpcService(),
-            costConfig.costRpcService(),
-            costConfig.reservedInstanceCostRpcService(),
-            reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(),
-            costServiceConfig.riAndExpenseUploadRpcService(),
-            costDebugConfig.costDebugRpcService(),
-            buyRIAnalysisConfig.buyReservedInstanceRpcService(),
-            buyRIAnalysisConfig.riBuyContextFetchRpcService(),
-            costDebugConfig.traxConfigurationRpcService(),
-            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService(),
-            entityUptimeSpringConfig.entityUptimeRpcService());
+                buyRIAnalysisConfig.buyReservedInstanceScheduleRpcService(),
+                reservedInstanceConfig.reservedInstanceBoughtRpcService(),
+                reservedInstanceConfig.planReservedInstanceRpcService(),
+                reservedInstanceSpecConfig.reservedInstanceSpecRpcService(),
+                costConfig.costRpcService(),
+                costConfig.reservedInstanceCostRpcService(),
+                reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(),
+                costServiceConfig.riAndExpenseUploadRpcService(),
+                costDebugConfig.costDebugRpcService(),
+                buyRIAnalysisConfig.buyReservedInstanceRpcService(),
+                buyRIAnalysisConfig.riBuyContextFetchRpcService(),
+                costDebugConfig.traxConfigurationRpcService(),
+                migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService(),
+                entityUptimeSpringConfig.entityUptimeRpcService(),
+                cloudCommitmentUploadRpcService,
+                cloudCommitmentStatsRpcService);
     }
 
     @Nonnull

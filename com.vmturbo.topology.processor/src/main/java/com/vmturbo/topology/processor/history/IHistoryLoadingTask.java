@@ -5,6 +5,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -20,12 +22,13 @@ public interface IHistoryLoadingTask<Config, DbValue> {
      * It is expected that all entities are of the same type.
      * @param commodities collection of commodities to process
      * @param config configuration (e.g. observation window or averaging weights)
+     * @param oidsToUse non expired oids that should be used
      * @return per-entity field values
      * @throws HistoryCalculationException when failed
      * @throws InterruptedException when interrupted
      */
     @Nonnull
     Map<EntityCommodityFieldReference, DbValue>
-       load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull Config config)
+       load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull Config config, final LongSet oidsToUse)
                        throws HistoryCalculationException, InterruptedException;
 }

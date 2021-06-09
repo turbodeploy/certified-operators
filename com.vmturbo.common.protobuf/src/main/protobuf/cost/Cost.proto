@@ -9,6 +9,8 @@ import "CommonDTO.proto";
 import "CommonCost.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
+import "cloud/CloudCommitmentDTO.proto";
+import "cloud/CloudCommon.proto";
 import "cca/CloudCommitmentAnalysis.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
@@ -452,7 +454,22 @@ message EntityCost {
         // Hourly rate for Cloud entity
         optional common_dto.CurrencyAmount amount = 2;
 
-        optional CostSource costSource = 3;
+        // This has been deprecated in favor of the cost_source_link
+        optional CostSource costSource = 3 [deprecated = true];
+
+        optional CostSourceLinkDTO cost_source_link = 4;
+
+        message CostSourceLinkDTO {
+
+            // The immediate cost source of this component cost.
+            optional CostSource cost_source = 1;
+
+            // If the immediate cost source represents a discount (e.g. entity uptime, buy RI,
+            // RI inventory, etc.), the discount_cost_source_link will indicate which cost source
+            // this discount was applied to. Given discounts can be stacked (ex: RI inventory on
+            // top of entity uptime), the cost_source_links may be chained.
+            optional CostSourceLinkDTO discount_cost_source_link = 2;
+        }
     }
 }
 
@@ -659,45 +676,14 @@ message ChecksumResponse {
     optional int64 checksum = 1;
 }
 
-message RegionFilter {
-    // A list of region ids need to filter by.
-    repeated int64 region_id = 1;
-}
-
 message AvailabilityZoneFilter {
     // A list of availability zone ids need to filter by.
     repeated int64 availability_zone_id = 1;
 }
 
-message AccountFilter {
-    // A list of account ids need to filter by.
-    repeated int64 account_id = 1;
-    // describes the semantics of the passed account Ids.
-    optional AccountFilterType account_filter_type = 2 [default = PURCHASED_BY];
-
-    enum  AccountFilterType {
-        // Filter for entities (e.g. RIs) purchased by the accounts in this filter.
-        PURCHASED_BY = 0;
-
-        // Filter for RIs that covers VMs of the given account. The RIs can be purchased under
-        // accounts that are different from the account IDs in this filter.
-        USED_BY = 1;
-
-        // Union of the previous two types.
-        USED_AND_PURCHASED_BY = 2;
-    }
-}
-
-
-
 message RiFilter {
     // A list of RI IDs to filter by, for e.g., RIs to be included in plans.
     repeated int64 ri_id = 1;
-}
-
-message EntityFilter {
-    // A list of entity ids need to filter by.
-    repeated int64 entity_id = 1;
 }
 
 message EntityTypeFilter {
@@ -713,9 +699,9 @@ message ReservedInstanceBoughtFilter {
 // A request to get reserved instance bought by some filter condition. If provided more than one
 // different filter type, it will perform AND logic.
 message GetReservedInstanceBoughtByFilterRequest {
-    optional RegionFilter region_filter = 1;
+    optional cloud_common.RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
-    optional AccountFilter account_filter = 3;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 3;
     optional RiFilter ri_filter = 4;
     optional bool exclude_undiscovered_unused = 5 [default = false];
 }
@@ -736,7 +722,7 @@ message GetReservedInstanceBoughtForAnalysisRequest {
 message GetReservedInstanceBoughtForScopeRequest {
     // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
     repeated int64 scope_seed_oids = 5;
-    optional AccountFilter.AccountFilterType account_filter_type = 6 [default = PURCHASED_BY];
+    optional cloud_commitment_dto.AccountReferenceType account_filter_type = 6 [default = PURCHASED_BY];
     optional bool include_undiscovered = 7 [default = true];
 }
 
@@ -759,10 +745,10 @@ message GetBuyReservedInstancesByFilterRequest {
     optional int64 topology_context_id = 1;
 
     // get buy reserved instance recommendations filter by region ids.
-    optional RegionFilter region_filter = 2;
+    optional cloud_common.RegionFilter region_filter = 2;
 
     // get buy reserved instance recommendations filter by account ids.
-    optional AccountFilter account_filter = 3;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 3;
 
     // buy ri ids.
     repeated int64 buy_ri_id = 4;
@@ -777,13 +763,13 @@ message GetBuyReservedInstancesByFilterResponse {
 // A request to get reserved instance bought count map.
 message GetReservedInstanceBoughtCountRequest {
     // get reserved instance bought filter by region ids.
-    optional RegionFilter region_filter = 1;
+    optional cloud_common.RegionFilter region_filter = 1;
 
     // get reserved instance bought filter by availability zone ids.
     optional AvailabilityZoneFilter availability_zone_filter = 2;
 
     // get reserved instance bought filter by account ids.
-    optional AccountFilter account_filter = 3;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 3;
 }
 
 // A response which contains the reserved instance count map.
@@ -877,13 +863,13 @@ message GetReservedInstanceUtilizationStatsRequest {
     optional uint64 end_date = 2;
 
     // get reserved instance utilization stats filter by region ids.
-    optional RegionFilter region_filter = 3;
+    optional cloud_common.RegionFilter region_filter = 3;
 
     // get reserved instance utilization stats filter by availability zone ids.
     optional AvailabilityZoneFilter availability_zone_filter = 4;
 
     // get reserved instance utilization stats filter by account ids.
-    optional AccountFilter account_filter = 5;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 5;
 
     // whether utilization of Buy RI instances should be included in the
     // projected utilization stats returned
@@ -909,15 +895,15 @@ message GetReservedInstanceCoverageStatsRequest {
     optional uint64 end_date = 2;
 
     // get reserved instance bought filter by region ids.
-    optional RegionFilter region_filter = 3;
+    optional cloud_common.RegionFilter region_filter = 3;
 
     // get reserved instance bought filter by availability zone ids.
     optional AvailabilityZoneFilter availability_zone_filter = 4;
 
     // get reserved instance bought filter by account ids.
-    optional AccountFilter account_filter = 5;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 5;
 
-    optional EntityFilter entity_filter = 6;
+    optional cloud_common.EntityFilter entity_filter = 6;
 
     // whether coverage from BuyRI instances should be included in the
     // projected coverage stat returned.
@@ -962,7 +948,7 @@ message GetCloudExpenseStatsRequest {
     optional uint64 end_date = 2;
 
     // Entity ids filter, return all entities if not set
-    optional EntityFilter entity_filter = 3;
+    optional cloud_common.EntityFilter entity_filter = 3;
 
     // Entity type filter, could be VM or APP, return all entities if not set
     optional EntityTypeFilter entity_type_filter = 4;
@@ -1000,15 +986,14 @@ message GetCloudCostStatsRequest {
 
 message CloudCostStatsQuery {
 
+    optional int64 query_id = 1;
+
     // The start date of the request
     // If the start date is set and the end date is not set, we will only get the latest stats.
-    optional int64 query_id = 1;
+    optional uint64 start_date = 2;
 
     // The end date of the request
     // If the end date is set and the start date is not set, we will only get the latest stats.
-    optional uint64 start_date = 2;
-
-    // Entity ids filter, return all entities if not set
     optional uint64 end_date = 3;
 
     // Whether or not to request projected bottom-up costs.
@@ -1018,7 +1003,7 @@ message CloudCostStatsQuery {
     optional bool request_projected = 4;
 
     // Entity ids filter, return all entities if not set
-    optional EntityFilter entity_filter = 5;
+    optional cloud_common.EntityFilter entity_filter = 5;
 
     // Cost category filter, return all entities if not set
     optional CostCategoryFilter cost_category_filter = 6;
@@ -1034,16 +1019,20 @@ message CloudCostStatsQuery {
     optional CostSourceFilter cost_source_filter = 9;
 
     // get entity cost filtered by region ids.
-    optional RegionFilter region_filter = 10;
+    optional cloud_common.RegionFilter region_filter = 10;
 
     // get entity cost filtered by availability zone ids.
     optional AvailabilityZoneFilter availability_zone_filter = 11;
 
     // get entity cost filtered by account ids.
-    optional AccountFilter account_filter = 12;
+    optional cloud_common.AccountFilter account_filter = 12;
 
     // get entity cost filter by topology context id
     optional uint64 topology_context_id = 13;
+
+    // If the flag is set, the returned values units will depend on the requested time interval.
+    // E.g., if the requested interval is a month, then the value units will be daily, not hourly.
+    optional bool request_total_values = 14 [default = false];
 
     enum GroupBy {
         COST_CATEGORY = 1;
@@ -1130,7 +1119,7 @@ message SetBuyRIAnalysisScheduleResponse {
 
 message GetEntityReservedInstanceCoverageRequest {
     // Filter by a list of Entities.
-    optional EntityFilter entity_filter = 1;
+    optional cloud_common.EntityFilter entity_filter = 1;
 }
 
 message GetEntityReservedInstanceCoverageResponse {
@@ -1140,7 +1129,7 @@ message GetEntityReservedInstanceCoverageResponse {
 
 message GetProjectedEntityReservedInstanceCoverageRequest {
     // Filter by a list of Entities.
-    optional EntityFilter entity_filter = 1;
+    optional cloud_common.EntityFilter entity_filter = 1;
     // The topology from which to retrieve RI coverage
     optional int64 topologyContextId = 2;
 }
@@ -1467,10 +1456,10 @@ message GetReservedInstanceCostStatsRequest {
     optional int64 topology_context_id = 4;
 
     // get buy reserved instance recommendations filter by region ids.
-    optional RegionFilter region_filter = 5;
+    optional cloud_common.RegionFilter region_filter = 5;
 
     // ggetTierPriceForEntitieset buy reserved instance recommendations filter by account ids.
-    optional AccountFilter account_filter = 6;
+    optional cloud_commitment_dto.AccountReferenceFilter account_filter = 6;
 
     optional AvailabilityZoneFilter availability_zone_filter = 7;
 
@@ -1563,10 +1552,29 @@ message GetEntitySavingsStatsRequest {
     optional uint64 end_date = 2;
 
     // Entity list
-    optional EntityFilter entity_filter = 3;
+    optional cloud_common.EntityFilter entity_filter = 3;
 
     // Types of savings stats requested
     repeated EntitySavingsStatsType stats_types = 4;
+
+    // Entity type list
+    optional EntityTypeFilter entity_type_filter = 5;
+
+    // Resource group list
+    optional ResourceGroupFilter resource_group_filter = 6;
+
+    // Billing family list
+    optional BillingFamilyFilter billing_family_filter = 7;
+}
+
+message ResourceGroupFilter {
+    // A list of reource group OIDs
+    repeated int64 resource_group_oid = 1;
+}
+
+message BillingFamilyFilter {
+    // A list of billing family OIDs
+    repeated int64 billing_family_oid = 1;
 }
 
 // Types of entity savings stats

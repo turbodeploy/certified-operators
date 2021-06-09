@@ -17,6 +17,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
 /**
@@ -96,4 +98,11 @@ public class RepositoryDTOUtil {
                 .flatMap(entityBatch -> entityBatch.getEntitiesList().stream());
     }
 
+    public static ConnectedEntity connectedEntity(final long oid, final int type, final ConnectionType connectionType) {
+        return ConnectedEntity.newBuilder()
+                .setConnectedEntityType(type)
+                .setConnectedEntityId(oid)
+                .setConnectionType(connectionType)
+                .build();
+    }
 }

@@ -56,7 +56,8 @@
     "active": true,
     "displayName": ""
   }],
-  "commoditiesBoughtFromProviders": [{
+  "commoditiesBoughtFromProviders": [
+    {
     "providerId": "73433887033680",
     "providerEntityType": 14,
     "commodityBought": [{
@@ -160,7 +161,8 @@
       "displayName": "",
       "reservedCapacity": 0.0
     }]
-  }, {
+  },
+    {
     "providerId": "73433887031974",
     "providerEntityType": 2,
     "commodityBought": [{
@@ -211,7 +213,8 @@
       "displayName": ""
     }],
     "volumeId": "73433887060893"
-  }, {
+  },
+    {
     "providerId": "73433887033681",
     "providerEntityType": 1,
     "commodityBought": [{

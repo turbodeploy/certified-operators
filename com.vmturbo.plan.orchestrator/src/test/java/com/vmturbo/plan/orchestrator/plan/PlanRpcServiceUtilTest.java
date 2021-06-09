@@ -337,6 +337,79 @@ public class PlanRpcServiceUtilTest {
     }
 
     /**
+     * Verify that the plan sub type is PLAN__NO_SUB_TYPE for BUY RI PLAN.
+     */
+    @Test
+    public void testGetCloudPlanSubTypeForBuyRI() {
+        final ScenarioInfo buyRIScenarioInfo = ScenarioInfo.newBuilder()
+            .setType(StringConstants.BUY_RI_PLAN)
+            .addChanges(ScenarioChange.newBuilder()
+                .setRiSetting(RISetting.newBuilder()))
+            .build();
+
+        final String planSubTypeResult = PlanRpcServiceUtil.getCloudPlanSubType(buyRIScenarioInfo);
+        Assert.assertEquals(StringConstants.PLAN__NO_SUB_TYPE, planSubTypeResult);
+    }
+
+    /**
+     * Verify the plan sub type for MCP Optimized (Consumption)
+     */
+    @Test
+    public void testGetCloudPlanSubTypeForMCPConsumption() {
+        final ScenarioInfo buyRIScenarioInfo = ScenarioInfo.newBuilder()
+            .setType(StringConstants.CLOUD_MIGRATION_PLAN)
+            .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
+            .build();
+
+        final String planSubTypeResult = PlanRpcServiceUtil.getCloudPlanSubType(buyRIScenarioInfo);
+        Assert.assertEquals(StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION, planSubTypeResult);
+    }
+
+    /**
+     * Verify the plan sub type for MCP Lift&Shift (Allocation)
+     */
+    @Test
+    public void testGetCloudPlanSubTypeForMCPAllocation() {
+        final ScenarioInfo buyRIScenarioInfo = ScenarioInfo.newBuilder()
+            .setType(StringConstants.CLOUD_MIGRATION_PLAN)
+            .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
+            .build();
+
+        final String planSubTypeResult = PlanRpcServiceUtil.getCloudPlanSubType(buyRIScenarioInfo);
+        Assert.assertEquals(StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION, planSubTypeResult);
+    }
+
+    /**
+     * Verify has plan sub type for Buy RI.
+     */
+    @Test
+    public void testHasPlanSubTypeForBuyRIPlan() {
+        Assert.assertFalse(
+            PlanRpcServiceUtil.hasPlanSubType(
+                ScenarioInfo.newBuilder().setType(StringConstants.BUY_RI_PLAN).build()));
+    }
+
+    /**
+     * Verify has plan sub type for MCP
+     */
+    @Test
+    public void testHasPlanSubTypeForMCP() {
+        Assert.assertTrue(
+            PlanRpcServiceUtil.hasPlanSubType(
+                ScenarioInfo.newBuilder().setType(StringConstants.CLOUD_MIGRATION_PLAN).build()));
+    }
+
+    /**
+     * Verify has plan sub type for OCP
+     */
+    @Test
+    public void testHasPlanSubTypeForOCP() {
+        Assert.assertTrue(
+            PlanRpcServiceUtil.hasPlanSubType(
+                ScenarioInfo.newBuilder().setType(StringConstants.OPTIMIZE_CLOUD_PLAN).build()));
+    }
+
+    /**
      * Mock the response of the method GroupServiceGrpc::getMembers.
      *
      * @param groupOid - Oid of the Group to expand.

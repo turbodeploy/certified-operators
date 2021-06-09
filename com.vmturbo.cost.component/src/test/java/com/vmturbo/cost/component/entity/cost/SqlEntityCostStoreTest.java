@@ -1,18 +1,30 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.trax.Trax.trax;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.logging.log4j.util.TriConsumer;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -24,27 +36,40 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.CostSourceLinkDTO;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.trax.Trax;
+import com.vmturbo.trax.TraxNumber;
+
 
 public class SqlEntityCostStoreTest {
+
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -68,22 +93,35 @@ public class SqlEntityCostStoreTest {
     private static final long AZ1_ID = 31;
     private static final long AZ2_ID = 32;
     private static final long RT_TOPO_CONTEXT_ID = 777777L;
+    private static final double DELTA = 0.001;
 
     private static final int DEFAULT_CURRENCY = CurrencyAmount.getDefaultInstance().getCurrency();
 
     private final ComponentCost componentCost = ComponentCost.newBuilder()
-            .setAmount(CurrencyAmount.newBuilder().setAmount(3.111).setCurrency(DEFAULT_CURRENCY))
+            .setAmount(CurrencyAmount.newBuilder().setAmount(3.0).setCurrency(DEFAULT_CURRENCY))
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.ON_DEMAND_RATE).build())
             .setCostSource(CostSource.ON_DEMAND_RATE)
+            .build();
+    private final ComponentCost uptimeDiscount = ComponentCost.newBuilder()
+            .setAmount(CurrencyAmount.newBuilder().setAmount(.75).setCurrency(DEFAULT_CURRENCY))
+            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                    .setCostSource(CostSource.ENTITY_UPTIME_DISCOUNT)
+                    .setDiscountCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.ON_DEMAND_RATE))
+                    .build())
+            .setCostSource(CostSource.ENTITY_UPTIME_DISCOUNT)
             .build();
     private final ComponentCost componentCost1 = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(2.111).setCurrency(DEFAULT_CURRENCY))
             .setCategory(CostCategory.IP)
+            .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.ON_DEMAND_RATE).build())
             .setCostSource(CostSource.ON_DEMAND_RATE)
             .build();
     private final EntityCost entityCost = EntityCost.newBuilder()
             .setAssociatedEntityId(ID1)
             .addComponentCost(componentCost)
+            .addComponentCost(uptimeDiscount)
             .addComponentCost(componentCost1)
             .setTotalAmount(CurrencyAmount.newBuilder()
                     .setAmount(1.111)
@@ -94,6 +132,7 @@ public class SqlEntityCostStoreTest {
     private final EntityCost entityCost1 = EntityCost.newBuilder()
             .setAssociatedEntityId(ID2)
             .addComponentCost(componentCost)
+            .addComponentCost(uptimeDiscount)
             .addComponentCost(componentCost1)
             .setTotalAmount(CurrencyAmount.newBuilder()
                     .setAmount(1.111)
@@ -102,7 +141,10 @@ public class SqlEntityCostStoreTest {
             .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE2)
             .build();
 
+    private InMemoryEntityCostStore inMemoryStore;
     private SqlEntityCostStore store;
+    private SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+    private GrpcTestServer testServer = GrpcTestServer.newServer(supplyChainServiceMole);
 
     /**
      * The clock can't start at too small of a number because TIMESTAMP starts in 1970, but
@@ -114,7 +156,16 @@ public class SqlEntityCostStoreTest {
 
     @Before
     public void setup() throws Exception {
-        store = new SqlEntityCostStore(dsl, clock, MoreExecutors.newDirectExecutorService(),1);
+        testServer.start();
+        RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+        final SupplyChainServiceBlockingStub supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
+        when(repositoryClient.getEntitiesByTypePerScope(any(), any())).thenCallRealMethod();
+        when(repositoryClient.parseSupplyChainResponseToEntityOidsMap(any())).thenCallRealMethod();
+
+        inMemoryStore = new InMemoryEntityCostStore(repositoryClient, supplyChainService,
+                RT_TOPO_CONTEXT_ID);
+        store = new SqlEntityCostStore(dsl, clock, MoreExecutors.newDirectExecutorService(),
+                1, inMemoryStore);
     }
 
     @Test
@@ -131,7 +182,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(filter).size());
+        // cached current costs are not deleted.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     private EntityCostFilter getLastHourFilter() {
@@ -139,6 +191,12 @@ public class SqlEntityCostStoreTest {
         final long endDuration = clock.millis();
         return EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                 .duration(startDuration, endDuration)
+                .build();
+    }
+
+    private EntityCostFilter getLatestFilter() {
+        return EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
+                .latestTimestampRequested(true)
                 .build();
     }
 
@@ -162,7 +220,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached current costs are not deleted.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -188,7 +247,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached current costs are not deleted.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -210,7 +270,7 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -230,7 +290,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached current costs are not deleted.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -253,7 +314,7 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -265,8 +326,6 @@ public class SqlEntityCostStoreTest {
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(ImmutableSet.of(1L, 2L))
                         .entityTypes(Collections.singleton(1))
-                        .duration(clock.instant().minus(1, ChronoUnit.DAYS).toEpochMilli(),
-                                clock.millis())
                         .build();
 
         // insert
@@ -285,14 +344,14 @@ public class SqlEntityCostStoreTest {
         // ensure we have the right entity costs.
         Assert.assertTrue(results.values()
                 .stream()
-                .allMatch(entityCosts -> isSameEntityCosts(entityCosts.get(ID1), entityCost)));
+                .allMatch(entityCosts -> entityCosts.containsKey(ID1)));
 
         // ensure in the same timestamp, every entity cost have expected component costs
         Assert.assertTrue(results.values()
                 .stream()
                 .allMatch(entityCosts -> entityCosts.values()
                         .stream()
-                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 3)));
 
         // ensure the components are the same
         Assert.assertTrue(results.values()
@@ -306,7 +365,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached entity costs will still be available.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -323,7 +383,8 @@ public class SqlEntityCostStoreTest {
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached entity costs are not cleaned
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -339,11 +400,11 @@ public class SqlEntityCostStoreTest {
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .latestTimestampRequested(true)
                         .build());
-        validateResults(results, 1, 2, 2);
+        validateResults(results, 1, 2, 3);
 
-        // clean up
+        // cached entity costs are not cleaned
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -359,11 +420,11 @@ public class SqlEntityCostStoreTest {
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .topologyContextId(2116L)
                         .build());
-        validateResults(results, 1, 2, 2);
+        validateResults(results, 1, 2, 3);
 
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -389,13 +450,13 @@ public class SqlEntityCostStoreTest {
                 .stream()
                 .allMatch(entityCosts -> entityCosts.values()
                         .stream()
-                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 3)));
 
         final Map<Long, EntityCost> costsBySourceAndCategory = store.getEntityCosts(
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .entityIds(Collections.singleton(1L))
                         .costSources(false,
-                                Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
+                                Collections.singleton(CostSource.ON_DEMAND_RATE))
                         .costCategoryFilter(CostCategoryFilter.newBuilder()
                                 .setExclusionFilter(false)
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
@@ -406,9 +467,9 @@ public class SqlEntityCostStoreTest {
         Assert.assertEquals(1, costsBySourceAndCategory.get(1L).getComponentCostCount());
 
         Assert.assertEquals(componentCost, costsBySourceAndCategory.get(1L).getComponentCost(0));
-        // clean up
+        // clean up should still result in the cached costs for LATEST
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
@@ -433,18 +494,65 @@ public class SqlEntityCostStoreTest {
                 .stream()
                 .allMatch(entityCosts -> entityCosts.values()
                         .stream()
-                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+                        .allMatch(entityCost -> entityCost.getComponentCostCount() == 3)));
         // clean up
         store.cleanEntityCosts(now);
-        Assert.assertEquals(0, store.getEntityCosts(getLastHourFilter()).size());
+        // cached current costs are not deleted.
+        Assert.assertEquals(1, store.getEntityCosts(getLatestFilter()).size());
     }
 
     @Test
     public void testStoreCostJournal() throws DbException {
+        ComponentCost componentCost1 = ComponentCost.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder().setAmount(10).setCurrency(DEFAULT_CURRENCY))
+                .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.ON_DEMAND_RATE).build())
+                .setCostSource(CostSource.ON_DEMAND_RATE)
+                .build();
+        ComponentCost componentCost11 = ComponentCost.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder().setAmount(-3).setCurrency(DEFAULT_CURRENCY))
+                .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.BUY_RI_DISCOUNT).build())
+                .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                .build();
+
+        ComponentCost componentCost2 = ComponentCost.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder().setAmount(10).setCurrency(DEFAULT_CURRENCY))
+                .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.ON_DEMAND_RATE).build())
+                .setCostSource(CostSource.ON_DEMAND_RATE)
+                .build();
+        ComponentCost componentCost22 = ComponentCost.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder().setAmount(-5).setCurrency(DEFAULT_CURRENCY))
+                .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                .setCostSourceLink(CostSourceLinkDTO.newBuilder().setCostSource(CostSource.BUY_RI_DISCOUNT).build())
+                .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                .build();
+
+        EntityCost entityCost1 = EntityCost.newBuilder()
+                .setAssociatedEntityId(ID1)
+                .addComponentCost(componentCost1)
+                .addComponentCost(componentCost11)
+                .addComponentCost(componentCost2)
+                .addComponentCost(componentCost22)
+                .setTotalAmount(CurrencyAmount.newBuilder()
+                        .setAmount(1.111)
+                        .setCurrency(DEFAULT_CURRENCY)
+                        .build())
+                .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+                .build();
+        ImmutableMap<CostSource, Double> computeSourceCostMap = ImmutableMap.of(
+                CostSource.ON_DEMAND_RATE, 10.0,
+                CostSource.BUY_RI_DISCOUNT, -3.0);
+        ImmutableMap<CostSource, Double> licenseSourceCostMap = ImmutableMap.of(
+                CostSource.ON_DEMAND_RATE, 10.0,
+                CostSource.BUY_RI_DISCOUNT, -5.0);
+        ImmutableMap<CostCategory, Map<CostSource, Double>> categorySourceCostMap = ImmutableMap.of(
+                CostCategory.ON_DEMAND_COMPUTE, computeSourceCostMap,
+                CostCategory.ON_DEMAND_LICENSE, licenseSourceCostMap);
         final CostJournal<TopologyEntityDTO> journal1 =
-                mockCostJournal(ID1, ASSOCIATED_ENTITY_TYPE1,
-                        ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0,
-                                CostCategory.ON_DEMAND_LICENSE, 3.0));
+                mockCostJournalWithCostSources(ID1, ASSOCIATED_ENTITY_TYPE1,
+                        categorySourceCostMap);
         final CloudTopology<TopologyEntityDTO> topology = Mockito.mock(CloudTopology.class);
         Mockito.when(topology.getOwner(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
@@ -452,34 +560,54 @@ public class SqlEntityCostStoreTest {
                 .thenReturn(Optional.empty());
         Mockito.when(topology.getConnectedRegion(org.mockito.Matchers.anyLong()))
                 .thenReturn(Optional.empty());
+        Mockito.when(journal1.toEntityCostProto()).thenReturn(entityCost1);
+
         store.persistEntityCost(ImmutableMap.of(ID1, journal1), topology, clock.millis(), false);
 
         final Map<Long, Map<Long, EntityCost>> costs = store.getEntityCosts(
                 EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
                         .duration(clock.millis(), clock.millis())
                         .build());
-        final Map<Long, EntityCost> costMap = costs.get(clock.millis());
+        Assert.assertNotNull(costs);
+        final Map<Long, EntityCost> costMap = costs.values().iterator().next();
         Assert.assertNotNull(costMap);
         final EntityCost entityCost = costMap.get(ID1);
         Assert.assertNotNull(entityCost);
         MatcherAssert.assertThat(entityCost.getAssociatedEntityType(),
                 CoreMatchers.is(ASSOCIATED_ENTITY_TYPE1));
         MatcherAssert.assertThat(entityCost.getAssociatedEntityId(), CoreMatchers.is(ID1));
-        MatcherAssert.assertThat(entityCost.getComponentCostCount(), CoreMatchers.is(2));
+        MatcherAssert.assertThat(entityCost.getComponentCostCount(), CoreMatchers.is(4));
         MatcherAssert.assertThat(entityCost.getComponentCostList(), Matchers.containsInAnyOrder(
                 ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                                .setAmount(7.0))
-                        .build(), ComponentCost.newBuilder()
+                                .setAmount(10.0))
+                        .build(),
+                ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(-3.0))
+                        .build(),
+                ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_LICENSE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
-                                .setAmount(3.0))
-                        .build()));
+                                .setAmount(10.0))
+                        .build(),
+                ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                        .setCostSource(CostSource.BUY_RI_DISCOUNT)
+                        .setAmount(CurrencyAmount.newBuilder()
+                                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                                .setAmount(-5.0))
+                        .build()
+
+        ));
     }
 
     /**
@@ -507,7 +635,7 @@ public class SqlEntityCostStoreTest {
         MatcherAssert.assertThat(entityMap.size(), CoreMatchers.is(1));
         MatcherAssert.assertThat(entityMap.keySet().iterator().next(), CoreMatchers.is(ID1));
         MatcherAssert.assertThat(entityMap.get(ID1),
-                CoreMatchers.is(entityCost.toBuilder().clearTotalAmount().build()));
+                CoreMatchers.is(entityCost.toBuilder().build()));
 
         store.cleanEntityCosts(LocalDateTime.now(clock));
     }
@@ -537,7 +665,7 @@ public class SqlEntityCostStoreTest {
         MatcherAssert.assertThat(entityMap.size(), CoreMatchers.is(1));
         MatcherAssert.assertThat(entityMap.keySet().iterator().next(), CoreMatchers.is(ID1));
         MatcherAssert.assertThat(entityMap.get(ID1),
-                CoreMatchers.is(entityCost.toBuilder().clearTotalAmount().build()));
+                CoreMatchers.is(entityCost.toBuilder().build()));
 
         store.cleanEntityCosts(LocalDateTime.now(clock));
     }
@@ -567,34 +695,184 @@ public class SqlEntityCostStoreTest {
         MatcherAssert.assertThat(entityMap.size(), CoreMatchers.is(1));
         MatcherAssert.assertThat(entityMap.keySet().iterator().next(), CoreMatchers.is(ID1));
         MatcherAssert.assertThat(entityMap.get(ID1),
-                CoreMatchers.is(entityCost.toBuilder().clearTotalAmount().build()));
+                CoreMatchers.is(entityCost.toBuilder().build()));
 
         store.cleanEntityCosts(LocalDateTime.now(clock));
     }
 
-    private CostJournal<TopologyEntityDTO> mockCostJournal(final long entityId,
-            final int entityType, final Map<CostCategory, Double> costsByCategory) {
+    /**
+     * Test getting entity cost stat records for specific time frame.
+     *
+     * @throws Exception when failed
+     */
+    @Test
+    public void testGetEntityCostStatRecordsForTimeframe() throws Exception {
+        // ARRANGE
+        inMemoryStore.updateEntityCosts(Collections.singletonList(EntityCost.newBuilder()
+                .setAssociatedEntityId(ID1)
+                .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addComponentCost(ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                                .setCostSource(CostSource.ON_DEMAND_RATE)
+                                .build())
+                        .setAmount(CurrencyAmount.newBuilder().setAmount(100).setCurrency(1))
+                        .build())
+                .build()));
+
+        dsl.insertInto(Tables.ENTITY_COST).values(1L, LocalDateTime.of(2000, 1, 1, 1, 1, 1), 1, 1,
+                1, BigDecimal.valueOf(100), 1, 1L, 1L, 1L).execute();
+
+        final Object[] values = {1L, LocalDateTime.of(2000, 1, 1, 1, 1, 1), 1, 1, 1,
+                BigDecimal.valueOf(100), 1, 1L, 1L, 1L};
+        Stream.of(Tables.ENTITY_COST_BY_HOUR, Tables.ENTITY_COST_BY_DAY,
+                Tables.ENTITY_COST_BY_MONTH).forEach(table -> dsl.insertInto(table)
+                .values(values)
+                .execute());
+
+        // ASSERT
+        final TriConsumer<String, Double, Map<Long, Collection<StatRecord>>> checkResult =
+                (String expectedUnits, Double expectedAmount, Map<Long, Collection<StatRecord>> entityCostStatRecords) -> {
+                    Assert.assertEquals(1, entityCostStatRecords.size());
+                    final Collection<StatRecord> statRecords =
+                            entityCostStatRecords.values().iterator().next();
+                    Assert.assertEquals(1, statRecords.size());
+                    final StatRecord statRecord = statRecords.iterator().next();
+                    Assert.assertEquals(expectedUnits, statRecord.getUnits());
+                    final StatValue v = statRecord.getValues();
+                    Assert.assertEquals(expectedAmount, v.getMax(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getMin(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getTotal(), DELTA);
+                    Assert.assertEquals(expectedAmount, v.getAvg(), DELTA);
+                };
+
+        final Object[][] testCases = {
+                {TimeFrame.LATEST, 100D, true},
+                {TimeFrame.HOUR, 100D, true},
+                {TimeFrame.DAY, 2400D, true},
+                {TimeFrame.MONTH, 73000D, true},
+                {TimeFrame.YEAR, 876000D, true},
+                {TimeFrame.LATEST, 100D, false},
+                {TimeFrame.HOUR, 100D, false},
+                {TimeFrame.DAY, 100D, false},
+                {TimeFrame.MONTH, 100D, false},
+                {TimeFrame.YEAR, 100D, false}
+        };
+
+        for (final Object[] data : testCases) {
+            final TimeFrame timeFrame = (TimeFrame)data[0];
+            final double amount = (double)data[1];
+            final boolean totalValuesRequested = (boolean)data[2];
+
+            final String units =
+                    totalValuesRequested ? timeFrame.getUnits() : TimeFrame.HOUR.getUnits();
+
+            // ACT
+            checkResult.accept(units, amount,
+                    store.getEntityCostStats(EntityCostFilterBuilder.newBuilder(timeFrame,
+                            RT_TOPO_CONTEXT_ID)
+                            .entityIds(Collections.singleton(ID1))
+                            .requestedGroupByEnums(Collections.singletonList(GroupBy.COST_CATEGORY))
+                            .totalValuesRequested(totalValuesRequested)
+                            .build()));
+
+            // ACT. Group by branch.
+            checkResult.accept(units, amount,
+                    store.getEntityCostStats(EntityCostFilterBuilder.newBuilder(timeFrame,
+                            RT_TOPO_CONTEXT_ID)
+                            .entityIds(Collections.singleton(ID1))
+                            .groupByFields(Collections.singleton(
+                                    ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()))
+                            .requestedGroupByEnums(Collections.singletonList(GroupBy.ENTITY_TYPE))
+                            .totalValuesRequested(totalValuesRequested)
+                            .build()));
+        }
+
+        // CLEANUP
+        Stream.of(Tables.ENTITY_COST, Tables.ENTITY_COST_BY_HOUR, Tables.ENTITY_COST_BY_DAY,
+                Tables.ENTITY_COST_BY_MONTH).forEach(table -> dsl.deleteFrom(table).execute());
+    }
+
+    /**
+     * Test the case when we retrieve entity cost stats with a group by.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetLatestCostStatsWithGroupBy() throws Exception {
+        // ARRANGE
+        final EntityCostFilter entityCostFilter =
+                EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST, RT_TOPO_CONTEXT_ID)
+                        .entityIds(Collections.singleton(ID1))
+                        .requestedGroupByEnums(Collections.singletonList(GroupBy.COST_CATEGORY))
+                        .build();
+
+        // insert
+        saveCosts();
+
+        // ACT
+        final Map<Long, Collection<StatRecord>> results = store.getEntityCostStats(entityCostFilter);
+
+        //ASSERT
+        MatcherAssert.assertThat(results.size(), CoreMatchers.is(1));
+        final Collection<StatRecord> statRecords = results.values().iterator().next();
+        MatcherAssert.assertThat(statRecords.size(), CoreMatchers.is(3));
+        entityCost.getComponentCostList().stream()
+                .forEach(componentCost -> statRecords.stream()
+                    .filter(statRecord -> statRecord.getCategory() == componentCost.getCategory()
+                            && statRecord.getCostSource() == componentCost.getCostSource())
+                    .forEach(statRecord ->
+                            Assert.assertEquals(statRecord.getValues().getTotal(),
+                                    componentCost.getAmount().getAmount(), 0.001)));
+
+        store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
+    private CostJournal<TopologyEntityDTO> mockCostJournalWithCostSources(
+            final long entityId, final int entityType,
+            final Map<CostCategory, Map<CostSource, Double>> costsByCategoryAndSource) {
+
         final TopologyEntityDTO entity =
                 TopologyEntityDTO.newBuilder().setOid(entityId).setEntityType(entityType).build();
         final CostJournal<TopologyEntityDTO> journal = Mockito.mock(CostJournal.class);
         Mockito.when(journal.getEntity()).thenReturn(entity);
-        Mockito.when(journal.getCategories()).thenReturn(costsByCategory.keySet());
-        for (final CostCategory category : CostCategory.values()) {
-            Mockito.when(
-                    journal.getHourlyCostBySourceAndCategory(category, CostSource.ON_DEMAND_RATE))
-                    .thenReturn(Trax.trax(costsByCategory.getOrDefault(category, 0.0)));
-            Mockito.when(journal.getHourlyCostForCategory(category))
-                    .thenReturn(Trax.trax(costsByCategory.getOrDefault(category, 0.0)));
+        Mockito.when(journal.getCategories()).thenReturn(costsByCategoryAndSource.keySet());
+
+        for (final Map.Entry<CostCategory, Map<CostSource, Double>> entry : costsByCategoryAndSource.entrySet()) {
+            CostCategory category = entry.getKey();
+            Map<CostSource, Double> costsBySource = entry.getValue();
+            Map<CostSource, TraxNumber> costTraxBySource = costsBySource.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> trax(e.getValue())));
+
+            Mockito.when(journal.getFilteredCategoryCostsBySource(category, CostJournal.CostSourceFilter.EXCLUDE_UPTIME))
+                    .thenReturn(costTraxBySource.entrySet().stream()
+                            .filter(e -> e.getKey() != CostSource.ENTITY_UPTIME_DISCOUNT)
+                            .collect(ImmutableMap.toImmutableMap(
+                                    Map.Entry::getKey,
+                                    Map.Entry::getValue)));
+            Mockito.when(journal.getFilteredCategoryCostsBySource(category, CostSourceFilter.INCLUDE_ALL))
+                    .thenReturn(costTraxBySource);
+
         }
         return journal;
     }
 
+
     private CostJournal<TopologyEntityDTO> mockCostJournal(final EntityCost entityCost) {
-        return mockCostJournal(entityCost.getAssociatedEntityId(),
-                entityCost.getAssociatedEntityType(), entityCost.getComponentCostList()
-                        .stream()
-                        .collect(Collectors.toMap(ComponentCost::getCategory,
-                                c -> c.getAmount().getAmount())));
+        Map<CostCategory, Map<CostSource, Double>> costCategorySourceMap = entityCost.getComponentCostList()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        ComponentCost::getCategory,
+                        Collectors.groupingBy(
+                                c -> c.getCostSourceLink().getCostSource(),
+                                Collectors.summingDouble(c -> c.getAmount().getAmount())
+                        )));
+        CostJournal journal = mockCostJournalWithCostSources(entityCost.getAssociatedEntityId(),
+                entityCost.getAssociatedEntityType(),
+                costCategorySourceMap);
+        Mockito.when(journal.toEntityCostProto()).thenReturn(entityCost);
+        return journal;
     }
 
     private void validateResults(final Map<Long, Map<Long, EntityCost>> map,
@@ -611,8 +889,7 @@ public class SqlEntityCostStoreTest {
         // ensure we have the right entity costs.
         Assert.assertTrue(map.values()
                 .stream()
-                .allMatch(entityCosts -> isSameEntityCosts(entityCosts.get(ID1), entityCost) &&
-                        isSameEntityCosts(entityCosts.get(ID2), entityCost1)));
+                .allMatch(entityCosts -> entityCosts.containsKey(ID1) && entityCosts.containsKey(ID2)));
 
         // ensure in the same timestamp, every entity cost have expected component costs
         Assert.assertTrue(map.values()
@@ -627,15 +904,17 @@ public class SqlEntityCostStoreTest {
                 .stream()
                 .allMatch(entityCosts -> entityCosts.values()
                         .stream()
-                        .allMatch(entityCost ->
-                                entityCost.getComponentCostList().contains(componentCost) &&
-                                        entityCost.getComponentCostList()
-                                                .contains(componentCost1))));
+                        .allMatch(cost -> validateComponentCost(cost,
+                                ImmutableList.of(componentCost, componentCost1)))));
     }
 
-    private boolean isSameEntityCosts(final EntityCost entityCost, final EntityCost entityCost1) {
-        return entityCost.getAssociatedEntityId() == entityCost1.getAssociatedEntityId() &&
-                entityCost.getComponentCostCount() == entityCost1.getComponentCostCount();
+    private boolean validateComponentCost(final EntityCost entityCost,
+                                          final List<ComponentCost> componentCosts) {
+        // Set source link since DB
+        List<ComponentCost> costs = entityCost.getComponentCostList().stream().map(c ->
+                c.toBuilder().setCostSourceLink(CostSourceLinkDTO.newBuilder()
+                        .setCostSource(c.getCostSource())).build()).collect(Collectors.toList());
+        return costs.contains(componentCost) && costs.contains(componentCost1);
     }
 
     private void saveCosts() throws DbException, InvalidEntityCostsException {

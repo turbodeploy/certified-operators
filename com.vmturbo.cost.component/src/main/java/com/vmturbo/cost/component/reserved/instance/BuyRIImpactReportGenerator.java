@@ -43,7 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
+import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -68,7 +68,7 @@ public class BuyRIImpactReportGenerator {
 
     private final ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore;
 
-    private final ProjectedEntityCostStore projectedEntityCostStore;
+    private final InMemoryEntityCostStore projectedEntityCostStore;
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
@@ -78,7 +78,7 @@ public class BuyRIImpactReportGenerator {
                              @Nonnull BuyReservedInstanceStore buyReservedInstanceStore,
                              @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
                              @Nonnull ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore,
-                             @Nonnull ProjectedEntityCostStore projectedEntityCostStore,
+                             @Nonnull InMemoryEntityCostStore projectedEntityCostStore,
                              @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                              long realtimeTopologyContextId) {
 
@@ -237,7 +237,7 @@ public class BuyRIImpactReportGenerator {
     private Map<Long, EntityCost> getEntityCosts(long topologyContextId,
                                                  Set<Long> entityOids) {
         if (topologyContextId == realtimeTopologyContextId) {
-            return projectedEntityCostStore.getProjectedEntityCosts(entityOids);
+            return projectedEntityCostStore.getEntityCosts(entityOids);
         } else {
             // PlanProjectedEntityCostStore does not currently supply a getter for entity costs
             throw new UnsupportedOperationException("Unable to query EntityCosts for plans");

@@ -17,6 +17,7 @@ import io.opentracing.Tracer;
 import io.opentracing.Tracer.SpanBuilder;
 import io.opentracing.contrib.concurrent.TracedExecutorService;
 import io.opentracing.contrib.grpc.OpenTracingContextKey;
+import io.opentracing.noop.NoopTracerFactory;
 import io.opentracing.util.GlobalTracer;
 
 /**
@@ -37,6 +38,11 @@ public class Tracing {
      * traces for kafka interactions.
      */
     public static final String DISABLE_KAFKA_TRACES_BAGGAGE_KEY = "disable_kafka";
+
+    /**
+     * A special tracer for creating noop-traces
+     */
+    private static final Tracer NOOP_TRACER = NoopTracerFactory.create();
 
     /**
      * Get the {@link Tracer} to use for all tracing operations.
@@ -251,6 +257,21 @@ public class Tracing {
             tracer().buildSpan(nameSupplier.get())
                 .asChildOf(span)
                 .start())));
+    }
+
+    /**
+     * Create a new trace that does nothing, regardless of whether there is an ongoing trace or not.
+     * Useful for situations where you may want a tracing scope or context that does not actually trace
+     * (ie for kafka traces when kafka tracing is disabled).
+     *
+     * @param name The name of the no-op span to create.
+     * @return A {@link TracingScope} for a span that does not actually trace.
+     */
+    @Nonnull
+    public static TracingScope noop(@Nonnull final String name) {
+        final SpanBuilder spanBuilder = NOOP_TRACER.buildSpan(name);
+        final Span span = spanBuilder.start();
+        return new TracingScope(span);
     }
 
     /**

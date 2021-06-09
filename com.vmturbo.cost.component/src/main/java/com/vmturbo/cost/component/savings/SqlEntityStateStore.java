@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_STATE;
 
 import java.io.IOException;
@@ -7,6 +8,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +18,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -129,17 +132,8 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
                                    @Nonnull final TopologyEntityCloudTopology cloudTopology)
             throws EntitySavingsException {
-        List<EntitySavingsStateRecord> records = new ArrayList<>();
-        entityStateMap.values().forEach(entityState -> {
-            EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
-            record.setEntityOid(entityState.getEntityId());
-            record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
-            record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
-                    .getNextExpirationTime())).toLocalDateTime());
-            record.setEntityState(entityState.toJson());
-            records.add(record);
-        });
-
+        // State records requires the corresponding scope record is already present in the scope table.
+        // Only create state records that have a scope record.
         List<EntityCloudScopeRecord> scopeRecords = entityStateMap.keySet().stream()
                 .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology))
                 .filter(Objects::nonNull)
@@ -149,6 +143,29 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         } catch (IOException e) {
             throw new EntitySavingsException("Error occurred when writing to entity_cloud_scope table.", e);
         }
+
+        scopeRecords.addAll(getScopeRecordsForDeletedEntities(scopeRecords, entityStateMap));
+
+        Set<Long> scopeRecordEntityIds = scopeRecords.stream()
+                .map(EntityCloudScopeRecord::getEntityOid)
+                .collect(Collectors.toSet());
+
+        List<EntitySavingsStateRecord> records = new ArrayList<>();
+        entityStateMap.values().forEach(entityState -> {
+            if (scopeRecordEntityIds.contains(entityState.getEntityId())) {
+                EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
+                record.setEntityOid(entityState.getEntityId());
+                record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
+                record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
+                        .getNextExpirationTime())).toLocalDateTime());
+                record.setEntityState(entityState.toJson());
+                records.add(record);
+            } else {
+                logger.warn("Entity state cannot be created for entity {} because its corresponding "
+                        + "record does not exist in the entity_cloud_scope table. ",
+                        entityState.getEntityId());
+            }
+        });
 
         try {
             dsl.loadInto(ENTITY_SAVINGS_STATE)
@@ -165,6 +182,35 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         }
     }
 
+    /**
+     * If an entity is deleted, it won't be present in the cloud topology. The method
+     * createCloudScopeRecord will not return an EntityCloudScopeRecord object for that entity.
+     * This method will find entity OIDs that has a state but is not present in the scopeRecords
+     * list returned from createCloudScopeRecord. It then makes a query from the scope table for the
+     * scope record directly using the entity OIDs.
+     *
+     * @param scopeRecords list of scope records returned from createCloudScopeRecord
+     * @param entityStateMap entity state map
+     * @return list of EntityCloudScopeRecord for deleted entities
+     */
+    private List<EntityCloudScopeRecord> getScopeRecordsForDeletedEntities(
+            @Nonnull List<EntityCloudScopeRecord> scopeRecords,
+            @Nonnull final Map<Long, EntityState> entityStateMap) {
+        Set<Long> scopeRecordEntityIds = scopeRecords.stream()
+                .map(EntityCloudScopeRecord::getEntityOid)
+                .collect(Collectors.toSet());
+        // Find entity OIDs that have a state but is not in the scopeRecords list.
+        Set<Long> stateEntityOids = new HashSet<>(entityStateMap.keySet());
+        stateEntityOids.removeAll(scopeRecordEntityIds);
+
+        if (!stateEntityOids.isEmpty()) {
+            return dsl.selectFrom(ENTITY_CLOUD_SCOPE)
+                    .where(ENTITY_CLOUD_SCOPE.ENTITY_OID.in(stateEntityOids))
+                    .fetch();
+        }
+        return new ArrayList<>();
+    }
+
     @Override
     public Stream<EntityState> getAllEntityStates() {
         // Use jooq lazy fetch to avoid load the whole table into memory.
@@ -176,6 +222,7 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
                 .map(record -> EntityState.fromJson(record.getEntityState()));
     }
 
+    @Nullable
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid, TopologyEntityCloudTopology cloudTopology) {
 
         final Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
@@ -196,13 +243,17 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
         final Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
 
+        // Get the billing family OID.
+        Optional<GroupAndMembers> billingFamily = cloudTopology.getBillingFamilyForEntity(entityOid);
+        final Optional<Long> billingFamilyOid = billingFamily.map(groupAndMembers -> groupAndMembers.group().getId());
+
         // Get the resource group OID.
         Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
         final Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
 
         if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {
             return createCloudScopeRecord(entityOid, entityType, accountOid, regionOid,
-                    availabilityZoneOid, serviceProviderOid, resourceGroupOid, LocalDateTime.now());
+                    availabilityZoneOid, serviceProviderOid, billingFamilyOid, resourceGroupOid, LocalDateTime.now());
         }
 
         logger.error("Cannot create entity cloud scope record because required information is missing."

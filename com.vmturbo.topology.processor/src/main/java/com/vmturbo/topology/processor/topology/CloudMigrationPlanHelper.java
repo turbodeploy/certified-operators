@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.isConfigurationVolume;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
@@ -11,6 +12,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STO
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
@@ -18,6 +20,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -120,10 +123,11 @@ public class CloudMigrationPlanHelper {
     final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub;
 
     /**
-     * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2 & managed_premium.
+     * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2/GP3 & managed_premium.
      */
     private static final Set<String> ALLOCATION_PLAN_KEEP_STORAGE_TIERS = ImmutableSet.of(
             StorageTier.GP2.getDisplayName(),
+            StorageTier.GP3.getDisplayName(),
             StorageTier.MANAGED_PREMIUM.getDisplayName()
     );
 
@@ -141,17 +145,8 @@ public class CloudMigrationPlanHelper {
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
     private static final String CSP_AZURE_DISPLAY_NAME = "Azure";
 
-    // Maximum amount of IOPS that GPS can support.
-    private static final int GP2_IOPS_AMOUNT_MAX_CAPACITY = 16000;
-
-    // Maximum amount of IOPS that Managed Premium supports.
-    private static final int MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
-
-    // Min storage capacity for AWS GP2 in GB
-    private static final int GP2_STORAGE_AMOUNT_MIN_CAPACITY = 1;
-
-    // Max storage capacity for AWS GP2 in GB.
-    private static final int GP2_STORAGE_AMOUNT_MAX_CAPACITY = 16384;
+    // Max storage capacity for AWS GP2 and GP3 in GB.
+    private static final int GP2_GP3_STORAGE_AMOUNT_MAX_CAPACITY = 16384;
 
     // Max storage capacity for Azure Managed Premium in GB.
     private static final int MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY = 32767;
@@ -233,8 +228,14 @@ public class CloudMigrationPlanHelper {
      */
     private static final Set<EntityType> NON_MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
             PHYSICAL_MACHINE,
-            STORAGE);
+            STORAGE, STORAGE_TIER, COMPUTE_TIER);
 
+    /**
+     * These entities should always be movable and scalable for MCP plan regardless of
+     * real time settings.
+     */
+    private static final Set<EntityType> MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
+            VIRTUAL_MACHINE, VIRTUAL_VOLUME);
     /**
      * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
      * value is initially set in the commodity of the VM. Keep the updated storage amount value
@@ -449,7 +450,10 @@ public class CloudMigrationPlanHelper {
                 // applying template exclusions, obtaining pricing, etc.
                 if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
                     // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
-                    entity.getOutboundAssociatedEntities().stream()
+                    // New on prem volume model is VM->VV, so VV comes as providers instead of
+                    // getOutboundAssociatedEntities.
+                    Stream.concat(entity.getProviders().stream(),
+                            entity.getOutboundAssociatedEntities().stream())
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
@@ -469,8 +473,8 @@ public class CloudMigrationPlanHelper {
 
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
-            prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
-                    isDestinationAws, true);
+            prepareBoughtCommodities(entity, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
+                    isDestinationAws, true, graph);
 
             // Add NEW bought commodities
             addNewBoughtCommodities(entity);
@@ -652,7 +656,8 @@ public class CloudMigrationPlanHelper {
      *
      * @param vm the {@link TopologyEntity} source entity being processed
      */
-    private void addCouponCommodity(final TopologyEntity vm) {
+    @VisibleForTesting
+    void addCouponCommodity(final TopologyEntity vm) {
         if (vm.getEntityType() != VIRTUAL_MACHINE_VALUE) {
             // Only updating coupon commodity for VMs
             return;
@@ -667,8 +672,8 @@ public class CloudMigrationPlanHelper {
             // first, verify that we're dealing with a compute provider, and that this VM isn't
             // already buying a coupon commodity from it
             if (EntityType.PHYSICAL_MACHINE_VALUE == commoditiesBoughtFromProvider.getProviderEntityType()
-                    && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
-                        .anyMatch(commodityBoughtDTO -> CommodityType.COUPON.equals(commodityBoughtDTO.getCommodityType()))) {
+                && !commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                        .anyMatch(commodityBoughtDTO -> CommodityType.COUPON_VALUE == commodityBoughtDTO.getCommodityType().getType())) {
                 //Add CouponCommodity
                 CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
                         CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
@@ -830,50 +835,26 @@ public class CloudMigrationPlanHelper {
         ALL_PROVIDER_TYPES
                 .stream()
                 .flatMap(graph::entitiesOfType)
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .forEach(providerDtoBuilder -> {
+                .forEach(entity -> {
+                    TopologyEntityDTO.Builder providerDtoBuilder = entity.getTopologyEntityDtoBuilder();
                     final EntityType providerType = EntityType.forNumber(
                             providerDtoBuilder.getEntityType());
 
                     // Set suspendable false, so we don't see suspend actions for these providers.
                     providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
-
+                    // Regardless of real time setting, override controllable true for VV ST Tier
+                    // and PM, controllable false for DC, LP and DA.
                     providerDtoBuilder.getAnalysisSettingsBuilder()
                             .setControllable(!NON_CONTROLLABLE_PROVIDER_TYPES.contains(providerType));
 
+
                     if (PROCESS_PROVIDER_TYPES.contains(providerType)) {
                         // Need to set movable/scalable true for provider commBought.
-                        prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
-                                sourceToProducerToMaxStorageAccess, isDestinationAws, false);
-                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap, topologyInfo, isDestinationAws);
+                        prepareBoughtCommodities(entity, topologyInfo,
+                                sourceToProducerToMaxStorageAccess, isDestinationAws, false, graph);
+                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
                     }
                 });
-    }
-
-    /**
-     * This is a workaround to get around the issue where some provider's commSold doesn't have
-     * proper capacities set, including some access commodities. This results in EntityValidator
-     * (later stage in pipeline) making the entity non-controllable, causing market to not have
-     * any actions for that entity.
-     * Sets the capacity to infinite if it is found to be 0.
-     *
-     * @param providerDtoBuilder Builder for provider whose commSold capacity is updated.
-     */
-    private void fixZeroCapacity(@Nonnull final TopologyEntityDTO.Builder providerDtoBuilder) {
-        switch (providerDtoBuilder.getEntityType()) {
-            case VIRTUAL_VOLUME_VALUE:
-            case STORAGE_VALUE:
-                providerDtoBuilder.getCommoditySoldListBuilderList()
-                        .forEach(commSoldBuilder -> {
-                            if (commSoldBuilder.getCapacity() == 0d) {
-                                logger.trace("Fixing capacity for provider {} (id: {}) sold: {}",
-                                        providerDtoBuilder.getDisplayName(),
-                                        providerDtoBuilder.getOid(),
-                                        commSoldBuilder);
-                                commSoldBuilder.setCapacity(1E9);
-                            }
-                        });
-        }
     }
 
     /**
@@ -883,19 +864,30 @@ public class CloudMigrationPlanHelper {
      *
      * @param dtoBuilder Provider DTO being updated.
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
-     * @param topologyInfo topology info
-     * @param isDestinationAws boolean to indicate if destination is AWS
      */
     void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
-                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap,
-                                @Nonnull final TopologyInfo topologyInfo,
-                                final boolean isDestinationAws) {
-        fixZeroCapacity(dtoBuilder);
+                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
         if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
             dtoBuilder.getCommoditySoldListBuilderList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                     .forEach(c -> updateStorageAccessSoldCommodity(c, dtoBuilder.getOid(),
                             providerToMaxStorageAccessMap));
+            dtoBuilder.getCommoditySoldListBuilderList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE)
+                    .forEach(c -> {
+                        // Set volume's storage amount used to be the adjusted value.
+                        // On prem volume will have the storage provisioned used as the adjusted value.
+                        // It will be visible to the user in the volume mapping widget under "current" column.
+                        Double adjustedStAmt = volumeToStorageAmountMap.get(dtoBuilder.getOid());
+                        if (adjustedStAmt != null) {
+                            c.setUsed(adjustedStAmt);
+                            c.setPeak(adjustedStAmt);
+                            c.setHistoricalUsed(HistoricalValues.newBuilder()
+                                    .setHistUtilization(adjustedStAmt).build());
+                            c.setHistoricalPeak(HistoricalValues.newBuilder()
+                                    .setHistUtilization(adjustedStAmt).build());
+                        }
+                    });
         }
     }
 
@@ -944,20 +936,23 @@ public class CloudMigrationPlanHelper {
      * Not doing such filtering for provider commodities causes reconfigure action instead of
      * expected move migration action for storage volumes.
      *
-     * @param dtoBuilder Source entity or provider DTO being updated.
+     * @param entity Source entity being updated.
      * @param topologyInfo Info about plan topology.
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
      * @param isDestinationAws boolean that indicates if destination is AWS
      * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
      *                   provider of the VM.
+     * @param graph the topology graph contains all TopologyEntityDTOs.
      */
     @VisibleForTesting
-    void prepareBoughtCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
+    void prepareBoughtCommodities(@Nonnull final TopologyEntity entity,
                                   @Nonnull final TopologyInfo topologyInfo,
                                   @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
                                   boolean isDestinationAws,
-                                  boolean isConsumer) {
+                                  boolean isConsumer,
+                                  TopologyGraph<TopologyEntity> graph) {
+        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
         EntityType entityType = EntityType.forNumber(dtoBuilder.getEntityType());
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
@@ -969,6 +964,10 @@ public class CloudMigrationPlanHelper {
                     commBoughtGrouping, topologyInfo, dtoBuilder, sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
+                continue;
+            }
+            if (shouldSkipCommboughtGrpForMigration(graph, entity, commBoughtGrouping)) {
+                // Under some conditions, the comm bought list needs to be skipped.
                 continue;
             }
             CommoditiesBoughtFromProvider.Builder newCommBoughtGrouping =
@@ -986,7 +985,10 @@ public class CloudMigrationPlanHelper {
                 newCommBoughtGrouping
                         .setMovable(false)
                         .setScalable(false);
-            } else if (!isMovable || !isScalable) {
+            } else if (!isMovable || !isScalable || MOVABLE_PROVIDER_TYPES.contains(entityType)) {
+                // A migration plane would always have VM and VV movable and scalable because the
+                // volume CommoditiesBoughtFromProvider, when it is present, it would become
+                // trader's shopping list.
                 newCommBoughtGrouping
                         .setMovable(true)
                         .setScalable(true);
@@ -995,6 +997,86 @@ public class CloudMigrationPlanHelper {
         }
         dtoBuilder.clearCommoditiesBoughtFromProviders();
         dtoBuilder.addAllCommoditiesBoughtFromProviders(newCommoditiesByProvider);
+    }
+
+    /**
+     * Check if the given commoditiesBoughtFromProvider's buyer should be skipped for migration.
+     * If the buyer is a configuration volume, or buys from a configuration volume, the
+     * commoditiesBoughtFromProvider should be skipped.
+     * If the provider of commoditiesBoughtFromProvider is a storage that does not have volumes or
+     * does not have volumes connected to the VM, the commoditiesBoughtFromProvider should also be
+     * skipped.
+     *
+     * @param graph the topology entity dto graph.
+     * @param entity the entity that has the commoditiesBoughtFromProvider
+     * @param commoditiesBoughtFromProvider a given commoditiesBoughtFromProvider to check.
+     * @return true if the commoditiesBoughtFromProvider is buying from a configuration volume or
+     * the buyer itself is a configuration volume.
+     */
+    private static boolean shouldSkipCommboughtGrpForMigration(TopologyGraph<TopologyEntity> graph,
+            TopologyEntity entity,
+            CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
+        final TopologyEntityDTO.Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
+        // Skip the commoditiesBoughtFromProvider if its provider is a configuration volume.
+        if (isConfigurationVolume(dtoBuilder)) {
+            return true;
+        }
+        // Skip the commoditiesBoughtFromProvider if the dto is a vm that buys from a configuration
+        // volume.
+        if (dtoBuilder.getEntityType() == VIRTUAL_MACHINE_VALUE && commoditiesBoughtFromProvider
+                .hasProviderId()) {
+            Optional<TopologyEntity> optionalEntity = graph.getEntity(commoditiesBoughtFromProvider
+                    .getProviderId());
+            if (optionalEntity.isPresent() && isConfigurationVolume(optionalEntity.get()
+                    .getTopologyEntityDtoBuilder())) {
+                return true;
+            }
+        }
+        // Skip the commoditiesBoughtFromProvider if it is buying from a storage (old model) that
+        // does not have a volume, or connected to volumes that don't belong to the VM.
+        if (isCommBoughtFromStorageWithNoVolume(entity, commoditiesBoughtFromProvider)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if the commBoughtGrouping is buying from a storage that does not have a volume, or
+     * does not connected to volumes of the VM.
+     *
+     * @param entity entity that owns the commBoughtGrouping
+     * @param commBoughtGrouping a commBoughtGrouping
+     * @return true if the commBoughtGrouping is buying from a storage that does not have a volume,
+     * or does not connected to volumes of the VM; false otherwise.
+     */
+    private static boolean isCommBoughtFromStorageWithNoVolume(@Nonnull final TopologyEntity entity,
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping) {
+        if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE
+                && commBoughtGrouping.hasProviderEntityType()
+                && commBoughtGrouping.getProviderEntityType() == STORAGE_VALUE) {
+            final long storageId = commBoughtGrouping.getProviderId();
+
+            // IDs of volumes attached to the VM
+            Set<Long> volumesOfVm = entity.getOutboundAssociatedEntities().stream()
+                    .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
+                    .map(TopologyEntity::getOid)
+                    .collect(Collectors.toSet());
+
+            // IDs of volumes on the storage provider of the commBoughtGrouping
+            Set<Long> volumesOfStorage = entity.getProviders().stream()
+                    .filter(p -> p.getOid() == storageId)
+                    .findFirst()
+                    .map(TopologyEntity::getInboundAssociatedEntities)
+                    .map(entities -> entities.stream()
+                            .map(TopologyEntity::getOid)
+                            .collect(Collectors.toSet()))
+                    .orElse(new HashSet<>());
+
+            // If the two sets don't intersect, the VM does not have a volume on this storage.
+            volumesOfVm.retainAll(volumesOfStorage);
+            return volumesOfVm.isEmpty();
+        }
+        return false;
     }
 
     /**
@@ -1074,7 +1156,8 @@ public class CloudMigrationPlanHelper {
                             .setPeak(storageAmountInMB)
                             .build();
                     commoditiesToInclude.add(storageAmountCommodity);
-                    volumeToStorageAmountMap.put(commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
+                    volumeToStorageAmountMap.put(dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+                            ? entityOid : commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
                 } else {
                     if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)
                             && dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
@@ -1149,13 +1232,13 @@ public class CloudMigrationPlanHelper {
         float diskSizeInMB = getStorageProvisionedAmount(commBoughtGroupingForSL);
 
         // Cap storage amount to the maximum supported storage amount value to guarantee a placement.
-        // For AWS, also make sure storage amount is not less than the minimum amount for GP2.
+        // For AWS, also make sure storage amount is not less than the minimum amount for GP2/GP3.
         // For Azure, there is no need to adjust the minimum amount because we recommend the upper
         // bound of a range in the dependency list which is always larger than the original value
         // and non-zero.
         if (isDestinationAws) {
-            if (diskSizeInMB > GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
-                diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+            if (diskSizeInMB > GP2_GP3_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+                diskSizeInMB = (float)(GP2_GP3_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
             }
         } else if (diskSizeInMB > MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
             diskSizeInMB = (float)(MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
@@ -1195,12 +1278,12 @@ public class CloudMigrationPlanHelper {
     /**
      * Whether to include the cloud storage tier in the destination set of placement policy.
      * Certain storage tiers need to be skipped from cloud migration plans.
-     * For Lift_n_Shift: Skip all except GP2 and ManagedPremium.
+     * For Lift_n_Shift: Skip all except GP2/GP3 and ManagedPremium.
      * For Optimized: Skip HDD and SSD.
      *
      * @param cloudStorageTier Cloud storage tier entity.
      * @param topologyInfo TopologyInfo having info about plan sub type.
-     * @return True if this storage tier needs to be included, e.g GP2 for Allocation plan.
+     * @return True if this storage tier needs to be included, e.g GP2/GP3 for Allocation plan.
      */
     private boolean includeCloudStorageTier(@Nonnull final TopologyEntity cloudStorageTier,
                                                   @Nonnull final TopologyInfo topologyInfo) {
@@ -1433,7 +1516,7 @@ public class CloudMigrationPlanHelper {
 
     /**
      * Gets a set of applicable cloud storage tiers, taking into account the tiers that are
-     * restricted based on the plan type. E.g for Lift_n_Shift, we only allow GP2 or ManagedPremium.
+     * restricted based on the plan type. E.g for Lift_n_Shift, we only allow GP2/GP3 or ManagedPremium.
      * Also, we need to get tiers that are not in the same CSP as the CSP of the current storage
      * tier, so that we can get a migration done to new CSP storage tiers.
      *
@@ -1451,7 +1534,7 @@ public class CloudMigrationPlanHelper {
         return graph.entitiesOfType(STORAGE_TIER)
                 .filter(storageTier -> {
                     // If this is an already known tier that we want to skip (e.g for Lift_n_Shift
-                    // plan, we only want GP2 and Managed_Premium), then apply that filter.
+                    // plan, we only want GP2/GP3 and Managed_Premium), then apply that filter.
                     if (!includeCloudStorageTier(storageTier, topologyInfo)) {
                         return false;
                     }

@@ -2,15 +2,15 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -22,6 +22,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,11 +30,13 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter.EntityToGroupType;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.MultiTraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -52,6 +55,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -128,12 +132,7 @@ public class EntityFilterMapper {
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
 
-    /**
-     * We prepend  and append \Q and \E to string when we want to
-     * match something literally in regex if we have string with only those that is an empty
-     * string as well.
-     */
-    public static final String EMPTY_QUERY_STRING = "\\Q\\E";
+    public static final String ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE = "businessAccountCloudProvider";
 
     private static final String MEMBER_OF = "MemberOf";
 
@@ -162,8 +161,10 @@ public class EntityFilterMapper {
                     .put(LESS_THAN_OR_EQUAL, ComparisonOperator.LTE)
                     .build();
 
-    private static final Map<String, Function<SearchFilterContext, List<SearchFilter>>>
+    private static final Map<String, ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>>
                 FILTER_TYPES_TO_PROCESSORS = initFilterTypesToProcessor();
+    private static final MultiRelationsFilterProcessor MULTI_RELATIONS_FILTER_PROCESSOR =
+                    new MultiRelationsFilterProcessor();
 
     private final ThinTargetCache thinTargetCache;
 
@@ -179,11 +180,12 @@ public class EntityFilterMapper {
         this.thinTargetCache = thinTargetCache;
     }
 
-    private static Map<String, Function<SearchFilterContext, List<SearchFilter>>>
+    private static Map<String, ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>>
                     initFilterTypesToProcessor() {
-        final TraversalFilterProcessor traversalFilterProcessor = new TraversalFilterProcessor();
-        final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
-                filterTypesToProcessors = new ImmutableMap.Builder<>();
+        final ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>
+                        traversalFilterProcessor = new TraversalFilterProcessor();
+        final ImmutableMap.Builder<String, ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>>
+                        filterTypesToProcessors = new ImmutableMap.Builder<>();
         filterTypesToProcessors.put(StringConstants.TAGS_ATTR, EntityFilterMapper::getTagProcessor);
         filterTypesToProcessors.put(StringConstants.CLUSTER, EntityFilterMapper::getGroupFilterProcessor);
         filterTypesToProcessors.put(MEMBER_OF, EntityFilterMapper::getGroupFilterProcessor);
@@ -201,10 +203,6 @@ public class EntityFilterMapper {
         return filterTypesToProcessors.build();
     }
 
-    private static StoppingCondition.Builder buildStoppingCondition(List<String> currentToken) {
-        return StoppingCondition.newBuilder().setStoppingPropertyFilter(
-                        SearchProtoUtil.entityTypeFilter(currentToken));
-    }
 
     private static Map<String, ComparisonOperator> initComparisonSymbolToOperatorMap() {
         Map<String, ComparisonOperator> symbolToOperator = new LinkedHashMap<>();
@@ -360,8 +358,9 @@ public class EntityFilterMapper {
      * @param entityTypes the name of entity types, such as VirtualMachine
      * @return list of search parameters to use for querying the repository
      */
-    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
-                                                            @Nonnull List<String> entityTypes) {
+    public Collection<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+                                                            @Nonnull List<String> entityTypes)
+                    throws OperationFailedException {
         return convertToSearchParameters(criteriaList, entityTypes, null);
     }
 
@@ -371,26 +370,27 @@ public class EntityFilterMapper {
      * For search service request, UI use class name field store entityType, but for creating
      * group request, UI use groupType field store entityType.
      *
-     * @param criteriaList list of {@link FilterApiDTO}  received from the UI
+     * @param filters list of {@link FilterApiDTO}  received from the UI
      * @param entityTypes the name of entity types, such as VirtualMachine
      * @param nameQuery user specified search query for entity name. If it is not null, it will be
      *                  converted to a entity name filter. It is either a regex or a quoted exact match.
      *                  Also it can be a regex such as to correspond to CONTAINS pattern matching.
      * @return list of search parameters to use for querying the repository
      */
-    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+    public Collection<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> filters,
                                                             @Nonnull List<String> entityTypes,
-                                                            @Nullable String nameQuery) {
-        Optional<List<FilterApiDTO>> filterApiDTOList =
-                (criteriaList != null && !criteriaList.isEmpty())
-                        ? Optional.of(criteriaList)
-                        : Optional.empty();
-        return filterApiDTOList
-                .map(filterApiDTOs -> filterApiDTOs.stream()
-                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityTypes,
-                            nameQuery))
-                        .collect(Collectors.toList()))
-                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityTypes, nameQuery)));
+                                                            @Nullable String nameQuery)
+                    throws OperationFailedException {
+        if (filters == null || filters.isEmpty()) {
+            return Collections.singletonList(searchParametersForEmptyCriteria(entityTypes,
+                            nameQuery));
+        }
+        final Collection<SearchParameters> result = new ArrayList<>(filters.size());
+        for (FilterApiDTO filter : filters) {
+            result.add(filter2parameters(filter, entityTypes,
+                            nameQuery));
+        }
+        return result;
     }
 
     /**
@@ -403,8 +403,9 @@ public class EntityFilterMapper {
      * @param entityType the name of entity type, such as VirtualMachine
      * @return list of search parameters to use for querying the repository
      */
-    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
-                                                            @Nonnull String entityType) {
+    public Collection<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+                                                            @Nonnull String entityType)
+                    throws OperationFailedException {
         return convertToSearchParameters(criteriaList, Collections.singletonList(entityType));
     }
 
@@ -418,9 +419,10 @@ public class EntityFilterMapper {
      * @param entityType the name of entity type, such as VirtualMachine
      * @return list of search parameters to use for querying the repository
      */
-    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+    public Collection<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
                                                             @Nonnull String entityType,
-                                                            @Nullable String nameQuery) {
+                                                            @Nullable String nameQuery)
+                    throws OperationFailedException {
         return convertToSearchParameters(criteriaList, Collections.singletonList(entityType), nameQuery);
     }
 
@@ -563,7 +565,8 @@ public class EntityFilterMapper {
     public static List<String> splitWithEscapes(@Nonnull String string, char breakingChar) {
         // create a regex that describes the breaking character
         // even if that character is a Java regex metacharacter
-        final String breakingCharacterPattern = Pattern.quote(Character.toString(breakingChar));
+        final String breakingCharacterPattern = SearchProtoUtil
+                        .escapeSpecialCharactersInLiteral(Character.toString(breakingChar));
 
         // create a pattern that describes the pieces of the string
         // when broken at the unescaped breaking character
@@ -594,7 +597,7 @@ public class EntityFilterMapper {
         PropertyFilter byType = SearchProtoUtil.entityTypeFilter(entityType);
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder()
                         .setStartingFilter(byType);
-        if (!StringUtils.isEmpty(nameQuery) && !EMPTY_QUERY_STRING.equals(nameQuery)) {
+        if (!StringUtils.isEmpty(nameQuery)) {
             searchParameters.addSearchFilter(SearchProtoUtil.searchFilterProperty(
                             SearchProtoUtil.nameFilterRegex(nameQuery )));
         }
@@ -625,7 +628,8 @@ public class EntityFilterMapper {
      */
     private SearchParameters filter2parameters(@Nonnull FilterApiDTO filter,
                                                @Nonnull List<String> entityTypes,
-                                               @Nullable String nameQuery) {
+                                               @Nullable String nameQuery)
+                    throws OperationFailedException {
         GroupUseCaseCriteria useCase = groupUseCaseParser.getUseCasesByFilterType()
                         .get(filter.getFilterType());
 
@@ -706,27 +710,30 @@ public class EntityFilterMapper {
                                             @Nonnull List<String> entityType,
                                             @Nonnull Iterator<String> iterator,
                                             @Nonnull String inputType,
-                                            @Nonnull String firstToken) {
+                                            @Nonnull String firstToken)
+                    throws OperationFailedException {
         final String currentToken = iterator.next();
 
         final String operator = filter.getExpType();
         final SearchFilterContext filterContext =
                 new SearchFilterContext(filter, iterator, entityType, currentToken, firstToken,
                         !isRegexOperator(operator));
-        final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
-                        FILTER_TYPES_TO_PROCESSORS.get(currentToken);
+        final ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException>
+                        filterApiDtoProcessor = FILTER_TYPES_TO_PROCESSORS.get(currentToken);
 
         if (filterApiDtoProcessor != null) {
             return filterApiDtoProcessor.apply(filterContext);
         } else if (currentToken.equals(USER_DEFINED_ENTITY)) {
             return getUserDefinedEntityProcessor(filterContext);
         } else if (ApiEntityType.fromString(currentToken) != ApiEntityType.UNKNOWN) {
-            return ImmutableList.of(SearchProtoUtil.searchFilterProperty(
-                    SearchProtoUtil.entityTypeFilter(currentToken)));
+            return ImmutableList.of(SearchProtoUtil
+                            .searchFilterProperty(SearchProtoUtil.entityTypeFilter(currentToken)));
+        } else if (MULTI_RELATIONS_FILTER_PROCESSOR.test(filterContext)) {
+            return MULTI_RELATIONS_FILTER_PROCESSOR.apply(filterContext);
         } else {
             final PropertyFilter propertyFilter = isListToken(currentToken) ?
-                    createPropertyFilterForListToken(currentToken, inputType, filter) :
-                    createPropertyFilterForNormalToken(currentToken, inputType, filter);
+                            createPropertyFilterForListToken(currentToken, inputType, filter) :
+                            createPropertyFilterForNormalToken(currentToken, inputType, filter);
             return ImmutableList.of(SearchProtoUtil.searchFilterProperty(propertyFilter));
         }
     }
@@ -789,7 +796,7 @@ public class EntityFilterMapper {
                 case "#":
                     // numeric comparison
                     listFilter.setNumericFilter(SearchProtoUtil.numericFilter(
-                        Long.valueOf(filter.getExpVal()),
+                        Long.parseLong(filter.getExpVal()),
                             COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType())));
                     break;
                 default:
@@ -832,7 +839,7 @@ public class EntityFilterMapper {
                             .setPropertyName(key)
                             .setNumericFilter(NumericFilter.newBuilder()
                                     .setComparisonOperator(co)
-                                    .setValue(Integer.valueOf(value))
+                                    .setValue(Integer.parseInt(value))
                                     .build())
                             .build());
                 } else if (criteria.contains("=")) {
@@ -916,7 +923,7 @@ public class EntityFilterMapper {
             case "#":
                 // numeric comparison
                 currentFieldPropertyFilter = SearchProtoUtil.numericPropertyFilter(lastField,
-                        Long.valueOf(filter.getExpVal()),
+                        Long.parseLong(filter.getExpVal()),
                         COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType()));
                 break;
             default:
@@ -1006,16 +1013,63 @@ public class EntityFilterMapper {
     }
 
     /**
-     * Processor for filter which has PRODUCES type of token.
+     * {@link RelationsFilterProcessor} parent for filters which have to go through topology graph
+     * and find the related entities.
      */
-    @Immutable
-    private static class TraversalFilterProcessor implements Function<SearchFilterContext, List<SearchFilter>> {
+    private abstract static class RelationsFilterProcessor implements
+                    ThrowingFunction<SearchFilterContext, List<SearchFilter>, OperationFailedException> {
 
         @Override
-        public List<SearchFilter> apply(SearchFilterContext context) {
+        public List<SearchFilter> apply(SearchFilterContext context)
+                        throws OperationFailedException {
             // add a traversal filter
-            TraversalDirection direction = TraversalDirection.valueOf(context.getCurrentToken());
-            final StoppingCondition.Builder stopperBuilder;
+            final Collection<TraversalDirection> directions = getDirections(context);
+            final StoppingCondition.Builder stopperBuilder = createStoppingCondition(context);
+            final SearchFilter traversalFilters =
+                            createTraversalFilter(directions, stopperBuilder);
+            final ImmutableList.Builder<SearchFilter> searchFilters = ImmutableList.builder();
+            searchFilters.add(traversalFilters);
+            // add a final entity type filter if the last filter is a hop-count based traverse
+            // and it's not a filter based on number of connected vertices
+            // for example: get all PMs which hosted more than 2 VMs, we've already get all PMs
+            // if it's a filter by number of connected vertices, we don't need to filter on PM type again
+            if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
+                searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil
+                                .entityTypeFilter(context.getEntityTypes())));
+            }
+            return searchFilters.build();
+        }
+
+        /**
+         * Creates {@link SearchFilter} which contains traversal limitations.
+         *
+         * @param directions collection of traversal directions that we should pass
+         *                 while walking topology graph.
+         * @param stopperBuilder builder which contains stopping condition for
+         *                 walking over topology graph.
+         * @return instance of {@link SearchFilter} which contains traversal limitations.
+         */
+        @Nonnull
+        protected abstract SearchFilter createTraversalFilter(
+                        @Nonnull Collection<TraversalDirection> directions,
+                        @Nonnull StoppingCondition.Builder stopperBuilder);
+
+        /**
+         * Transform tokens from the filter definition into {@link Collection} of {@link
+         * TraversalDirection} that we have visit while we are walking over topology graph.
+         *
+         * @param context contains information about search filter instance which is
+         *                 currently processing.
+         * @return collection of {@link TraversalDirection}s that we will visit during
+         *                 walking over topology graph.
+         */
+        @Nonnull
+        protected abstract Collection<TraversalDirection> getDirections(
+                        @Nonnull SearchFilterContext context);
+
+        private static StoppingCondition.Builder createStoppingCondition(SearchFilterContext context)
+                        throws OperationFailedException {
+            final StoppingCondition.Builder result;
             final Iterator<String> iterator = context.getIterator();
             final List<String> entityTypes = context.getEntityTypes();
             if (iterator.hasNext()) {
@@ -1024,44 +1078,35 @@ public class EntityFilterMapper {
                 // entity type. And note that hops number can not contains '+' or '-'.
                 if (StringUtils.isNumeric(currentToken)) {
                     // For example: Produces:1:VirtualMachine
-                    final int hops = Integer.valueOf(currentToken);
+                    final int hops = Integer.parseInt(currentToken);
                     if (hops <= 0) {
-                        throw new IllegalArgumentException("Illegal hops number " + hops
-                                        + "; should be positive.");
+                        throw new OperationFailedException(
+                                        String.format("Illegal hops number %s; should be positive.",
+                                                        hops));
                     }
-                    stopperBuilder = StoppingCondition.newBuilder().setNumberHops(hops);
+                    result = StoppingCondition.newBuilder().setNumberHops(hops);
                     // set condition for number of connected vertices if required
                     if (context.shouldFilterByNumConnectedVertices()) {
-                        setVerticesCondition(stopperBuilder, iterator.next(), context);
+                        setVerticesCondition(result, iterator.next(), context);
                     }
                 } else {
                     // For example: Produces:VirtualMachine
-                    stopperBuilder =
-                        buildStoppingCondition(Collections.singletonList(currentToken));
+                    result = buildStoppingCondition(Collections.singletonList(currentToken));
                     // set condition for number of connected vertices if required
                     if (context.shouldFilterByNumConnectedVertices()) {
-                        setVerticesCondition(stopperBuilder, currentToken, context);
+                        setVerticesCondition(result, currentToken, context);
                     }
                 }
             } else {
-                stopperBuilder = buildStoppingCondition(entityTypes);
+                result = buildStoppingCondition(entityTypes);
             }
+            return result;
+        }
 
-            TraversalFilter traversal = TraversalFilter.newBuilder()
-                            .setTraversalDirection(direction)
-                            .setStoppingCondition(stopperBuilder)
-                            .build();
-            final ImmutableList.Builder<SearchFilter> searchFilters = ImmutableList.builder();
-            searchFilters.add(SearchProtoUtil.searchFilterTraversal(traversal));
-            // add a final entity type filter if the last filer is a hop-count based traverse
-            // and it's not a filter based on number of connected vertices
-            // for example: get all PMs which hosted more than 2 VMs, we've already get all PMs
-            // if it's a filter by number of connected vertices, we don't need to filter on PM type again
-            if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
-                searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil
-                                .entityTypeFilter(entityTypes)));
-            }
-            return searchFilters.build();
+        private static StoppingCondition.Builder buildStoppingCondition(
+                        Collection<String> currentToken) {
+            return StoppingCondition.newBuilder().setStoppingPropertyFilter(
+                            SearchProtoUtil.entityTypeFilter(currentToken));
         }
 
         /**
@@ -1075,16 +1120,122 @@ public class EntityFilterMapper {
          * stoppingEntityType is the integer value of VM entity type
          * @param context the SearchFilterContext with parameters provided by user for the group
          */
-        private void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
-                @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context) {
-            int vertexEntityType = ApiEntityType.fromString(stoppingEntityType).typeNumber();
-            stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
-                    .setNumConnectedVertices(NumericFilter.newBuilder()
-                            .setValue(Long.valueOf(context.getFilter().getExpVal()))
-                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
-                                    context.getFilter().getExpType())))
-                    .setEntityType(vertexEntityType)
-                    .build());
+        private static void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
+                        @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context)
+                        throws OperationFailedException {
+            final int vertexEntityType = ApiEntityType.fromString(stoppingEntityType).typeNumber();
+            final long numericFilterValue = getNumericFilterValue(context);
+            final NumericFilter.Builder numericFilter = NumericFilter.newBuilder()
+                            .setValue(numericFilterValue)
+                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR
+                                            .get(context.getFilter().getExpType()));
+            stopperBuilder.setVerticesCondition(
+                            VerticesCondition.newBuilder().setNumConnectedVertices(numericFilter)
+                                            .setEntityType(vertexEntityType).build());
+        }
+
+        private static long getNumericFilterValue(@Nonnull SearchFilterContext context)
+                        throws OperationFailedException {
+            final FilterApiDTO filter = context.getFilter();
+            final String rawValue = filter.getExpVal();
+            try {
+                return Long.parseLong(rawValue);
+            } catch (NumberFormatException ex) {
+                throw new OperationFailedException(
+                                String.format("Cannot parse numeric value from '%s' to create vertices condition for '%s' filter",
+                                                rawValue, filter));
+            }
+        }
+    }
+
+    /**
+     * {@link MultiRelationsFilterProcessor} handles more than one relationship in the filter while
+     * walking over the topology graph and combines results of the walking, by default results will
+     * be combined with union operation. Please, note that this filter processor will work correctly
+     * only in case it is processing relations with the same directions, i.e. CONNECTED_FROM and
+     * CONSUMES, both are pointing to elements that are laying higher in the supply chain than the
+     * source entity type. Please, consider filter for VV as an example:
+     * Storage:displayName:CONNECTED_FROM|CONSUMES:1
+     * source type will be 'Storage'
+     * CONNECTED_FROM and CONSUMES relationships both pointing to the entities which are higher in
+     * the supply chain definition:
+     *  VV   VM
+     *  |    |
+     *  \   /
+     *    S
+     * In this case we will take all VV which are fitting in those relationships.
+     *
+     * In case relationships with opposite directions will be specified, then only one of them will
+     * work, which is providing entities with the same type that filter is targeted on:
+     * Storage:displayName:CONNECTED_FROM|PRODUCES:1
+     *        VV   VM
+     *        |    |
+     *        \   /
+     *          S
+     *          |
+     *         SC
+     * In this case we will take ony VVs and we will not even consider StorageControllers from the
+     * bottom of the supply chain.
+     */
+    private static class MultiRelationsFilterProcessor extends RelationsFilterProcessor
+                    implements Predicate<SearchFilterContext> {
+        private static final Pattern OPERATION_SPLITERATOR = Pattern.compile("\\||&");
+
+        @Nonnull
+        @Override
+        protected SearchFilter createTraversalFilter(
+                        @Nonnull Collection<TraversalDirection> directions,
+                        @Nonnull StoppingCondition.Builder stopperBuilder) {
+            final SearchFilter.Builder result = SearchFilter.newBuilder();
+            final MultiTraversalFilter.Builder multiTraversalFilterBuilder =
+                            MultiTraversalFilter.newBuilder().setOperator(LogicalOperator.OR);
+            directions.stream().map(td -> TraversalFilter.newBuilder().setTraversalDirection(td)
+                            .setStoppingCondition(stopperBuilder))
+                            .forEach(multiTraversalFilterBuilder::addTraversalFilter);
+            result.setMultiTraversalFilter(multiTraversalFilterBuilder);
+            return result.build();
+        }
+
+        @Nonnull
+        @Override
+        protected Collection<TraversalDirection> getDirections(
+                        @Nonnull SearchFilterContext context) {
+            return getOperands(context).stream().map(TraversalDirection::valueOf)
+                            .collect(Collectors.toSet());
+        }
+
+        private static Collection<String> getOperands(@Nonnull SearchFilterContext context) {
+            return Arrays.stream(OPERATION_SPLITERATOR.split(context.getCurrentToken()))
+                            .collect(Collectors.toSet());
+        }
+
+        @Override
+        public boolean test(SearchFilterContext context) {
+            return FILTER_TYPES_TO_PROCESSORS.keySet().containsAll(getOperands(context));
+        }
+    }
+
+    /**
+     * Processor for filter which has PRODUCES type of token.
+     */
+    @Immutable
+    private static class TraversalFilterProcessor extends RelationsFilterProcessor {
+        @Nonnull
+        @Override
+        protected SearchFilter createTraversalFilter(
+                        @Nonnull Collection<TraversalDirection> directions,
+                        @Nonnull StoppingCondition.Builder stopperBuilder) {
+            final TraversalDirection direction = directions.iterator().next();
+            final TraversalFilter traversal =
+                            TraversalFilter.newBuilder().setTraversalDirection(direction)
+                                            .setStoppingCondition(stopperBuilder).build();
+            return SearchProtoUtil.searchFilterTraversal(traversal);
+        }
+
+        @Nonnull
+        @Override
+        protected Collection<TraversalDirection> getDirections(@Nonnull SearchFilterContext context) {
+            return Collections.singleton(TraversalDirection.valueOf(context.getCurrentToken()));
         }
     }
 

@@ -7,7 +7,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.1.6-SNAPSHOT</version>
+        <version>8.2.3-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
@@ -54,7 +54,7 @@
                     <user>${postgresUserName}</user>
                     <password>${postgresPassword}</password>
                     <locations>
-                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                        <location>filesystem:${basedir}/src/main/resources/db/migration/extractor</location>
                     </locations>
                     <schemas>
                         <schema>${postgresSchemaName}</schema>

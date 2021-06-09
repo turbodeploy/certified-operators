@@ -281,7 +281,7 @@ public class PipelineTest {
     public void testMissingRequirement() {
         expectedException.expect(PipelineContextMemberException.class);
         expectedException.expectMessage("No earlier stage provides required pipeline "
-            + "dependencies (baz[List]) without default for stage TestPassthroughStage.");
+            + "context member (baz[List]) without default for stage TestPassthroughStage.");
 
         final TestPassthroughStage stage1 = new TestPassthroughStage();
         final TestPassthroughStage stage2 = new TestPassthroughStage();
@@ -418,19 +418,45 @@ public class PipelineTest {
         new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
             .finalStage(stage));
         stage.execute(1L);
+        final ContextMemberSummary contextMemberSummary = stage.contextMemberCleanup(context);
 
         final Status status = Status.success("My message");
-        status.setContextMemberSummary(new ContextMemberSummary(stage, context));
+        status.setContextMemberSummary(contextMemberSummary);
         assertThat(status.getMessageWithSummary(), either(
             is("My message\n"
                 + "PIPELINE_CONTEXT_MEMBERS:\n"
-                + "\tPROVIDED=(baz[size=2])\n"
-                + "\tREQUIRED=(quux[one object])\n"
-                + "\tDROPPED=(quux, baz)\n")).or(
+                + "    PROVIDED=(baz[size=2])\n"
+                + "    REQUIRED=(quux[one object])\n"
+                + "    DROPPED=(quux, baz)\n")).or(
             is("My message\n"
                 + "PIPELINE_CONTEXT_MEMBERS:\n"
-                + "\tPROVIDED=(baz[size=2])\n"
-                + "\tREQUIRED=(quux[one object])\n"
-                + "\tDROPPED=(baz, quux)\n")));
+                + "    PROVIDED=(baz[size=2])\n"
+                + "    REQUIRED=(quux[one object])\n"
+                + "    DROPPED=(baz, quux)\n")));
+    }
+
+    /**
+     * Test that the pipeline status generates the correct message when
+     * the context member summary is disabled..
+     *
+     * @throws Exception on exception.
+     */
+    @Test
+    public void testStatusMessageWithNoContextMemberSummary() throws Exception {
+        final TestPipelineContext context = Mockito.spy(new TestPipelineContext());
+        when(context.includeContextMemberSummary()).thenReturn(false);
+
+        final Stage<Long, Long, TestPipelineContext> stage = new TestPassthroughStage();
+        stage.providesToContext(TestMemberDefinitions.BAZ, (Supplier<List<Long>>)() -> Arrays.asList(1L, 2L));
+        stage.requiresFromContext(TestMemberDefinitions.QUUX);
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .finalStage(stage));
+        stage.execute(1L);
+        final ContextMemberSummary contextMemberSummary = stage.contextMemberCleanup(context);
+
+        final Status status = Status.success("My message");
+        status.setContextMemberSummary(contextMemberSummary);
+        assertThat(status.getMessageWithSummary(), containsString("My message"));
+        assertThat(status.getMessageWithSummary(), not(containsString("PIPELINE_CONTEXT_MEMBERS")));
     }
 }

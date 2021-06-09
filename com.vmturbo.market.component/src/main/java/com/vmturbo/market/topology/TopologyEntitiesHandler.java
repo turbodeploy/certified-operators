@@ -540,6 +540,8 @@ public class TopologyEntitiesHandler {
         economySettings.setUseQuoteCacheDuringSNM(analysisConfig.getUseQuoteCacheDuringSNM());
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());
         economySettings.setRightSizeUpper(analysisConfig.getRightsizeUpperWatermark());
+        economySettings.setFastProvisionEnabled(analysisConfig.isFastProvisionEnabled());
+        economySettings.setBranchAndBoundEnabled(analysisConfig.isBranchAndBoundEnabled());
         if (analysisConfig.getDiscountedComputeCostFactor() > 0) {
             economySettings.setDiscountedComputeCostFactor(analysisConfig.getDiscountedComputeCostFactor());
             logger.info("Setting discounted compute cost factor with value : {}",

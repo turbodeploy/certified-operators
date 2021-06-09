@@ -1,15 +1,21 @@
 package com.vmturbo.extractor.action;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -20,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -29,15 +36,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.commons.Units;
-import com.vmturbo.extractor.action.percentile.ActionPercentileData;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
+import com.vmturbo.extractor.action.commodity.ActionCommodityData;
+import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
+import com.vmturbo.extractor.schema.json.common.EntitySettings;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
@@ -52,10 +63,17 @@ public class ActionAttributeExtractor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ActionPercentileDataRetriever actionPercentileDataRetriever;
+    /**
+     * Set of action types for which the impacted metrics for target entity will be populated.
+     */
+    public static final Set<ActionType> ACTION_TYPES_TO_POPULATE_TARGET_IMPACT = ImmutableSet.of(
+            ActionType.START, ActionType.ACTIVATE, ActionType.SCALE, ActionType.PROVISION,
+            ActionType.DELETE);
 
-    ActionAttributeExtractor(@Nonnull final ActionPercentileDataRetriever actionPercentileDataRetriever) {
-        this.actionPercentileDataRetriever = actionPercentileDataRetriever;
+    private final ActionCommodityDataRetriever actionCommodityDataRetriever;
+
+    ActionAttributeExtractor(@Nonnull final ActionCommodityDataRetriever actionCommodityDataRetriever) {
+        this.actionCommodityDataRetriever = actionCommodityDataRetriever;
     }
 
     /**
@@ -118,42 +136,60 @@ public class ActionAttributeExtractor {
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
         final List<T> result = new ArrayList<>();
-        final ActionPercentileData percentileChanges =
-                actionPercentileDataRetriever.getActionPercentiles(actionSpecs);
+        final ActionCommodityData commodityChanges =
+                actionCommodityDataRetriever.getActionCommodityData(actionSpecs);
         actionSpecs.forEach(actionSpec -> {
             final T actionAttrs = attributes.get(actionSpec.getRecommendation().getId());
             if (actionAttrs != null) {
                 result.addAll(populateAttributes(actionSpec, actionAttrs, topologyGraph,
-                        percentileChanges, processResizeChanges, processMoveChanges, processScaleChanges));
+                        commodityChanges, processResizeChanges, processMoveChanges, processScaleChanges));
             }
         });
         return result;
     }
 
     private <T extends ActionAttributes> List<T> populateAttributes(ActionSpec actionSpec,
-            T actionOrAttributes, TopologyGraph<SupplyChainEntity> topologyGraph,
-            ActionPercentileData actionPercentileData,
+            T actionOrAttributes,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData,
             BiFunction<T, List<CommodityChange>, List<T>> processResizeChanges,
             BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
             BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
         final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
+
+        // We only populate impact for pending actions.
+        // Impact doesn't really make sense in the context of completed actions.
+        final boolean populateImpact = actionSpec.getActionState() == ActionState.READY;
+
+        // set target and related
+        try {
+            ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
+            final boolean populateTargetImpact = populateImpact
+                    && ACTION_TYPES_TO_POPULATE_TARGET_IMPACT.contains(actionType);
+            ActionImpactedEntity targetEntity = buildImpactedEntity(primaryEntity,
+                    populateTargetImpact, topologyGraph, actionCommodityData);
+            actionOrAttributes.setTarget(targetEntity);
+        } catch (UnsupportedActionException e) {
+            // this should not happen
+            logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
+        }
         switch (actionType) {
             case MOVE:
                 return processMoveChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, topologyGraph));
+                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
             case SCALE:
                 return processScaleChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, topologyGraph));
+                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
             case RESIZE:
                 final List<CommodityChange> resizeChanges;
                 if (actionInfo.hasAtomicResize()) {
                     resizeChanges = getAtomicResizeChanges(actionInfo.getAtomicResize(), topologyGraph,
-                            actionPercentileData);
+                            actionCommodityData);
                 } else {
                     resizeChanges = Collections.singletonList(getNormalResizeChange(
-                            actionInfo.getResize(), actionPercentileData));
+                            actionInfo.getResize(), actionCommodityData));
                 }
                 return processResizeChanges.apply(actionOrAttributes, resizeChanges);
             case DELETE:
@@ -165,7 +201,7 @@ public class ActionAttributeExtractor {
                 return Collections.singletonList(actionOrAttributes);
             // add additional info for other action types if needed
             default:
-                return Collections.emptyList();
+                return Collections.singletonList(actionOrAttributes);
         }
     }
 
@@ -185,21 +221,56 @@ public class ActionAttributeExtractor {
         return ae;
     }
 
+    private ActionImpactedEntity buildImpactedEntity(ActionDTO.ActionEntity actionEntity,
+            final boolean populateImpact,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData) {
+        ActionImpactedEntity entity = new ActionImpactedEntity();
+        // TODO: refactor common code between ActionEntity and ActionImpactedEntity
+        entity.setOid(actionEntity.getId());
+        entity.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
+        if (topologyGraph != null) {
+            topologyGraph.getEntity(actionEntity.getId())
+                    .ifPresent(e -> entity.setName(e.getDisplayName()));
+        }
+        if (populateImpact) {
+            final Map<String, ImpactedMetric> entityImpact = actionCommodityData.getEntityImpact(actionEntity.getId());
+            entity.setAffectedMetrics(entityImpact);
+            // add percentile settings to the target entity level if any of the affected metrics has percentile data
+            if (entityImpact != null && entityImpact.values().stream()
+                    .anyMatch(impactedMetric -> impactedMetric.getBeforeActions() != null
+                            && impactedMetric.getBeforeActions().getPercentileUtilization() != null)) {
+                actionCommodityDataRetriever.getPercentileSetting(actionEntity.getId(), actionEntity.getType())
+                        .ifPresent(percentileSetting -> {
+                            EntitySettings entitySettings = new EntitySettings();
+                            entitySettings.setPercentileAggressiveness(percentileSetting.getAggresiveness());
+                            entitySettings.setPercentileObservationPeriodDays(percentileSetting.getObservationPeriod());
+                            entity.setSettings(entitySettings);
+                        });
+            }
+        }
+        return entity;
+    }
+
     /**
      * Get a list of move changes the given action. For normal moves, it will contain a single
      * move change, but it may return multiple for compound moves.
      *
      * @param recommendation action from AO
+     * @param populateImpact If before/after metrics for involved entities should be set.
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
+     * @param actionCommodityData Used to look up commodity information.
      * @return map of move change by entity type
      */
     private List<MoveChange> getMoveChanges(ActionDTO.Action recommendation,
-            TopologyGraph<SupplyChainEntity> topologyGraph) {
+            final boolean populateImpact,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            ActionCommodityData actionCommodityData) {
         final List<MoveChange> moveInfo = new ArrayList<>();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(recommendation)) {
             final MoveChange moveChange = new MoveChange();
-            moveChange.setFrom(getActionEntityWithType(change.getSource(), topologyGraph));
-            moveChange.setTo(getActionEntityWithType(change.getDestination(), topologyGraph));
+            moveChange.setFrom(buildImpactedEntity(change.getSource(), populateImpact, topologyGraph, actionCommodityData));
+            moveChange.setTo(buildImpactedEntity(change.getDestination(), populateImpact, topologyGraph, actionCommodityData));
             // resource (like volume of a VM)
             if (!change.getResourceList().isEmpty()) {
                 moveChange.setResource(change.getResourceList().stream()
@@ -215,12 +286,12 @@ public class ActionAttributeExtractor {
      * Get the commodity change for the given resize action.
      *
      * @param resize action from AO
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
+     * @param actionCommodityData Used to look up percentile changes for the resized commodities.
      * @return commodity change
      */
     @Nonnull
     private CommodityChange getNormalResizeChange(Resize resize,
-            @Nonnull final ActionPercentileData actionPercentileData) {
+            @Nonnull final ActionCommodityData actionCommodityData) {
         final int commodityTypeInt = resize.getCommodityType().getType();
         final CommodityChange commodityChange = new CommodityChange();
         commodityChange.setFrom(resize.getOldCapacity());
@@ -229,7 +300,7 @@ public class ActionAttributeExtractor {
             commodityChange.setAttribute(resize.getCommodityAttribute().name());
         }
         commodityChange.setPercentileChange(
-                actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
+                actionCommodityData.getPercentileChange(resize.getTarget().getId(), resize.getCommodityType()));
         CommodityTypeMapping.getCommodityUnitsForActions(commodityTypeInt, null)
                 .ifPresent(commodityChange::setUnit);
         commodityChange.setCommodityType(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt));
@@ -241,13 +312,13 @@ public class ActionAttributeExtractor {
      *
      * @param atomicResize action from AO
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
+     * @param actionCommodityData Used to look up percentile changes for the resized commodities.
      * @return list of commodity changes
      */
     @Nonnull
     private List<CommodityChange> getAtomicResizeChanges(AtomicResize atomicResize,
             TopologyGraph<SupplyChainEntity> topologyGraph,
-            ActionPercentileData actionPercentileData) {
+            ActionCommodityData actionCommodityData) {
         final List<CommodityChange> resizeInfo = new ArrayList<>();
         for (ResizeInfo resize : atomicResize.getResizesList()) {
             final CommodityChange commodityChange = new CommodityChange();
@@ -266,7 +337,7 @@ public class ActionAttributeExtractor {
                 commodityChange.setTarget(getActionEntityWithType(resize.getTarget(), topologyGraph));
             }
             commodityChange.setPercentileChange(
-                    actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
+                    actionCommodityData.getPercentileChange(resize.getTarget().getId(), resize.getCommodityType()));
             commodityChange.setCommodityType(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt));
             resizeInfo.add(commodityChange);
         }
@@ -288,6 +359,12 @@ public class ActionAttributeExtractor {
         }
         if (delete.hasFilePath()) {
             deleteInfo.setFilePath(delete.getFilePath());
+        }
+        if (deleteExplanation.hasModificationTimeMs()) {
+            final long timestamp = deleteExplanation.getModificationTimeMs();
+            final OffsetDateTime offsetDateTime =
+                OffsetDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
+            deleteInfo.setLastModifiedTimestamp(offsetDateTime.toString());
         }
         return deleteInfo;
     }
@@ -444,10 +521,10 @@ public class ActionAttributeExtractor {
     }
 
     /**
-     * Create a shallow copy of given action, without any attrs.
+     * Create a shallow copy of given action, without any type specific attrs.
      *
      * @param action the action to create shallow copy for
-     * @return shallow copy of given action without attrs
+     * @return shallow copy of given action without type specific attrs
      */
     private static Action shallowCopyWithoutAttrs(Action action) {
         Action shallowCopy = new Action();

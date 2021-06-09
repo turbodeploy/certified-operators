@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -89,7 +90,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
-        final Map<Long, Double> entityUptimePercentageByOid = new HashMap<>();
+        final Map<Long, EntityUptimeDTO> entityUptimeDTOByOid = new HashMap<>();
         Map<Long, EntityUptime> entityUptimeByOid = entityUptimeStore.getAllEntityUptime();
         if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType()) {
             final Set<Long> vmOidsSet = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
@@ -99,12 +100,12 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
         }
         entityUptimeByOid.entrySet().forEach(entry ->
-                        entityUptimePercentageByOid.put(entry.getKey(), entry.getValue().uptimePercentage()));
+                entityUptimeDTOByOid.put(entry.getKey(), entry.getValue().toProtobuf()));
         Optional<EntityUptime> defaultUptime = entityUptimeStore.getDefaultUptime();
-        final Optional<Double> defaultUptimePercentage = defaultUptime.map(EntityUptime::uptimePercentage);
+        final Optional<EntityUptimeDTO> defaultUptimeDTO = defaultUptime.map(EntityUptime::toProtobuf);
         return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), entityRiMappingStore.getEntityRiCoverage(),
                 riBoughtById, riSpecById, Collections.emptyMap(),
-                accountPricingIdByBusinessAccountOid, entityUptimePercentageByOid, defaultUptimePercentage);
+                accountPricingIdByBusinessAccountOid, entityUptimeDTOByOid, defaultUptimeDTO);
     }
 }
 

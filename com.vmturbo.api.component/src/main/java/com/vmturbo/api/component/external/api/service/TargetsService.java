@@ -40,11 +40,12 @@ import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchOrderByMapper;
+import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -59,8 +60,8 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.HealthState;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
+import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -70,10 +71,12 @@ import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
+import com.vmturbo.auth.api.licensing.LicenseWorkloadLimitExceededException;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -598,7 +601,8 @@ public class TargetsService implements ITargetsService {
         Objects.requireNonNull(inputFields);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
-
+        // Check if the active workloads exceed the limit covered by current licenses.
+        checkLicensedWorkloadLimit();
         // create a target
         try {
             final Collection<ProbeInfo> probes = topologyProcessor.getAllProbes();
@@ -1151,7 +1155,8 @@ public class TargetsService implements ITargetsService {
     public List<TargetHealthApiDTO> getTargetsHealth(@Nullable HealthState state) {
         try {
             Set<ITargetHealthInfo> healthOfTargets = topologyProcessor.getAllTargetsHealth();
-            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream().map(targetMapper::mapTargetHealthInfoToDTO)
+            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream()
+                .map(HealthDataMapper::mapTargetHealthInfoToDTO)
                 .filter(healthDTO -> healthStateFilter(healthDTO, state))
                 .collect(Collectors.toList());
             healthDTOs.sort(new HealthResponseComparator(state == null));
@@ -1163,13 +1168,15 @@ public class TargetsService implements ITargetsService {
 
     @Override
     @Nonnull
-    public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) {
+    public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) throws UnknownObjectException {
         long targetId = Long.parseLong(uuid);
         try {
             ITargetHealthInfo healthInfo = topologyProcessor.getTargetHealth(targetId);
-            return targetMapper.mapTargetHealthInfoToDTO(healthInfo);
-        } catch (CommunicationException | TopologyProcessorException e) {
-            throw new RuntimeException("Error getting target health info", e);
+            return HealthDataMapper.mapTargetHealthInfoToDTO(healthInfo);
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        } catch (TopologyProcessorException e) {
+            throw new UnknownObjectException("Error getting target health info", e);
         }
     }
 
@@ -1225,6 +1232,22 @@ public class TargetsService implements ITargetsService {
                             .ifPresent(licenseCheckClient::checkFeatureAvailable);
         } catch (CommunicationException e) {
             logger.error("Failed to check license for probe type " + probeType, e);
+        }
+    }
+
+    /**
+     * Check if the active workloads exceed the limit covered by current licenses.
+     *
+     * @throws LicenseWorkloadLimitExceededException if the active workloads exceed the
+     *         limit covered by current licenses
+     */
+    private void checkLicensedWorkloadLimit() {
+        final LicenseSummary licenseSummary = licenseCheckClient.getLicenseSummary();
+        final boolean isOverLicensedWorkloadLimit =
+                licenseCheckClient != null && licenseSummary != null
+                        && licenseSummary.getIsOverEntityLimit();
+        if (isOverLicensedWorkloadLimit) {
+            throw new LicenseWorkloadLimitExceededException();
         }
     }
 }

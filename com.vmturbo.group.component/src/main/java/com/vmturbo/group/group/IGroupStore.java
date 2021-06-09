@@ -13,6 +13,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -133,10 +134,11 @@ public interface IGroupStore {
 
     /**
      * Updates GroupSupplementaryInfo data in bulk.
+     * Any group whose uuid cannot be found in the database is skipped.
      *
-     * @param groups a collection with information for each group to be updated.
+     * @param groups a map with information for each group to be updated.
      */
-    void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups);
+    void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups);
 
     /**
      * Updates groups' severity data in bulk.
@@ -175,6 +177,27 @@ public interface IGroupStore {
      */
     @Nonnull
     Collection<Long> getGroupIds(@Nonnull GroupFilters groupFilter);
+
+    /**
+     * Returns an ordered collection of group ids, conforming to the filter and ordering provided.
+     *
+     * @param groupFilter requested filters to filter groups by. If the filter is null or empty, the
+     *                    response will contain all the group ids existing in the component.
+     * @param paginationParameters parameters that contain oderBy & ascending values. If null or
+     *                             empty, defaults will be used.
+     * @return a collection of groups
+     */
+    @Nonnull
+    Collection<Long> getOrderedGroupIds(@Nonnull GroupDTO.GroupFilter groupFilter,
+            @Nonnull PaginationParameters paginationParameters);
+
+    /**
+     * Returns the groups that are empty.
+     *
+     * @return a list with the ids of the empty groups.
+     */
+    @Nonnull
+    Collection<Long> getEmptyGroupIds();
 
     /**
      * Deletes the group specified by id.
@@ -289,6 +312,7 @@ public interface IGroupStore {
         private final long oid;
         private final GroupDefinition groupDefinition;
         private final String sourceIdentifier;
+        private final boolean stitchAcrossTargets;
         private final Set<Long> targetIds;
         private final Collection<MemberType> expectedMembers;
         private final boolean isReverseLookupSupported;
@@ -299,13 +323,15 @@ public interface IGroupStore {
          * @param oid oid for the group
          * @param groupDefinition group definition
          * @param sourceIdentifier source id from the probe
+         * @param stitchAcrossTargets The stitch across targets flag from the probe.
          * @param targetIds all targets which discovers this group
          * @param expectedMembers expected member types of the group
          * @param isReverseLookupSupported whether reverse lookup is supported for this group
          */
         public DiscoveredGroup(long oid, @Nonnull GroupDefinition groupDefinition,
-                @Nonnull String sourceIdentifier, @Nonnull Set<Long> targetIds,
-                @Nonnull Collection<MemberType> expectedMembers, boolean isReverseLookupSupported) {
+                               @Nonnull String sourceIdentifier, boolean stitchAcrossTargets,
+                               @Nonnull Set<Long> targetIds, @Nonnull Collection<MemberType> expectedMembers,
+                               boolean isReverseLookupSupported) {
             this.targetIds = Objects.requireNonNull(targetIds);
             if (targetIds.isEmpty()) {
                 throw new IllegalArgumentException(
@@ -314,6 +340,7 @@ public interface IGroupStore {
             }
             this.groupDefinition = Objects.requireNonNull(groupDefinition);
             this.sourceIdentifier = Objects.requireNonNull(sourceIdentifier);
+            this.stitchAcrossTargets = stitchAcrossTargets;
             this.expectedMembers = Objects.requireNonNull(expectedMembers);
             this.isReverseLookupSupported = isReverseLookupSupported;
             this.oid = oid;
@@ -343,6 +370,10 @@ public interface IGroupStore {
 
         public long getOid() {
             return oid;
+        }
+
+        public boolean stitchAcrossTargets() {
+            return stitchAcrossTargets;
         }
 
         @Override

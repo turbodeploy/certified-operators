@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.store.pipeline;
 
 import java.time.Clock;
-import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -9,7 +8,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline;
-import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -23,8 +21,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * the input to the next {@link Stage}. State can be shared between stages by attaching
  * and dropping members on the {@link ActionPipelineContext}. Context state sharing is
  * configured when defining the "provides" and "requires" of individual stages in the
- * pipeline (see {@link Stage#requiresFromContext(PipelineContextMemberDefinition)} and
- * {@link Stage#providesToContext(PipelineContextMemberDefinition, Supplier)}.
+ * pipeline (see {@code Stage#requiresFromContext(PipelineContextMemberDefinition)} and
+ * {@code Stage#providesToContext(PipelineContextMemberDefinition, Supplier)}.
  * The stages are executed one at a time. In the future we can add parallel execution of
  * certain subsets of the pipeline, but that's not necessary yet.
  *
@@ -33,9 +31,10 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  */
 public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, ActionPipelineSummary> {
 
-    private static final String ACTION_PLAN_TYPE_LABEL = "action_plan_type";
-
-    private static final String PIPELINE_STAGE_LABEL = "stage";
+    /**
+     * Label for action plan type.
+     */
+    public static final String ACTION_PLAN_TYPE_LABEL = "action_plan_type";
 
     /**
      * This metric tracks the total duration of action processing (i.e. all the stages
@@ -45,13 +44,6 @@ public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, 
         .withName("ao_process_action_plan_duration_seconds")
         .withHelp("Duration of action plan processing.")
         .withLabelNames(ACTION_PLAN_TYPE_LABEL)
-        .build()
-        .register();
-
-    private static final DataMetricSummary PIPELINE_STAGE_SUMMARY = DataMetricSummary.builder()
-        .withName("ao_pipeline_duration_seconds")
-        .withHelp("Duration of the individual stages in action plan processing.")
-        .withLabelNames(ACTION_PLAN_TYPE_LABEL, PIPELINE_STAGE_LABEL)
         .build()
         .register();
 
@@ -81,21 +73,10 @@ public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, 
     }
 
     @Override
-    protected DataMetricTimer startStageTimer(String stageName) {
-        return PIPELINE_STAGE_SUMMARY.labels(getContext().getActionPlanTopologyType().name(),
-            stageName).startTimer();
-    }
-
-    @Override
     protected TracingScope startPipelineTrace() {
         return Tracing.trace("Process " + getContext().getActionPlanTopologyType() + " actions")
             .tag("context_id", getContext().getTopologyContextId())
             .baggageItem(Tracing.DISABLE_DB_TRACES_BAGGAGE_KEY, "");
-    }
-
-    @Override
-    protected TracingScope startStageTrace(String stageName) {
-        return Tracing.trace(stageName);
     }
 
     /**
@@ -108,6 +89,17 @@ public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, 
     public abstract static class PassthroughStage<T> extends Pipeline.PassthroughStage<T, ActionPipelineContext> {
     }
 
+    /**
+     * A passthrough stage that is required (its failure will fail the overall pipeline).
+     *
+     * @param <T> The type of the input.
+     */
+    public abstract static class RequiredPassthroughStage<T> extends PassthroughStage<T> {
+        @Override
+        public boolean required() {
+            return true;
+        }
+    }
 
     /**
      * A pipeline stage takes an input and produces an output that gets passed along to the

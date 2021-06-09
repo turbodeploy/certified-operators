@@ -2,20 +2,12 @@ package com.vmturbo.cost.calculation.journal;
 
 import static com.vmturbo.trax.Trax.trax;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -24,11 +16,13 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
 
+import com.google.protobuf.MapEntry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.stringtemplate.v4.ST;
@@ -44,6 +38,7 @@ import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostItem.CostSourceLink;
 import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.EntityUptimeDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.QualifiedJournalEntry;
@@ -111,7 +106,7 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final Map<CostCategory, SortedSet<QualifiedJournalEntry<ENTITY_CLASS>>> costEntries;
 
-    private final Table<CostCategory, CostSource, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
+    private final Table<CostCategory, CostSourceLink, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
 
     /**
      * We calculate the costs from the journal entries the first time costs are actually requested.
@@ -144,59 +139,63 @@ public class CostJournal<ENTITY_CLASS> {
 
     private void calculateCosts() {
         if (calculationStarted.compareAndSet(false, true)) {
-            // Note - this should "block" other operations on the map until the calculation is done.
-            synchronized (finalCostsByCategoryAndSource) {
-                logger.trace("Summing price entries.");
 
-                costEntries.forEach((category, priceEntries) -> {
-                    //Collections.sort(priceEntries, Builder.journalEntryComparator);
-                    for (final QualifiedJournalEntry<ENTITY_CLASS> entry: priceEntries) {
-                        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator, this::getHourlyCostFilterEntries);
-                        final CostSource costSource = entry.getCostSource().orElse(CostSource.UNCLASSIFIED);
-                        if (finalCostsByCategoryAndSource.get(category, costSource) != null) {
-                            final TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSource);
-                            cost = cost.plus(existing).compute("Total cost for " + costSource);
-                            finalCostsByCategoryAndSource.put(category, costSource, cost);
+            logger.trace("Summing price entries.");
+
+            costEntries.forEach((category, priceEntries) -> {
+
+                for (final QualifiedJournalEntry<ENTITY_CLASS> entry: priceEntries) {
+                    Collection<CostItem> costItems = entry.calculateHourlyCost(
+                            infoExtractor, discountApplicator, this::getFilteredCostItemsForCategory);
+
+                    costItems.forEach(costItem -> {
+                        final CostSourceLink costSourceLink = costItem.costSourceLink();
+                        if (finalCostsByCategoryAndSource.get(category, costSourceLink) != null) {
+                            final TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSourceLink);
+                            final TraxNumber aggregateCost = costItem.cost()
+                                    .plus(existing)
+                                    .compute("Total cost for " + costSourceLink);
+                            finalCostsByCategoryAndSource.put(category, costSourceLink, aggregateCost);
                         } else {
-                            finalCostsByCategoryAndSource.put(category, costSource, cost);
+                            finalCostsByCategoryAndSource.put(category, costSourceLink, costItem.cost());
                         }
+                    });
+                }
+            });
+            logger.trace("Inheriting costs...");
+            // Go through the child cost entities, and add their costs to the
+            // costs calculated so far.
+            childCostEntities.forEach(childCostEntity -> {
+                final CostJournal<ENTITY_CLASS> journal =
+                    dependentCostLookup.getCostJournal(childCostEntity);
+                if (journal == null) {
+                    logger.trace("Could not find costs for child entity {} (id: {}). It maybe" +
+                                    "possible that the journal for the entity hasn't been created yet.",
+                        infoExtractor.getName(childCostEntity),
+                        infoExtractor.getId(childCostEntity));
+                } else {
+                    logger.trace(() -> "Inheriting costs from " + infoExtractor.getName(childCostEntity)
+                        + " id: " + infoExtractor.getId(childCostEntity));
+                    // Make sure the child journal's prices have already been calculated.
+                    // Hope there are no circular dependencies, fingers crossed!
+                    journal.calculateCosts();
+                    for (final CostCategory category: journal.getCategories()) {
+                        final Map<CostSourceLink, TraxNumber> costByCategoryMap = finalCostsByCategoryAndSource.row(category);
+                        final Map<CostSourceLink, TraxNumber> inheritedCostMap = journal.finalCostsByCategoryAndSource.row(category);
+                        inheritedCostMap.forEach((costSource, inheritedCost) -> {
+                            final TraxNumber currPriceNum =
+                                    costByCategoryMap.getOrDefault(costSource, trax(0, "none"));
+                            final TraxNumber newCost = inheritedCost.plus(currPriceNum)
+                                    .compute("inherited hourly costs from " +
+                                            infoExtractor.getName(childCostEntity));
+                            logger.trace("Inheriting {} for category {}. New cost is: {}",
+                                    inheritedCost, category, newCost);
+                            finalCostsByCategoryAndSource.put(category, costSource, newCost);
+                        });
                     }
-                });
-                logger.trace("Inheriting costs...");
-                // Go through the child cost entities, and add their costs to the
-                // costs calculated so far.
-                childCostEntities.forEach(childCostEntity -> {
-                    final CostJournal<ENTITY_CLASS> journal =
-                        dependentCostLookup.getCostJournal(childCostEntity);
-                    if (journal == null) {
-                        logger.trace("Could not find costs for child entity {} (id: {}). It maybe" +
-                                        "possible that the journal for the entity hasn't been created yet.",
-                            infoExtractor.getName(childCostEntity),
-                            infoExtractor.getId(childCostEntity));
-                    } else {
-                        logger.trace(() -> "Inheriting costs from " + infoExtractor.getName(childCostEntity)
-                            + " id: " + infoExtractor.getId(childCostEntity));
-                        // Make sure the child journal's prices have already been calculated.
-                        // Hope there are no circular dependencies, fingers crossed!
-                        journal.calculateCosts();
-                        for (final CostCategory category: journal.getCategories()) {
-                            final Map<CostSource, TraxNumber> costByCategoryMap = finalCostsByCategoryAndSource.row(category);
-                            final Map<CostSource, TraxNumber> inheritedCostMap = journal.getHourlyCostForCategoryBySource(category);
-                            inheritedCostMap.forEach((costSource, inheritedCost) -> {
-                                final TraxNumber currPriceNum =
-                                        costByCategoryMap.getOrDefault(costSource, trax(0, "none"));
-                                final TraxNumber newCost = inheritedCost.plus(currPriceNum)
-                                        .compute("inherited hourly costs from " +
-                                                infoExtractor.getName(childCostEntity));
-                                logger.trace("Inheriting {} for category {}. New cost is: {}",
-                                        inheritedCost, category, newCost);
-                                finalCostsByCategoryAndSource.put(category, costSource, newCost);
-                            });
-                        }
-                    }
-                });
-                logger.trace("Finished inheriting cost.");
-            }
+                }
+            });
+            logger.trace("Finished inheriting cost.");
         }
     }
 
@@ -207,6 +206,19 @@ public class CostJournal<ENTITY_CLASS> {
     public interface CostSourceFilter {
 
         /**
+         * A cost source filter that only filters {@link CostSource#BUY_RI_DISCOUNT}.
+         */
+        CostSourceFilter EXCLUDE_BUY_RI_DISCOUNT_FILTER =
+                costSource -> costSource != CostSource.BUY_RI_DISCOUNT;
+
+        CostSourceFilter ON_DEMAND_RATE =
+                costSource -> costSource == CostSource.ON_DEMAND_RATE;
+
+        CostSourceFilter INCLUDE_ALL = (cs) -> true;
+
+        CostSourceFilter EXCLUDE_UPTIME = (cs) -> cs != CostSource.ENTITY_UPTIME_DISCOUNT;
+
+        /**
          * filter by cost source.
          *
          * @param costSource The cost source.
@@ -214,12 +226,6 @@ public class CostJournal<ENTITY_CLASS> {
          * @return true if cost source is of the same type.
          */
         boolean filter(@Nonnull CostSource costSource);
-
-        /**
-         * A cost source filter that only filters {@link CostSource#BUY_RI_DISCOUNT}.
-         */
-        CostSourceFilter EXCLUDE_BUY_RI_DISCOUNT_FILTER =
-                costSource -> costSource != CostSource.BUY_RI_DISCOUNT;
     }
 
     /**
@@ -235,7 +241,7 @@ public class CostJournal<ENTITY_CLASS> {
          *
          * @return A trax number representing the cost.
          */
-        TraxNumber lookupCostWithFilter(CostCategory costCategory, CostSourceFilter costSourceFilter);
+        Collection<CostItem> lookupCostWithFilter(CostCategory costCategory, CostSourceFilter costSourceFilter);
     }
 
     @Nonnull
@@ -269,18 +275,15 @@ public class CostJournal<ENTITY_CLASS> {
             .setAssociatedEntityType(infoExtractor.getEntityType(entity))
             .setTotalAmount(CurrencyAmount.newBuilder()
                 .setAmount(getTotalHourlyCost().getValue()));
-        getCategories().forEach(category -> {
-            for (final CostSource source: CostSource.values()) {
-                final TraxNumber costBySource = getHourlyCostBySourceAndCategory(category, source);
-                if (costBySource != null) {
-                    costBuilder.addComponentCost(ComponentCost.newBuilder()
-                            .setCategory(category)
-                            .setCostSource(source)
-                            .setAmount(CurrencyAmount.newBuilder()
-                                    .setAmount(costBySource.getValue())));
-                }
-            }
-        });
+
+        finalCostsByCategoryAndSource.cellSet().forEach(costCell ->
+            costBuilder.addComponentCost(ComponentCost.newBuilder()
+                    .setCategory(costCell.getRowKey())
+                    .setCostSource(costCell.getColumnKey().costSource())
+                    .setCostSourceLink(costCell.getColumnKey().toProtobuf())
+                    .setAmount(CurrencyAmount.newBuilder()
+                            .setAmount(costCell.getValue().getValue()))));
+
         return costBuilder.build();
     }
 
@@ -293,31 +296,8 @@ public class CostJournal<ENTITY_CLASS> {
     @Nonnull
     public TraxNumber getHourlyCostForCategory(@Nonnull final CostCategory category) {
         calculateCosts();
-        final Map<CostSource, TraxNumber> costsByCategory = finalCostsByCategoryAndSource.row(category);
+        final Map<CostSourceLink, TraxNumber> costsByCategory = finalCostsByCategoryAndSource.row(category);
         return costsByCategory.values().stream().collect(TraxCollectors.sum("total hourly cost for category: " + category));
-    }
-
-    /**
-     * Get the aggregated hourly cost for all categories except the excluded categories.
-     *
-     * @param excludeCategories The categories to exclude.
-     * @return The hourly cost for all categories except for the categories to exclude.
-     */
-    @Nonnull
-    public TraxNumber getTotalHourlyCostExcluding(@Nonnull final Set<CostCategory> excludeCategories) {
-        calculateCosts();
-        return finalCostsByCategoryAndSource.cellSet()
-                .stream()
-                .filter(e -> !excludeCategories.contains(e.getRowKey()))
-                .map(Cell::getValue)
-                .collect(TraxCollectors.sum("total hourly costs with exclusions"));
-    }
-
-    @Nonnull
-    private Map<CostSource, TraxNumber> getHourlyCostForCategoryBySource(
-            final CostCategory category) {
-        calculateCosts();
-        return Collections.unmodifiableMap(finalCostsByCategoryAndSource.row(category));
     }
 
     /**
@@ -352,23 +332,47 @@ public class CostJournal<ENTITY_CLASS> {
     public TraxNumber getHourlyCostFilterEntries(final CostCategory costCategory,
             final CostSourceFilter costSourceFilter) {
         calculateCosts();
-        final Map<CostSource, TraxNumber> costBySource = finalCostsByCategoryAndSource.row(costCategory);
-        return costBySource.keySet().stream().filter(costSourceFilter::filter).map(costBySource::get)
+        return getFilteredCostItemsForCategory(costCategory, costSourceFilter).stream()
+                .map(CostItem::cost)
                 .collect(TraxCollectors.sum("Total sum excluding filter"));
     }
 
+    private Collection<CostItem> getFilteredCostItemsForCategory(@Nonnull CostCategory costCategory,
+                                                                 @Nonnull CostSourceFilter costSourceFilter) {
+
+        final Map<CostSourceLink, TraxNumber> costsBySourceLink = finalCostsByCategoryAndSource.row(costCategory);
+        return costsBySourceLink.entrySet()
+                .stream()
+                .filter(costEntry -> costEntry.getKey().costSourceChain()
+                        .stream()
+                        .allMatch(costSourceFilter::filter))
+                .map(costEntry -> CostItem.builder()
+                        .costSourceLink(costEntry.getKey())
+                        .cost(costEntry.getValue())
+                        .build())
+                .collect(ImmutableList.toImmutableList());
+    }
+
     /**
-     * Given a cost category and cost source, get the final hourly cost.
+     * Given a cost category and cost source filter, a map of hourly cost for each cost source.
      *
-     * @param category The cost category.
-     * @param source The cost source.
+     * @param costCategory The cost category.
+     * @param costSourceFilter The cost source filter.
      *
-     * @return A trax number representing the final cost for a given category and source.
+     * @return A mapping from cost source to a trax number representing the final cost.
      */
-    public TraxNumber getHourlyCostBySourceAndCategory(final CostCategory category,
-            final CostSource source) {
+    public Map<CostSource, TraxNumber> getFilteredCategoryCostsBySource(CostCategory costCategory,
+                                                                        CostSourceFilter costSourceFilter) {
         calculateCosts();
-        return finalCostsByCategoryAndSource.get(category, source);
+
+        Collection<CostItem> filteredCostItemsForCategory = getFilteredCostItemsForCategory(costCategory, costSourceFilter);
+        Map<CostSource, TraxNumber> costsByCostSource = filteredCostItemsForCategory
+                .stream()
+                .collect(Collectors.groupingBy(
+                        costItem -> costItem.costSourceLink().costSource(),
+                        Collectors.mapping(CostItem::cost, TraxCollectors.sum())
+                ));
+        return costsByCostSource;
     }
 
 
@@ -684,7 +688,7 @@ public class CostJournal<ENTITY_CLASS> {
             }
             final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
                     costEntries.computeIfAbsent(CostCategory.RI_COMPUTE, k -> new TreeSet<>(journalEntryComparator));
-            prices.add(new RIJournalEntry<>(payee, couponsCovered,  hourlyCost, CostCategory.RI_COMPUTE, null));
+            prices.add(new RIJournalEntry<>(payee, couponsCovered,  hourlyCost, CostCategory.RI_COMPUTE));
             return this;
         }
 

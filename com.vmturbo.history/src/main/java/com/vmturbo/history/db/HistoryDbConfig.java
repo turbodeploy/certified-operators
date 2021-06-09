@@ -1,13 +1,10 @@
 package com.vmturbo.history.db;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -20,6 +17,7 @@ import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.bulk.BulkInserter;
@@ -29,12 +27,14 @@ import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
 import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
 import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 
 /**
  * Spring Configuration for the HistorydbIO class.
  **/
 @Configuration
+@Import({DbMonitorConfig.class})
 public class HistoryDbConfig extends SQLDatabaseConfig {
     private static Logger logger = LogManager.getLogger();
 
@@ -105,7 +105,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
 
     /**
      * Provide key parameters, surfaced as spring-configurable values, to be used when creating
-     * thie history component conneciton pool.
+     * the history component connection pool.
      *
      * <p>The {@link PoolProperties} structure created here is augmented during pool creation with
      * additional properties required for pool operation.</p>
@@ -194,22 +194,21 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
         };
     }
 
-    @Override
-    protected void grantDbPrivileges(@Nonnull final String schemaName, @Nonnull final String dbPassword,
-            final Connection rootConnection, final String requestUser) throws SQLException {
-        super.grantDbPrivileges(schemaName, dbPassword, rootConnection, requestUser);
-        try {
-            logger.info("Attempting to grant global PROCESS privilege to {}.", requestUser);
-            rootConnection.createStatement().execute(
-                    String.format("GRANT PROCESS ON *.* TO %s", requestUser));
-            rootConnection.createStatement().executeQuery("FLUSH PRIVILEGES");
-        } catch (SQLException e) {
-            logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
-        }
+    /** Whether DbMonitor reports should be produced at all. */
+    @Value("${dbMonitorEnabled:true}")
+    private boolean dbMonitorEnabled;
+
+    public boolean isDbMonitorEnabled() {
+        return dbMonitorEnabled;
     }
 
     @Override
     public String getDbSchemaName() {
         return dbSchemaName;
+    }
+
+    @Override
+    public String getDbUsername() {
+        return historyDbUsername;
     }
 }

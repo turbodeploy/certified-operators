@@ -6,6 +6,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -36,7 +38,7 @@ public class HistUtilizationLoadingTask implements IHistoryLoadingTask<CachingHi
     @Override
     public Map<EntityCommodityFieldReference, Float>
            load(Collection<EntityCommodityReference> commodities,
-                CachingHistoricalEditorConfig config) throws HistoryCalculationException {
+                CachingHistoricalEditorConfig config, final LongSet oidsToUse) throws HistoryCalculationException {
         // TODO dmitry make a request to historydb for given commodities
         return Collections.emptyMap();
     }

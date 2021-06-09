@@ -1,6 +1,7 @@
 package com.vmturbo.market.reservations;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,7 +11,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -27,13 +27,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
-import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsResponse;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
@@ -59,7 +60,7 @@ public class InitialPlacementFinder {
     // a map to keep track of existing reservation ids and the buyers within each reservation. The order
     // is preserved so that replay is following the order as reservations were added.
     @VisibleForTesting
-    protected Map<Long, List<InitialPlacementBuyer>> existingReservations = new LinkedHashMap();
+    protected Map<Long, InitialPlacementDTO> existingReservations = new LinkedHashMap<>();
     // A map of reservation buyer oid to its placement result.
     @VisibleForTesting
     protected Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap<>();
@@ -67,10 +68,10 @@ public class InitialPlacementFinder {
     private Object reservationLock = new Object();
     // The max number of retry if findInitialPlacement failed
     private static int maxRetry;
+    // The max number of attempts to fit all buyers of a reservation within a certain grouping.
+    private int maxGroupingRetry;
     // A grpc blocking service stub
     private ReservationServiceBlockingStub blockingStub;
-    // An executor service.
-    private ExecutorService executorService;
     // Logger
     private static final Logger logger = LogManager.getLogger();
     /**
@@ -104,14 +105,17 @@ public class InitialPlacementFinder {
      * @param stub reservation rpc service blocking stub.
      * @param prepareReservationCache whether economy caches should be built.
      * @param maxRetry The max number of retry if findInitialPlacement failed.
+     * @param maxGroupingRetry The max number of attempts to fit all buyers of a reservation
+     *          within a certain grouping.
      */
     public InitialPlacementFinder(@Nonnull DSLContext dsl,
             @Nonnull final ReservationServiceBlockingStub stub,
-            final boolean prepareReservationCache, int maxRetry) {
+            final boolean prepareReservationCache, int maxRetry, final int maxGroupingRetry) {
         economyCaches = new EconomyCaches(dsl);
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
         this.maxRetry = maxRetry;
+        this.maxGroupingRetry = maxGroupingRetry;
     }
 
     /**
@@ -183,27 +187,16 @@ public class InitialPlacementFinder {
      * @param deployed if true the vm is just deployed. don't delete from historical.
      * @return true if removal from the cached economy completes.
      */
-    public boolean buyersToBeDeleted(List<Long> deleteBuyerOids, boolean deployed) {
+    public boolean buyersToBeDeleted(@Nonnull List<Long> deleteBuyerOids, boolean deployed) {
         synchronized (reservationLock) {
             if (deployed) {
-                for (Map.Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
-                    List<InitialPlacementBuyer> modifiedBuyers = new ArrayList<>();
-                    for (InitialPlacementBuyer buyer : entry.getValue()) {
-                        InitialPlacementBuyer.Builder modifiedBuyer = buyer.toBuilder();
-                        if (deleteBuyerOids.contains(buyer.getBuyerId())) {
-                            modifiedBuyer.setDeployed(true);
-                        }
-                        modifiedBuyers.add(modifiedBuyer.build());
-                    }
-                    existingReservations.get(entry.getKey()).clear();
-                    existingReservations.get(entry.getKey()).addAll(modifiedBuyers);
-                }
+                updateDeployedReservations(deleteBuyerOids);
             }
             logger.info(logPrefix + "Prepare to delete reservation entities {} from {} cached economies",
                     deleteBuyerOids, deployed ? "realtime" : "both");
-            Set<Long> reservationsToRemove = new HashSet();
-            for (Map.Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
-                Set<Long> existingBuyerOids = entry.getValue().stream()
+            Set<Long> reservationsToRemove = new HashSet<>();
+            for (Map.Entry<Long, InitialPlacementDTO> entry : existingReservations.entrySet()) {
+                Set<Long> existingBuyerOids = entry.getValue().getInitialPlacementBuyerList().stream()
                         .map(InitialPlacementBuyer::getBuyerId).collect(Collectors.toSet());
                 existingBuyerOids.removeAll(deleteBuyerOids);
                 if (existingBuyerOids.isEmpty()) {
@@ -212,7 +205,7 @@ public class InitialPlacementFinder {
             }
             // Remove reservation buyers grouped by reservation oid one by one.
             for (Long oid : reservationsToRemove) {
-                List<InitialPlacementBuyer> buyersToRemove = existingReservations.get(oid);
+                List<InitialPlacementBuyer> buyersToRemove = existingReservations.get(oid).getInitialPlacementBuyerList();
                 Set<Long> buyerOids = buyersToRemove.stream()
                         .map(InitialPlacementBuyer::getBuyerId)
                         .collect(Collectors.toSet());
@@ -240,25 +233,50 @@ public class InitialPlacementFinder {
     }
 
     /**
+     * Update Reservations that are deployed.
+     *
+     * @param deleteBuyerOids buyers that need to be modified.
+     */
+    private void updateDeployedReservations(@Nonnull List<Long> deleteBuyerOids) {
+        for (Map.Entry<Long, InitialPlacementDTO> entry : existingReservations.entrySet()) {
+            InitialPlacementDTO initialPlacement = entry.getValue();
+            List<InitialPlacementBuyer> modifiedBuyers = new ArrayList<>();
+            for (InitialPlacementBuyer buyer : entry.getValue().getInitialPlacementBuyerList()) {
+                InitialPlacementBuyer.Builder modifiedBuyer = buyer.toBuilder();
+                if (deleteBuyerOids.contains(buyer.getBuyerId())) {
+                    modifiedBuyer.setDeployed(true);
+                }
+                modifiedBuyers.add(modifiedBuyer.build());
+            }
+            InitialPlacementDTO findInitialPlacementNew = InitialPlacementDTO.newBuilder()
+                .addAllInitialPlacementBuyer(modifiedBuyers)
+                .setReservationMode(initialPlacement.getReservationMode())
+                .setReservationGrouping(initialPlacement.getReservationGrouping())
+                .setId(initialPlacement.getId()).build();
+            existingReservations.put(entry.getKey(), findInitialPlacementNew);
+        }
+    }
+
+    /**
      * Find initial placement for a given list of reservation entities.
      *
-     * @param buyers a list of reservation entities
+     * @param request the request for initial placement.
      * @return a table whose row is reservation entity oid, column is shopping list oid and value
      * is the {@link InitialPlacementFinderResult}
      */
+    @Nonnull
     public Table<Long, Long, InitialPlacementFinderResult> findPlacement(
-            @Nonnull final List<InitialPlacementBuyer> buyers) {
-        if (buyers.isEmpty()) {
+            @Nonnull final FindInitialPlacementRequest request) {
+        List<InitialPlacementBuyer> allBuyers = request.getInitialPlacementList().stream()
+            .map(InitialPlacementDTO::getInitialPlacementBuyerList)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+        if (allBuyers.isEmpty()) {
             return HashBasedTable.create();
         }
-        // Group buyers by reservation id.
-        Map<Long, List<InitialPlacementBuyer>> buyersByReservationId = buyers.stream().collect(
-                Collectors.groupingBy(InitialPlacementBuyer::getReservationId));
-        // A map to keep all the reservations placement result. Key is buyer oid, value is a list
-        // of InitialPlacementDecision.
-        Map<Long, List<InitialPlacementDecision>> initialPlacements = new HashMap();
+        Map<Long, List<InitialPlacementDecision>> initialPlacements = new HashMap<>();
         // A map to keep track of reservation buyer's shopping list oid to its cluster mapping.
-        Map<Long, CommodityType> slToClusterMap = new HashMap();
+        Map<Long, CommodityType> slToClusterMap = new HashMap<>();
         synchronized (reservationLock) {
             if (!economyCaches.getState().isEconomyReady()) {
                 logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
@@ -268,50 +286,68 @@ public class InitialPlacementFinder {
             // placement results in buyerPlacements.
             // Save the diagnostics if the debug is turned on.
             try {
-                saveInitialPlacementDiags(buyers);
+                saveInitialPlacementDiags(request.getInitialPlacementList());
             } catch (Exception e) {
                 logger.error("Error when attempting to save InitialPlacement diags", e);
             }
-            for (Map.Entry<Long, List<InitialPlacementBuyer>> buyersPerReservation
-                    : buyersByReservationId.entrySet()) {
-                Set<Long> buyersInOneRes = buyersPerReservation.getValue().stream().map(i ->
-                        i.getBuyerId()).collect(Collectors.toSet());
-                try {
-                    Map<Long, List<InitialPlacementDecision>> initialPlacementPerReservation =
-                            economyCaches.findInitialPlacement(buyersPerReservation.getValue(),
-                                    slToClusterMap, maxRetry);
-                    buyerPlacements.putAll(initialPlacementPerReservation);
-                    // Keep incoming reservation buyers in the existingReservations map
-                    existingReservations.put(buyersPerReservation.getKey(), buyersPerReservation.getValue());
-                    initialPlacements.putAll(initialPlacementPerReservation);
-                } catch (Exception exception) {
-                    // Any request that encounters an exception should fail all the buyers in the
-                    // same reservation.
-                    logger.error(logPrefix + "Find placement failed for reservation {} containing buyers {} with"
-                            + " exception {} ", buyersPerReservation.getKey(), buyersInOneRes, exception);
-                    // Make sure no buyers in the failed reservation are added into existingReservations
-                    // or buyerPlacements and no such buyers exist in both economy caches.
-                    existingReservations.remove(buyersPerReservation.getKey());
-                    buyersInOneRes.stream().forEach(buyerOid -> buyerPlacements.remove(buyerOid));
-                    economyCaches.clearDeletedBuyersFromCache(buyersInOneRes, false);
-                    buyersPerReservation.getValue().stream()
-                            .map(buyer -> buyer.getInitialPlacementCommoditiesBoughtFromProviderList())
-                            .flatMap(List::stream)
-                            .forEach(sl -> slToClusterMap.remove(sl.getCommoditiesBoughtFromProviderId()));
-                    // Create empty InitialPlacementDecision for each buyer in the reservation that
-                    // encounter exception.
-                    List<InitialPlacementDecision> emptyDecisions = new ArrayList();
-                    buyersPerReservation.getValue().forEach(b -> {
-                        b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
-                                .map(sl -> sl.getCommoditiesBoughtFromProviderId())
-                                .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
-                                        b.getBuyerId(), Optional.empty(), new ArrayList())));
-                        initialPlacements.put(b.getBuyerId(), emptyDecisions);
-                    });
-                }
+            for (InitialPlacementDTO buyersPerReservation
+                    : request.getInitialPlacementList()) {
+                findPlacement(buyersPerReservation, initialPlacements, slToClusterMap);
             }
             // process reservation result from sl to provider mapping
             return buildReservationResponse(initialPlacements, slToClusterMap);
+        }
+    }
+
+    /**
+     * Find placement for reservations.
+     *
+     * @param initialPlacement the InitialPlacement objects per reservation.
+     * @param initialPlacements the initialPlacement decisions.
+     * @param slToClusterMap the mapping of sl to cluster.
+     */
+    private void findPlacement(@Nonnull InitialPlacementDTO initialPlacement,
+        @Nonnull Map<Long, List<InitialPlacementDecision>> initialPlacements,
+        @Nonnull Map<Long, CommodityType> slToClusterMap) {
+        Set<Long> buyersInOneRes = initialPlacement
+                .getInitialPlacementBuyerList().stream().map(i -> i.getBuyerId())
+                    .collect(Collectors.toSet());
+        try {
+            Map<Long, List<InitialPlacementDecision>> initialPlacementPerReservation
+                = economyCaches.findInitialPlacement(initialPlacement
+                    .getInitialPlacementBuyerList(), slToClusterMap, maxRetry,
+                    initialPlacement.getReservationMode(),
+                    initialPlacement.getReservationGrouping(),
+                    maxGroupingRetry);
+            buyerPlacements.putAll(initialPlacementPerReservation);
+            // Keep incoming reservation buyers in the existingReservations map
+            existingReservations.put(initialPlacement.getId(),
+                    initialPlacement);
+            initialPlacements.putAll(initialPlacementPerReservation);
+        } catch (Exception exception) {
+            // Any request that encounters an exception should fail all the buyers in the
+            // same reservation.
+            logger.error(logPrefix + "Find placement failed for reservation {} containing buyers {} with"
+                    + " exception {} ", initialPlacement.getId(), buyersInOneRes, exception);
+            // Make sure no buyers in the failed reservation are added into existingReservations
+            // or buyerPlacements and no such buyers exist in both economy caches.
+            existingReservations.remove(initialPlacement.getId());
+            buyersInOneRes.stream().forEach(buyerOid -> buyerPlacements.remove(buyerOid));
+            economyCaches.clearDeletedBuyersFromCache(buyersInOneRes, false);
+            initialPlacement.getInitialPlacementBuyerList().stream()
+                    .map(buyer -> buyer.getInitialPlacementCommoditiesBoughtFromProviderList())
+                    .flatMap(List::stream)
+                    .forEach(sl -> slToClusterMap.remove(sl.getCommoditiesBoughtFromProviderId()));
+            // Create empty InitialPlacementDecision for each buyer in the reservation that
+            // encounter exception.
+            List<InitialPlacementDecision> emptyDecisions = new ArrayList<>();
+            initialPlacement.getInitialPlacementBuyerList().forEach(b -> {
+                b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
+                        .map(sl -> sl.getCommoditiesBoughtFromProviderId())
+                        .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
+                                b.getBuyerId(), Optional.empty(), new ArrayList<>())));
+                initialPlacements.put(b.getBuyerId(), emptyDecisions);
+            });
         }
     }
 
@@ -336,7 +372,7 @@ public class InitialPlacementFinder {
                     placementResult.put(buyerOid, placement.slOid, new InitialPlacementFinderResult(
                             Optional.of(placement.supplier.get()),
                             Optional.ofNullable(slToClusterMap.get(placement.slOid)),
-                            new ArrayList()));
+                            new ArrayList<>()));
                 } else if (!placement.failureInfos.isEmpty()) { // the sl is unplaced, populate reason
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
@@ -355,7 +391,7 @@ public class InitialPlacementFinder {
                     // success reservation.
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    new ArrayList()));
+                                    new ArrayList<>()));
                 }
             }
         }
@@ -370,8 +406,8 @@ public class InitialPlacementFinder {
         GetProvidersOfExistingReservationsResponse.Builder response = GetProvidersOfExistingReservationsResponse
                 .newBuilder();
         try {
-            for (Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
-                for (InitialPlacementBuyer initialPlacementBuyer : entry.getValue()) {
+            for (Entry<Long, InitialPlacementDTO> entry : existingReservations.entrySet()) {
+                for (InitialPlacementBuyer initialPlacementBuyer : entry.getValue().getInitialPlacementBuyerList()) {
                     List<InitialPlacementDecision> initialPlacementDecisionList =
                             findExistingInitialPlacementDecisions(
                                     initialPlacementBuyer.getBuyerId());
@@ -422,21 +458,17 @@ public class InitialPlacementFinder {
         if (economyCaches.getState().isReservationReceived()) {
             return;
         }
-        GetBuyersOfExistingReservationsRequest request =
-                GetBuyersOfExistingReservationsRequest.newBuilder().build();
-        List<InitialPlacementBuyer> existingBuyers = new ArrayList();
+        GetExistingReservationsRequest request =
+                GetExistingReservationsRequest.newBuilder().build();
         try {
             logger.info(logPrefix + "Trying to get a list of existing reservation buyers from"
                     + " plan orchestrator.");
-            GetBuyersOfExistingReservationsResponse response = RetriableOperation
-                    .newOperation(() -> blockingStub.getBuyersOfExistingReservations(request))
+            GetExistingReservationsResponse response = RetriableOperation
+                    .newOperation(() -> blockingStub.getExistingReservations(request))
                     .retryOnException(e -> e instanceof StatusRuntimeException)
                     .backoffStrategy(curTry -> 120000) // wait 2 min between retries
                     .run(timeOut, TimeUnit.SECONDS);
-            List<InitialPlacementBuyer> reservationBuyers = new ArrayList();
-            reservationBuyers.addAll(response.getInitialPlacementBuyerList());
-            existingBuyers.addAll(reservationBuyers);
-            populateExistingReservationBuyers(existingBuyers);
+            populateExistingReservations(response.getInitialPlacementList());
         } catch (Exception e) {
             if (e instanceof InterruptedException) {
                 // Reset interrupt status.
@@ -461,27 +493,27 @@ public class InitialPlacementFinder {
      * Populate the reservation buyers and keep them in existingReservations and buyerPlacements
      * maps.
      *
-     * @param existingBuyers a list of {@link InitialPlacementBuyer}s.
+     * @param initialPlacements a list of {@link FindInitialPlacement}s.
      */
-    private void populateExistingReservationBuyers(List<InitialPlacementBuyer> existingBuyers) {
+    private void populateExistingReservations(List<InitialPlacementDTO> initialPlacements) {
         synchronized (reservationLock) {
             // Populate existing reservation buyers received from PO into in memory data structures
-            for (InitialPlacementBuyer buyer : existingBuyers) {
-                List<InitialPlacementDecision> decisions = new ArrayList();
-                for (InitialPlacementCommoditiesBoughtFromProvider sl : buyer
-                        .getInitialPlacementCommoditiesBoughtFromProviderList()) {
-                    long slOid = sl.getCommoditiesBoughtFromProviderId();
-                    Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
-                            ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
-                            : Optional.empty();
-                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList()));
-                }
-                buyerPlacements.put(buyer.getBuyerId(), decisions);
-                List<InitialPlacementBuyer> buyersInRes = existingReservations.getOrDefault(
-                        buyer.getReservationId(), new ArrayList<InitialPlacementBuyer>());
-                buyersInRes.add(buyer);
-                existingReservations.put(buyer.getReservationId(), buyersInRes);
-            }
+            initialPlacements.forEach(initialPlacement -> {
+                initialPlacement.getInitialPlacementBuyerList().forEach(buyer -> {
+                    List<InitialPlacementDecision> decisions = new ArrayList<>();
+                    buyer.getInitialPlacementCommoditiesBoughtFromProviderList().forEach(sl -> {
+                        long slOid = sl.getCommoditiesBoughtFromProviderId();
+                        Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
+                                ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
+                                : Optional.empty();
+                        decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList<>()));
+                    });
+                    buyerPlacements.put(buyer.getBuyerId(), decisions);
+                    if (!existingReservations.containsKey(initialPlacement.getId())) {
+                        existingReservations.put(buyer.getReservationId(), initialPlacement);
+                    }
+                });
+            });
             logger.info(logPrefix + "Existing reservations are: reservation ids {}", existingReservations.keySet());
             // Set state to ready once reservations are received from PO and real time economy is ready.
             economyCaches.getState().setReservationReceived(true);
@@ -500,16 +532,16 @@ public class InitialPlacementFinder {
 
     /**
      * Save the economy stats if the AnalysisDiagnosticsCollector is set to DEBUG mode.
-     * @param buyers the current set of InitialPlacementBuyers.
+     * @param initialPlacements the current mapping of initialPlacements.
      */
-    private void saveInitialPlacementDiags(List<InitialPlacementBuyer> buyers) {
+    private void saveInitialPlacementDiags(List<InitialPlacementDTO> initialPlacements) {
         String now = String.valueOf((new Date()).getTime());
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
         factory.newDiagsCollector(now, AnalysisMode.INITIAL_PLACEMENT).ifPresent(diagsCollector -> {
             diagsCollector.saveInitialPlacementDiags(now,
                     economyCaches.getHistoricalCachedCommTypeMap(),
                     economyCaches.getRealtimeCachedCommTypeMap(),
-                    buyers,
+                    initialPlacements,
                     economyCaches.getHistoricalCachedEconomy(),
                     economyCaches.getRealtimeCachedEconomy());
         });

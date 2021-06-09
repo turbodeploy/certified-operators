@@ -139,7 +139,8 @@ public class ReservationMapperTest {
         reservationMapper = new ReservationMapper(repositoryApi,
             TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            true);
 
         vmServiceEntity.setClassName("VirtualMachine");
         vmServiceEntity.setDisplayName("VM-template Clone #1");

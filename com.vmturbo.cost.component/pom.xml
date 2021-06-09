@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>8.1.6-SNAPSHOT</version>
+        <version>8.2.3-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -38,6 +38,7 @@
                                 <apiSource>
                                     <locations>
                                         <location>com.vmturbo.cost.component</location>
+                                        <location>com.vmturbo.common.protobuf.cloud</location>
                                         <location>com.vmturbo.common.protobuf.cost</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
                                         <location>com.vmturbo.common.protobuf.trax</location>
@@ -272,10 +273,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>reserved-instance-coverage-allocator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.topology.event.library</artifactId>
         </dependency>
 
@@ -375,6 +372,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
     </dependencies>
 

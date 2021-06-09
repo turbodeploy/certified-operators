@@ -15,7 +15,7 @@ import org.stringtemplate.v4.ST;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.CloudCommitmentSavingsCalculator.RecommendationAppraisal;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.CloudCommitmentSavingsCalculator.SavingsCalculationRecommendation;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 
 /**

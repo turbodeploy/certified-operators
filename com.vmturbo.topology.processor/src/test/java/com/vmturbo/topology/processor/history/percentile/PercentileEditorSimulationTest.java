@@ -26,6 +26,9 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hamcrest.Matchers;
@@ -59,6 +62,8 @@ import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -115,14 +120,16 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
     private List<EntityCommodityReference> commodityReferences;
     private Stopwatch stopwatch;
     private long checkpointTime;
+    private IdentityProvider identityProvider;
 
     /**
      * The setup to run before running test.
      *
      * @throws IOException when failed
+     * @throws IdentityUninitializedException when oids can't be fetched from the cache
      */
     @Before
-    public void setup() throws IOException {
+    public void setup() throws IOException, IdentityUninitializedException {
         final KVConfig kvConfig = createKvConfig(new HashMap<>());
         // Mock time
         currentTime = PERIOD_START_TIMESTAMP;
@@ -131,7 +138,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         config = getConfig(clock, kvConfig);
         persistenceTable = new TreeMap<>();
         vmCapacities = new HashMap<>(INITIAL_CAPACITIES);
-
+        identityProvider = Mockito.mock(IdentityProvider.class);
         Function<GetTimestampsRangeRequest, List<Long>> stampsGetter =
                         (req) -> Lists.newArrayList(persistenceTable.keySet());
         percentileEditor = new PercentileEditor(config, null,
@@ -139,8 +146,10 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                         (service, range) -> new PercentileTaskStub(service, range, persistenceTable,
                                         (checkpoint) -> {
                                             checkpointTime = checkpoint;
-                                        }), Mockito.mock(SystemNotificationProducer.class));
-
+                                        }), Mockito.mock(SystemNotificationProducer.class), identityProvider, false);
+        LongSet oidsInCache = new LongOpenHashSet();
+        oidsInCache.addAll(VM_OID_TO_MAP.keySet());
+        when(identityProvider.getCurrentOidsInIdentityCache()).thenReturn(oidsInCache);
         commodityReferences = VM_OID_TO_MAP.keySet().stream()
             .map(oid -> new EntityCommodityReference(oid,
                 TopologyDTO.CommodityType.newBuilder()
@@ -421,7 +430,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                            @Nonnull Pair<Long, Long> range,
                            @Nonnull Map<Long, PercentileCounts> persistenceTable,
                            @Nonnull Consumer<Long> checkpointSetter) {
-            super(statsHistoryClient, range);
+            super(statsHistoryClient, range, false);
             this.persistenceTable = persistenceTable;
             this.checkpointSetter = checkpointSetter;
         }
@@ -429,7 +438,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         @Override
         public Map<EntityCommodityFieldReference, PercentileCounts.PercentileRecord> load(
             @Nonnull Collection<EntityCommodityReference> commodities,
-            @Nonnull PercentileHistoricalEditorConfig config)  {
+            @Nonnull PercentileHistoricalEditorConfig config, @Nonnull final LongSet oidsToUse)  {
             return loadFromCounts(persistenceTable.get(getStartTimestamp()));
         }
 

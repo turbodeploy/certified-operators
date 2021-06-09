@@ -10,11 +10,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 
@@ -104,6 +106,19 @@ public class CloudEntitiesMap implements Map<String, Long> {
                         cloudEntityOidByLocalId.put(databaseTierFullName, entity.getOid());
                     } else {
                         cloudEntityOidByLocalId.put(databaseTierName, entity.getOid());
+                    }
+                } else if (entityType == EntityType.BUSINESS_ACCOUNT) {
+                    Collection<String> baLocalId = entity.getPropertyValues(SupplyChainConstants.LOCAL_NAME);
+                    if (CollectionUtils.isNotEmpty(baLocalId)) {
+                        final String accountLocalId = baLocalId.iterator().next();
+                        Long previousAccountOid = cloudEntityOidByLocalId.put(accountLocalId, entity.getOid());
+                        logger.debug("Adding mapping from account localId {} to oid {} to CloudEntitiesMap",
+                                accountLocalId, entity.getOid());
+                        if (previousAccountOid != null) {
+                            logger.error("BusinessAccount localId {} is mapped to"
+                                            + " more than one account! Account {} overrides {}",
+                                    accountLocalId, entity.getOid(), previousAccountOid);
+                        }
                     }
                 }
                 counter.getAndIncrement();

@@ -2,6 +2,7 @@ package com.vmturbo.common.protobuf.topology;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -31,7 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
@@ -47,7 +48,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfoOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -125,6 +125,12 @@ public final class TopologyDTOUtil {
      * String for the old providers key in the entity properties map.
      */
     public static final String OLD_PROVIDERS = "oldProviders";
+
+    /**
+     * Cloud RDB entities.
+      */
+    public static final Set<Integer> ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES =
+            ImmutableSet.of(EntityType.DATABASE_VALUE, EntityType.DATABASE_SERVER_VALUE);
 
     private TopologyDTOUtil() {
     }
@@ -398,15 +404,15 @@ public final class TopologyDTOUtil {
      * If there is only one provider, then that is the primary provider.
      * If there are multiple providers,
      * 1. For a VirtualMachine, we find the PM/Compute Tier provider.
-     * 2. For other entity types, we return 0 as the index of the primary provider. This might
+     * 2. For a ContainerPod, we find the VM provider.
+     * 3. For other entity types, we return 0 as the index of the primary provider. This might
      * need changes in the future.
      *
      * @param targetEntityType the entity type of the target entity
-     * @param targetOid the target entity's oid
      * @param providerTypes the provider entity types
-     * @return
+     * @return Optional of primary provider index.
      */
-    public static Optional<Integer> getPrimaryProviderIndex(int targetEntityType, long targetOid,
+    public static Optional<Integer> getPrimaryProviderIndex(int targetEntityType,
                                                             @Nonnull List<Integer> providerTypes) {
         if (providerTypes.isEmpty()) {
             return Optional.empty();
@@ -419,6 +425,11 @@ public final class TopologyDTOUtil {
                 return IntStream.range(0, providerTypes.size())
                     .filter(i -> providerTypes.get(i) == EntityType.PHYSICAL_MACHINE_VALUE
                         || providerTypes.get(i) == EntityType.COMPUTE_TIER_VALUE)
+                    .boxed()
+                    .findFirst();
+            case EntityType.CONTAINER_POD_VALUE:
+                return IntStream.range(0, providerTypes.size())
+                    .filter(i -> providerTypes.get(i) == EntityType.VIRTUAL_MACHINE_VALUE)
                     .boxed()
                     .findFirst();
             default:
@@ -587,13 +598,14 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Get CPU speed in MHz/core for given VM.
+     * Get CPU speed in MHz/core for given VM if entity state is not unknown.
      *
      * @param topologyEntity Given topology entity DTO or builder of VM.
      * @return CPU speed in MHz/core for given VM.
      */
     private static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
-        if (topologyEntity.hasTypeSpecificInfo()
+        if (topologyEntity.getEntityState() != EntityState.UNKNOWN
+            && topologyEntity.hasTypeSpecificInfo()
             && topologyEntity.getTypeSpecificInfo().hasVirtualMachine()
             && topologyEntity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
             int numCPUCores = topologyEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
@@ -628,5 +640,38 @@ public final class TopologyDTOUtil {
                         // Get storage connected to the volume
                         .orElse(TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
                                         EntityType.STORAGE.getNumber()).findFirst().orElse(null)));
+    }
+
+    /**
+     * Check the given dto to see whether it is a configuration volume. Disk volume populates storage amount
+     * and storage provisioned commodities but not storage access nor storage latency.
+     * TODO: Currently we rely on commodity types to determine a configuration volume.
+     * When the onPremAnalysisVolume flag is removed, the configuration volume will
+     * differ from others by having controllable flag set to false. We should change
+     * this method to rely on the controllable flag in future.
+     *
+     * @param dto a given topology entity dto.
+     * @return true if the volume is a configuration volume.
+     */
+    public static boolean isConfigurationVolume(TopologyEntityDTOOrBuilder dto) {
+        if (dto.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return false;
+        }
+        boolean hasStAmt = false;
+        boolean hasStProv = false;
+        boolean hasStAcc = false;
+        boolean hasStLat = false;
+        for (CommoditySoldDTO commSold : dto.getCommoditySoldListList()) {
+            if (commSold.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                hasStAmt = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_PROVISIONED_VALUE) {
+                hasStProv = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                hasStAcc = true;
+            } else if (commSold.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE) {
+                hasStLat = true;
+            }
+        }
+        return hasStAmt && hasStProv && !hasStAcc && !hasStLat;
     }
 }

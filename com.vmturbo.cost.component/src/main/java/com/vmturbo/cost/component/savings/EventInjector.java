@@ -16,8 +16,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -69,8 +67,7 @@ public class EventInjector implements Runnable {
     /**
      * Action lifetimes.
      */
-    private final Long actionLifetimeMs;
-    private final Long deleteVolumeActionLifetimeMs;
+    private final EntitySavingsRetentionConfig entitySavingsRetentionConfig;
 
     /**
      * Event format passed between the data generator and the event injector.
@@ -88,6 +85,7 @@ public class EventInjector implements Runnable {
          * Return string representation of event.
          * @return string representation of event
          */
+        @Override
         public String toString() {
             return String.format("%s@%d", eventType, timestamp);
         }
@@ -98,17 +96,14 @@ public class EventInjector implements Runnable {
      *
      * @param entitySavingsTracker entity savings tracker to inject actions into.
      * @param entityEventsJournal events journal to populate.
-     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
-     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
+     * @param entitySavingsRetentionConfig savings action retention configuration.
      */
     EventInjector(EntitySavingsTracker entitySavingsTracker,
                   EntityEventsJournal entityEventsJournal,
-            @Nonnull final Long actionLifetimeMs,
-            @Nonnull final Long deleteVolumeActionLifetimeMs) {
+            @Nonnull final EntitySavingsRetentionConfig entitySavingsRetentionConfig) {
         this.entitySavingsTracker = entitySavingsTracker;
         this.entityEventsJournal = entityEventsJournal;
-        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
-        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
+        this.entitySavingsRetentionConfig = entitySavingsRetentionConfig;
     }
 
 
@@ -117,7 +112,7 @@ public class EventInjector implements Runnable {
      */
     public void start() {
         (new Thread(new EventInjector(entitySavingsTracker, entityEventsJournal,
-                actionLifetimeMs, deleteVolumeActionLifetimeMs))).start();
+                entitySavingsRetentionConfig))).start();
     }
 
     /**
@@ -149,7 +144,7 @@ public class EventInjector implements Runnable {
                     }
                     wk.reset();
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
                 if (watchService != null) {
                     try {
@@ -211,20 +206,19 @@ public class EventInjector implements Runnable {
         Builder result = new SavingsEvent.Builder()
                 .entityId(event.uuid)
                 .timestamp(event.timestamp);
-        if ("RESIZE_RECOMMENDATION".equals(event.eventType)) {
+        if ("RECOMMENDATION_ADDED".equals(event.eventType)) {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
-                    .expirationTime(event.expirationTimestamp)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
                     .eventType(ActionEventType.RECOMMENDATION_ADDED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
-        } else if ("CANCEL_RECOMMENDATION".equals(event.eventType)) {
+        } else if ("RECOMMENDATION_REMOVED".equals(event.eventType)) {
             EntityPriceChange dummyPriceChange =  new EntityPriceChange.Builder()
-                    .sourceCost(0d).destinationCost(0d).expirationTime(event.expirationTimestamp)
+                    .sourceCost(0d).destinationCost(0d)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
@@ -246,11 +240,22 @@ public class EventInjector implements Runnable {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
-                    .expirationTime(Optional.of(event.expirationTimestamp))
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
-                    .eventType(ActionEventType.EXECUTION_SUCCESS)
+                    .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
+                    .expirationTime(event.expirationTimestamp)
+                    .build();
+            result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
+        } else if ("DELETE_EXECUTED".equals(event.eventType)) {
+            EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
+                    .sourceCost(event.sourceTier)
+                    .destinationCost(0d)
+                    .build();
+            ActionEvent actionEvent = new ActionEvent.Builder()
+                    .actionId(event.uuid)
+                    .eventType(ActionEventType.DELETE_EXECUTION_SUCCESS)
+                    .expirationTime(event.expirationTimestamp)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {

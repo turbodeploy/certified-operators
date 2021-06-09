@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -108,7 +109,9 @@ import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
@@ -150,6 +153,7 @@ public class EntityMetricWriterTest {
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private ScopeManager scopeManager;
+    private DataExtractionFactory dataExtractionFactory;
 
     /**
      * Set up for tests.
@@ -196,10 +200,16 @@ public class EntityMetricWriterTest {
         final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
         entityHashManager.injectPriorTopology();
         this.scopeManager = mock(ScopeManager.class);
+        this.dataExtractionFactory = mock(DataExtractionFactory.class);
+        RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
+        doReturn(Collections.emptyMap()).when(relatedEntitiesExtractor).getRelatedEntitiesByType(anyLong());
+        doAnswer(i -> Stream.empty()).when(relatedEntitiesExtractor).getRelatedGroups(anyObject());
+        doReturn(Optional.of(relatedEntitiesExtractor)).when(dataExtractionFactory).newRelatedEntitiesExtractor();
+
         this.writer = spy(new EntityMetricWriter(endpoint,
                 entityHashManager,
                 scopeManager, oidPack,
-                Executors.newSingleThreadScheduledExecutor()));
+                Executors.newSingleThreadScheduledExecutor(), dataExtractionFactory));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(), any());
         doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(any(), any(), any());
@@ -693,15 +703,15 @@ public class EntityMetricWriterTest {
         final TopologyEntityDTO storage1 = mkEntity(STORAGE);
 
         final List<VirtualVolumeFileDescriptor> filesList1 = Arrays.asList(
-                file("/var/vmware-0.log", LOG, 202, 0),
-                file("/test/small-flat.vmdk", DISK, 2609152, 0),
-                file("/as-kube-node-3/as-kube-node-3-3b62dc2c.vswp", SWAP, 16777216, 0));
+                file("/var/vmware-0.log", LOG, 202L, 0L),
+                file("/test/small-flat.vmdk", DISK, 2609152L, 0L),
+                file("/as-kube-node-3/as-kube-node-3-3b62dc2c.vswp", SWAP, 16777216L, 0L));
         final TopologyEntityDTO volume1 = onPremVolume(filesList1, AttachmentState.ATTACHED, storage1.getOid());
 
         final List<VirtualVolumeFileDescriptor> filesList2 = Arrays.asList(
-                file("/var/a.log", LOG, 200, 1581941078000L),
-                file("/foo/diags.zip", CONFIGURATION, 21065, 1580146549000L),
-                file("/bar/hyperv.iso", ISO, 8866, 1580146546000L));
+                file("/var/a.log", LOG, 200L, 1581941078000L),
+                file("/foo/diags.zip", CONFIGURATION, 21065L, 1580146549000L),
+                file("/bar/hyperv.iso", ISO, 8866L, 1580146546000L));
         final TopologyEntityDTO volume2 = onPremVolume(filesList2, AttachmentState.UNATTACHED, storage1.getOid());
 
         final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
@@ -712,31 +722,38 @@ public class EntityMetricWriterTest {
 
         final TopologyEntityDTO storageTier1 = mkEntity(STORAGE_TIER);
         final List<VirtualVolumeFileDescriptor> filesList3 = Arrays.asList(
-                file("/disks/wasted", DISK, 109152, 1581941078000L),
-                file("/foo/diags.zip", CONFIGURATION, 21065, 1580146549000L));
+                file("/disks/wasted", DISK, 109152L, 1581941078000L),
+                file("/foo/diags.zip", CONFIGURATION, 21065L, 1580146549000L));
         final TopologyEntityDTO volume3 = cloudVolume(filesList3, AttachmentState.UNATTACHED, storageTier1.getOid());
+
+        final TopologyEntityDTO storageTier2 = mkEntity(STORAGE_TIER);
+        final List<VirtualVolumeFileDescriptor> filesList4 = Arrays.asList(
+                file("/disks/wasted", DISK, null, null));
 
         // mock
         doReturn(Optional.of(storage1.getDisplayName())).when(dataProvider).getDisplayName(storage1.getOid());
         doReturn(Optional.of(storageTier1.getDisplayName())).when(dataProvider).getDisplayName(storageTier1.getOid());
+        doReturn(Optional.of(storageTier2.getDisplayName())).when(dataProvider).getDisplayName(storageTier2.getOid());
 
         // write
         List<TopologyEntityDTO> entities = Arrays.asList(vm, volume1, volume2, volume3, storage1,
-                storageTier1);
+                storageTier1, storageTier2);
         // shuffle so the order of receiving entity is randomized each time
         Collections.shuffle(entities);
         entities.forEach(entityConsumer);
         writer.finish(dataProvider);
 
-        // verify that the files on volume2 and volume4 are persisted
+        // verify that the files on volume2 and volume3 are persisted
         assertThat(wastedFileReplacerCapture.size(), is(5));
 
-        final Map<Long, TopologyEntityDTO> storageById = Stream.of(storage1, storageTier1)
+        final Map<Long, TopologyEntityDTO> storageById = Stream.of(storage1, storageTier1, storageTier2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         final Map<Long, Map<String, VirtualVolumeFileDescriptor>> wastedFileByStorageAndPath = ImmutableMap.of(
                 storage1.getOid(), filesList2.stream()
                         .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity())),
                 storageTier1.getOid(), filesList3.stream()
+                        .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity())),
+                storageTier2.getOid(), filesList4.stream()
                         .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity()))
         );
 
@@ -744,8 +761,16 @@ public class EntityMetricWriterTest {
             final Long storageId = record.get(STORAGE_OID);
             final VirtualVolumeFileDescriptor expected =
                     wastedFileByStorageAndPath.get(storageId).get(record.get(FILE_PATH));
-            assertThat(record.get(FILE_SIZE), is(expected.getSizeKb()));
-            assertThat(record.get(MODIFICATION_TIME).getTime(), is(expected.getModificationTimeMs()));
+            if (expected.hasSizeKb()) {
+                assertThat(record.get(FILE_SIZE), is(expected.getSizeKb()));
+            } else {
+                assertThat(record.get(FILE_SIZE), is(nullValue()));
+            }
+            if (expected.hasModificationTimeMs()) {
+                assertThat(record.get(MODIFICATION_TIME).getTime(), is(expected.getModificationTimeMs()));
+            } else {
+                assertThat(record.get(MODIFICATION_TIME), is(nullValue()));
+            }
             assertThat(record.get(STORAGE_NAME), is(storageById.get(storageId).getDisplayName()));
         }
     }

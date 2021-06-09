@@ -73,7 +73,8 @@ global:
     fsGroup: 2000
   certmanager:
     enabled: false
-    certissuer: letsencrypt-prod
+    issuer: letsencrypt
+    kind: ClusterIssuer
   ingress:
     # domain: *.turbonomic.com
     secrets:
@@ -229,6 +230,8 @@ netflow:
   enabled: false
 newrelic:
   enabled: false
+webhook:
+  enabled: false
 weblogic:
   enabled: false
 websphere:
@@ -276,4 +279,6 @@ vplex:
 wmi:
   enabled: false
 xtremio:
+  enabled: false
+xen:
   enabled: false

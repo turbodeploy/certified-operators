@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.COMMODITIES_TO_SKIP;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
@@ -30,6 +31,7 @@ import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
@@ -46,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -79,11 +82,6 @@ public class CloudMigrationPlanHelperTest {
     private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
 
     /**
-     * Pipeline context containing source entities etc.
-     */
-    private final TopologyPipelineContext context;
-
-    /**
      * Group service dependency.
      */
     private final GroupServiceBlockingStub groupServiceClient;
@@ -97,6 +95,12 @@ public class CloudMigrationPlanHelperTest {
      * On-prem source VM DTO data read from file.
      */
     private TopologyEntityDTO.Builder vm1OnPrem;
+
+    /**
+     * On-prem source VM DTO data read from file.
+     * This VM has 2 storages - volume1OnPrem and volume2OnPrem
+     */
+    private TopologyEntityDTO.Builder vm2OnPrem;
 
     /**
      * Azure source VM DTO data read from file.
@@ -124,6 +128,16 @@ public class CloudMigrationPlanHelperTest {
     private TopologyEntityDTO.Builder storage2OnPrem;
 
     /**
+     * On-prem volume 1, connected to storage 1.
+     */
+    private TopologyEntityDTO.Builder volume1OnPrem;
+
+    /**
+     * On-prem volume 2, connected to storage 2.
+     */
+    private TopologyEntityDTO.Builder volume2OnPrem;
+
+    /**
      * Allocation plan topology info read from file.
      */
     private TopologyInfo allocationTopologyInfo;
@@ -141,7 +155,6 @@ public class CloudMigrationPlanHelperTest {
      * Creates new instance with dependencies.
      */
     public CloudMigrationPlanHelperTest() {
-        context = mock(TopologyPipelineContext.class);
         groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         statsHistoryServiceBlockingStub = mock(TopologyConfig.class).historyClient();
         cloudMigrationPlanHelper = new CloudMigrationPlanHelper(groupServiceClient, statsHistoryServiceBlockingStub);
@@ -153,6 +166,7 @@ public class CloudMigrationPlanHelperTest {
     @Before
     public void setup() {
         vm1OnPrem = loadTopologyBuilderDTO("cloud-migration-vm-1-onprem.json");
+        vm2OnPrem = loadTopologyBuilderDTO("cloud-migration-vm-2-onprem.json");
         allocationTopologyInfo = loadTopologyInfo("cloud-migration-topo-info-allocation.json");
         consumptionTopologyInfo = loadTopologyInfo("cloud-migration-topo-info-consumption.json");
         vm1Azure = loadTopologyBuilderDTO("cloud-migration-vm-1-azure.json");
@@ -160,7 +174,8 @@ public class CloudMigrationPlanHelperTest {
         host1OnPrem = loadTopologyBuilderDTO("cloud-migration-pm-1-onprem.json");
         storage1OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-1-onprem.json");
         storage2OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-2-onprem.json");
-
+        volume1OnPrem = loadTopologyBuilderDTO("cloud-migration-volume-1-onprem.json");
+        volume2OnPrem = loadTopologyBuilderDTO("cloud-migration-volume-2-onprem.json");
         IdentityGenerator.initPrefix(1L);
     }
 
@@ -245,6 +260,49 @@ public class CloudMigrationPlanHelperTest {
         // calculation on the destination
         assertEquals(LicenseModel.LICENSE_INCLUDED,
             resultVm.getTypeSpecificInfo().getVirtualMachine().getLicenseModel());
+    }
+
+    /**
+     * Given an on prem vm that consumes on a volume, and the vm is not movable and not scalable.
+     * After prepareEntities(), it would be set to movable and scalable. The environment type would
+     * become CLOUD.
+     *
+     * @throws PipelineStageException should not happen in this test
+     */
+    @Test
+    public void testPrepareEntitiesVMConsumesFromVolume()  throws PipelineStageException {
+        long volumeId = 2222L;
+        long vmId = 1111L;
+        // Create a vm that is not movable and not scalable.
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder().addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder().setProviderId(volumeId).setMovable(false)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setScalable(false)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))))
+                .setOid(vmId).setEntityType(VIRTUAL_MACHINE_VALUE).setEnvironmentType(EnvironmentType.ON_PREM)
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build());
+        TopologyEntityDTO.Builder volume = TopologyEntityDTO.newBuilder().addCommoditySoldList(
+                CommoditySoldDTO.newBuilder().setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_AMOUNT_VALUE)))
+                .setEnvironmentType(EnvironmentType.ON_PREM).setOid(volumeId)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE);
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+                TopologyEntity.newBuilder(vm), TopologyEntity.newBuilder(volume));
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(allocationTopologyInfo);
+        cloudMigrationPlanHelper.prepareEntities(context, graph, TopologyMigration.getDefaultInstance(),
+                Collections.EMPTY_MAP, Collections.singleton(vm.getOid()), true);
+
+        TopologyEntity resultVolume = graph.getEntity(volumeId).orElse(null);
+        assertNotNull(resultVolume);
+        assertEquals(EnvironmentType.CLOUD, resultVolume.getEnvironmentType());
+        TopologyEntity resultVm = graph.getEntity(vmId).orElse(null);
+        assertNotNull(resultVm);
+        assertEquals(EnvironmentType.CLOUD, resultVm.getEnvironmentType());
+        assertTrue(resultVm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                .stream().allMatch(sl -> sl.getMovable() == true && sl.getScalable() == true));
+
     }
 
     /**
@@ -396,9 +454,15 @@ public class CloudMigrationPlanHelperTest {
         // Check counts before.
         verifyCommBoughtCounts(vm1OnPrem, settings);
 
+        // vm1OnPrem has 1 storage, hence 1 comm bought list that has a storage provider.
+        verifyNumOfStorageCommBoughtLists(1, vm1OnPrem);
+
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1OnPrem, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(createVmEntity(vm1OnPrem),
+                allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -412,6 +476,89 @@ public class CloudMigrationPlanHelperTest {
 
         // Check storage commBought values.
         verifyStorageCommBought(vm1OnPrem, settings);
+
+        // vm1OnPrem has 1 storage, hence 1 comm bought list that has a storage provider.
+        verifyNumOfStorageCommBoughtLists(1, vm1OnPrem);
+    }
+
+    private TopologyEntity createVmEntity(TopologyEntityDTO.Builder vmEntityDto) {
+        TopologyEntity.Builder vmEntity = TopologyEntity.newBuilder(vmEntityDto);
+        TopologyEntity.Builder volumeEntity = TopologyEntity.newBuilder(volume1OnPrem);
+        vmEntity.addOutboundAssociation(volumeEntity);
+        TopologyEntity.Builder storageEntity = TopologyEntity.newBuilder(storage1OnPrem);
+        storageEntity.addInboundAssociation(volumeEntity);
+        vmEntity.addProvider(storageEntity);
+        return vmEntity.build();
+    }
+
+    private void verifyNumOfStorageCommBoughtLists(int expectedNumber, TopologyEntityDTO.Builder vmEntityDto) {
+        long numOfStorageCommBoughtLists = vmEntityDto.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .filter(list -> list.getProviderEntityType() == STORAGE_VALUE)
+                .count();
+        assertEquals(expectedNumber, numOfStorageCommBoughtLists);
+    }
+
+    /**
+     * Test the logic that excludes commodity bought list that buys from a storage that does not
+     * have a volume. It happens when the storage is modelling an ISO NFS share.
+     */
+    @Test
+    public void excludeStorageWithNoVolumes() {
+        // vm2OnPrem is connected to 2 storages, hence 2 comm bought list that has a storage provider.
+        verifyNumOfStorageCommBoughtLists(2, vm2OnPrem);
+
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap<>());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(createVmEntity2Storages1Volume(false),
+                allocationTopologyInfo, Collections.emptyMap(), true, true, graph);
+
+        // 1 of the storages does not have a volume. (e.g. ISO NFSShare) This storage comm bought
+        // list should be excluded from migration.
+        verifyNumOfStorageCommBoughtLists(1, vm1OnPrem);
+    }
+
+    /**
+     * Test the logic that excludes commodity bought list that buys from a storage that does not
+     * have a volume that connects to the VM. This situation happens when migrating a cluster or
+     * a group of VMs to the cloud. The storage can be used by volumes of any VMs in scope.
+     */
+    @Test
+    public void excludeStorageWithUnrelatedVolumes() {
+        // vm2OnPrem is connected to 2 storages, hence 2 comm bought list that has a storage provider.
+        verifyNumOfStorageCommBoughtLists(2, vm2OnPrem);
+
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap<>());
+        cloudMigrationPlanHelper.prepareBoughtCommodities(createVmEntity2Storages1Volume(true),
+                allocationTopologyInfo, Collections.emptyMap(), true, true, graph);
+
+        // One of the storages does not have a volume that is connected to the VM.
+        // This storage comm bought list should be excluded from migration.
+        verifyNumOfStorageCommBoughtLists(1, vm1OnPrem);
+    }
+
+    /**
+     * Creates the TopologyEntity of a VM that has 2 storages.
+     * If the parameter pass in a flag that is true, the second storage is connected to a volume
+     * that is not connected to the VM.
+     *
+     * @param storageHasUnrelatedVolume a flag that prompts the connection of an unrelated volume to
+     *                                  a storage.
+     * @return Topology entity of the VM
+     */
+    private TopologyEntity createVmEntity2Storages1Volume(boolean storageHasUnrelatedVolume) {
+        TopologyEntity.Builder vmEntity = TopologyEntity.newBuilder(vm2OnPrem);
+        TopologyEntity.Builder volume1Entity = TopologyEntity.newBuilder(volume1OnPrem);
+        vmEntity.addOutboundAssociation(volume1Entity);
+        TopologyEntity.Builder storage1Entity = TopologyEntity.newBuilder(storage1OnPrem);
+        storage1Entity.addInboundAssociation(volume1Entity);
+        vmEntity.addProvider(storage1Entity);
+        TopologyEntity.Builder storage2Entity = TopologyEntity.newBuilder(storage2OnPrem);
+        vmEntity.addProvider(storage2Entity);
+
+        if (storageHasUnrelatedVolume) {
+            TopologyEntity.Builder volume2Entity = TopologyEntity.newBuilder(volume2OnPrem);
+            storage2Entity.addInboundAssociation(volume2Entity);
+        }
+        return vmEntity.build();
     }
 
     /**
@@ -443,7 +590,10 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Azure, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        TopologyEntity vm1AzureEntity = TopologyEntity.newBuilder(vm1Azure).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1AzureEntity, allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -476,7 +626,7 @@ public class CloudMigrationPlanHelperTest {
                         .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                 .setType(CommodityType.STORAGE_ACCESS_VALUE).build()));
 
-        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap, allocationTopologyInfo, true);
+        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap);
         double iopsValue = volumeDtoBuild.getCommoditySoldListBuilderList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                 .findFirst().map(c -> c.getUsed()).orElse(-1d);
@@ -510,7 +660,10 @@ public class CloudMigrationPlanHelperTest {
 
         // Inactive commodities are only being done for allocation plan, rest of the behavior
         // of this method is the same across plans, so pass in allocation topology info.
-        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1Aws, allocationTopologyInfo, Collections.emptyMap(), true, true);
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap());
+        TopologyEntity vm1AwsEntity = TopologyEntity.newBuilder(vm1Aws).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vm1AwsEntity, allocationTopologyInfo,
+                Collections.emptyMap(), true, true, graph);
 
         settings.movable = true;
         settings.totalSkipped = 0;
@@ -771,10 +924,12 @@ public class CloudMigrationPlanHelperTest {
         long diskArrayProviderOfStorage = 73433887031971L;
         verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, true);
 
-        cloudMigrationPlanHelper.prepareBoughtCommodities(host1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
-        cloudMigrationPlanHelper.prepareBoughtCommodities(storage1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
+        TopologyEntity host1OnPremEntity = TopologyEntity.newBuilder(host1OnPrem).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(host1OnPremEntity, allocationTopologyInfo,
+                Collections.emptyMap(), true, false, mock(TopologyGraph.class));
+        TopologyEntity storage1OnPremEntity = TopologyEntity.newBuilder(storage1OnPrem).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(storage1OnPremEntity, allocationTopologyInfo,
+                Collections.emptyMap(), true, false, mock(TopologyGraph.class));
 
         verifyMovableScalable(host1OnPrem, storageProviderOfHost, false);
         verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, false);
@@ -848,6 +1003,157 @@ public class CloudMigrationPlanHelperTest {
     }
 
     /**
+     * Check a coupon commodity IS ADDED to PM provider when the VM has such provider but no
+     * existing COUPON commodity.  The coupon commodity should only added to PM provider of a VM.
+     */
+    @Test
+    public void addCouponCommodityWhenVmIsProvidedByPMAndNoCoupon() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long diskProviderId = 301L;
+        final long vmId = 201L;
+        vm.setOid(vmId);
+        vm.setEntityType(VIRTUAL_MACHINE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                   .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE))));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(diskProviderId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        // Verify PM Provider
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(3, pmProvider.getCommodityBoughtCount());
+        assertTrue(pmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+
+
+        // Verify non PM Provider, no coupon should be added
+        List<CommoditiesBoughtFromProvider.Builder> nonPmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE != provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, nonPmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder nonPmProvider = nonPmProviders.get(0);
+        assertEquals(diskProviderId, nonPmProvider.getProviderId());
+        assertEquals(1, nonPmProvider.getCommodityBoughtCount());
+        assertFalse(nonPmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+    }
+
+    /**
+     * Check coupon commodity IS NOT CHANGED to PM provider when the VM has such provider has
+     * existing COUPON commodity.
+     */
+    @Test
+    public void addCouponCommodityWhenVmIsProvidedByPMAndHasCoupon() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long vmId = 201L;
+        final double couponUsed = 3.0d;
+        final double couponPeak = 5.0d;
+        final double delta = 0.000001d;
+        vm.setOid(vmId);
+        vm.setEntityType(VIRTUAL_MACHINE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.COUPON_VALUE))
+                    .setUsed(couponUsed)
+                    .setPeak(couponPeak)));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(301L)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        // Verify
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .filter(provider -> EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType())
+            .collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(3, pmProvider.getCommodityBoughtCount());
+
+        // Check the coupon values are not changed by the method
+        List<CommodityBoughtDTO.Builder> couponCommodities = pmProvider.getCommodityBoughtBuilderList().stream()
+            .filter(commodity -> CommodityType.COUPON_VALUE == commodity.getCommodityType().getType())
+            .collect(Collectors.toList());
+        assertEquals(1, couponCommodities.size());
+        final CommodityBoughtDTO.Builder couponCommodity = couponCommodities.get(0);
+        assertEquals(couponPeak, couponCommodity.getPeak(), delta);
+        assertEquals(couponUsed, couponCommodity.getUsed(), delta);
+    }
+
+    /**
+     * When the entity is not a VM, the commodity list should not be touched
+     * by the addCouponCommodity() method, regardless of the provider type.
+     */
+    @Test
+    public void addCouponCommodityWhenEntityIsNonVm() {
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder();
+        final long pmProviderId = 101L;
+        final long diskProviderId = 301L;
+        final long vmId = 201L;
+        vm.setOid(vmId);
+        vm.setEntityType(STORAGE_VALUE);
+        vm.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(pmProviderId)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE)))
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.MEM_VALUE))));
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+            .setProviderId(diskProviderId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))));
+        cloudMigrationPlanHelper.addCouponCommodity(TopologyEntity.newBuilder(vm).build());
+
+        assertEquals(2, vm.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        // Verify PM Provider
+        List<CommoditiesBoughtFromProvider.Builder> pmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE == provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, pmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder pmProvider = pmProviders.get(0);
+        assertEquals(pmProviderId, pmProvider.getProviderId());
+        assertEquals(2, pmProvider.getCommodityBoughtCount());
+        assertFalse(pmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+
+
+        // Verify non PM Provider, no coupon should be added
+        List<CommoditiesBoughtFromProvider.Builder> nonPmProviders = vm.getCommoditiesBoughtFromProvidersBuilderList().stream().filter(provider ->
+            EntityType.PHYSICAL_MACHINE_VALUE != provider.getProviderEntityType()).collect(Collectors.toList());
+        assertEquals(1, nonPmProviders.size());
+        final CommoditiesBoughtFromProvider.Builder nonPmProvider = nonPmProviders.get(0);
+        assertEquals(diskProviderId, nonPmProvider.getProviderId());
+        assertEquals(1, nonPmProvider.getCommodityBoughtCount());
+        assertFalse(nonPmProvider.getCommodityBoughtBuilderList().stream().anyMatch(commodityBoughtBuilder -> CommodityType.COUPON_VALUE == commodityBoughtBuilder.getCommodityType().getType()));
+    }
+
+    /**
      * Checks if commodities are getting skipped correctly when doing on-prem to cloud migration.
      * Certain on-prem commodities don't apply to cloud and are thus not sold by cloud tiers,
      * so those are being removed from TopologyEntity, before they can be migrated to cloud.
@@ -893,6 +1199,88 @@ public class CloudMigrationPlanHelperTest {
                         dtoBuilder, Collections.emptyMap(), true, true);
         // There should not be any instance store commodities after the skip.
         assertEquals(0, remainingBoughtStorage.size());
+    }
+
+    /**
+     * Test skip a configuration volume that associates with an on prem VM.
+     * The configuration volume's CommmoditiesBoughtFromProvider list will be cleared. The VM to
+     * configuration volume's CommmoditiesBoughtFromProvider will be skipped as well.
+     */
+    @Test
+    public void skipConfigurationVolumeOnMigration() {
+
+        long configVolumeProviderId = 101L;
+        TopologyEntityDTO.Builder configVVBuilder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(configVolumeProviderId)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_PROVISIONED.getNumber())));
+        long diskVolumeProviderId = 102L;
+        TopologyEntityDTO.Builder diskVVBuilder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(diskVolumeProviderId)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_ACCESS.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_LATENCY.getNumber())).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                        TopologyDTO.CommodityType.newBuilder().setType(
+                                CommodityType.STORAGE_PROVISIONED.getNumber())));
+        long vmId = 1234567L;
+        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEntityType(VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(diskVolumeProviderId).setMovable(true)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_ACCESS.getNumber())))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_AMOUNT.getNumber())).build())
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_LATENCY.getNumber())).build())
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(
+                                        CommodityType.STORAGE_PROVISIONED.getNumber())).build()))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(configVolumeProviderId)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_AMOUNT.getNumber())
+                                                .build()))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityType.STORAGE_PROVISIONED.getNumber()))
+                                .build()));
+
+        TopologyGraph graph = TopologyEntityTopologyGraphCreator.newGraph(new HashMap() {{
+            put(vmId, TopologyEntity.newBuilder(vmBuilder));
+            put(configVolumeProviderId, TopologyEntity.newBuilder(configVVBuilder));
+            put(diskVolumeProviderId, TopologyEntity.newBuilder(diskVVBuilder));
+        }});
+        TopologyEntity vmEntity = TopologyEntity.newBuilder(vmBuilder).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vmEntity, consumptionTopologyInfo,
+                new HashMap<>(), false, true, graph);
+        // Verify that the vmBuilder has no CommoditiesBoughtFromProviders to config volume
+        assertTrue(vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .noneMatch(c -> c.getProviderId() == configVolumeProviderId));
+        assertEquals(1, vmBuilder.getCommoditiesBoughtFromProvidersBuilderList().size());
+
+        TopologyEntity vvEntity = TopologyEntity.newBuilder(configVVBuilder).build();
+        cloudMigrationPlanHelper.prepareBoughtCommodities(vvEntity, consumptionTopologyInfo,
+                new HashMap<>(), false, false, graph);
+        // Verify that the configVVBuilder has no CommoditiesBoughtFromProviders
+        assertEquals(0, configVVBuilder.getCommoditiesBoughtFromProvidersCount());
     }
 
     /**
@@ -975,4 +1363,3 @@ public class CloudMigrationPlanHelperTest {
         return commoditiesByProvider;
     }
 }
-

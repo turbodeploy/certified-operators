@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -18,6 +19,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -45,6 +47,8 @@ import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.enums.ReservationGrouping;
+import com.vmturbo.api.enums.ReservationMode;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -71,6 +75,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.plan.orchestrator.api.NoSuchValueException;
+import com.vmturbo.plan.orchestrator.api.ReservationFieldsConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -78,6 +84,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * A mapper class for convert Reservation related objects between Api DTO with XL DTO.
  */
 public class ReservationMapper {
+
+    private final boolean enableReservationModeGrouping;
+
+    private static final EnumMap<ReservationMode, Set<ReservationGrouping>> VALID_RESERVATION_MODE_GROUPINGS
+        = new EnumMap<>(ImmutableMap.<ReservationMode, Set<ReservationGrouping>>builder()
+            .put(ReservationMode.NO_GROUPING, Sets.newHashSet(ReservationGrouping.NONE))
+            .put(ReservationMode.AFFINITY, Sets.newHashSet(ReservationGrouping.CLUSTER))
+            .build());
 
     private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
@@ -133,11 +147,13 @@ public class ReservationMapper {
     ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TemplateServiceBlockingStub templateService,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final PolicyServiceBlockingStub policyService) {
+                      @Nonnull final PolicyServiceBlockingStub policyService,
+                      final boolean enableReservationModeGrouping) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
+        this.enableReservationModeGrouping = enableReservationModeGrouping;
     }
 
     /**
@@ -149,10 +165,11 @@ public class ReservationMapper {
      * @return a {@link Reservation}
      * @throws InvalidOperationException if input parameter are not correct.
      * @throws UnknownObjectException if there are any unknown objects.
+     * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public Reservation convertToReservation(
             @Nonnull final DemandReservationApiInputDTO demandApiInputDTO)
-            throws InvalidOperationException, UnknownObjectException {
+            throws InvalidOperationException, UnknownObjectException, NoSuchValueException {
         final Reservation.Builder reservationBuilder = Reservation.newBuilder();
         reservationBuilder.setName(demandApiInputDTO.getDemandName());
         convertReservationDateStatus(demandApiInputDTO.getReserveDateTime(),
@@ -180,6 +197,7 @@ public class ReservationMapper {
         reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
                 .build());
+        convertReservationModeGroupingFromApi(demandApiInputDTO, reservationBuilder);
         return reservationBuilder.build();
     }
 
@@ -192,10 +210,11 @@ public class ReservationMapper {
      * @throws UnknownObjectException if there are any unknown objects.
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public DemandReservationApiDTO convertReservationToApiDTO(
             @Nonnull final Reservation reservation)
-            throws UnknownObjectException, ConversionException, InterruptedException {
+            throws UnknownObjectException, ConversionException, InterruptedException, NoSuchValueException {
         final DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
         reservationApiDTO.setUuid(String.valueOf(reservation.getId()));
         reservationApiDTO.setDisplayName(reservation.getName());
@@ -225,6 +244,16 @@ public class ReservationMapper {
                         reservationApiDTO);
         }
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
+        if (enableReservationModeGrouping) {
+            if (reservation.hasReservationMode()) {
+                reservationApiDTO.setMode(ReservationFieldsConverter.modeToApi(reservation
+                    .getReservationMode()));
+            }
+            if (reservation.hasReservationGrouping()) {
+                reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(reservation
+                    .getReservationGrouping()));
+            }
+        }
         return reservationApiDTO;
     }
 
@@ -350,6 +379,48 @@ public class ReservationMapper {
                 .build();
     }
 
+    /**
+     * Validate and set reservation mode and grouping.
+     *
+     * @param demandApiInputDTO the reservation from api.
+     * @param reservationBuilder the reservation to be built.
+     * @throws NoSuchValueException Unsupported mode or grouping specification.
+     * @throws InvalidOperationException Invalid combination.
+     */
+    private void convertReservationModeGroupingFromApi(
+        @Nonnull final DemandReservationApiInputDTO demandApiInputDTO,
+        @Nonnull final Reservation.Builder reservationBuilder)
+        throws NoSuchValueException, InvalidOperationException {
+        final String invalidModeGroupingMessage = "Invalid Mode-Grouping combination! MODE: "
+            + demandApiInputDTO.getMode() + " - " + "GROUPING: " + demandApiInputDTO.getGrouping();
+        if (demandApiInputDTO.getMode() == null && demandApiInputDTO.getGrouping() != null) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if (demandApiInputDTO.getMode() == ReservationMode.NO_GROUPING
+            && (demandApiInputDTO.getGrouping() != ReservationGrouping.NONE
+                || demandApiInputDTO.getGrouping() == null)) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if (!(VALID_RESERVATION_MODE_GROUPINGS.containsKey(demandApiInputDTO.getMode())
+            && VALID_RESERVATION_MODE_GROUPINGS.get(demandApiInputDTO.getMode())
+                .contains(demandApiInputDTO.getGrouping())
+            || ((demandApiInputDTO.getMode() == null || demandApiInputDTO.getMode()
+                == ReservationMode.NO_GROUPING) && demandApiInputDTO.getGrouping() == null))) {
+            throw new InvalidOperationException(invalidModeGroupingMessage);
+        }
+        if ((demandApiInputDTO.getMode() == null || demandApiInputDTO.getMode()
+            == ReservationMode.NO_GROUPING) && demandApiInputDTO.getGrouping() == null) {
+            reservationBuilder.setReservationMode(ReservationFieldsConverter
+                    .modeFromApi(ReservationMode.NO_GROUPING));
+            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
+                    .groupingFromApi(ReservationGrouping.NONE));
+        } else {
+            reservationBuilder.setReservationMode(ReservationFieldsConverter
+                    .modeFromApi(demandApiInputDTO.getMode()));
+            reservationBuilder.setReservationGrouping(ReservationFieldsConverter
+                .groupingFromApi(demandApiInputDTO.getGrouping()));
+        }
+    }
 
     /**
      * Convert timestamp to {@link java.util.Date} string with default UTC timezone.

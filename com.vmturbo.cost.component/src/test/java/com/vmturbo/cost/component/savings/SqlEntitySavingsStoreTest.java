@@ -11,6 +11,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +35,10 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -87,21 +91,6 @@ public class SqlEntitySavingsStoreTest {
     private static final long vm2Id = 200L;
 
     /**
-     * Account id.
-     */
-    private static final long account1Id = 301L;
-
-    /**
-     * Region.
-     */
-    private static final long region1Id = 401L;
-
-    /**
-     * CSP scope.
-     */
-    private static final long csp1Id = 501L;
-
-    /**
      * Realized savings test value.
      */
     private static final double realizedSavings = 1.0d;
@@ -126,6 +115,10 @@ public class SqlEntitySavingsStoreTest {
      */
     private final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
             .toLocalDateTime().plusYears(20).truncatedTo(ChronoUnit.HOURS);
+    private final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1990-01-12T12:00
+    private final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1990-01-12T14:00
+    private final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1990-01-12T15:00
+    private final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1990-01-12T16:00
 
     /**
      * For testing rollup processing.
@@ -153,11 +146,6 @@ public class SqlEntitySavingsStoreTest {
     public void testHourlyStats() throws EntitySavingsException, IOException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
 
-        final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1990-01-12T12:00
-        final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1990-01-12T14:00
-        final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1990-01-12T15:00
-        final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1990-01-12T16:00
-
         setStatsValues(hourlyStats, vm1Id, timeExact1PM, 10, null); // VM1 at 1PM.
         setStatsValues(hourlyStats, vm2Id, timeExact1PM, 20, null); // VM2 at 1PM.
 
@@ -175,32 +163,35 @@ public class SqlEntitySavingsStoreTest {
 
         // Read back and verify.
         Collection<Long> entityOids = ImmutableSet.of(vm1Id, vm2Id);
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
+        Collection<Long> billingFamilies = new HashSet<>();
+        Collection<Long> resourceGroups = new HashSet<>();
 
         List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         // 0 stats sets, for 12-1 PM range, because end time (1 PM) is exclusive.
         assertEquals(0, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, for 2-3 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, vm2Id);
@@ -210,7 +201,7 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         // 1 stats sets of 4 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
@@ -278,8 +269,12 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(lastMonthExpected, newLastTimes.getLastTimeByMonth());
 
         Collection<Long> entityOids = ImmutableSet.of(vm1Id);
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
+        Collection<Long> billingFamilies = new HashSet<>();
+        Collection<Long> resourceGroups = new HashSet<>();
         final List<AggregatedSavingsStats> statsByHour = store.getHourlyStats(statsTypes,
-                firstHourExpected, (lastHourExpected + 1), entityOids);
+                firstHourExpected, (lastHourExpected + 1), entityOids, entityTypes, billingFamilies,
+                resourceGroups);
         assertNotNull(statsByHour);
         int sizeHourly = statsByHour.size();
         assertEquals(50, sizeHourly);
@@ -287,7 +282,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(lastHourExpected, statsByHour.get(sizeHourly - 1).getTimestamp());
 
         final List<AggregatedSavingsStats> statsByDay = store.getDailyStats(statsTypes,
-                dayRangeStart, dayRangeEnd, entityOids);
+                dayRangeStart, dayRangeEnd, entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(statsByDay);
         assertEquals(3, statsByDay.size());
         // 23 hours Jan-13, $100/hr
@@ -298,7 +293,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(300.0, statsByDay.get(2).getValue(), EPSILON_PRECISION);
 
         final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
-                monthRangeStart, monthRangeEnd, entityOids);
+                monthRangeStart, monthRangeEnd, entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
         assertEquals(4700.0, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
@@ -343,24 +338,27 @@ public class SqlEntitySavingsStoreTest {
                 newLastTimes);
 
         Collection<Long> entityOids = ImmutableSet.of(vm1Id);
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
+        Collection<Long> billingFamilies = new HashSet<>();
+        Collection<Long> resourceGroups = new HashSet<>();
 
         long startTimeMillis = TimeUtil.localDateTimeToMilli(year1monthBack.minusHours(1), clock);
         final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(hourlyResult);
 
         final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(dailyResult);
 
         final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entityOids);
+                entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(monthlyResult);
 
         logger.info("Hourly result count: {}, Daily count: {}, Monthly count: {}",
@@ -494,5 +492,135 @@ public class SqlEntitySavingsStoreTest {
                 return missedInvestments * multiple * vmId;
         }
         return 0d;
+    }
+
+    /**
+     * Test queries for savings stats that require a join with the entity_cloud_scope table.
+     *
+     * @throws EntitySavingsException errors when writing to database
+     */
+    @Test
+    public void testGetStatsUsingScopeTable() throws EntitySavingsException {
+        Long entityOid1 = 1L;
+        Long entityOid2 = 2L;
+        Long accountId = 100L;
+        Long regionOid1 = 1000L;
+        Long regionOid2 = 2000L;
+        Long zoneOid1 = 10L;
+        Long zoneOid2 = 20L;
+        Long serviceProviderOid = 10000L;
+        Long billingFamilyOid1 = 300000L;
+        Long billingFamilyOid2 = 400000L;
+        Long resourceGroupOid1 = 100000L;
+        Long resourceGroupOid2 = 200000L;
+        EntityCloudScopeRecord r1 = createEntityCloudScopeRecord(entityOid1, accountId, regionOid1,
+                zoneOid1, serviceProviderOid, billingFamilyOid1, resourceGroupOid1);
+
+        EntityCloudScopeRecord r2 = createEntityCloudScopeRecord(entityOid2, accountId, regionOid2,
+                zoneOid2, serviceProviderOid, billingFamilyOid2, resourceGroupOid2);
+
+        // Insert 2 records into the scope table. Both are VMs in the same account.
+        dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r1).execute();
+        dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r2).execute();
+
+        // Insert stats into entity_savings_by_hour table.
+        final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
+        hourlyStats.add(new EntitySavingsStats(entityOid1, TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                EntitySavingsStatsType.REALIZED_SAVINGS, 10d));
+        hourlyStats.add(new EntitySavingsStats(entityOid2, TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                EntitySavingsStatsType.REALIZED_SAVINGS, 20d));
+        store.addHourlyStats(hourlyStats);
+
+        // 1. Query by account ID
+        // Both VMs are in the same account. Realized savings value equal to the same of the 2.
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.BUSINESS_ACCOUNT_VALUE);
+        final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
+                .values()).collect(Collectors.toSet());
+        Collection<Long> billingFamilies = new HashSet<>();
+        Collection<Long> resourceGroups = new HashSet<>();
+
+        List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                ImmutableSet.of(accountId), entityTypes, billingFamilies, resourceGroups);
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
+
+        // 2. Query by Region ID
+        // VM1 is in region 1, and VM2 is in region 2. The query ask for region 1. So only savings
+        // of VM1 is returned.
+        entityTypes = Collections.singleton(EntityType.REGION_VALUE);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                ImmutableSet.of(regionOid1), entityTypes, billingFamilies, resourceGroups);
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(10), statsReadBack.get(0).getValue());
+
+        // 3. Query by Availability Zone ID
+        // VM1 is in AZ 1, and VM2 is in AZ 2. The query ask for AZ 2. So only savings
+        // of VM2 is returned.
+        entityTypes = Collections.singleton(EntityType.AVAILABILITY_ZONE_VALUE);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                ImmutableSet.of(zoneOid2), entityTypes, billingFamilies, resourceGroups);
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(20), statsReadBack.get(0).getValue());
+
+        // 4. Query by service provider
+        // Both VMs are in the same service provider. Realized savings value equal to the same of the 2.
+        entityTypes = Collections.singleton(EntityType.SERVICE_PROVIDER_VALUE);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                ImmutableSet.of(serviceProviderOid), entityTypes, billingFamilies, resourceGroups);
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
+
+        // 5. Query by resource group
+        // VM2 is in resource group 2. Savings of VM2 will be returned.
+        resourceGroups.add(resourceGroupOid2);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                Collections.emptySet(), Collections.emptySet(), billingFamilies, resourceGroups);
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(20), statsReadBack.get(0).getValue());
+
+        // 6a. Query by billing family
+        // Query for billing Family OID 1. VM1 stats should be returned.
+        billingFamilies.add(billingFamilyOid1);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                Collections.emptySet(), Collections.emptySet(), billingFamilies, new HashSet<>());
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(10), statsReadBack.get(0).getValue());
+
+        // 6b. Now query for both billing families. Stats for VM1 and VM2 are both returned.
+        billingFamilies.add(billingFamilyOid2);
+        statsReadBack = store.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
+                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
+                Collections.emptySet(), Collections.emptySet(), billingFamilies, new HashSet<>());
+        assertEquals(1, statsReadBack.size());
+        assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
+    }
+
+    private EntityCloudScopeRecord createEntityCloudScopeRecord(Long entityOid, Long accountOid,
+            Long regionOid, Long availabilityZoneOid, Long serviceProviderOid, Long billingFamilyOid,
+            Long resourceGroupOid) {
+        EntityCloudScopeRecord record = new EntityCloudScopeRecord();
+        record.setAccountOid(accountOid);
+        record.setEntityOid(entityOid);
+        record.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+        record.setRegionOid(regionOid);
+        record.setAvailabilityZoneOid(availabilityZoneOid);
+        record.setServiceProviderOid(serviceProviderOid);
+        record.setBillingFamilyOid(billingFamilyOid);
+        record.setResourceGroupOid(resourceGroupOid);
+        record.setCreationTime(LocalDateTime.now());
+        return record;
     }
 }

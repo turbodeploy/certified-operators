@@ -1,13 +1,19 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,13 +23,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
-import org.mockito.Matchers;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
+import com.vmturbo.api.component.external.api.mapper.WorkflowMapperTest;
+import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowResponse;
@@ -48,13 +63,18 @@ public class WorkflowsServiceTest {
     // Mock the dependencies
     private WorkflowServiceMole workflowServiceMole = spy(new WorkflowServiceMole());
 
+    private SettingPolicyServiceMole settingPolicyServiceMole = spy(new SettingPolicyServiceMole());
+
     /**
      * The GRPC test server, to channel messages to the workflowServiceMole.
      */
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(workflowServiceMole);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(workflowServiceMole,
+        settingPolicyServiceMole);
 
     private WorkflowServiceBlockingStub workflowServiceRpc;
+
+    private SettingPolicyServiceBlockingStub settingPolicyServiceRpc;
 
     private final TargetsService targetsService = mock(TargetsService.class);
 
@@ -76,7 +96,9 @@ public class WorkflowsServiceTest {
     @Before
     public void setup() {
         workflowServiceRpc = WorkflowServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        workflowsService = new WorkflowsService(workflowServiceRpc, targetsService, workflowMapper);
+        settingPolicyServiceRpc = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        workflowsService = new WorkflowsService(workflowServiceRpc, targetsService, workflowMapper,
+            settingPolicyServiceRpc);
     }
 
     /**
@@ -102,7 +124,7 @@ public class WorkflowsServiceTest {
                     .setName("Workflow3")
                     .setTargetId(1)))
             .build();
-        doReturn(workflowsResponse).when(workflowServiceMole).fetchWorkflows(Matchers.any());
+        doReturn(workflowsResponse).when(workflowServiceMole).fetchWorkflows(any());
 
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid("1");
@@ -143,7 +165,7 @@ public class WorkflowsServiceTest {
                     .setName("Workflow3")
                     .setTargetId(2)))
             .build();
-        doReturn(workflowsResponse).when(workflowServiceMole).fetchWorkflows(Matchers.any());
+        doReturn(workflowsResponse).when(workflowServiceMole).fetchWorkflows(any());
 
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid("1");
@@ -232,4 +254,347 @@ public class WorkflowsServiceTest {
         // Assert
         fail("Unknown object exception should have been thrown.");
     }
+
+    /**
+     * Tests the call for creation of webhook workflow.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test
+    public void testCreatingWebhookWorkflow() throws InvalidOperationException {
+        // ARRANGE
+        final WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        ArgumentCaptor<WorkflowDTO.CreateWorkflowRequest> requestArgumentCaptor =
+            ArgumentCaptor.forClass(WorkflowDTO.CreateWorkflowRequest.class);
+        Mockito.when(workflowServiceMole.createWorkflow(requestArgumentCaptor.capture()))
+            .thenReturn(WorkflowDTO.CreateWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
+                .build());
+
+        // ACT
+        final WorkflowApiDTO createdWorkflow = workflowsService.addWorkflow(workflowApiDTO);
+
+        // ASSERT
+        WorkflowMapperTest.verifyWebhookWorkflowEquality(createdWorkflow, workflowApiDTO);
+        // the name is random, so let's get rid of the name in the object
+        Workflow requestWorkflow = requestArgumentCaptor.getValue().getWorkflow()
+                .toBuilder()
+                .setWorkflowInfo(requestArgumentCaptor.getValue().getWorkflow().getWorkflowInfo().toBuilder().clearName())
+                .build();
+        assertThat(requestWorkflow,
+            equalTo(WorkflowMapperTest.createWebhookWorkflow(false)));
+    }
+
+    /**
+     * Tests creating actionscript workflow. This should fail as creating actionscript
+     * workflow should not be possible from API.
+     */
+    @Test
+    public void testCreatingActionscriptWorkflow() {
+        // ARRANGE
+        WorkflowApiDTO actionscriptWorkflowApiDto = WorkflowMapperTest.createActionscriptApiWorkflow();
+
+        try {
+            // ACT
+            workflowsService.addWorkflow(actionscriptWorkflowApiDto);
+            fail("The creation of actionscript workflow must not be possible");
+        } catch (InvalidOperationException exception) {
+            // ASSERT
+            verify(workflowServiceMole, times(0)).createWorkflow(any());
+        }
+    }
+
+    /**
+     * Test editing of workflow.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test
+    public void testUpdateWebhookWorkflow() throws UnknownObjectException, InvalidOperationException {
+        // ARRANGE
+        final String updatedName = "Updated display name";
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+                .setId(WorkflowMapperTest.WORKFLOW_OID)
+                .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+              .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
+              .build());
+
+        Workflow updatedWorkflow = WorkflowMapperTest.createWebhookWorkflow();
+        updatedWorkflow = updatedWorkflow.toBuilder()
+            .setWorkflowInfo(updatedWorkflow.getWorkflowInfo().toBuilder().setDisplayName(updatedName))
+            .build();
+        ArgumentCaptor<WorkflowDTO.UpdateWorkflowRequest> requestArgumentCaptor =
+            ArgumentCaptor.forClass(WorkflowDTO.UpdateWorkflowRequest.class);
+        Mockito.when(workflowServiceMole.updateWorkflow(requestArgumentCaptor.capture()))
+            .thenReturn(WorkflowDTO.UpdateWorkflowResponse.newBuilder()
+                .setWorkflow(updatedWorkflow)
+                .build());
+
+        WorkflowApiDTO updatedApiWorkflow = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        updatedApiWorkflow.setDisplayName(updatedName);
+
+        // ACT
+        WorkflowApiDTO returnedApiWorkflow = workflowsService
+            .editWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID), updatedApiWorkflow);
+
+        // ASSERT
+        assertThat(returnedApiWorkflow.getDisplayName(), equalTo(updatedName));
+        WorkflowDTO.UpdateWorkflowRequest request = requestArgumentCaptor.getValue();
+        assertThat(request.getId(), equalTo(WorkflowMapperTest.WORKFLOW_OID));
+        assertThat(request.getWorkflow().getWorkflowInfo().getDisplayName(), equalTo(updatedName));
+    }
+
+    /**
+     * Test the case that a actionscript workflow being edited. That should not be possible.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testUpdatingActionscriptWorkflow() throws UnknownObjectException {
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createActionscriptWorkflow())
+                .build());
+
+        WorkflowApiDTO updatedApiWorkflow = WorkflowMapperTest.createActionscriptApiWorkflow();
+
+        try {
+            // ACT
+            workflowsService
+                .editWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID), updatedApiWorkflow);
+            fail("The editing of actionscript workflow must not be possible");
+        } catch (InvalidOperationException exception) {
+            // ASSERT
+            verify(workflowServiceMole, times(0)).updateWorkflow(any());
+        }
+    }
+
+    /**
+     * Test the case the user tries to change the type of workflow through API.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testUpdatingWebhookWorkflowToActionscript() throws UnknownObjectException {
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
+                .build());
+
+        WorkflowApiDTO updatedApiWorkflow = WorkflowMapperTest.createActionscriptApiWorkflow();
+
+        try {
+            // ACT
+            workflowsService
+                .editWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID), updatedApiWorkflow);
+            fail("The change of type of workflow must not be possible");
+        } catch (InvalidOperationException exception) {
+            // ASSERT
+            verify(workflowServiceMole, times(0)).updateWorkflow(any());
+        }
+    }
+
+    /**
+     * Tests the case that we are editing a workflow that does not exist.
+     *
+     * @throws UnknownObjectException when there is no such workflow (expected to happen).
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testUpdatingNonExistentWorkflow() throws UnknownObjectException, InvalidOperationException {
+        // ARRANGE
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .build());
+        WorkflowApiDTO updatedApiWorkflow = WorkflowMapperTest.createWebhookWorkflowApiDto();
+
+        // ACT
+        workflowsService
+            .editWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID), updatedApiWorkflow);
+    }
+
+    /**
+     * Tests the case that deleting workflow executes successfully.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test
+    public void testDeletingWebhookWorkflow() throws UnknownObjectException, InvalidOperationException {
+        // ARRANGE
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
+                .build());
+
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(SettingProto.ListSettingPoliciesRequest
+            .newBuilder()
+            .addWorkflowId(WorkflowMapperTest.WORKFLOW_OID)
+            .build())).thenReturn(Collections.emptyList());
+
+        ArgumentCaptor<WorkflowDTO.DeleteWorkflowRequest> requestArgumentCaptor =
+            ArgumentCaptor.forClass(WorkflowDTO.DeleteWorkflowRequest.class);
+        Mockito.when(workflowServiceMole.deleteWorkflow(requestArgumentCaptor.capture()))
+            .thenReturn(WorkflowDTO.DeleteWorkflowResponse.getDefaultInstance());
+
+        // ACT
+        workflowsService.deleteWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID));
+
+        // ASSERT
+        assertThat(requestArgumentCaptor.getValue().getId(), equalTo(WorkflowMapperTest.WORKFLOW_OID));
+    }
+
+    /**
+     * Tests the case that we are deleting a workflow that does not exist.
+     *
+     * @throws UnknownObjectException when there is no such workflow (expected to happen).
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testDeletingNonExistentWorkflow() throws UnknownObjectException, InvalidOperationException {
+        // ARRANGE
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .build());
+
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(SettingProto.ListSettingPoliciesRequest
+            .newBuilder()
+            .addWorkflowId(WorkflowMapperTest.WORKFLOW_OID)
+            .build())).thenReturn(Collections.emptyList());
+
+        // ACT
+        workflowsService
+            .deleteWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID));
+    }
+
+    /**
+     * Test the case that a actionscript workflow being deleted. That should not be possible.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testDeletingActionscriptWorkflow() throws UnknownObjectException {
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createActionscriptWorkflow())
+                .build());
+
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(SettingProto.ListSettingPoliciesRequest
+            .newBuilder()
+            .addWorkflowId(WorkflowMapperTest.WORKFLOW_OID)
+            .build())).thenReturn(Collections.emptyList());
+
+        try {
+            // ACT
+            workflowsService
+                .deleteWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID));
+            fail("The deleting of actionscript workflow must not be possible");
+        } catch (InvalidOperationException exception) {
+            // ASSERT
+            verify(workflowServiceMole, times(0)).deleteWorkflow(any());
+        }
+    }
+
+    /**
+     * Test the case for deleting workflow with associated policies.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testDeletingActionscriptUsedInPolicies() throws UnknownObjectException {
+        Mockito.when(workflowServiceMole.fetchWorkflow(WorkflowDTO.FetchWorkflowRequest.newBuilder()
+            .setId(WorkflowMapperTest.WORKFLOW_OID)
+            .build()))
+            .thenReturn(WorkflowDTO.FetchWorkflowResponse.newBuilder()
+                .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
+                .build());
+
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(SettingProto.ListSettingPoliciesRequest
+            .newBuilder()
+            .addWorkflowId(WorkflowMapperTest.WORKFLOW_OID)
+            .build())).thenReturn(Collections.singletonList(SettingProto.SettingPolicy.newBuilder()
+              .setId(123L)
+              .setInfo(SettingProto.SettingPolicyInfo.newBuilder().setDisplayName("XYZA")
+              .build()).build()));
+
+        try {
+            // ACT
+            workflowsService
+                .deleteWorkflow(String.valueOf(WorkflowMapperTest.WORKFLOW_OID));
+            fail("The deleting of actionscript workflow must not be possible");
+        } catch (InvalidOperationException exception) {
+            // ASSERT
+            assertThat(exception.getMessage(), containsString("XYZA"));
+            verify(workflowServiceMole, times(0)).deleteWorkflow(any());
+        }
+    }
+
+    /**
+     * Test successful and unsuccessful validation of webhook workflow.
+     */
+    @Test
+    public void testValidateWorkflow() {
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+
+        // successful validation
+        workflowsService.validateInput(workflowApiDTO);
+
+        workflowApiDTO.setDisplayName("");
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // Test script path is empty for webhook workflow
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        workflowApiDTO.setScriptPath("test");
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // Test parameter is empty for webhook workflow
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        workflowApiDTO.setParameters(Collections.singletonList(new InputFieldApiDTO()));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // checks if webhook details has been set
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        workflowApiDTO.setTypeSpecificDetails(null);
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test validating url
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        ((WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails()).setUrl("test");
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+    }
+
 }

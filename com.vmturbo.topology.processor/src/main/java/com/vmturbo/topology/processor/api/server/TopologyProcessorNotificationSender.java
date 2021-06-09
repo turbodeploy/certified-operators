@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
+import com.vmturbo.topology.processor.entity.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
@@ -65,7 +66,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
  */
 public class TopologyProcessorNotificationSender
         extends ComponentNotificationSender<TopologyProcessorNotification>
-        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener{
+        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener, EntitiesWithNewStateListener {
 
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
     private final IMessageSender<Topology> liveTopologySender;
@@ -254,6 +255,7 @@ public class TopologyProcessorNotificationSender
      * @throws InterruptedException if the operation is interrupted
      */
     @Nonnull
+    @Override
     public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) throws CommunicationException, InterruptedException {
         this.entitiesWithNewStateSender.sendMessage(entitiesWithNewState);
     }

@@ -1,5 +1,7 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -10,6 +12,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -147,6 +150,7 @@ public class TopologyDTOUtilTest {
         TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
             .setOid(1L)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(VirtualMachineInfo.newBuilder()))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
@@ -168,6 +172,7 @@ public class TopologyDTOUtilTest {
         TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
             .setOid(1L)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(VirtualMachineInfo.newBuilder()
                     .setNumCpus(NUM_CPUS)))
@@ -182,6 +187,43 @@ public class TopologyDTOUtilTest {
         Assert.assertTrue(actionEntityInfo.get().getVirtualMachine().hasCpuCoreMhz());
         double expectedCpuCoreMhz = VCPU_CAPACITY / NUM_CPUS;
         Assert.assertEquals(expectedCpuCoreMhz, actionEntityInfo.get().getVirtualMachine().getCpuCoreMhz(), 0);
+    }
+
+    /**
+     * Test makeActionTypeSpecificInfo for VM in unknown state with numCPUs. In this case, VM
+     * topologyEntityDTO won't have cpuCoreMhz field populated in virtualMachineInfo.
+     */
+    @Test
+    public void testMakeVMActionTypeSpecificInfoWithNumCpusInUnknownState() {
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setOid(1L)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.UNKNOWN)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setNumCpus(NUM_CPUS)))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                .setCapacity(VCPU_CAPACITY))
+            .build();
+        Optional<Builder> actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(topologyEntityDTO);
+        Assert.assertTrue(actionEntityInfo.isPresent());
+        Assert.assertTrue(actionEntityInfo.get().hasVirtualMachine());
+        Assert.assertFalse(actionEntityInfo.get().getVirtualMachine().hasCpuCoreMhz());
+    }
+
+    /**
+     * Test {@link TopologyDTOUtil#getPrimaryProviderIndex}.
+     */
+    @Test
+    public void testGetPrimaryProviderIndex() {
+        int entityType = EntityType.CONTAINER_POD_VALUE;
+        List<Integer> providerTypes = Arrays.asList(EntityType.WORKLOAD_CONTROLLER_VALUE,
+            EntityType.VIRTUAL_MACHINE_VALUE);
+        Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(entityType, providerTypes);
+        Assert.assertTrue(primaryProviderIndex.isPresent());
+        Assert.assertEquals(1, primaryProviderIndex.get().intValue());
     }
 
     @Nonnull

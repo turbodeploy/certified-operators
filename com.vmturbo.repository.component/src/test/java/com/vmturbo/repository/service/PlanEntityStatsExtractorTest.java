@@ -6,10 +6,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -202,7 +205,7 @@ public class PlanEntityStatsExtractorTest {
     }
 
     /**
-     * Test DefaultPlanEntityStatsExtractor::extractEntityAttributeStatsRecords.
+     * Test {@link DefaultPlanEntityStatsExtractor#extractStats} based on given attribute names.
      */
     @Test
     public void testExtractEntityAttributeStatsRecords() {
@@ -222,7 +225,8 @@ public class PlanEntityStatsExtractorTest {
                 .build();
         final EntityStats containerClusterStats =
                 statsExtractor.extractStats(containerClusterEntity, StatEpoch.PLAN_SOURCE,
-                        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                        Collections.emptyMap(), ImmutableMap.of(VCPU_OVERCOMMITMENT, new HashSet<>(),
+                        VMEM_OVERCOMMITMENT, new HashSet<>()), Collections.emptyMap(),
                         SNAPSHOT_DATE).build();
         assertEquals(1, containerClusterStats.getStatSnapshotsCount());
 

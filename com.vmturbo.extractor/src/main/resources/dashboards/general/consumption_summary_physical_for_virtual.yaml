@@ -7,17 +7,20 @@ annotations:
     iconColor: rgba(0, 211, 255, 1)
     name: Annotations & Alerts
     type: dashboard
-description: Average consumption of physical resources for a group of virtual machines.
+description: |-
+  Average consumption of physical resources for a group of virtual machines.
+  Only on-prem VMs are represented in the panel.
 editable: false
 gnetId:
 graphTooltip: 0
 iteration: 1600436048145
 links: []
 panels:
-- datasource: Turbo Timescale
+- datasource: $DB
   description: The Capacity and Used figures are averages over the time window. The
     VM count indicates the number of unique VMs that have been part of the group over
     the time window and that provide information about the specific resource.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom:
@@ -45,10 +48,10 @@ panels:
           - id: custom.width
             value: 90
   gridPos:
-    h: 8
-    w: 9
-    x: 7
-    y: 5
+    h: 6
+    w: 24
+    x: 0
+    y: 0
   id: 13
   options:
     showHeader: true
@@ -60,81 +63,102 @@ panels:
       metricColumn: none
       rawQuery: true
       rawSql: |-
+        WITH consumed_metrics AS (
+          SELECT m.time, m.entity_oid, coalesce(m.consumed, 0.0) as value, m.type as metric_type
+          FROM metric m,
+            scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+            entity e
+          WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
+             AND m.time BETWEEN s.from_time and s.to_time
+             AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
+             AND m.provider_oid IS NOT NULL
+             AND s.oid = m.entity_oid
+             AND e.oid = m.entity_oid
+             AND e.environment = 'ON_PREM'
+        ),
+        time_entity_consumed_sums AS (
+          SELECT time, entity_oid, metric_type, sum(value) as value
+          FROM consumed_metrics
+          GROUP BY 1, 2, 3
+        ),
+        daily_avg_consumed_metrics as (
+          SELECT
+            date_trunc('day', m.time) as "time",
+            m.entity_oid,
+            metric_type,
+            avg(m.value) as value
+          FROM time_entity_consumed_sums m
+          GROUP BY 1, 2, 3
+        ),
+        daily_consumed AS (
+          SELECT
+            metric_type as type,
+            m.time,
+            sum(m.value) as consumed,
+            count(entity_oid) AS numConsumers
+          FROM daily_avg_consumed_metrics m
+          GROUP BY 1,2
+        ),
+        capacity_metrics as (
+          SELECT
+            date_trunc('day', m.time) AS "time",
+            m.type,
+            s.e_type as entityType,
+            m.entity_oid,
+            avg(coalesce(m.capacity, 0.0)) AS capacity
+          FROM metric m,
+            scope_to_types($__timeFrom(), $__timeTo(), ARRAY['PHYSICAL_MACHINE', 'STORAGE']::entity_type[], ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+            entity e
+          WHERE
+            m.time BETWEEN $__timeFrom() AND $__timeTo()
+            AND m.type in ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
+            AND m.provider_oid IS NULL
+            AND m.entity_oid = s.oid
+            AND m.time BETWEEN s.from_time AND s.to_time
+            AND m.entity_oid = e.oid
+            AND e.environment = 'ON_PREM'
+          GROUP BY 1, 2, 3, 4
+        ),
+        daily_capacity AS (
+          SELECT type, time, SUM(capacity) as capacity
+          FROM capacity_metrics
+          GROUP BY 1, 2
+        )
         SELECT
-                  CASE
-                    WHEN daily_consumed.type = 'STORAGE_AMOUNT' THEN 'Storage Usage'
-                    WHEN daily_consumed.type = 'CPU' THEN 'CPU Usage'
-                    WHEN daily_consumed.type = 'MEM' THEN 'Memory Usage'
-                    WHEN daily_consumed.type = 'STORAGE_ACCESS' THEN 'Storage Access - IOPS'
-                    END::text AS "Resource",
-                  CASE
-                    WHEN daily_consumed.type = 'STORAGE_AMOUNT' THEN TRUNC(AVG(capacity)::numeric / 1024 / 1000 , 2)
-                    WHEN daily_consumed.type = 'CPU' THEN TRUNC(AVG(capacity)::numeric, 2)
-                    WHEN daily_consumed.type = 'MEM' THEN TRUNC(AVG(capacity)::numeric / 1024 / 1024 / 1000, 2)
-                    ELSE AVG(capacity)
-                  END :: numeric as "Capacity",
-                  CASE
-                    WHEN daily_consumed.type = 'STORAGE_AMOUNT' THEN TRUNC(AVG(consumed)::numeric / 1024 / 1000, 2)
-                    WHEN daily_consumed.type = 'CPU' THEN TRUNC(AVG(consumed)::numeric, 2)
-                    WHEN daily_consumed.type = 'MEM' THEN TRUNC(AVG(consumed)::numeric / 1024 / 1024 / 1000, 2)
-                    WHEN daily_consumed.type = 'STORAGE_ACCESS' THEN TRUNC(AVG(consumed)::numeric, 2)
-                    ELSE AVG(consumed)
-                  END :: numeric as "Used",
-                  CASE
-                    WHEN daily_consumed.type = 'STORAGE_AMOUNT' THEN 'TiB'
-                    WHEN daily_consumed.type = 'CPU' THEN 'MHz'
-                    WHEN daily_consumed.type = 'MEM' THEN 'TiB'
-                    WHEN daily_consumed.type = 'STORAGE_ACCESS' THEN 'IOPS'
-                    ELSE '-'
-                  END as "Units",
-                  TRUNC(AVG(numConsumers), 0) as "VM Count"
-                FROM (WITH metrics_data AS (
-                      SELECT m.time, m.entity_oid, m.consumed as value, type as metric_type
-                      FROM metric m,
-                        scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[ [[Group]] ]::bigint[], [[Group]] = '0') s
-                      WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-                        AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
-                        AND s.oid = m.entity_oid),
-                    entity_timestamp_aggregation AS (
-                      SELECT time, entity_oid, sum(value) as value, metric_type
-                      FROM metrics_data
-                      GROUP BY time, entity_oid, metric_type),
-                    daily_avg_metrics as (
-                      SELECT
-                        date_trunc('day', m.time) as "time",
-                        m.entity_oid,
-                        metric_type,
-                        avg(m.value) as value
-                        FROM entity_timestamp_aggregation m
-                      GROUP BY 1, 2, 3
-                    )
-                    SELECT
-                      metric_type as type,
-                      daily_avg_metrics.time,
-                      sum(daily_avg_metrics.value) as consumed,
-                      count(entity_oid) AS numConsumers
-                    FROM daily_avg_metrics
-                    group by 1,2
-                    ) AS daily_consumed,
-                    (SELECT type, time, SUM(capacity) as capacity
-                     FROM (
-                    SELECT
-                      date_trunc('day', metric.time) AS "time",
-                      metric.type,
-                      s.e_type as entityType,
-                      metric.entity_oid,
-                      AVG(metric.capacity) AS capacity
-                    FROM extractor.metric, scope_to_types($__timeFrom(), $__timeTo(), ARRAY['PHYSICAL_MACHINE', 'STORAGE']::entity_type[], ARRAY[ [[Group]] ]::bigint[], [[Group]] = '0') s
-                    WHERE
-                      "time" BETWEEN $__timeFrom() AND $__timeTo() AND
-                      metric.type in ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS') AND
-                      metric.entity_oid = s.oid and
-                      metric.time BETWEEN s.from_time AND
-                      s.to_time
-                    GROUP BY 1, 2, 3, 4) as y
-                  GROUP BY 1, 2) as daily_capacity
-                WHERE daily_consumed.type = daily_capacity.type
-                GROUP BY 1, daily_consumed.type
+          CASE
+            WHEN con.type = 'STORAGE_AMOUNT' THEN 'Storage Usage'
+            WHEN con.type = 'CPU' THEN 'CPU Usage'
+            WHEN con.type = 'MEM' THEN 'Memory Usage'
+            WHEN con.type = 'STORAGE_ACCESS' THEN 'Storage Access - IOPS'
+          END::text AS "Resource",
+          CASE
+            WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1000 , 2)
+            WHEN con.type = 'CPU' THEN ROUND(AVG(cap.capacity)::numeric, 2)
+            WHEN con.type = 'MEM' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1024 / 1000, 2)
+            ELSE AVG(capacity)
+          END :: numeric as "Capacity",
+          CASE
+            WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1000, 2)
+            WHEN con.type = 'CPU' THEN ROUND(AVG(con.consumed)::numeric, 2)
+            WHEN con.type = 'MEM' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1024 / 1000, 2)
+            WHEN con.type = 'STORAGE_ACCESS' THEN ROUND(AVG(con.consumed)::numeric, 2)
+            ELSE AVG(consumed)
+          END :: numeric as "Used",
+          CASE
+            WHEN con.type = 'STORAGE_AMOUNT' THEN 'TiB'
+            WHEN con.type = 'CPU' THEN 'MHz'
+            WHEN con.type = 'MEM' THEN 'TiB'
+            WHEN con.type = 'STORAGE_ACCESS' THEN 'IOPS'
+            ELSE '-'
+          END as "Units",
+          ROUND(AVG(numConsumers), 0) as "VM Count"
+        FROM daily_consumed AS con FULL OUTER JOIN daily_capacity AS cap USING (type)
+        GROUP BY 1, con.type
+        ORDER BY CASE con.type WHEN 'CPU' then 1
+          WHEN 'MEM' THEN 2
+          WHEN 'STORAGE_AMOUNT' THEN 3
+          WHEN 'STORAGE_ACCESS' THEN 4 ELSE 5
+        END;
       refId: A
       select:
       - - params:
@@ -156,7 +180,9 @@ panels:
   dashLength: 10
   dashes: false
   datasource: $DB
-  description: Average CPU usage measurement
+  description: |-
+    Average CPU usage measurement.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom: {}
@@ -167,7 +193,7 @@ panels:
     h: 6
     w: 24
     x: 0
-    y: 8
+    y: 6
   hiddenSeries: false
   id: 4
   legend:
@@ -185,7 +211,7 @@ panels:
     dataLinks: []
   percentage: false
   pointradius: 2
-  points: true
+  points: false
   renderer: flot
   seriesOverrides: []
   spaceLength: 10
@@ -198,28 +224,34 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
+        SELECT
+          m.time,
+          m.entity_oid,
+          m.type as metric_type,
+          coalesce(m.consumed, 0.0) as value
         FROM metric m,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
+          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
         WHERE
-          m.entity_oid = s.oid
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.entity_oid = s.oid
           AND m.time BETWEEN s.from_time AND s.to_time
           AND m.type = 'CPU'
-          AND m.time  BETWEEN $__timeFrom() AND $__timeTo()
-      ),
-      daily_avg_metrics as (
-        SELECT
-          date_trunc('day', m.time) as "time",
-          m.entity_oid,
-          avg(m.value) as value
-        FROM metrics_data m
-        GROUP BY 1, 2
+          AND m.provider_oid IS NOT NULL
+          AND s.oid = m.entity_oid
+          AND m.entity_oid = e.oid
+          AND e.environment = 'ON_PREM'
+      ), results AS (
+        SELECT time, sum(value) AS sum
+        FROM metrics_data
+        GROUP BY 1
+      ), moving_average AS (
+        SELECT time, avg(sum) OVER (ORDER BY time RANGE BETWEEN INTERVAL '1 day' PRECEDING AND CURRENT ROW) AS ma
+        FROM results
       )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "CPU Usage"
-      FROM daily_avg_metrics
-      GROUP BY 1
+        r.time, r.sum AS "CPU Usage", ma.ma AS "1-Day Moving Average"
+      FROM results r JOIN moving_average ma USING (time)
       ORDER BY 1
     refId: A
     select:
@@ -272,7 +304,9 @@ panels:
   dashLength: 10
   dashes: false
   datasource: $DB
-  description: Average memory usage measurement
+  description: |-
+    Average memory usage measurement.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom: {}
@@ -280,10 +314,10 @@ panels:
   fill: 0
   fillGradient: 0
   gridPos:
-    h: 7
+    h: 6
     w: 24
     x: 0
-    y: 14
+    y: 12
   hiddenSeries: false
   id: 2
   legend:
@@ -301,7 +335,7 @@ panels:
     dataLinks: []
   percentage: false
   pointradius: 2
-  points: true
+  points: false
   renderer: flot
   seriesOverrides: []
   spaceLength: 10
@@ -314,25 +348,33 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'MEM'
-          AND s.oid = m.entity_oid
-      ), daily_avg_metrics as (
         SELECT
-          date_trunc('day', m.time) as "time",
+          m.time,
           m.entity_oid,
-          avg(m.value) as value
-          FROM metrics_data m
-        GROUP BY 1, 2
+          m.type as metric_type,
+          coalesce(m.consumed, 0.0) as value
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(),  'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type = 'MEM'
+          AND m.provider_oid IS NOT NULL
+          AND m.entity_oid = e.oid
+          AND e.environment = 'ON_PREM'
+      ), results AS (
+        SELECT time, sum(value) AS sum
+        FROM metrics_data
+        GROUP BY 1
+      ), moving_average AS (
+        SELECT time, avg(sum) OVER (ORDER BY time RANGE BETWEEN INTERVAL '1 day' PRECEDING AND CURRENT ROW) AS ma
+        FROM results
       )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Mem Usage"
-      FROM daily_avg_metrics
-      GROUP BY 1
+        r.time, r.sum AS "Mem Usage", ma.ma AS "1-Day Moving Average"
+      FROM results r JOIN moving_average ma USING (time)
       ORDER BY 1
     refId: A
     select:
@@ -385,7 +427,9 @@ panels:
   dashLength: 10
   dashes: false
   datasource: $DB
-  description: Average storage used measurement
+  description: |-
+    Average storage used measurement.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom: {}
@@ -393,10 +437,10 @@ panels:
   fill: 0
   fillGradient: 0
   gridPos:
-    h: 7
+    h: 6
     w: 24
     x: 0
-    y: 21
+    y: 18
   hiddenSeries: false
   id: 6
   legend:
@@ -414,7 +458,7 @@ panels:
     dataLinks: []
   percentage: false
   pointradius: 2
-  points: true
+  points: false
   renderer: flot
   seriesOverrides: []
   spaceLength: 10
@@ -427,29 +471,32 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'STORAGE_AMOUNT'
-          AND s.oid = m.entity_oid
-      ), entity_timestamp_aggregation AS (
-        SELECT time, entity_oid, sum(value) as value
-        FROM metrics_data
-        GROUP BY time, entity_oid
-      ), daily_avg_metrics as (
         SELECT
-          date_trunc('day', m.time) as "time",
+          m.time,
           m.entity_oid,
-          avg(m.value) as value
-          FROM entity_timestamp_aggregation m
-        GROUP BY 1, 2
+          coalesce(m.consumed, 0.0) as value
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(),  'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type = 'STORAGE_AMOUNT'
+          AND m.provider_oid IS NOT NULL
+          AND m.entity_oid = e.oid
+          AND e.environment = 'ON_PREM'
+      ), results AS (
+        SELECT time, sum(value) AS sum
+        FROM metrics_data
+        GROUP BY 1
+      ), moving_average AS (
+        SELECT time, avg(sum) OVER (ORDER BY time RANGE BETWEEN INTERVAL '1 day' PRECEDING AND CURRENT ROW) AS ma
+        FROM results
       )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Storage Used"
-      FROM daily_avg_metrics
-      GROUP BY 1
+        r.time, r.sum AS "Storage Used", ma.ma AS "1-Day Moving Average"
+      FROM results r JOIN moving_average ma USING (time)
       ORDER BY 1
     refId: A
     select:
@@ -502,7 +549,9 @@ panels:
   dashLength: 10
   dashes: false
   datasource: $DB
-  description: Average storage IOPS measurement
+  description: |-
+    Average storage IOPS measurement.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom: {}
@@ -510,10 +559,10 @@ panels:
   fill: 0
   fillGradient: 0
   gridPos:
-    h: 7
+    h: 6
     w: 24
     x: 0
-    y: 28
+    y: 24
   hiddenSeries: false
   id: 8
   legend:
@@ -531,7 +580,7 @@ panels:
     dataLinks: []
   percentage: false
   pointradius: 2
-  points: true
+  points: false
   renderer: flot
   seriesOverrides: []
   spaceLength: 10
@@ -544,29 +593,33 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'STORAGE_ACCESS'
-          AND s.oid = m.entity_oid
-      ), entity_timestamp_aggregation AS (
-        SELECT time, entity_oid, sum(value) as value
-        FROM metrics_data
-        GROUP BY time, entity_oid
-      ), daily_avg_metrics as (
         SELECT
-          date_trunc('day', m.time) as "time",
+          m.time,
           m.entity_oid,
-          avg(m.value) as value
-          FROM entity_timestamp_aggregation m
-        GROUP BY 1, 2
+          m.type as metric_type,
+          coalesce(m.consumed, 0.0) as value
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(),  'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type = 'STORAGE_ACCESS'
+          AND m.provider_oid IS NOT NULL
+          AND m.entity_oid = e.oid
+          AND e.environment = 'ON_PREM'
+      ), results AS (
+        SELECT time, sum(value) AS sum
+        FROM metrics_data
+        GROUP BY 1
+      ), moving_average AS (
+        SELECT time, avg(sum) OVER (ORDER BY time RANGE BETWEEN INTERVAL '1 day' PRECEDING AND CURRENT ROW) AS ma
+        FROM results
       )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Storage Access - IOPS"
-      FROM daily_avg_metrics
-      GROUP BY 1
+        r.time, r.sum AS "Storage Access - IOPS", ma.ma AS "1-Day Moving Average"
+      FROM results r JOIN moving_average ma USING (time)
       ORDER BY 1
     refId: A
     select:
@@ -616,17 +669,19 @@ panels:
     alignLevel:
 - columns: []
   datasource: $DB
-  description: Average measurement for each VM in the selected group
+  description: |-
+    Average measurements for each VM in the selected group.
+    Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom: {}
     overrides: []
   fontSize: 100%
   gridPos:
-    h: 8
+    h: 22
     w: 24
     x: 0
-    y: 35
+    y: 30
   id: 10
   pageSize:
   showHeader: true
@@ -639,7 +694,7 @@ panels:
     dateFormat: YYYY-MM-DD HH:mm:ss
     pattern: Time
     type: date
-  - alias: ''
+  - alias: 'Memory'
     align: left
     colorMode:
     colors:
@@ -675,10 +730,24 @@ panels:
     dateFormat: YYYY-MM-DD HH:mm:ss
     decimals: 2
     mappingType: 1
+    pattern: IOPS
+    thresholds: []
+    type: number
+    unit: null
+  - alias: ''
+    align: auto
+    colorMode:
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
     pattern: CPU
     thresholds: []
     type: number
-    unit: none
+    unit: hertz
   targets:
   - format: table
     group: []
@@ -686,25 +755,37 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.entity_oid, e.name as entity_name, m.consumed as value, m.type as metric_type, m.time
+        SELECT
+          m.time,
+          m.entity_oid,
+          e.name as entity_name,
+          m.type as metric_type,
+          coalesce(m.consumed, 0.0) as value
         FROM metric m,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          scope_to($__timeFrom(), $__timeTo(),  'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
           entity e
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT')
+        WHERE
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
+          AND m.provider_oid IS NOT NULL
           AND s.oid = m.entity_oid
           AND e.oid = m.entity_oid
-      ), entity_timestamp_aggregation AS (
-         SELECT entity_oid, entity_name, sum(value) as value, metric_type
-         FROM metrics_data
-         GROUP BY time, entity_oid, entity_name, metric_type
+          AND e.environment = 'ON_PREM'
+      ), time_entity_sums AS (
+        SELECT time, entity_oid, entity_name, metric_type,  sum(value) as value
+        FROM metrics_data
+        GROUP BY 1, 2, 3, 4
       )
       SELECT
         m.entity_name as "VM Name",
+        -- scale to hertz since mhz is not a unit handled by grafana
+        avg(m.value*1000000) FILTER (WHERE m.metric_type = 'CPU') AS "CPU",
         avg(m.value) FILTER (WHERE m.metric_type = 'MEM') AS "Mem",
-        avg(m.value) FILTER (WHERE m.metric_type = 'CPU') AS "CPU",
-        avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_AMOUNT') AS "Storage"
-      FROM entity_timestamp_aggregation m
+        avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_AMOUNT') AS "Storage",
+        avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_ACCESS') AS "IOPS"
+      FROM time_entity_sums m
       GROUP BY m.entity_oid, m.entity_name
       ORDER BY m.entity_name, m.entity_oid
     refId: A
@@ -721,7 +802,7 @@ panels:
       type: macro
   timeFrom:
   timeShift:
-  title: Virtual Machine Physical Resource Usage
+  title: Virtual Machine Resource Usage
   transform: table
   type: table-old
 refresh: false
@@ -745,16 +826,26 @@ templating:
     - allValue: "0"
       datasource: $DB
       definition: |-
-        SELECT
-          name as __text,
-          oid as __value
-        FROM entity
+        WITH candidates AS (
+          SELECT oid, name
+          FROM entity
+          WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
+            AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
+            AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+        )
+        SELECT DISTINCT
+          g.name AS __text,
+          g.oid AS __value
+        FROM
+          candidates g,
+          entity e,
+          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
+            (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
         WHERE
-          entity.type = 'GROUP'
-          AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
-        GROUP BY name, oid
-        ORDER BY 1
+          s.seed = g.oid
+          AND s.oid = e.oid
+          AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+          AND e.environment = 'ON_PREM'
       hide: 0
       includeAll: true
       label:
@@ -762,16 +853,26 @@ templating:
       name: Group
       options: []
       query: |-
-        SELECT
-          name as __text,
-          oid as __value
-        FROM entity
+        WITH candidates AS (
+          SELECT oid, name
+          FROM entity
+          WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
+            AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
+            AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+        )
+        SELECT DISTINCT
+          g.name AS __text,
+          g.oid AS __value
+        FROM
+          candidates g,
+          entity e,
+          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
+            (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
         WHERE
-          entity.type = 'GROUP'
-          AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
-        GROUP BY name, oid
-        ORDER BY 1
+          s.seed = g.oid
+          AND s.oid = e.oid
+          AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+          AND e.environment = 'ON_PREM'
       refresh: 2
       regex: ''
       skipUrlSync: false
@@ -782,7 +883,7 @@ templating:
       type: query
       useTags: false
 time:
-  from: now-7d
+  from: now-1d
   to: now
 timepicker:
   refresh_intervals:
@@ -798,4 +899,3 @@ timepicker:
 timezone: ''
 title: Consumption Summary of Physical Resources for Virtual Machines
 uid: consumption_summary_physical_for_virtual
-

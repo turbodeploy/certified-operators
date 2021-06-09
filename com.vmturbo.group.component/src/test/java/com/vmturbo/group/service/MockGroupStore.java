@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
@@ -87,7 +89,7 @@ public class MockGroupStore implements IGroupStore {
     @Nonnull
     @Override
     public Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId) {
-        return groupId.stream().map(groups::get).collect(Collectors.toSet());
+        return groupId.stream().map(groups::get).collect(Collectors.toList());
     }
 
     @Nonnull
@@ -108,8 +110,10 @@ public class MockGroupStore implements IGroupStore {
     }
 
     @Override
-    public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
-        groups.forEach(g -> groupSupplementaryInfoMap.put(g.getGroupId(), g));
+    public void updateBulkGroupSupplementaryInfo(Map<Long, GroupSupplementaryInfo> groups) {
+        groups.forEach((groupId, supplementaryInfo) ->
+                groupSupplementaryInfoMap.computeIfPresent(
+                        groupId, (gid, val) -> val = supplementaryInfo));
     }
 
     @Override
@@ -195,6 +199,22 @@ public class MockGroupStore implements IGroupStore {
             return groups.keySet();
         }
         return Collections.emptySet();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getOrderedGroupIds(@Nonnull GroupFilter filter,
+            @Nonnull PaginationParameters paginationParameters) {
+        return Collections.emptyList();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getEmptyGroupIds() {
+        return groupSupplementaryInfoMap.entrySet().stream()
+                .filter(e -> e.getValue().getEmpty())
+                .map(Entry::getKey)
+                .collect(Collectors.toList());
     }
 
     @Override

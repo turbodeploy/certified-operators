@@ -43,6 +43,7 @@ import org.springframework.validation.Errors;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -81,6 +82,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -92,12 +94,20 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.GroupPaginationRequest;
+import com.vmturbo.api.pagination.GroupPaginationRequest.GroupOrderBy;
+import com.vmturbo.api.pagination.GroupPaginationRequest.GroupPaginationResponse;
+import com.vmturbo.api.pagination.PaginationRequest;
+import com.vmturbo.api.pagination.PaginationResponse;
 import com.vmturbo.api.pagination.PaginationUtil;
+import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -246,6 +256,8 @@ public class GroupsService implements IGroupsService {
 
     private final PaginationMapper paginationMapper;
 
+    private final UserSessionContext userSessionContext;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -266,7 +278,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final GroupFilterMapper groupFilterMapper,
                   @Nonnull final BusinessAccountRetriever businessAccountRetriever,
                   @Nonnull final ServiceProviderExpander serviceProviderExpander,
-                  @Nonnull final PaginationMapper paginationMapper) {
+                  @Nonnull final PaginationMapper paginationMapper,
+                  @Nonnull final UserSessionContext userSessionContext) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -288,6 +301,7 @@ public class GroupsService implements IGroupsService {
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
         this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -302,7 +316,8 @@ public class GroupsService implements IGroupsService {
 
     /**
      * Get groups from the group component. This method is not optimized in case we need to
-     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOs} instead.
+     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOs} or
+     * {@link #getPaginatedGroups} instead.
      *
      * @return a list of {@link GroupApiDTO}.
      * @throws ConversionException if error faced converting objects to API DTOs
@@ -310,11 +325,70 @@ public class GroupsService implements IGroupsService {
      * @throws InvalidOperationException if invalid request has been passed
      */
     @Override
-    public List<GroupApiDTO> getGroups()
-            throws ConversionException, InterruptedException, InvalidOperationException {
-        return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+    public ResponseEntity<List<GroupApiDTO>> getGroups()
+            throws ConversionException, InterruptedException {
+        List<GroupApiDTO> results = getGroupApiDTOS(GetGroupsRequest.newBuilder()
             .setGroupFilter(GroupFilter.getDefaultInstance())
             .build(), true);
+        return PaginationUtil.buildResponseEntity(results, null, null, null);
+    }
+
+    /**
+     * Get groups from the group component. This method is optimized in case we need to
+     * paginate the results.
+     *
+     * @param groupPaginationRequest pagination parameters.
+     * @return a {@link GroupPaginationResponse} that contains the list with this page's groups and
+     *         pagination related information.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if invalid request has been passed
+     */
+    @Override
+    public GroupPaginationResponse getPaginatedGroups(@Nonnull GroupPaginationRequest groupPaginationRequest)
+            throws ConversionException, InterruptedException, InvalidOperationException {
+        if (groupPaginationRequest == null) {
+            throw new InvalidOperationException("Missing pagination parameters.");
+        }
+        /*
+         * Use the old implementation (paginate inside api component) in the following cases:
+         * - if order_by is set to COST:
+         *      Currently group component doesn't support ordering groups by COST.
+         * - if the user is scoped:
+         *      Currently group component doesn't support filtering groups by a specific scope.
+         */
+        GroupPaginationRequest.GroupOrderBy orderBy = groupPaginationRequest.getOrderBy();
+        if (orderBy == GroupOrderBy.COST
+                || userSessionContext.isUserScoped()) {
+            List<Grouping> groups = new ArrayList<>();
+            groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupFilter.getDefaultInstance())
+                    .build()
+            ).forEachRemaining(groups::add);
+            final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
+                    groupMapper.toGroupApiDto(groups, true,
+                            paginationMapper.groupToSearchPaginationRequest(groupPaginationRequest),
+                            null);
+            final int totalRecordCount = paginatedGroupApiDTOs.getTotalCount();
+            // Determine if this is the final page
+            long nextCursor = paginatedGroupApiDTOs.getNextCursor();
+            if (nextCursor == totalRecordCount) {
+                return groupPaginationRequest.finalPageResponse(paginatedGroupApiDTOs.getObjects(),
+                        totalRecordCount);
+            } else {
+                return groupPaginationRequest.nextPageResponse(paginatedGroupApiDTOs.getObjects(),
+                        Long.toString(nextCursor), totalRecordCount);
+            }
+        }
+
+        // For all other cases we do a query to group component for paginated results.
+        return (GroupPaginationResponse)requestPaginatedGroupsFromGroupComponent(
+                groupPaginationRequest,
+                GetPaginatedGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.getDefaultInstance())
+                        .setPaginationParameters(
+                                paginationMapper.toProtoParams(groupPaginationRequest))
+                        .build());
     }
 
 
@@ -703,7 +777,8 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     @Override
     public GroupApiDTO editGroup(@Nonnull String uuid, @Nonnull GroupApiDTO inputDTO)
-            throws UnknownObjectException, ConversionException, InterruptedException {
+                    throws UnknownObjectException, ConversionException, InterruptedException,
+                    OperationFailedException {
 
         final GetGroupResponse groupResponse =
                 groupServiceRpc.getGroup(GroupID.newBuilder().setId(Long.parseLong(uuid)).build());
@@ -819,7 +894,7 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public void validateInput(Object o, Errors errors) {
+    public void validateInput(GroupApiDTO inputDTO, Errors errors) {
         // TODO: Implement validation for groups
     }
 
@@ -1221,16 +1296,20 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Get the groups matching a {@link GetGroupsRequest} from the group component, convert
-     * them to the associated {@link GroupApiDTO} format and paginate them.
+     * Get the groups from the group component and convert them to the associated
+     * {@link GroupApiDTO} format. Pagination happens in group component except if orderBy is set to
+     * COST or scopes parameter is being passed, in which case pagination happens (inefficiently) in
+     * api component's memory.
      *
      * @param filterList the list of filter criteria to apply.
      * @param paginationRequest Contains the limit, the order and a potential cursor
+     * @param groupType the type of the group
      * @param groupEntityTypes Contains set of entityTypes of the group members
+     * @param cloudType cloud type to include in response; if null, all are included
      * @param environmentType type of the environment to include in response, if null, all are included
      * @param scopes all result groups should be within this list of scopes, which can be entity or group
      * @param includeAllGroupClasses true if the search should return all types of groups, not just
-     *                               REGULAR.  False if only REGULAR groups should be returned.
+     *                               REGULAR.
      *                               filterList is assumed empty if includeAllGroupClasses is true.
      * @param groupOrigin the origin to filter the groups
      *
@@ -1243,27 +1322,140 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     public SearchPaginationResponse getPaginatedGroupApiDTOs(final List<FilterApiDTO> filterList,
                                                              final SearchPaginationRequest paginationRequest,
+                                                             @Nullable GroupType groupType,
                                                              @Nullable final Set<String> groupEntityTypes,
                                                              @Nullable EnvironmentType environmentType,
+                                                             @Nullable CloudType cloudType,
                                                              @Nullable List<String> scopes,
                                                              final boolean includeAllGroupClasses,
                                                              @Nullable final Origin groupOrigin)
             throws InvalidOperationException, ConversionException, OperationFailedException,
             InterruptedException {
-        final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
-                filterList, scopes, includeAllGroupClasses, groupOrigin).build();
-        final List<Grouping> groups = new LinkedList<>();
-        if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
-            final Iterable<Grouping> rawGroups = () -> groupServiceRpc.getGroups(groupsRequest);
-            Predicate<GroupDefinition> memberTypePredicate = memberTypePredicate(groupEntityTypes);
-            StreamSupport.stream(rawGroups.spliterator(), false)
-                .filter(g -> memberTypePredicate.test(g.getDefinition()))
-                .forEachOrdered(groups::add);
-        } else {
-            groupServiceRpc.getGroups(groupsRequest).forEachRemaining(groups::add);
+        /*
+         * Use the old, inefficient implementation (paginate inside api component) in the following
+         * cases:
+         * - if order_by is set to COST:
+         *      Currently group component doesn't support ordering groups  by COST.
+         * - if scopes are being specified:
+         *      Currently group component doesn't support filtering groups by a specified scope.
+         * - if the user is scoped:
+         *      Same as the previous one.
+         */
+        if (paginationRequest.getOrderBy() == SearchOrderBy.COST
+                || !CollectionUtils.isEmpty(scopes)
+                || userSessionContext.isUserScoped()) {
+            final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(
+                    groupType == null ? GroupType.REGULAR : groupType,
+                    filterList, scopes, includeAllGroupClasses, groupOrigin).build();
+            final List<Grouping> groups = new LinkedList<>();
+            if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
+                final Iterable<Grouping> rawGroups = () -> groupServiceRpc.getGroups(groupsRequest);
+                Predicate<GroupDefinition> memberTypePredicate = memberTypePredicate(groupEntityTypes);
+                StreamSupport.stream(rawGroups.spliterator(), false)
+                        .filter(g -> memberTypePredicate.test(g.getDefinition()))
+                        .forEachOrdered(groups::add);
+            } else {
+                groupServiceRpc.getGroups(groupsRequest).forEachRemaining(groups::add);
+            }
+            // Paginate the response and return it.
+            return nextGroupPage(groups, paginationRequest, environmentType);
         }
-        // Paginate the response and return it.
-        return nextGroupPage(groups, paginationRequest, environmentType);
+
+        // For all other cases we do a query to group component for paginated results.
+        return (SearchPaginationResponse)requestPaginatedGroupsFromGroupComponent(paginationRequest,
+                GetPaginatedGroupsRequest.newBuilder()
+                        .setGroupFilter(createGroupFilter(
+                                groupType == null ? GroupType.REGULAR : groupType, filterList,
+                                includeAllGroupClasses, groupOrigin, environmentType, cloudType,
+                                groupEntityTypes))
+                        .setPaginationParameters(
+                                paginationMapper.toProtoParams(
+                                        // convert the request to GroupPaginationRequest before
+                                        // converting to proto params so that we get the correct
+                                        // orderBy value
+                                        paginationMapper.searchToGroupPaginationRequest(
+                                                paginationRequest)))
+                        .build());
+    }
+
+    private GroupFilter createGroupFilter(
+            @Nonnull GroupType groupType,
+            @Nonnull List<FilterApiDTO> filterList,
+            boolean includeAllGroupClasses,
+            @Nullable Origin groupOrigin,
+            @Nullable EnvironmentType environmentType,
+            @Nullable CloudType cloudType,
+            @Nullable final Set<String> groupEntityTypes) throws OperationFailedException {
+        GroupFilter.Builder groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType,
+                LogicalOperator.AND, filterList);
+        if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
+            String errorMessage =
+                    String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",
+                            groupType.name());
+            throw new OperationFailedException(errorMessage);
+        }
+        // if we are including all subclasses, clear the group type from the filter
+        if (includeAllGroupClasses) {
+            groupFilter.clearGroupType();
+        }
+        // groupOrigin if present will override setting origin filter via scopes equals
+        // USER_GROUP approach.
+        if (groupOrigin != null) {
+            groupFilter.setOriginFilter(OriginFilter.newBuilder()
+                    .addOrigin(API_ORIGIN_TO_GROUPDTO_ORIGIN.get(groupOrigin)));
+        }
+        if (environmentType != null) {
+            groupFilter.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(environmentType));
+        }
+        if (cloudType != null) {
+            groupFilter.setCloudType(CloudTypeMapper.fromApiToXlProtoEnum(cloudType));
+        }
+        if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
+            for (String memberType : groupEntityTypes) {
+                // Determine if the memberType is group or entity, and set the appropriate filter.
+                ApiEntityType eType = ApiEntityType.fromString(memberType);
+                GroupType gType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(memberType);
+                if (!ApiEntityType.UNKNOWN.equals(eType)) {
+                    groupFilter.addDirectMemberTypes(MemberType.newBuilder()
+                            .setEntity(eType.typeNumber())
+                            .build());
+                } else if (gType != null) {
+                    groupFilter.addDirectMemberTypes(
+                            MemberType.newBuilder().setGroup(gType).build());
+                } else {
+                    logger.warn("Ignoring invalid group member type: " + memberType);
+                }
+            }
+        }
+        return groupFilter.build();
+    }
+
+    private PaginationResponse requestPaginatedGroupsFromGroupComponent(
+            PaginationRequest inputRequest, GetPaginatedGroupsRequest requestToGroupComponent)
+            throws ConversionException, InterruptedException {
+        GetPaginatedGroupsResponse response = groupServiceRpc.getPaginatedGroups(
+                requestToGroupComponent);
+        final List<Grouping> groupings = response.getGroupsList();
+        final ObjectsPage<GroupApiDTO> result;
+        try {
+            result = groupMapper.toGroupApiDto(groupings, true, null, null);
+        } catch (InvalidOperationException | ConversionException e) {
+            throw new ConversionException("An error occurred during the conversion of "
+                    + (groupings.size() == 1
+                    ? "group with uuid" + groupings.get(0).getId() + "."
+                    : groupings.size() + " groups."), e);
+        } finally {
+            if (groupings.size() > 1) {
+                logger.debug("Uuids of groups in the page which failed to get converted: {}",
+                        groupings.stream().map(Grouping::getId).collect(Collectors.toList()));
+            }
+        }
+        final List<BaseApiDTO> groupApiDTOS = Lists.newArrayList(result.getObjects());
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                .map(nextCursor -> inputRequest.nextPageResponse(groupApiDTOS,
+                        nextCursor, response.getPaginationResponse().getTotalRecordCount()))
+                .orElseGet(() -> inputRequest.finalPageResponse(groupApiDTOS,
+                        response.getPaginationResponse().getTotalRecordCount()));
     }
 
     /**
@@ -1368,7 +1560,8 @@ public class GroupsService implements IGroupsService {
             boolean includeAllGroupClasses,
             @Nullable Origin groupOrigin) throws OperationFailedException, ConversionException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
-        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, LogicalOperator.AND, filterList);
+        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(
+                groupType, LogicalOperator.AND, filterList).build();
         if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
             String errorMessage =
                 String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",

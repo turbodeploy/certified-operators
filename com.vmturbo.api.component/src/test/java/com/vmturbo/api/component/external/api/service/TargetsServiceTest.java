@@ -83,18 +83,21 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
+import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.serviceinterfaces.IActionsService;
@@ -104,16 +107,20 @@ import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.api.serviceinterfaces.IScenariosService;
 import com.vmturbo.api.serviceinterfaces.ISchedulesService;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
+import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
+import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseWorkloadLimitExceededException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
@@ -144,6 +151,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 
 /**
  * Test the {@link TargetsService}. Mocks calls to the underlying {@link TopologyProcessor}.
@@ -243,6 +251,20 @@ public class TargetsServiceTest {
                                 }
                             }
                         });
+
+        when(topologyProcessor.getTargetHealth(Mockito.anyLong()))
+                .thenAnswer(new Answer<TargetHealthInfo>() {
+
+                    @Override
+                    public TargetHealthInfo answer(InvocationOnMock invocation) throws Throwable {
+                        final long id = invocation.getArgumentAt(0, long.class);
+                        if (registeredTargets.get(id) == null) {
+                            throw new TopologyProcessorException("Error getting target health info: " + id);
+                        } else {
+                            return new TargetHealthInfo(null, id, null);
+                        }
+                    }
+                });
 
         when(topologyProcessor.getTargets(Mockito.any()))
             .thenAnswer((Answer<List<TargetInfo>>)invocation -> {
@@ -1763,6 +1785,16 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public ITemplatesService templatesService() {
+            return Mockito.mock(ITemplatesService.class);
+        }
+
+        @Bean
+        public IWorkflowsService workflowsService() {
+            return Mockito.mock(IWorkflowsService.class);
+        }
+
+        @Bean
         public TopologyProcessor topologyProcessor() {
             return Mockito.mock(TopologyProcessor.class);
         }
@@ -1784,9 +1816,14 @@ public class TargetsServiceTest {
 
         @Bean
         public TargetsService targetsService() {
+            LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+            LicenseSummary summary = LicenseSummary.newBuilder()
+                    .setNumLicensedEntities(10)
+                    .setNumInUseEntities(1).build();
+            when(licenseCheckClient.getLicenseSummary()).thenReturn(summary);
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60),
                             Duration.ofSeconds(1), Duration.ofSeconds(60),
-                            Duration.ofSeconds(1), Mockito.mock(LicenseCheckClient.class),
+                            Duration.ofSeconds(1), licenseCheckClient,
                             apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
                 actionSearchUtil(),
                 apiWebsocketHandler(), targetsRpcService(), new PaginationMapper(),
@@ -2081,5 +2118,78 @@ public class TargetsServiceTest {
 
         //WHEN
         this.targetsService.getEntitiesByTargetUuid(targetUuid, null, limit, ascending, searchOrderBy);
+    }
+
+    /**
+     * Tests getting target's health for non existing target.
+     *
+     * @throws Exception expected.
+     */
+    @Test
+    public void getTargetHealthForNonExistingTarget() throws Exception {
+        final MvcResult result = mockMvc.perform(get("/targets/3/health")
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString("Error getting target health info: 3"));
+        Assert.assertEquals(resp.getType(), 404);
+    }
+
+    /**
+     * Tests getting target's health for existing target.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void getTargetHealthForExistingTarget() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
+        final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
+                createAccountValue("field1", "value1"),
+                createAccountValue("field2", "value2"));
+
+        final MvcResult result = mockMvc
+                .perform(get("/targets/3/health").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetHealthApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetHealthApiDTO.class);
+
+       Assert.assertEquals(target.getId(), Long.parseLong(resp.getUuid()));
+    }
+
+    /**
+     * Verify when in-used entities are more than licensed entities, XL blocks adding new target.
+     *
+     * @throws LicenseWorkloadLimitExceededException security exception.
+     */
+    @Test(expected = LicenseWorkloadLimitExceededException.class)
+    public void testNotAllowAddNewTargetWhenLicensedWorkloadExceeded() throws Exception {
+        final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+        final TargetInfo targetInfo = mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(3L);
+        when(targetInfo.getProbeId()).thenReturn(2L);
+        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
+        when(targetInfo.getStatus()).thenReturn(
+                StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
+        when(topologyProcessor.getTarget(3L)).thenReturn(targetInfo);
+        when(topologyProcessor.getTarget(111L)).thenReturn(targetInfo);
+        LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+        // In use entity is more than licensed entity.
+        LicenseSummary summary = LicenseSummary.newBuilder()
+                .setIsExpired(false)
+                .setIsValid(true)
+                .setIsOverEntityLimit(true)
+                .setNumLicensedEntities(1)
+                .setNumInUseEntities(10)
+                .build();
+        when(licenseCheckClient.getLicenseSummary()).thenReturn(summary);
+        final TargetsService targetsService = new TargetsService(topologyProcessor, MILLIS_50,
+                MILLIS_100, MILLIS_50, MILLIS_100, licenseCheckClient, apiComponentTargetListener,
+                repositoryApi, actionSpecMapper, actionSearchUtil, apiWebsocketHandler,
+                targetsServiceBlockingStub, new PaginationMapper(), true, 100);
+        // this should throw IllegalStateException exception
+        targetsService.createTarget("", Collections.emptyList());
     }
 }

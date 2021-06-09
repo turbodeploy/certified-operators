@@ -16,14 +16,14 @@
 package com.vmturbo.api.component.external.api;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
-import net.minidev.json.JSONArray;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -136,7 +136,6 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
             remoteIpAddress = ((WebAuthenticationDetails)authentication.getDetails()).getRemoteAddress();
         }
         logger.debug("OpenID user name: " + email);
-        Optional<String> group = Optional.empty();
         if (authentication.getPrincipal() instanceof DefaultOidcUser) {
             DefaultOidcUser user = (DefaultOidcUser)authentication.getPrincipal();
             // Use the user's email address if returned
@@ -145,19 +144,27 @@ public class CustomRequestAwareAuthenticationSuccessHandler extends
                 logger.debug("OpenID user email: " + email);
             }
             // Use the first group of the user if returned
-            if (user.getAttributes().get("groups") instanceof JSONArray) {
-                JSONArray groups = (JSONArray)user.getAttributes().get("groups");
-                logger.debug("OpenID user groups: " + groups.toString());
-                if (groups.size() > 0) {
-                    group = Optional.of(groups.get(0).toString());
+            if (user.getAttributes().get("groups") instanceof ArrayList) {
+                List<String> jsongroups = (ArrayList)user.getAttributes().get("groups");
+                logger.debug("OpenID user groups: " + jsongroups.toString());
+                if (jsongroups.size() > 1) {
+                    Authentication resultAuthentication = authProvider
+                        .authorize(email, jsongroups.toArray(new String[0]), remoteIpAddress, componentJwtStore);
+                    SecurityContextHolder.getContext()
+                        .setAuthentication(resultAuthentication);
+                } else {
+                    Authentication resultAuthentication = authProvider
+                        .authorize(email, Optional.of(jsongroups.get(0).toString()), remoteIpAddress, componentJwtStore);
+                    SecurityContextHolder.getContext()
+                        .setAuthentication(resultAuthentication);
                 }
+                return;
             }
         }
         Authentication resultAuthentication = authProvider
-            .authorize(email, group, remoteIpAddress, componentJwtStore);
-
-    SecurityContextHolder.getContext()
-                .setAuthentication(resultAuthentication);
+            .authorize(email, Optional.empty(), remoteIpAddress, componentJwtStore);
+        SecurityContextHolder.getContext()
+            .setAuthentication(resultAuthentication);
     }
 
     public void setRequestCache(RequestCache requestCache) {

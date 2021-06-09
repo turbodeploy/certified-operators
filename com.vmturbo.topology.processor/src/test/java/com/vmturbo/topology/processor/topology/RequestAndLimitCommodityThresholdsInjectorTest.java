@@ -303,7 +303,7 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
             .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
         final TopologyEntity.Builder containerSpec = TopologyEntityUtils
             .topologyEntity(1, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC)
-            .addAggregatedEntity(container);
+            .addControlledEntity(container);
         final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
         final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
 
@@ -329,8 +329,8 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
         final CommoditySoldDTO.Builder vcpu2 =
             addCommoditySold(container2, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
 
-        addAggregatedEntity(container1, containerSpec.getOid());
-        addAggregatedEntity(container2, containerSpec.getOid());
+        addControlledEntity(container1, containerSpec.getOid());
+        addControlledEntity(container2, containerSpec.getOid());
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container1, container2, containerSpec);
         final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
@@ -359,7 +359,7 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
             addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0, 20.0, true);
         comm.setThresholds(Thresholds.newBuilder().setMin(10).setMax(100).build());
 
-        addAggregatedEntity(container, containerSpec.getOid());
+        addControlledEntity(container, containerSpec.getOid());
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
         injector.injectMinThresholdsFromUsage(graph);
@@ -384,7 +384,7 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
             addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0, 20.0, true);
         comm.setThresholds(Thresholds.newBuilder().setMin(10).build());
 
-        addAggregatedEntity(container, containerSpec.getOid());
+        addControlledEntity(container, containerSpec.getOid());
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
         injector.injectMinThresholdsFromUsage(graph);
@@ -410,7 +410,7 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
             addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 80.0, 100.0, true);
         comm.setThresholds(Thresholds.newBuilder().setMax(80).build());
 
-        addAggregatedEntity(container, containerSpec.getOid());
+        addControlledEntity(container, containerSpec.getOid());
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
         injector.injectMinThresholdsFromUsage(graph);
@@ -606,11 +606,11 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
         return TopologyDTO.CommodityType.newBuilder().setType(type).build();
     }
 
-    private static void addAggregatedEntity(@Nonnull final TopologyEntity.Builder entity, long connectedEntityId) {
+    private static void addControlledEntity(@Nonnull final TopologyEntity.Builder entity, long connectedEntityId) {
         entity.getEntityBuilder()
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(connectedEntityId)
-                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                .setConnectionType(ConnectionType.CONTROLLED_BY_CONNECTION)
                 .build());
     }
 }

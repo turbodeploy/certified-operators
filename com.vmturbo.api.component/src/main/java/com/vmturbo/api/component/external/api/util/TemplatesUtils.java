@@ -46,13 +46,15 @@ public class TemplatesUtils {
     public static final String DISK_SIZE = "diskSize";
     private static final String DISK_IOPS = "diskIops";
     private static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
+    private static final String REDUNDANCY_METHOD = "redundancyMethod";
+    private static final String FAILURES_TO_TOLERATE = "failuresToTolerate";
 
     public static Set<String> allowedComputeStats = Sets
         .newHashSet(NUM_OF_CPU, NUM_OF_CORES, CPU_SPEED, CPU_CONSUMED_FACTOR, MEMORY_SIZE,
             MEMORY_CONSUMED_FACTOR, IO_THROUGHPUT, IO_THROUGHPUT_SIZE,
             NETWORK_THROUGHPUT, NETWORK_THROUGHPUT_SIZE);
     public static Set<String> allowedStorageStats = Sets
-        .newHashSet(DISK_SIZE, DISK_CONSUMED_FACTOR, DISK_IOPS);
+        .newHashSet(DISK_SIZE, DISK_CONSUMED_FACTOR, DISK_IOPS, REDUNDANCY_METHOD, FAILURES_TO_TOLERATE);
     public static Set<String> allowedStorageTypes = Sets
         .newHashSet("disk", "rdm");
 

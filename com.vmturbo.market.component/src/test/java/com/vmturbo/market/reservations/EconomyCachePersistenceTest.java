@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -32,6 +33,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.component.db.Market;
 import com.vmturbo.market.component.db.tables.EconomyCache;
 import com.vmturbo.market.component.db.tables.records.EconomyCacheRecord;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -146,7 +148,7 @@ public class EconomyCachePersistenceTest {
             e.printStackTrace();
         }
         ReservationServiceBlockingStub stub = ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementFinder finder = new InitialPlacementFinder(dsl, stub, true, 2);
+        InitialPlacementFinder finder = new InitialPlacementFinder(dsl, stub, true, 2, 5);
         final long buyer1Oid = 1234L;
         final long buyerSl1Oid = 1000L;
         final long reservation1Oid = 1L;
@@ -167,8 +169,8 @@ public class EconomyCachePersistenceTest {
         }});
         List<InitialPlacementBuyer> buyerList = new ArrayList();
         buyerList.add(buyer1);
-        Map<Long, List<InitialPlacementBuyer>> existingReservations =  new HashMap() {{
-            put(reservation1Oid, buyerList);
+        Map<Long, InitialPlacementDTO> existingReservations =  new HashMap() {{
+            put(reservation1Oid, PlanUtils.setupInitialPlacement(buyerList, reservation1Oid));
         }};
         Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
             put(buyer1Oid, Arrays.asList(new InitialPlacementDecision(buyerSl1Oid,
@@ -195,7 +197,7 @@ public class EconomyCachePersistenceTest {
             put(buyer2Oid, Arrays.asList(new InitialPlacementDecision(buyerSl2Oid, Optional.of(1114L), new ArrayList())));
         }};
         finder.existingReservations = new HashMap() {{
-            put(reservation2Oid, newBuyerList);
+            put(reservation2Oid, PlanUtils.setupInitialPlacement(newBuyerList, reservation2Oid));
         }};
         finder.economyCaches.getState().setReservationReceived(true);
         // Restore economy cache would eliminate any previously placed buyers from the loaded

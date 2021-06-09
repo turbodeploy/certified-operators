@@ -30,6 +30,8 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomUpCostData;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
@@ -59,19 +61,22 @@ public class DataProvider {
     private volatile TopologyGraph<SupplyChainEntity> graph;
     private volatile List<EntityStats> clusterStats;
     private volatile TopDownCostData topDownCostData;
+    private volatile BottomUpCostData bottomUpCostData;
 
     private final ClusterStatsFetcherFactory clusterStatsFetcherFactory;
     private final TopDownCostFetcherFactory topDownCostFetcherFactory;
+    private final BottomUpCostFetcherFactory bottomUpCostFetcherFactory;
     private final ExtractorFeatureFlags extractorFeatureFlags;
 
-
     DataProvider(GroupServiceBlockingStub groupService,
-                 ClusterStatsFetcherFactory clusterStatsFetcherFactory,
-                 TopDownCostFetcherFactory topDownCostFetcherFactory,
-                 ExtractorFeatureFlags extractorFeatureFlags) {
+            ClusterStatsFetcherFactory clusterStatsFetcherFactory,
+            TopDownCostFetcherFactory topDownCostFetcherFactory,
+            BottomUpCostFetcherFactory bottomUpCostFetcherFactory,
+            ExtractorFeatureFlags extractorFeatureFlags) {
         this.groupService = groupService;
         this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
         this.topDownCostFetcherFactory = topDownCostFetcherFactory;
+        this.bottomUpCostFetcherFactory = bottomUpCostFetcherFactory;
         this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
@@ -160,13 +165,34 @@ public class DataProvider {
             dataFetchers.add(clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats,
                     topologyCreationTime));
         }
-        if (extractorFeatureFlags.isExtractionEnabled()) {
-            dataFetchers.add(topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData));
-        }
         // todo: add more fetchers for cost, etc
 
         // run all fetchers in parallel
         dataFetchers.parallelStream().forEach(DataFetcher::fetchAndConsume);
+    }
+
+    /**
+     * Fetch bottom-up cost data for the given snapshot, it is updated in 'bottomUpCostData'.
+     *
+     * @param snapshotTime snapshot time of topology whose cost data is needed
+     * @param timer        timer to use
+     * @return {@link BottomUpCostData}
+     */
+    public BottomUpCostData fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
+        bottomUpCostFetcherFactory.newFetcher(timer, snapshotTime, this::setBottomUpCostData)
+                .fetchAndConsume();
+        return bottomUpCostData;
+    }
+
+    /**
+     * Makes a call to the cost component to fetch the latest billing account expenses.
+     * This explicit call is needed to be called for embedded reporting billing data, otherwise
+     * data is not available when we get notified from cost that new billing data is available.
+     *
+     * @param timer Timer to use.
+     */
+    public void fetchTopDownCostData(@Nonnull MultiStageTimer timer) {
+        topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData).fetchAndConsume();
     }
 
     /**
@@ -193,6 +219,10 @@ public class DataProvider {
 
     private void setTopDownCostData(TopDownCostData topDownCostData) {
         this.topDownCostData = topDownCostData;
+    }
+
+    private void setBottomUpCostData(BottomUpCostData bottomUpCostData) {
+        this.bottomUpCostData = bottomUpCostData;
     }
 
     /**
@@ -540,6 +570,11 @@ public class DataProvider {
         return topDownCostData;
     }
 
+    @Nullable
+    public BottomUpCostData getBottomUpCostData() {
+        return bottomUpCostData;
+    }
+
     /**
      * Get the latest calculated supply chain.
      *
@@ -547,5 +582,15 @@ public class DataProvider {
      */
     public SupplyChain getSupplyChain() {
         return supplyChain;
+    }
+
+    /**
+     * Gets feature flags for extractor.
+     *
+     * @return Extractor feature flags.
+     */
+    @Nonnull
+    public ExtractorFeatureFlags getExtractorFeatureFlags() {
+        return extractorFeatureFlags;
     }
 }

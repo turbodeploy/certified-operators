@@ -111,12 +111,10 @@ class CurrentQueryMapper {
      */
     @VisibleForTesting
     static class ActionGroupFilterExtractor {
-        private final ActionSpecMapper actionSpecMapper;
         private final BuyRiScopeHandler buyRiScopeHandler;
 
         ActionGroupFilterExtractor(@Nonnull final ActionSpecMapper actionSpecMapper,
                                    @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
-            this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
             this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
         }
 
@@ -189,6 +187,8 @@ class CurrentQueryMapper {
                 agFilterBldr.setHasPrerequisites(query.actionInput().getHasPrerequisites());
             }
 
+            // TODO either toRegexQuery needs to be reimplemented to more portable,
+            // or we need to stop delegating regex's to databases
             if (query.actionInput().getDescriptionQuery() != null && Strings.isNotEmpty(query.actionInput().getDescriptionQuery().getQuery())) {
                 agFilterBldr.setDescriptionQuery(query.actionInput().getDescriptionQuery().toRegexQuery());
             }
@@ -218,8 +218,6 @@ class CurrentQueryMapper {
 
         private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
-        private final RepositoryApi repositoryApi;
-
         private final UuidMapper uuidMapper;
 
         EntityScopeFactory(@Nonnull final GroupExpander groupExpander,
@@ -229,7 +227,6 @@ class CurrentQueryMapper {
                            @Nonnull final UuidMapper uuidMapper) {
             this.groupExpander = groupExpander;
             this.supplyChainFetcherFactory = supplyChainFetcherFactory;
-            this.repositoryApi = repositoryApi;
             this.buyRiScopeHandler = buyRiScopeHandler;
             this.uuidMapper = uuidMapper;
         }

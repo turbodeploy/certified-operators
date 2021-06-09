@@ -22,7 +22,7 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
@@ -52,6 +53,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
  * Configuration for the ActionStore package.
@@ -130,7 +132,7 @@ public class ActionStoreConfig {
     @Value("${actionExecution.concurrentAutomatedActions:1000}")
     private int concurrentAutomatedActions;
 
-    @Value("${actionExecution.isConditionalSubmitter:true}")
+    @Value("${actionExecution.isConditionalSubmitter:false}")
     private boolean isConditionalSubmitter;
 
     @Value("${minsActionAcceptanceTTL:1440}")
@@ -194,6 +196,17 @@ public class ActionStoreConfig {
     }
 
     /**
+     * The time window within which actions will not be populated if they are already executed (SUCCEEDED).
+     *
+     * @return The time window within which actions will not be populated if
+     * they are already executed (SUCCEEDED).
+     */
+    @Bean
+    public int queryTimeWindowForLastExecutedActionsMins() {
+        return queryTimeWindowForLastExecutedActionsMins;
+    }
+
+    /**
      * Create atomic action factory.
      *
      * @return @link AtomicActionFactory}
@@ -207,12 +220,20 @@ public class ActionStoreConfig {
     public EntitiesAndSettingsSnapshotFactory entitySettingsCache() {
         return new EntitiesAndSettingsSnapshotFactory(
             groupClientConfig.groupChannel(),
-            repositoryClientConfig.repositoryChannel(),
             tpConfig.realtimeTopologyContextId(),
-            repositoryClientConfig.topologyAvailabilityTracker(),
-            minsToWaitForTopology,
-            TimeUnit.MINUTES, acceptedActionsStore(),
+            acceptedActionsStore(),
+            entitiesSnapshotFactory(),
             actionSettingsStrictTopologyIdMatch);
+    }
+
+    @Bean
+    public EntitiesSnapshotFactory entitiesSnapshotFactory() {
+        return new EntitiesSnapshotFactory(tpConfig.actionTopologyStore(),
+                tpConfig.realtimeTopologyContextId(),
+                minsToWaitForTopology, TimeUnit.MINUTES,
+                repositoryClientConfig.repositoryChannel(),
+                repositoryClientConfig.topologyAvailabilityTracker(),
+                new SupplyChainCalculator());
     }
 
     @Bean

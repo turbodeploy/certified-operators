@@ -19,9 +19,8 @@ public interface Algorithm {
      * action in the action list.  If the timestamp does match, the removal will be ignored.
      *
      * @param expirationTimestamp time when the action will expire.
-     * @return true if the action was removed.
      */
-    boolean removeAction(long expirationTimestamp);
+    void removeActionsOnOrBefore(long expirationTimestamp);
 
     /**
      * Close out the current interval.  This resets periodic values and prepares for the next interval.
@@ -135,6 +134,11 @@ public interface Algorithm {
     long getNextExpirationTime();
 
     /**
+     * Clear the action list and related expiration list.
+     */
+    void clearActionList();
+
+    /**
      * Group of savings and investments together.
      */
     class SavingsInvestments {
@@ -163,5 +167,17 @@ public interface Algorithm {
         }
     }
 
+    /**
+     * Helper class to capture a price change related to a tracked action.
+     */
+    class Delta {
+        public double delta;
+        public long expiration;
+
+        Delta(double delta, long expiration) {
+            this.delta = delta;
+            this.expiration  = expiration;
+        }
+    }
 }
 

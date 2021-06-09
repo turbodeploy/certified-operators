@@ -521,7 +521,8 @@ public class ActionsService implements IActionsService {
      * @return a map of action uuid to {@link ActionDetailsApiDTO}
      */
     @Override
-    public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto) {
+    public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto)
+            throws OperationFailedException, IllegalArgumentException {
         if (inputDto.getUuids().isEmpty()) {
             return Collections.emptyMap();
         }
@@ -531,7 +532,7 @@ public class ActionsService implements IActionsService {
         // Use marketId field if it is set, otherwise use old deprecated topologyContextId
         final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId())
                 ? inputDto.getTopologyContextId()
-                : inputDto.getMarketId();
+                : Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
                 multiActionRequest(actionIds, inputDtoTopologyContextId));
         Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
@@ -554,19 +555,11 @@ public class ActionsService implements IActionsService {
     /**
      * Validates incoming action api input dto.
      *
-     * @param obj Object to validate
-     * @param e   Spring framework validation errors, not actually used in our validations
+     * @param actionApiInputDTO Object to validate
+     * @param e                 Spring framework validation errors, not actually used in our validations
      */
     @Override
-    public void validateInput(final Object obj, final Errors e) {
-        if (!(obj instanceof ActionApiInputDTO)) {
-            logger.error("Unexpected object type validating action api input: {}",
-                    () -> obj.getClass().getCanonicalName());
-            throw new IllegalArgumentException("Unexpected object type validating schedule input: "
-                    + obj.getClass());
-        }
-
-        final ActionApiInputDTO actionApiInputDTO = (ActionApiInputDTO)obj;
+    public void validateInput(final ActionApiInputDTO actionApiInputDTO, final Errors e) {
         final StringBuilder errors = new StringBuilder();
 
         // description query

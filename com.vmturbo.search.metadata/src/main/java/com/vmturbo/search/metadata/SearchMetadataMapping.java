@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO.Aggregation;
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.CommodityAttribute;
-import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO.Property;
@@ -120,6 +119,10 @@ public enum SearchMetadataMapping {
     PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
         entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().hasGuestOsType(),
             entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
+
+    PRIMITIVE_GUEST_OS_NAME("attrs", "guest_os_name", Type.TEXT, null,
+            entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().hasGuestOsName(),
+                    entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsName())),
 
     PRIMITIVE_IS_LOCAL("attrs", "is_local", Type.BOOLEAN, null,
         entity -> conditionallySet(entity.getTypeSpecificInfo().getStorage().hasIsLocal(),

@@ -26,8 +26,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
@@ -101,9 +103,11 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     public void testStitchingAppFirst() throws Exception {
         init(ImmutableList.of(
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE),
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES),
                 createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE)));
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES)));
         testStitching();
     }
 
@@ -118,9 +122,36 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
     public void testStitchingVirtualMachineFirst() throws Exception {
         init(ImmutableList.of(
                 createDataDrivenStitchingOperation(vmMergedEntityMetadata,
-                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE),
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE)));
+                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                        ProbeCategory.APPLICATIONS_AND_DATABASES)));
+        testStitching();
+    }
+
+    /**
+     * Test that stitching both consumer and provider proxy entities with real entities will not be
+     * affected by the order of stitching operations.
+     * Test stitching proxy application first, and then stitching proxy virtual machine next.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testStitchingBillingFirst() throws Exception {
+        init(ImmutableList.of(
+            createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CUSTOM,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.GUEST_OS_PROCESSES,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES),
+            createDataDrivenStitchingOperation(vmMergedEntityMetadata,
+                EntityType.VIRTUAL_MACHINE, ProbeCategory.CLOUD_NATIVE,
+                    ProbeCategory.APPLICATIONS_AND_DATABASES)));
         testStitching();
     }
 
@@ -216,6 +247,16 @@ public class StitchingOperationsOrderTest extends StitchingIntegrationTest {
                 .thenReturn(Collections.singletonList(customProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.CLOUD_NATIVE))
                 .thenReturn(Collections.singletonList(kubernetesProbeId));
+        when(probeStore.getProbe(customProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setUiProbeCategory(ProbeCategory.CUSTOM.getCategory())
+                .setProbeType(SDKProbeType.UDT.getProbeType())
+                .build()));
+        when(probeStore.getProbe(kubernetesProbeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setUiProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory())
+                .setProbeType(SDKProbeType.KUBERNETES.getProbeType())
+                .build()));
     }
 
     private Map<Long, TopologyEntityDTO.Builder> stitch(StitchingContext stitchingContext) {

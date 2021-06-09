@@ -15,7 +15,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec.ActionSpecCase;

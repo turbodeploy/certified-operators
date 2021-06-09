@@ -1,7 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,8 +12,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -30,13 +32,13 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice;
 import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice.DbsStorageOption;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
@@ -49,19 +51,18 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.Depende
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseServerTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.PricingDTO.ResourceRatioDependency;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
@@ -206,7 +207,6 @@ public class CostDTOCreator {
                 .addAllDependentCostTuples(dependentCostTuples);
     }
 
-
     @Nonnull
     private DependentResourceOption convertStorageOptionToResourceOption(
             @Nonnull final StorageOption storageOption) {
@@ -221,7 +221,7 @@ public class CostDTOCreator {
     private DependentResourceOption convertStorageOptionToResourceOption(
             @Nonnull final DbsStorageOption storageOption) {
         return DependentResourceOption.newBuilder()
-                .setPercentageIncrement(storageOption.getPercentIncrement())
+                .setAbsoluteIncrement(storageOption.getIncrement())
                 .setEndRange(storageOption.getEndRange())
                 .setPrice(storageOption.getPrice())
                 .build();
@@ -353,6 +353,7 @@ public class CostDTOCreator {
                     String licenseId = licenseCommodity.getKey();
                     // Keeps the storage options of the Azure DB tiers
                     List<DbsStorageOption> storageOptions = new ArrayList<>();
+                    List<ResourceRatioDependency> resourceRatioDependencies = new ArrayList<>();
                     // we support just LicenseIncluded and NoLicenseRequired
                     if (licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED))
                             || licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
@@ -362,6 +363,7 @@ public class CostDTOCreator {
                         if (databasePrice != null) {
                             price = databasePrice.getHourlyPrice();
                             storageOptions.addAll(databasePrice.getStorageOptions());
+                            resourceRatioDependencies.addAll(databasePrice.getRatioDependencies());
                         } else {
                             logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
                                     tier.getDisplayName(), region.getDisplayName(),
@@ -375,19 +377,50 @@ public class CostDTOCreator {
                         }
                     }
 
-                    //TODO: PaaS implement depended storarge cost here
-                    // for DB server we have IOPS and Storage Amount dependent cost
-                    List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
-                    List<DependentCostTuple.DependentResourceOption> dependentResourceOptions = new ArrayList<>();
-                    storageOptions.forEach(storageOption -> {
-                        dependentResourceOptions.add(
-                                convertStorageOptionToResourceOption(storageOption));
-                    });
+                    final Multimap<Integer, DependentResourceOption> storageOptionMap = ArrayListMultimap.create();
+                    for (DbsStorageOption storageOption : storageOptions) {
+                        storageOptionMap.put(storageOption.getCommodityType(), convertStorageOptionToResourceOption(storageOption));
+                    }
+                    final List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
+                    for (Integer commodityType : storageOptionMap.keySet()) {
+                        final Collection<DependentResourceOption> dependentResourceOptions =
+                                storageOptionMap.get(commodityType);
+                        final int dependentResourceType = commodityConverter.commoditySpecification(
+                                CommodityType.newBuilder().setType(commodityType).build())
+                                .getType();
+                        dependentCostTuples.add(
+                                DependentCostTuple.newBuilder()
+                                        .setDependentResourceType(dependentResourceType)
+                                        .addAllDependentResourceOptions(dependentResourceOptions)
+                                        .build());
+                    }
+                    Set<StorageResourceRatioDependency> storageResourceRatioDeps = new HashSet<>();
+                    for (ResourceRatioDependency ratio : resourceRatioDependencies) {
+                        if (ratio.hasMinRatio() || ratio.hasMaxRatio()) {
+                            CommoditySpecificationTO baseResourceType =
+                                    getCommSpecificationFromCommodityType(ratio.getBaseResourceType());
+                            CommoditySpecificationTO dependentResourceType =
+                                    getCommSpecificationFromCommodityType(ratio.getDependentResourceType());
+                            StorageResourceRatioDependency.Builder ratioBuilder =
+                                    StorageResourceRatioDependency.newBuilder().setBaseResourceType(
+                                            baseResourceType).setDependentResourceType(
+                                            dependentResourceType);
+                            if (ratio.hasMinRatio()) {
+                                ratioBuilder.setMinRatio(ratio.getMinRatio());
+                            }
+                            if (ratio.hasMaxRatio()) {
+                                ratioBuilder.setMaxRatio(ratio.getMaxRatio());
+                            }
+                            storageResourceRatioDeps.add(ratioBuilder.build());
+                        }
+
+                    }
                     CommoditySpecificationTO spec =
                             commodityConverter.commoditySpecification(licenseCommodity);
                     dbTierDTOBuilder.addCostTupleList(
                             createCostTupleWithDependent(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
                                     dependentCostTuples));
+                    dbTierDTOBuilder.addAllStorageResourceRatioDependency(storageResourceRatioDeps);
                 }
                 // price when license isn't available
                 dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
@@ -404,6 +437,13 @@ public class CostDTOCreator {
                         .setCouponBaseType(CommodityDTO.CommodityType.COUPON_VALUE)
                         .build())
                 .build();
+    }
+
+    private CommoditySpecificationTO getCommSpecificationFromCommodityType(
+            CommonDTO.CommodityDTO.CommodityType commonDtoType) {
+        TopologyDTO.CommodityType topologyDtoType = TopologyDTO.CommodityType.newBuilder().setType(
+                commonDtoType.getNumber()).build();
+        return commodityConverter.commoditySpecification(topologyDtoType);
     }
 
     /**
@@ -625,8 +665,7 @@ public class CostDTOCreator {
             }
             // populates the ratio dependency between max this commodity and its base commodity
             if (c.hasRatioDependency()) {
-                StorageResourceRatioDependency.Builder ratioBuilder = StorageTierCostDTO
-                        .StorageResourceRatioDependency.newBuilder()
+                StorageResourceRatioDependency.Builder ratioBuilder = StorageResourceRatioDependency.newBuilder()
                         .setBaseResourceType(commodityConverter
                                 .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
                         .setDependentResourceType(commodityConverter.commoditySpecification(commType))

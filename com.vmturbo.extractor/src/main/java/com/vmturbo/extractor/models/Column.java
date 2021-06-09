@@ -8,6 +8,8 @@ import org.jooq.Field;
 import org.jooq.TableField;
 
 import com.vmturbo.extractor.schema.enums.AttrType;
+import com.vmturbo.extractor.schema.enums.CostCategory;
+import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -431,5 +433,26 @@ public class Column<T> {
      */
     public static Column<EnvironmentType> environmentTypeColumn(final String name) {
         return new Column<>(name, ColType.ENVIRONMENT_TYPE);
+    }
+
+
+    /**
+     * Create a new cost_category column builder with standard functions.
+     *
+     * @param field jOOQ table field
+     * @return new column builder
+     */
+    public static Column<CostCategory> costCategoryColumn(TableField<?, CostCategory> field) {
+        return new Column<>(field, ColType.COST_CATEGORY);
+    }
+
+    /**
+     * Create a new cost_source column builder with standard functions.
+     *
+     * @param field jOOQ table field
+     * @return new column builder
+     */
+    public static Column<CostSource> costSourceColumn(TableField<?, CostSource> field) {
+        return new Column<>(field, ColType.COST_SOURCE);
     }
 }

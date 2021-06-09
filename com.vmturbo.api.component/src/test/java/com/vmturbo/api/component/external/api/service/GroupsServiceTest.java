@@ -61,6 +61,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -91,21 +92,30 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.GroupPaginationRequest;
+import com.vmturbo.api.pagination.GroupPaginationRequest.GroupPaginationResponse;
 import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.GroupOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -148,6 +158,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
@@ -222,10 +233,11 @@ public class GroupsServiceTest {
     @Mock
     private PaginationMapper paginationMapperMock;
 
+    @Mock
+    private UserSessionContext userSessionContextMock;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
-
-    private final GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
     private final TemplateServiceMole templateServiceSpy = spy(new TemplateServiceMole());
     private final GroupServiceMole groupServiceSpyMole = spy(new GroupServiceMole());
@@ -285,7 +297,8 @@ public class GroupsServiceTest {
                 groupFilterMapper,
                 businessAccountRetriever,
                 serviceProviderExpander,
-                paginationMapperMock) {
+                paginationMapperMock,
+                userSessionContextMock) {
             @Override
             protected String getUsername() {
                 return "testUser";
@@ -328,7 +341,7 @@ public class GroupsServiceTest {
                                 .setStringFilter(
                                         StringFilter.newBuilder()
                                                 .setStringPropertyRegex(
-                                                        StringConstants.DISPLAY_NAME_ATTR))).build());
+                                                        StringConstants.DISPLAY_NAME_ATTR))));
 
         // Act
         List<FilterApiDTO> filterList = Lists.newArrayList(groupFilterApiDTO);
@@ -367,8 +380,7 @@ public class GroupsServiceTest {
                                         .setPositiveMatch(false))
 
                                 )
-                                .build()
-                                );
+                        );
 
         // Act
         List<FilterApiDTO> filterList = Lists.newArrayList(groupFilterApiDTO);
@@ -396,7 +408,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                    .setGroupType(GroupType.REGULAR).build());
+                    .setGroupType(GroupType.REGULAR));
 
         OriginFilter originFilter =  OriginFilter.newBuilder()
                 .addOrigin(GroupDTO.Origin.Type.USER).build();
@@ -423,7 +435,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
 
         OriginFilter userOriginFilter =  OriginFilter.newBuilder()
                 .addOrigin(GroupDTO.Origin.Type.USER).build();
@@ -461,7 +473,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
 
         OriginFilter userOriginFilter =  OriginFilter.newBuilder()
                 .addOrigin(GroupDTO.Origin.Type.USER).build();
@@ -530,8 +542,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
             eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
-                .build());
+                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER));
 
         final String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
         GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest(null,
@@ -569,8 +580,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
             eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-            .setGroupType(GroupType.STORAGE_CLUSTER)
-            .build());
+            .setGroupType(GroupType.STORAGE_CLUSTER));
 
         final String clusterHeadroomGroupUuid = "GROUP-StorageByStorageCluster";
         GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest("0",
@@ -961,7 +971,7 @@ public class GroupsServiceTest {
         // Assert
         assertTrue(response.getRestResponse().getBody().isEmpty());
         // Should be no call to repository to get entity information.
-        verify(groupServiceSpy, never()).getGroups( GetGroupsRequest.getDefaultInstance());
+        verify(groupServiceSpyMole, never()).getGroups( GetGroupsRequest.getDefaultInstance());
         verifyZeroInteractions(repositoryApiMock);
     }
 
@@ -1159,7 +1169,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER).build());
+                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER));
 
         final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
@@ -1270,7 +1280,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
             eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.RESOURCE).build());
+                .setGroupType(GroupType.RESOURCE));
 
         final Grouping childRG = Grouping.newBuilder()
             .setId(2L)
@@ -1359,7 +1369,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.RESOURCE).build());
+                .setGroupType(GroupType.RESOURCE));
 
         when(groupServiceSpyMole.getGroups(eq(groupsRequest))).thenReturn(
             Collections.singletonList(rgGroup));
@@ -1582,7 +1592,7 @@ public class GroupsServiceTest {
                 .setGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
                 .build())).thenReturn(Collections.singletonList(rg1));
         when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any())).thenReturn(
-                GroupFilter.newBuilder().build());
+                GroupFilter.newBuilder());
         final List<GroupApiDTO> groupsByType = groupsService.getGroupsByType(GroupType.RESOURCE,
                 Collections.singletonList(groupOfAccountsId.toString()), Collections.emptyList(),
                 EnvironmentType.CLOUD);
@@ -1643,7 +1653,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
 
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
@@ -1651,13 +1661,16 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
-        Mockito.when(groupExpanderMock.getGroupsWithMembers(expectedRequest)).thenReturn(
-                Collections.emptyList());
+        Mockito.when(groupServiceSpyMole.getGroups(expectedRequest)).thenReturn(Collections.emptyList());
 
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
-                new SearchPaginationRequest(null, null, true, null), null, null,
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                null, null, null,
                 Lists.newArrayList(USER_GROUPS), false, null);
 
+        // verify that group filter is populated to origin USER
+        verify(groupServiceSpyMole).getGroups(expectedRequest);
     }
 
     /**
@@ -1670,7 +1683,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.REGULAR)
@@ -1681,14 +1694,13 @@ public class GroupsServiceTest {
         // the default group filter
         final FilterApiDTO nameFilter = new FilterApiDTO();
 
-        final GroupFilter groupFilterWithNameFilter = GroupFilter.newBuilder()
+        final GroupFilter.Builder groupFilterWithNameFilter = GroupFilter.newBuilder()
             .addPropertyFilters(SearchProtoUtil.nameFilterRegex(
                 "foobar",
                 EntityFilterMapper.isPositiveMatchingOperator(EntityFilterMapper.REGEX_MATCH),
-                false))
-            .build();
+                false));
         GetGroupsRequest allGroupsRequestWithNameFilter = GetGroupsRequest.newBuilder()
-            .setGroupFilter(groupFilterWithNameFilter)
+            .setGroupFilter(groupFilterWithNameFilter.build())
             .build();
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
             eq(LogicalOperator.AND),
@@ -1716,8 +1728,11 @@ public class GroupsServiceTest {
             .thenReturn(Arrays.asList(groupOfClusters, groupOfVMs, clusterOfVMs));
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
-                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                Collections.singleton("Cluster"), null, Lists.newArrayList(USER_GROUPS), false, null);
+                Collections.emptyList(),
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                Collections.singleton("Cluster"), null, null, Lists.newArrayList(USER_GROUPS),
+                false, null);
 
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1726,7 +1741,9 @@ public class GroupsServiceTest {
 
         // search for group of VMs
         response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
-                new SearchPaginationRequest(null, null, true, null), Collections.singleton("VirtualMachine"), null,
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                Collections.singleton("VirtualMachine"), null, null,
                 Collections.singletonList(USER_GROUPS), false, null);
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1735,8 +1752,9 @@ public class GroupsServiceTest {
 
         // search for groups of all group types
         response = groupsService.getPaginatedGroupApiDTOs(Collections.singletonList(nameFilter),
-            new SearchPaginationRequest(null, null, true, null),
-            null, null, null, true, null);
+                // OrderBy set to COST, so that the old implementation is used.
+            new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+            null, null, null, null, true, null);
         assertThat(response.getRestResponse().getBody().stream()
             .map(BaseApiDTO::getUuid)
             .map(Long::valueOf)
@@ -1769,7 +1787,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.REGULAR)
@@ -1783,8 +1801,10 @@ public class GroupsServiceTest {
 
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
-                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
+                Collections.emptyList(),
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                groupEntityTypes, null, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1816,7 +1836,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.REGULAR)
@@ -1830,8 +1850,10 @@ public class GroupsServiceTest {
 
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
-                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
+                Collections.emptyList(),
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                groupEntityTypes, null, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1867,7 +1889,7 @@ public class GroupsServiceTest {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
-                .setGroupType(GroupType.REGULAR).build());
+                .setGroupType(GroupType.REGULAR));
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.REGULAR)
@@ -1881,13 +1903,243 @@ public class GroupsServiceTest {
 
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
-                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
+                Collections.emptyList(),
+                // OrderBy set to COST, so that the old implementation is used.
+                new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name()), null,
+                groupEntityTypes, null, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
                 .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.getId()));
+    }
+
+    /**
+     * Tests that {@link GroupsService#getPaginatedGroupApiDTOs} forwards the filters and pagination
+     * parameters to group component.
+     *
+     * @throws Exception to satisfy compiler
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsForwardingParameters()
+            throws Exception {
+        // GIVEN
+        final FilterApiDTO filterApiDTO = new FilterApiDTO();
+        filterApiDTO.setCaseSensitive(false);
+        filterApiDTO.setExpType("RXNEQ");
+        filterApiDTO.setExpVal("VM.*");
+        filterApiDTO.setFilterType("groupsByName");
+        final List<FilterApiDTO> filterList = Collections.singletonList(filterApiDTO);
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        final String orderBy = "SEVERITY";
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        final GroupType groupType = GroupType.RESOURCE;
+        final Set<String> groupEntityTypes = Collections.singleton("VirtualMachine");
+        final EnvironmentType envType = EnvironmentType.HYBRID;
+        final CloudType cloudType = CloudType.AWS;
+        final com.vmturbo.api.enums.Origin origin = com.vmturbo.api.enums.Origin.USER;
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(groupType),
+                eq(LogicalOperator.AND),
+                eq(Collections.singletonList(filterApiDTO))))
+                .thenReturn(GroupFilter.newBuilder()
+                        .setGroupType(groupType)
+                        .addPropertyFilters(
+                                PropertyFilter.newBuilder()
+                                        .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                                        .setStringFilter(
+                                                StringFilter.newBuilder()
+                                                        .setStringPropertyRegex("^VM.*$")
+                                                        .setCaseSensitive(false)
+                                                        .setPositiveMatch(false))));
+        when(paginationMapperMock.toProtoParams(any())).thenReturn(
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor)
+                        .setLimit(limit)
+                        .setAscending(ascending)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build());
+        GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
+        when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
+        // WHEN
+        SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(filterList,
+                paginationRequest, groupType, groupEntityTypes, envType, cloudType,
+                null, false, origin);
+        //THEN
+        ArgumentCaptor<GetPaginatedGroupsRequest> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
+        verify(groupServiceSpyMole, times(1)).getPaginatedGroups(
+                captor.capture());
+        // verify input parameters"
+        // - pagination
+        assertTrue(captor.getValue().hasPaginationParameters());
+        PaginationParameters capturedPaginationParams = captor.getValue().getPaginationParameters();
+        assertFalse(capturedPaginationParams.getAscending());
+        assertEquals(cursor, capturedPaginationParams.getCursor());
+        assertEquals(1, capturedPaginationParams.getLimit());
+        assertTrue(capturedPaginationParams.getOrderBy().hasGroupSearch());
+        assertEquals(GroupOrderBy.GROUP_SEVERITY,
+                capturedPaginationParams.getOrderBy().getGroupSearch());
+        // - filters
+        assertTrue(captor.getValue().hasGroupFilter());
+        GroupFilter capturedGroupFilter = captor.getValue().getGroupFilter();
+        assertEquals(1, capturedGroupFilter.getPropertyFiltersCount());
+        PropertyFilter propertyFilter = capturedGroupFilter.getPropertyFiltersList().get(0);
+        assertEquals(SearchableProperties.DISPLAY_NAME, propertyFilter.getPropertyName());
+        assertTrue(propertyFilter.hasStringFilter());
+        assertFalse(propertyFilter.getStringFilter().getCaseSensitive());
+        assertFalse(propertyFilter.getStringFilter().getPositiveMatch());
+        assertTrue(propertyFilter.getStringFilter().hasStringPropertyRegex());
+        assertEquals(groupType, capturedGroupFilter.getGroupType());
+        assertEquals(1, capturedGroupFilter.getDirectMemberTypesCount());
+        assertTrue(capturedGroupFilter.getDirectMemberTypesList().get(0).hasEntity());
+        assertEquals(ApiEntityType.fromString(groupEntityTypes.iterator().next()).typeNumber(),
+                capturedGroupFilter.getDirectMemberTypesList().get(0).getEntity());
+        assertEquals(EnvironmentTypeMapper.fromApiToXL(envType),
+                capturedGroupFilter.getEnvironmentType());
+        assertEquals(CloudTypeMapper.fromApiToXlProtoEnum(cloudType),
+                capturedGroupFilter.getCloudType());
+        assertEquals(1, capturedGroupFilter.getOriginFilter().getOriginCount());
+        assertEquals(GroupsService.API_ORIGIN_TO_GROUPDTO_ORIGIN.get(origin),
+                capturedGroupFilter.getOriginFilter().getOriginList().get(0));
+    }
+
+    /**
+     * Tests the cases for which {@link GroupsService#getPaginatedGroupApiDTOs} uses the old
+     * implementation (retrieving all groups from group component and paginating inside the api
+     * component instead of forwarding the paginated query to group component).
+     * Currently there are 3 cases:
+     * - if orderBy is set to COST,
+     * - if scopes parameter is present,
+     * - if the user is a scoped user.
+     * As the relevant functionality is being implemented in group component (see OM-65839 for
+     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
+     * eventually the entire test should be removed, once everything is being forwarded to group
+     * component.
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsNotForwardingRequest()
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any()))
+                .thenReturn(GroupFilter.newBuilder());
+
+        // orderBy COST
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        String orderBy = "COST";
+        SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, null, false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scoped user
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        orderBy = "SEVERITY";
+        paginationRequest = new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, null, false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scopes parameter
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        final Long scope = 123L;
+        final ApiId apiId = mock(ApiId.class);
+        when(uuidMapper.fromUuid(scope.toString())).thenReturn(apiId);
+        when(apiId.oid()).thenReturn(scope);
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
+                null, null, null, Collections.singletonList(scope.toString()), false, null);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+    }
+
+    /**
+     * Tests that {@link GroupsService#getPaginatedGroups} forwards pagination parameters to group
+     * component.
+     *
+     * @throws Exception to satisfy compiler
+     */
+    @Test
+    public void testGetPaginatedGroupsForwardingParameters()
+            throws Exception {
+        // GIVEN
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        final String orderBy = "SEVERITY";
+        final GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        when(paginationMapperMock.toProtoParams(any())).thenReturn(
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor)
+                        .setLimit(limit)
+                        .setAscending(ascending)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
+                                .build())
+                        .build());
+        GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
+        when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
+        // WHEN
+        GroupPaginationResponse response = groupsService.getPaginatedGroups(paginationRequest);
+        //THEN
+        ArgumentCaptor<GetPaginatedGroupsRequest> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
+        verify(groupServiceSpyMole, times(1)).getPaginatedGroups(
+                captor.capture());
+        // verify input parameters
+        assertTrue(captor.getValue().hasPaginationParameters());
+        PaginationParameters capturedPaginationParams = captor.getValue().getPaginationParameters();
+        assertFalse(capturedPaginationParams.getAscending());
+        assertEquals(cursor, capturedPaginationParams.getCursor());
+        assertEquals(limit, capturedPaginationParams.getLimit());
+        assertEquals(GroupOrderBy.GROUP_SEVERITY,
+                capturedPaginationParams.getOrderBy().getGroupSearch());
+    }
+
+    /**
+     * Tests the cases for which {@link GroupsService#getPaginatedGroups} uses the old
+     * implementation (retrieving all groups from group component and paginating inside the api
+     * component instead of forwarding the paginated query to group component).
+     * Currently there are 2 cases:
+     * - if orderBy is set to COST,
+     * - if the user is a scoped user.
+     * As the relevant functionality is being implemented in group component (see OM-65839 for
+     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
+     * eventually the entire test should be removed, once everything is being forwarded to group
+     * component.
+     */
+    @Test
+    public void testGetPaginatedGroupsNotForwardingRequest()
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
+        final String cursor = "1";
+        final int limit = 1;
+        final boolean ascending = false;
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any()))
+                .thenReturn(GroupFilter.newBuilder());
+
+        // orderBy COST
+        when(userSessionContextMock.isUserScoped()).thenReturn(false);
+        String orderBy = "COST";
+        GroupPaginationRequest paginationRequest =
+                new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        groupsService.getPaginatedGroups(paginationRequest);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
+
+        // scoped user
+        orderBy = "SEVERITY";
+        paginationRequest = new GroupPaginationRequest(cursor, limit, ascending, orderBy);
+        when(userSessionContextMock.isUserScoped()).thenReturn(true);
+        groupsService.getPaginatedGroups(paginationRequest);
+        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
     /**

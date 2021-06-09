@@ -891,6 +891,6 @@ public class SchedulesServiceTest {
     @Test
     public void testValidateInvalidObjectType() {
         thrown.expect(IllegalArgumentException.class);
-        schedulesService.validateInput(new Object(), null);
+        schedulesService.validateInput(new ScheduleApiDTO(), null);
     }
 }

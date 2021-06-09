@@ -47,8 +47,8 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
  *                                 (server) side.
  */
 public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT>
-                implements
-                StitchingOperation<InternalSignatureT, ExternalSignatureT> {
+                extends AbstractExternalSignatureCachingStitchingOperation<InternalSignatureT,
+        ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
     private static final String INTERNAL = "internal";
@@ -61,6 +61,9 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
 
     // Set of ProbeCategory identifying the categories of probe who we want to stitch with
     private final Set<ProbeCategory> categoriesToStitchWith;
+
+    // Probe category of the probe that is associated with this stitching operation
+    private final ProbeCategory probeCategory;
 
     // A map of provider entity type to the entity type of the provider it is
     // replacing.  For example, in the case of a logical pool provider for a proxy Storage, it
@@ -75,13 +78,27 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
      *                 behavior.
      * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the
      *                 probe categories that
+     * @param category the category of the probe associated with this operation
      */
     public DataDrivenStitchingOperation(
                     @Nonnull StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT> matchingInfo,
-                    @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
+                    @Nonnull final Set<ProbeCategory> categoriesToStitchWith,
+                    @Nonnull final ProbeCategory category) {
         this.matchingInformation = Objects.requireNonNull(matchingInfo);
         this.categoriesToStitchWith = Objects.requireNonNull(categoriesToStitchWith);
+        this.probeCategory = category;
         initReplacementEntityMap();
+    }
+
+    @Override
+    public boolean isCachingEnabled() {
+        // Caching should be disabled if a scope is defined and that scope is PARENT
+        // scope or if this operation stitches with targets in its own category. In the latter
+        // case, we want to disable caching since stitching one target may affect the set of
+        // external entities available for other targets.
+        return matchingInformation.getStitchingScope().map(scope -> scope.getScopeType()
+                != StitchingScopeType.PARENT).orElse(!categoriesToStitchWith.isEmpty()
+                && !categoriesToStitchWith.contains(probeCategory));
     }
 
     @Nonnull
@@ -96,14 +113,14 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                 == StitchingScopeType.PARENT) {
             logger.trace("Returning parent scope for stitching operation with target {}",
                     targetId);
-            return Optional.of(stitchingScopeFactory
-                    .parentTargetEntityType(getExternalEntityType().get(), targetId));
+            return getExternalEntityType().map(externalEntityType -> stitchingScopeFactory
+                    .parentTargetEntityType(externalEntityType, targetId));
         }
         if (categoriesToStitchWith.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(stitchingScopeFactory
-                .multiProbeCategoryEntityTypeScope(categoriesToStitchWith, getExternalEntityType().get()));
+        return getExternalEntityType().map(externalEntityType ->stitchingScopeFactory
+                .multiProbeCategoryEntityTypeScope(categoriesToStitchWith, externalEntityType));
     }
 
     /**
@@ -160,7 +177,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     }
 
     @Override
-    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+    protected Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
         return getSignatures(entity, matchingInformation::getExternalMatchingData, EXTERNAL);
     }
 

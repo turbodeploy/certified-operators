@@ -158,7 +158,7 @@ public class TemplatesService implements ITemplatesService {
      * @throws UnauthorizedObjectException If the input template format is wrong.
      */
     @Override
-    public TemplateApiDTO addTemplate(TemplateApiInputDTO inputDto) throws UnauthorizedObjectException {
+    public TemplateApiDTO addTemplate(TemplateApiInputDTO inputDto) throws Exception {
         int entityType = convertClassNameToEntityType(inputDto.getClassName());
         GetTemplateSpecByEntityTypeRequest templateSpecRequest = GetTemplateSpecByEntityTypeRequest.newBuilder()
             .setEntityType(entityType)
@@ -168,8 +168,12 @@ public class TemplatesService implements ITemplatesService {
         final CreateTemplateRequest request = CreateTemplateRequest.newBuilder()
             .setTemplateInfo(templateInfo)
             .build();
-        final Template template = templateService.createTemplate(request);
-        return templateMapper.mapToTemplateApiDTO(template, templateSpec, Collections.emptyList());
+        try {
+            final Template template = templateService.createTemplate(request);
+            return templateMapper.mapToTemplateApiDTO(template, templateSpec, Collections.emptyList());
+        } catch (StatusRuntimeException e) {
+            throw convertToApiException(e);
+        }
     }
 
     /**
@@ -194,11 +198,7 @@ public class TemplatesService implements ITemplatesService {
             final Template template = templateService.editTemplate(request);
             return templateMapper.mapToTemplateApiDTO(template, templateSpec, Collections.emptyList());
         } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                throw new UnknownObjectException(e.getStatus().getDescription());
-            } else {
-                throw e;
-            }
+            throw convertToApiException(e);
         }
     }
 
@@ -237,10 +237,10 @@ public class TemplatesService implements ITemplatesService {
     public void validateInput(final TemplateApiInputDTO dto, Errors errors) {
         final StringBuilder errorMsgBuilder = new StringBuilder();
         if (dto.getClassName() == null) {
-            errorMsgBuilder.append(". className is a required field");
+            errorMsgBuilder.append(". ClassName is a required field");
         }
         if (dto.getDisplayName() == null) {
-            errorMsgBuilder.append(". displayName is a required field");
+            errorMsgBuilder.append(". DisplayName is a required field");
         }
         if (dto.getComputeResources() != null) {
             for (ResourceApiDTO resource : dto.getComputeResources()) {
@@ -282,14 +282,13 @@ public class TemplatesService implements ITemplatesService {
     private String validateStatNames(ResourceApiDTO resource, Set<String> allowedStats,
                                      String resourceName) {
         if (resource.getStats() != null) {
-            return resource.getStats().stream()
-                .map(StatApiDTO::getName)
-                .filter(name -> !allowedStats.contains(name))
-                .collect(Collectors.joining(",", "The following stat names in " + resourceName
-                    + " are not allowed: ", "."));
-        } else {
-            return "";
-        }
+            String notAllowedStats = resource.getStats().stream()
+                    .map(StatApiDTO::getName)
+                    .filter(name -> !allowedStats.contains(name))
+                    .collect(Collectors.joining(","));
+            return notAllowedStats.isEmpty()? "" : "The following stat names in "
+                    + resourceName + " are not allowed: " + notAllowedStats + ".";
+        } return "";
     }
 
     private String validateTypesNames(String typeName, Set<String> allowedTypes,
@@ -387,6 +386,17 @@ public class TemplatesService implements ITemplatesService {
     @Override
     public List<ServiceEntityApiDTO> getTemplateEntities(@Nonnull String templateUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
+    }
+
+    private static Exception convertToApiException(StatusRuntimeException e) {
+        switch (e.getStatus().getCode()) {
+            case NOT_FOUND:
+                return new UnknownObjectException(e.getStatus().getDescription());
+            case INVALID_ARGUMENT:
+                return new IllegalArgumentException(e.getStatus().getDescription());
+            default:
+                return e;
+        }
     }
 }
 

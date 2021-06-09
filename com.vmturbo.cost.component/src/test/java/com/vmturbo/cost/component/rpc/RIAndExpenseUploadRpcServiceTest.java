@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -77,6 +78,9 @@ public class RIAndExpenseUploadRpcServiceTest {
     private final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate =
             mock(ReservedInstanceCoverageUpdate.class);
 
+    private final CostNotificationSender costNotificationSender =
+            mock(CostNotificationSender.class);
+
     private RIAndExpenseUploadRpcService riAndExpenseUploadRpcService;
 
     @Captor
@@ -101,7 +105,8 @@ public class RIAndExpenseUploadRpcServiceTest {
         MockitoAnnotations.initMocks(this);
         riAndExpenseUploadRpcService = new RIAndExpenseUploadRpcService(dsl, accountExpensesStore,
                 reservedInstanceSpecStore, reservedInstanceBoughtStore,
-                reservedInstanceCoverageUpdate, true);
+                reservedInstanceCoverageUpdate, true,
+                costNotificationSender);
     }
 
     /**

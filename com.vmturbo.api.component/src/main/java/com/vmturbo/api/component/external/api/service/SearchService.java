@@ -23,7 +23,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -148,17 +147,11 @@ public class SearchService implements ISearchService {
 
     private final PriceIndexPopulator priceIndexPopulator;
 
-    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
-
-    private final SeverityPopulator severityPopulator;
-
     private final StatsHistoryServiceBlockingStub statsHistoryServiceRpc;
 
     private final PaginationMapper paginationMapper;
 
     private final GroupUseCaseParser groupUseCaseParser;
-
-    private final long realtimeContextId;
 
     private final TagsService tagsService;
 
@@ -167,8 +160,6 @@ public class SearchService implements ISearchService {
     private final UserSessionContext userSessionContext;
 
     private final GroupServiceBlockingStub groupServiceRpc;
-
-    private final ServiceEntityMapper serviceEntityMapper;
 
     private final EntityFilterMapper entityFilterMapper;
     private final SearchFilterResolver filterResolver;
@@ -204,18 +195,14 @@ public class SearchService implements ISearchService {
         this.groupsService = Objects.requireNonNull(groupsService);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpc);
-        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsHistoryServiceRpc = Objects.requireNonNull(statsHistoryServiceRpc);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.groupUseCaseParser = groupUseCaseParser;
         this.tagsService = tagsService;
         this.businessAccountRetriever = businessAccountRetriever;
-        this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
-        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
@@ -302,7 +289,7 @@ public class SearchService implements ISearchService {
 
         nameRegexBuilder.replace(0,
                 nameRegexBuilder.length(),
-                escapeSpecialCharactersInSearchQueryPattern( nameRegexBuilder.toString()));
+                SearchProtoUtil.escapeSpecialCharactersInLiteral(nameRegexBuilder.toString()));
 
         nameRegexBuilder.insert(0, ".*");
         nameRegexBuilder.append(".*");
@@ -314,7 +301,7 @@ public class SearchService implements ISearchService {
             case CONTAINS:
                return escapeAndEncloseInDotAsterisk(nameQuery);
             case EXACT:
-                return escapeSpecialCharactersInSearchQueryPattern(nameQuery);
+                return SearchProtoUtil.escapeSpecialCharactersInLiteral(nameQuery);
             case REGEX:
             default:
                 return nameQuery;
@@ -496,25 +483,25 @@ public class SearchService implements ISearchService {
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, new HashSet(groupTypes), environmentType, scopes, true, groupOrigin);
+                paginationRequest, null, new HashSet<>(groupTypes), environmentType, null, scopes, true, groupOrigin);
         } else if (types != null) {
-            final Set<String> typesHashSet = new HashSet(types);
+            final Set<String> typesHashSet = new HashSet<>(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (typesHashSet.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we pass in true for
                 // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                    paginationRequest, null, environmentType, scopes, true, groupOrigin);
+                    paginationRequest, null, null, environmentType, null, scopes, true, groupOrigin);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
                     if (types.contains(entry.getKey())) {
                         String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
-                        return paginationRequest.allResultsResponse(Collections.unmodifiableList(
-                                groupsService.getGroupsByType(entry.getValue(), scopes,
-                                        addNameMatcher(query, Collections.emptyList(), filter, queryType),
-                                        environmentType)));
+                        return groupsService.getPaginatedGroupApiDTOs(
+                                addNameMatcher(query, Collections.emptyList(), filter, queryType),
+                                paginationRequest, entry.getValue(), null,
+                                environmentType, null, scopes, false, groupOrigin);
                     }
                 }
                 throw new IllegalStateException("This can never happen because intersect(types, groupTypes) > 0 if and only if there is at least one groupType in types.");
@@ -525,9 +512,12 @@ public class SearchService implements ISearchService {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets();
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (typesHashSet.contains(ApiEntityType.BUSINESS_ACCOUNT.apiStr())) {
+                final List<FilterApiDTO> cloudfilter = (probeTypes == null || probeTypes.isEmpty()) ?
+                    Collections.emptyList() :
+                    Collections.singletonList(createCloudProbeMatcher(probeTypes));
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessAccountRetriever.getBusinessAccountsInScope(scopes,
-                            addNameMatcher(query, Collections.emptyList(),
+                            addNameMatcher(query, cloudfilter,
                                 EntityFilterMapper.ACCOUNT_NAME, queryType));
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
@@ -680,7 +670,7 @@ public class SearchService implements ISearchService {
         }
         return entity -> {
             final ApiEntityType entityType = ApiEntityType.fromString(entity.getClassName());
-            final long oid = Long.valueOf(entity.getUuid());
+            final long oid = Long.parseLong(entity.getUuid());
             return userSessionContext.isEntityTypeAllowedForUser(entityType) &&
                 userSessionContext.getUserAccessScope().contains(oid);
         };
@@ -778,19 +768,16 @@ public class SearchService implements ISearchService {
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
         final String className = StringUtils.defaultIfEmpty(inputDTO.getClassName(), "");
-        if (GROUP.equals(className)) {
-            final Set<String> groupTypes = inputDTO.getGroupType() == null ? null : Collections.singleton(inputDTO.getGroupType());
-            return groupsService.getPaginatedGroupApiDTOs(
-                addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
-                paginationRequest, groupTypes, inputDTO.getEnvironmentType(),
-                inputDTO.getScope(), false, inputDTO.getGroupOrigin());
-        } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
+        final Set<String> groupTypes = inputDTO.getGroupType() == null
+                ? null : Collections.singleton(inputDTO.getGroupType());
+        if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
-            return paginationRequest.allResultsResponse(Collections.unmodifiableList(
-                    groupsService.getGroupsByType(groupType, inputDTO.getScope(),
-                            addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter, queryType),
-                            inputDTO.getEnvironmentType())));
+            return groupsService.getPaginatedGroupApiDTOs(
+                    addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter,
+                            queryType), paginationRequest, groupType, groupTypes,
+                    inputDTO.getEnvironmentType(), null, inputDTO.getScope(), false,
+                    inputDTO.getGroupOrigin());
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
                     businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
@@ -806,7 +793,7 @@ public class SearchService implements ISearchService {
             String scopeId = inputDTO.getScope().get(0);
             long businessAccountId;
             try {
-                businessAccountId = Long.valueOf(scopeId);
+                businessAccountId = Long.parseLong(scopeId);
             } catch (NumberFormatException ex) {
                 throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
             }
@@ -877,7 +864,7 @@ public class SearchService implements ISearchService {
                 nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
                 break;
             case EXACT:
-                nameFilter.setExpVal(escapeSpecialCharactersInSearchQueryPattern(stringToMatch));
+                nameFilter.setExpVal(SearchProtoUtil.escapeSpecialCharactersInLiteral(stringToMatch));
                 nameFilter.setExpType(EntityFilterMapper.EQUAL);
             default:
                 break;
@@ -890,6 +877,15 @@ public class SearchService implements ISearchService {
             returnFilters.addAll(originalFilters);
         }
         return returnFilters;
+    }
+
+    private FilterApiDTO createCloudProbeMatcher(List<String> probesToMatch) {
+        final FilterApiDTO providerFilter = new FilterApiDTO();
+        providerFilter.setCaseSensitive(false);
+        providerFilter.setFilterType(EntityFilterMapper.ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE);
+        providerFilter.setExpType(EntityFilterMapper.EQUAL);
+        providerFilter.setExpVal(String.join(GroupFilterMapper.OR_DELIMITER, probesToMatch));
+        return providerFilter;
     }
 
     /**
@@ -1440,21 +1436,6 @@ public class SearchService implements ISearchService {
         } else {
             return optionsProvider.getOptions(scopes, entityType, envType);
         }
-    }
-
-    /**
-     * Returns a String whose special characters have been escaped (if any)
-     *
-     * @param queryPattern the query string whose special characters will be escaped
-     * @return a String whose special characters have been escaped.
-     */
-    @Nullable
-    private String escapeSpecialCharactersInSearchQueryPattern(@Nullable String queryPattern) {
-        if (StringUtils.isEmpty(queryPattern)) {
-            return queryPattern;
-        }
-        // mark the pattern as a literal
-        return Pattern.quote(queryPattern);
     }
 
     /**

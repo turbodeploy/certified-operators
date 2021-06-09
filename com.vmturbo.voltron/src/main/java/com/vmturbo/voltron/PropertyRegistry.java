@@ -67,6 +67,13 @@ class PropertyRegistry {
         props.put("topologyProcessorDbPassword", "vmturbo");
         props.put("marketDbPassword", "vmturbo");
 
+        if (voltronConfiguration.isUseLocalBus()) {
+            props.put("kafkaConfigFile", "");
+        } else {
+            props.put("kafkaConfigFile", Voltron.getAbsolutePath(
+                    "com.vmturbo.clustermgr/src/main/resources/kafka-config.yml"));
+        }
+
         props.put("serverHttpPort", voltronConfiguration.getServerHttpPort());
         props.put("serverGrpcPort", voltronConfiguration.getServerGrpcPort());
 

@@ -11,6 +11,7 @@ import org.jooq.DeleteLimitStep;
 import org.jooq.Field;
 import org.jooq.Name;
 import org.jooq.Record;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -175,5 +176,52 @@ public class JooqUtil {
             Name qualifiedName = DSL.name(table.getQualifiedName(), DSL.name(name));
             fields.put(name, DSL.field(qualifiedName, field.getDataType()));
         }
+    }
+
+
+    /**
+     * Disables foreign key constraints within the session associated with {@code dslContext}.
+     * @param dslContext The {@link DSLContext} used to determine the SQL dialect and execute the
+     *                   corresponding SQL statement.
+     */
+    public static void disableForeignKeyConstraints(@Nonnull DSLContext dslContext) {
+
+        final SQLDialect dialect = dslContext.configuration().family();
+
+        final String disableStatement;
+        switch (dialect) {
+            case MARIADB:
+            case MYSQL:
+                disableStatement = "SET FOREIGN_KEY_CHECKS=0;";
+                break;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Dialect '%s' not supported", dialect));
+        }
+
+        dslContext.execute(disableStatement);
+    }
+
+    /**
+     * Enables foreign key constraints within the session associated with {@code dslContext}.
+     * @param dslContext The {@link DSLContext} used to determine the SQL dialect and execute the
+     *                   corresponding SQL statement.
+     */
+    public static void enableForeignKeyConstraints(@Nonnull DSLContext dslContext) {
+
+        final SQLDialect dialect = dslContext.configuration().family();
+
+        final String enableStatement;
+        switch (dialect) {
+            case MARIADB:
+            case MYSQL:
+                enableStatement = "SET FOREIGN_KEY_CHECKS=1;";
+                break;
+            default:
+                throw new UnsupportedOperationException(
+                        String.format("Dialect '%s' not supported", dialect));
+        }
+
+        dslContext.execute(enableStatement);
     }
 }

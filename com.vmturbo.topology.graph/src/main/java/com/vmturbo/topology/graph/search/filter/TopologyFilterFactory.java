@@ -21,6 +21,8 @@ import org.apache.commons.lang3.StringUtils;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
+import com.vmturbo.common.protobuf.search.Search.MultiTraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter.ListElementTypeCase;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
@@ -73,6 +75,18 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                 return filterFor(searchCriteria.getPropertyFilter());
             case TRAVERSAL_FILTER:
                 return filterFor(searchCriteria.getTraversalFilter());
+            case MULTI_TRAVERSAL_FILTER:
+                final MultiTraversalFilter multiTraversalFilter =
+                                searchCriteria.getMultiTraversalFilter();
+                final Collection<TraversalFilter<E>> traversalFilters =
+                                multiTraversalFilter.getTraversalFilterList().stream()
+                                                .map(this::filterFor).collect(Collectors.toSet());
+                final LogicalOperator operator = multiTraversalFilter.hasOperator()
+                                ?
+                                multiTraversalFilter.getOperator()
+                                :
+                                LogicalOperator.OR;
+                return new CompositeTraversalFilter<>(traversalFilters, operator);
             default:
                 throw new IllegalArgumentException("Unknown FilterTypeCase: " + searchCriteria.getFilterTypeCase());
         }
@@ -338,7 +352,7 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         DatabaseServerProps.class);
             }
             case SearchableProperties.DB_EDITION: {
-                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getDatabaseEdition().name()),
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getDatabaseEdition()),
                         DatabaseServerProps.class);
             }
             case SearchableProperties.DB_VERSION: {

@@ -26,8 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -46,7 +44,8 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -114,16 +113,17 @@ public class AnalysisDiagnosticsCollectorTest {
     //Change this to the location of unzipped SMA diags.
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
     private final String unzippedSMADiagsLocation2 = "target/test-classes/cloudvmscaling/smaDiags2";
-    private final String unzippedInitialPlacementDiagsLocation = "target/test-classes/initialPlacementDiags";
+    private final String unzippedInitialPlacementDiagsLocation = "";
 
     /**
      * run the InitialPlacement from diags.
      */
     @Test
+    @Ignore
     public void testInitialPlacementFromDiags() {
         List<InitialPlacementCommTypeMap> historicalCachedCommType = new ArrayList<>();
         List<InitialPlacementCommTypeMap> realtimeCachedCommType = new ArrayList<>();
-        List<InitialPlacementBuyer> newBuyers = new ArrayList<>();
+        List<InitialPlacementDTO> newBuyers = new ArrayList<>();
         FileInputStream fi;
         ObjectInputStream oi;
         Economy historicalCachedEconomy = null;
@@ -158,7 +158,7 @@ public class AnalysisDiagnosticsCollectorTest {
                         realtimeCachedCommType = extractMultipleInstancesOfType(path, InitialPlacementCommTypeMap.class);
                         break;
                     case AnalysisDiagnosticsCollector.NEW_BUYERS_NAME:
-                        newBuyers = extractMultipleInstancesOfType(path, InitialPlacementBuyer.class);
+                        newBuyers = extractMultipleInstancesOfType(path, InitialPlacementDTO.class);
                         break;
                     default:
                         logger.error("Unknown file {} in Analysis diags. Skipping this file.", fileName);
@@ -172,7 +172,6 @@ public class AnalysisDiagnosticsCollectorTest {
             logger.error("Could not find realtimeCachedEconomy");
             return;
         }
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
         final ReservationServiceMole testReservationService = spy(new ReservationServiceMole());
         GrpcTestServer grpcServer = GrpcTestServer.newServer(testReservationService);
         try {
@@ -184,7 +183,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
         InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub,
-                true, 1);
+                true, 1, 5);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
@@ -196,7 +195,10 @@ public class AnalysisDiagnosticsCollectorTest {
                         historicalCachedEconomy, true),
                 realtimeCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
                         realtimeCachedEconomy, true));
-        Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(newBuyers);
+        FindInitialPlacementRequest.Builder findInitialPlacementRequest = FindInitialPlacementRequest.newBuilder();
+        findInitialPlacementRequest.addAllInitialPlacement(newBuyers);
+        Table<Long, Long, InitialPlacementFinderResult> result
+            = pf.findPlacement(findInitialPlacementRequest.build());
         assertFalse(result.isEmpty());
     }
 

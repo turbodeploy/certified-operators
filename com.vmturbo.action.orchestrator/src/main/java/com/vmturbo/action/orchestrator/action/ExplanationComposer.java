@@ -1,8 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
+import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static java.util.stream.Collectors.toList;
 
 import java.text.MessageFormat;
@@ -826,6 +826,11 @@ public class ExplanationComposer {
         if (isResizeDown) {
             return UNDERUTILIZED_EXPLANATION + commodityType;
         } else {
+            if (resize.hasReason()) {
+                final String reasonCommodityType = convertStorageAccessToIops.apply(commodityDisplayName(resize.getReason(), keepItShort)) +
+                        (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+                return reasonCommodityType + CONGESTION_EXPLANATION;
+            }
             return commodityType + CONGESTION_EXPLANATION;
         }
     }
