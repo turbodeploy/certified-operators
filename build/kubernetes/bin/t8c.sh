@@ -273,7 +273,7 @@ then
   sudo mkfs.xfs -f ${device}
   sudo mkdir -p $localStorageDataDirectory
   sudo chown -R turbo.turbo $localStorageDataDirectory
-  if [ ! grep -q "$localStorageDataDirectory" /etc/fstab ]
+  if ! grep -q "$localStorageDataDirectory" /etc/fstab
   then
     echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | sudo tee --append /etc/fstab
   fi
