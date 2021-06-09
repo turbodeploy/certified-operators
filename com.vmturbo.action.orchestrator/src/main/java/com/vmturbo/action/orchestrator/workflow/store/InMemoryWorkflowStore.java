@@ -127,6 +127,26 @@ public class InMemoryWorkflowStore implements WorkflowStore {
         }
     }
 
+    @Nonnull
+    @Override
+    public Optional<Workflow> getWorkflowByDisplayName(String displayName) {
+        Optional<Workflow> result = Optional.empty();
+        if (isWorkflowCacheInitialized()) {
+            lock.readLock().lock();
+            try {
+                for (Map.Entry<Long, Workflow> entry : workflowIdToWorkflow.entrySet()) {
+                    if (displayName.equals(entry.getValue().getWorkflowInfo().getDisplayName())) {
+                        return Optional.of(workflowIdToWorkflow.get(entry.getKey()));
+                    }
+                }
+            } finally {
+                lock.readLock().unlock();
+            }
+        }
+
+        return result;
+    }
+
     @Override
     public void persistWorkflows(long targetId, List<WorkflowInfo> workflowInfos)
             throws WorkflowStoreException {
