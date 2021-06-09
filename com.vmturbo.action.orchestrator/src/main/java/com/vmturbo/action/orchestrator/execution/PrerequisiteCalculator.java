@@ -143,16 +143,16 @@ class PrerequisiteCalculator {
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
             @Nonnull final ProbeCategory probeCategory) {
         // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
-        // action is a Move action and the target of the action has virtual machine type specific info.
+        // action is a Scale action and the target of the action has virtual machine type specific info.
         // If not, there's no need to calculate pre-requisites for this action because
         // no pre-requisites will be generated for such an action.
         if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT
-                || action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE
+                || action.getInfo().getActionTypeCase() != ActionTypeCase.SCALE
                 || !target.getTypeSpecificInfo().hasVirtualMachine()) {
             return Collections.emptySet();
         }
 
-        for (ChangeProvider changeProvider : action.getInfo().getMove().getChangesList()) {
+        for (ChangeProvider changeProvider : action.getInfo().getScale().getChangesList()) {
             if (changeProvider.hasDestination()) {
                 long destinationId = changeProvider.getDestination().getId();
                 Optional<ActionPartialEntity> destinationOptional =
@@ -347,10 +347,10 @@ class PrerequisiteCalculator {
         }
 
         // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
-        // action is a Move action. If not, there's no need to calculate pre-requisites for this
+        // action is a Scale action. If not, there's no need to calculate pre-requisites for this
         // action because no pre-requisites will be generated for such an action.
         if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT
-                || action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+                || action.getInfo().getActionTypeCase() != ActionTypeCase.SCALE) {
             return Collections.emptySet();
         }
 
@@ -361,7 +361,7 @@ class PrerequisiteCalculator {
             return Collections.emptySet();
         }
 
-        for (ChangeProvider changeProvider : action.getInfo().getMove().getChangesList()) {
+        for (ChangeProvider changeProvider : action.getInfo().getScale().getChangesList()) {
             if (changeProvider.hasSource() && changeProvider.hasDestination()) {
 
                 long sourceId = changeProvider.getSource().getId();
@@ -411,7 +411,7 @@ class PrerequisiteCalculator {
     /**
      * Calculate core quota pre-requisite.
      *
-     * <p>For example, suppose there's an VM move action from standard NPS family to
+     * <p>For example, suppose there's an VM scale action from standard NPS family to
      * standard HBS family in region East US for a business account.
      * The remaining core quota of standard NPS family in region East US of this business account is 10.
      * The remaining core quota of standard HBS family in region East US of this business account is 6.
@@ -419,7 +419,7 @@ class PrerequisiteCalculator {
      *
      * <p>Since the remaining core quota of the source family (standard NPS family) is larger than
      * the one of destination family (standard HBS family), we're going to generate a core quota
-     * pre-requisite for this move action to request a quota increase for the destination family
+     * pre-requisite for this scale action to request a quota increase for the destination family
      * (standard HBS family) in region East US.
      * Also, since the remaining core quota of the source family (standard NPS family) is large than
      * the total core quota of region East US, we're going to generate a core quota pre-requisite
