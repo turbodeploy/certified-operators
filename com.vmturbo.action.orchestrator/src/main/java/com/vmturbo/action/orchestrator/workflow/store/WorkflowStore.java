@@ -5,10 +5,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowFilter;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 
@@ -90,4 +88,16 @@ public interface WorkflowStore {
      */
     @Nonnull
     Optional<Workflow> fetchWorkflow(long workflowId) throws WorkflowStoreException;
+
+    /**
+     * Get a {@link Workflow} by display name. If not found, then return Optional.empty().
+     *
+     * @param displayName the input display name used to search the workflow for.
+     * @return an Optional containing the Workflow corresponding to the given display name,
+     *     or Optional.empty() if not found.
+     * @throws WorkflowStoreException if there's an error while getting the workflow display name.
+     */
+    @Nonnull
+    Optional<Workflow> getWorkflowByDisplayName(String displayName) throws WorkflowStoreException;
+
 }

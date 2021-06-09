@@ -255,6 +255,7 @@ public class WorkflowRpcServiceTest {
         ArgumentCaptor<WorkflowInfo> workflowInfoCaptor =
             ArgumentCaptor.forClass(WorkflowInfo.class);
         when(workflowStore.insertWorkflow(workflowInfoCaptor.capture())).thenReturn(123L);
+        when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
 
         StreamObserver<CreateWorkflowResponse> createObs = mock(StreamObserver.class);
         workflowRpcService.createWorkflow(CreateWorkflowRequest.newBuilder()
@@ -300,6 +301,7 @@ public class WorkflowRpcServiceTest {
     @Test
     public void testUpdateExistingDoesNotExist() throws WorkflowStoreException {
         when(workflowStore.fetchWorkflow(anyLong())).thenReturn(Optional.empty());
+        when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
             .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
@@ -318,6 +320,7 @@ public class WorkflowRpcServiceTest {
     public void testUpdate() throws WorkflowStoreException {
         when(workflowStore.fetchWorkflow(anyLong()))
             .thenReturn(Optional.of(EXISTING_WORKFLOW));
+        when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
             .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
@@ -380,6 +383,7 @@ public class WorkflowRpcServiceTest {
     @Test
     public void testWorkflowStoreFailure() throws WorkflowStoreException {
         when(workflowStore.fetchWorkflow(anyLong())).thenThrow(new WorkflowStoreException("500 Not Available"));
+        when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
         when(workflowStore.insertWorkflow(any())).thenThrow(new WorkflowStoreException("500 Not Available"));
 
         StreamObserver<CreateWorkflowResponse> createObs = mock(StreamObserver.class);
