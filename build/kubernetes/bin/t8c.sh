@@ -48,7 +48,7 @@ fi
 source /opt/local/etc/turbo.conf
 
 # Update the yaml files to run offline
-#/opt/local/bin/offlineUpdate.sh
+#/opt/local/bin/cleanKube.sh
 
 if grep -q "$localStorageDataDirectory" /etc/fstab
 then
