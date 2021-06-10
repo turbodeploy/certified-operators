@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# redirect stdout/stderr to a file
-logFile="install_$(date +%Y-%m-%d_%H_%M_%S).log"
-echo "Install logging will be in /opt/turbonmic/${logFile}"
-exec &> /opt/turbonomic/${logFile}
-
 # Run this as the root user
 if [[ $(/usr/bin/id -u) -ne 0 ]]
 then
@@ -12,7 +7,26 @@ then
   exit
 fi
 
-# Variable to use if a non-turbonomic deployment
+# Check if the install script has been run already
+localStorageDataDirectory="/data/turbonomic/"
+if grep -q "$localStorageDataDirectory" /etc/fstab
+then
+  echo ""
+  echo "Detected existing installation..."
+  echo "exiting......"
+  echo "Please do not re-run on an existing install."
+  echo ""
+  exit 0
+fi
+
+# Ask if the ipsetup script has been run
+read -e -p "Have you ran the ipsetup script yet? [y/n] " ipAnswer
+
+if [ "$ipAnswer" != "${ipAnswer#[Nn]}" ]
+then
+  /opt/local/bin/ipsetup
+fi
+
 # Variable to use if a non-turbonomic deployment
 while getopts b:h: flag
 do
@@ -67,7 +81,7 @@ source /opt/local/etc/turbo.conf
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
 then
-  ssh-keygen -f ~/.ssh/id_rsa -t rsa -N ''
+  ssh-keygen -f ~/.ssh/id_rsa -t rsa -N '' > /dev/null 2>&1
   cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
   # Make sure authorized_keys has the appropriate permissions, otherwise sshd does not allow
   # passwordless ssh.
@@ -148,9 +162,9 @@ cd /etc/kubernetes/ssl/etcd/
 ln -s ca.pem ca.crt
 ln -s ca-key.pem ca.key
 
-/usr/local/bin/kubeadm init phase certs etcd-server
-/usr/local/bin/kubeadm init phase certs etcd-peer
-/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client
+/usr/local/bin/kubeadm init phase certs etcd-server 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-peer 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client 2>/dev/null
 
 if [ ! -z "${hostName}" ]
 then
@@ -189,20 +203,20 @@ else
 fi
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 
-/usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml
+/usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
 
 cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf
+/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
 if [ ! -z "${hostName}" ]
 then
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf 2>/dev/null
 else
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
 fi
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
 
 systemctl restart kubelet
 
@@ -222,7 +236,12 @@ while [ "X${kubeletStatus}" != "Xactive" ]
 do
   echo kubelet service still starting
   kubeletStatus=$(systemctl is-active kubelet)
-  sleep 5
+  if [ "X${kubeletStatus}" = "Xactive" ]
+  then
+    break
+  else
+    sleep 5
+  fi
 done
 
 # Show progress bar for the 2 min wait
@@ -262,8 +281,13 @@ while [ "${kStatus}" -ne "0" ]
 do
   kubectl cluster-info
   kStatus="$?"
-  echo "Kubernetes is not ready...."
-  sleep 10
+  if [ "${kStatus}" -ne "0" ]
+  then
+    echo "Kubernetes is not ready...."
+    sleep 10
+  else
+    break
+  fi
 done
 
 # Install pre-turbonomic environmental requirementes
@@ -344,6 +368,7 @@ else
   # Create mount point for both pgsql and mariadb
   /opt/local/bin/switch_dbs_mount_point.sh
 fi
+
 
 # Setup kafka/zookeeper before bringing up XL components (if so configured)
 # Check to see if an external kafka is being used.  If so, do not run kafka locally
@@ -429,9 +454,42 @@ sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/local/etc/turbo.conf
 
-# Reboot the instance:
+# Status
 echo ""
 echo ""
-echo "################################################"
-echo "Please reboot the server to pick up the changes"
-echo "################################################"
+echo "############################"
+echo "Start the deployment rollout"
+echo "############################"
+echo "This will take some time."
+echo ""
+# Wait for the api pod to become healthy
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='api' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  sleep 120
+  echo "Waiting for Broker to be ready."
+done
+
+# Wait for the topology-processor  pod to become healthy
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='topology-processor' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  sleep 60
+  echo "Waiting for Broker to be ready."
+done
+
+# Wait for the history pod to become healthy
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='history' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  sleep 60
+  echo "Waiting for Broker to be ready."
+done
+
+# Check on the rollout status
+for deploy in $(/usr/local/bin/kubectl get deploy --no-headers | awk '{print $1}')
+do 
+  kubectl rollout status deployment/${deploy} -n turbonomic
+done
+echo
+echo "#################################################"
+echo "Deployment Completed, please login through the UI"
+echo "https://${newIP}
+echo "#################################################"
