@@ -374,8 +374,9 @@ public class ActionListener implements ActionsListener {
             final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
             // We need to create RECOMMENDATION_ADDED events for actions in READY (PENDING_ACCEPT)
-            // states only.
-            if (actionPriceChange != null && actionState == ActionState.READY) {
+            // and IN_PROGRESS states only.
+            if (actionPriceChange != null && (actionState == ActionState.READY
+                    || actionState == ActionState.IN_PROGRESS)) {
                 logger.debug("New action price change for {}, {}, {}, {}:",
                         newActionId,
                         actionState, actionPriceChange.getSourceCost(),
