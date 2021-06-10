@@ -245,60 +245,66 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     /**
      * Returns groups based on the request, in a paginated response.
-     * This is a temporary testing method that supports paginated queries which require scope
-     * filtering. It will be removed in OM-70603, after being merged with the original.
      *
      * @param request the request for groups, including pagination, filtering & ordering params.
      * @param responseObserver the observer to notify with the response.
      */
     @Override
-    public void getPaginatedGroupsForScopedUser(GetPaginatedGroupsRequest request,
+    public void getPaginatedGroups(GetPaginatedGroupsRequest request,
             StreamObserver<GetPaginatedGroupsResponse> responseObserver) {
         grpcTransactionUtil.executeOperation(responseObserver, stores -> {
-            getPaginatedGroupsForScopedUser(stores.getGroupStore(), request, responseObserver);
+            getPaginatedGroups(stores.getGroupStore(), request, responseObserver);
         });
     }
 
     /**
-     * Internal implementation for getPaginatedGroupsForScopedUser.
+     * Internal implementation for getPaginatedGroups. Queries the store provided to get the
+     * necessary data, and notifies the observer with the paginated response.
      *
      * @param groupStore the group store to query.
      * @param request the request for groups, including pagination, filtering & ordering params.
      * @param observer the observer to notify with the response.
      */
-    private void getPaginatedGroupsForScopedUser(@Nonnull IGroupStore groupStore,
+    private void getPaginatedGroups(@Nonnull IGroupStore groupStore,
             GetPaginatedGroupsRequest request,
             StreamObserver<GetPaginatedGroupsResponse> observer) {
-        if (!userSessionContext.isUserScoped() && isMarketScoped(request.getScopesList())) {
-            // in the non-scoped case, use the simple implementation
-            getPaginatedGroups(groupStore, request, observer);
-            return;
-        }
         try {
+            // Sanitize input as the first step, so that we are sure that any necessary values exist
+            // and are valid
             GetPaginatedGroupsRequest validatedRequest =
                     sanitize(GetPaginatedGroupsRequest.class, request);
+
+            // Non-scoped case; pagination happens in database
+            if (!userSessionContext.isUserScoped() && isMarketScoped(request.getScopesList())) {
+                observer.onNext(groupStore.getPaginatedGroups(validatedRequest));
+                observer.onCompleted();
+                return;
+            }
+
+            // Scoped case; pagination happens in memory. Since we are retrieving only uuids from
+            // the database, the size of data retrieved will be small
             logger.trace("Processing scoped paginated request.");
-            // find the groups that the user has access to, based on the scope (either the user's
-            // scope or the scope provided in the request
+            // 1. Find the groups that the user has access to, based on the scope (either the user's
+            //    scope, the scope provided in the request, or both)
             Set<Long> groupUuidsInScope = getGroupUuidsInScope(groupStore, validatedRequest);
-            // fetch all groups that conform to the other (non-scope related) filters
+            // 2. Fetch all groups that conform to the other (non-scope related) filters from the db
             final Collection<Long> groupsFromStore = groupStore.getOrderedGroupIds(
                     validatedRequest.getGroupFilter(), validatedRequest.getPaginationParameters());
-            // find the intersection between the two
+            // 3. Find the intersection between the two (keeping the order is important here)
             final List<Long> filteredIds = new ArrayList<>(groupsFromStore.size());
             groupsFromStore.forEach(groupId -> {
                 if (groupUuidsInScope.contains(groupId)) {
                     filteredIds.add(groupId);
                 }
             });
-            // get the next page
+            // 4. Get the next page
             final int limit = validatedRequest.getPaginationParameters().getLimit();
             final int cursor = Integer.parseInt(
                     validatedRequest.getPaginationParameters().getCursor());
             final List<Long> nextPageIds = cursor < filteredIds.size()
                     ? filteredIds.subList(cursor, Math.min(cursor + limit, filteredIds.size()))
                     : Collections.emptyList();
-            // construct and return response
+            // 5. Construct and return response
             PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
             paginationResponse.setTotalRecordCount(filteredIds.size());
             if (cursor + limit < filteredIds.size()) {
@@ -322,16 +328,42 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
+    /**
+     * Calculates which groups belong to the input scope and the user's scope (if the user is
+     * scoped).
+     * In detail:
+     * - If we must check against both the input scope and the user's scope, the intersection of the
+     * two will define the results.
+     * - If only one of the two is valid (i.e. the input scope is empty or the user is not scoped),
+     * then the check against the other will be skipped.
+     * - If both the input scope is empty and the user is not scoped, an empty set will be returned.
+     *   (the caller is not expected to call this function if both scopes are empty)
+     *
+     * <p>In the case the user asked for a specific list of group uuids, if any of them fails the
+     * scope checks then a {@link UserAccessScopeException} will be thrown.
+     *
+     * @param groupStore group store used to retrieve group uuids
+     * @param request the input request, containing the scopes list and the input filter that may
+     *                contain the specific list of uuids that the user asked for
+     *                (see GroupDTO.GroupFilter.id)
+     * @return the uuids of the groups that belong to the scope, or an empty set if there is no
+     *         scope to check against
+     * @throws StoreOperationException if there is an error interacting with the {@link IGroupStore}
+     */
     private Set<Long> getGroupUuidsInScope(@Nonnull IGroupStore groupStore,
             @Nonnull GetPaginatedGroupsRequest request) throws StoreOperationException {
         final boolean userIsScoped = userSessionContext.isUserScoped();
-        final boolean requestIsScoped = !request.getScopesList().isEmpty();
+        final boolean requestIsScoped = !isMarketScoped(request.getScopesList());
         final Set<Long> groupUuidsInScope = new HashSet<>();
         final Set<Long> entityUuidsInScope = new HashSet<>();
         final EntityAccessScope userScope = userIsScoped
                 ? userSessionContext.getUserAccessScope() : null;
         final EntityAccessScope requestScope = requestIsScoped
                 ? userSessionContext.getAccessScope(request.getScopesList()) : null;
+        // do an early return if there is nothing to check against
+        if (!userIsScoped && !requestIsScoped) {
+            return Collections.emptySet();
+        }
         if (userIsScoped) {
             logger.trace("User scope: {}", () -> userScope);
             userScope.accessibleOids().forEach(entityUuidsInScope::add);
@@ -384,44 +416,6 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         return groupUuidsInScope;
-    }
-
-    /**
-     * Returns groups based on the request, in a paginated response.
-     *
-     * @param request the request for groups, including pagination, filtering & ordering params.
-     * @param responseObserver the observer to notify with the response.
-     */
-    @Override
-    public void getPaginatedGroups(GetPaginatedGroupsRequest request,
-            StreamObserver<GetPaginatedGroupsResponse> responseObserver) {
-        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
-            getPaginatedGroups(stores.getGroupStore(), request, responseObserver);
-        });
-    }
-
-    /**
-     * Internal implementation for getPaginatedGroups. Queries the store provided to get the
-     * paginated response, and notifies the observer.
-     *
-     * @param groupStore the group store to query.
-     * @param request the request for groups, including pagination, filtering & ordering params.
-     * @param observer the observer to notify with the response.
-     */
-    private void getPaginatedGroups(@Nonnull IGroupStore groupStore,
-            GetPaginatedGroupsRequest request,
-            StreamObserver<GetPaginatedGroupsResponse> observer) {
-        try {
-            observer.onNext(groupStore.getPaginatedGroups(
-                    // sanitize the input before using it
-                    sanitize(GetPaginatedGroupsRequest.class, request)));
-            observer.onCompleted();
-        } catch (IllegalArgumentException | InvalidParameterException e) {
-            final String errorMessage = "Invalid request for groups. Error: ";
-            logger.error(errorMessage, e);
-            observer.onError(Status.INVALID_ARGUMENT.withDescription(errorMessage + e.getMessage())
-                    .asException());
-        }
     }
 
     @Override
