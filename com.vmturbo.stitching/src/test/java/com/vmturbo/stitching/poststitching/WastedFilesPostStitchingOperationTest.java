@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -26,6 +27,7 @@ import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
+import com.vmturbo.stitching.poststitching.WastedFilesPostStitchingOperation.RegexCompilerAndErrorHandler;
 
 /**
  * Test the WastedFile post stitching operation.
@@ -287,5 +289,26 @@ public class WastedFilesPostStitchingOperationTest {
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
             .map(VirtualVolumeFileDescriptor::getPath)
             .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Tests that a {@link RegexCompilerAndErrorHandler} behaves correctly.
+     */
+    @Test
+    public void testRegexCompilerAndErrorHandler() {
+        String nonValidRegex1 = "[notValidRegex";
+        String nonValidRegex2 = "*notValidRegex";
+        String validRegex = "validRegex";
+
+        RegexCompilerAndErrorHandler regularExpression = new RegexCompilerAndErrorHandler();
+        regularExpression.safePatternCompile(nonValidRegex1);
+        regularExpression.safePatternCompile(nonValidRegex2);
+        regularExpression.safePatternCompile(nonValidRegex1);
+        regularExpression.safePatternCompile(validRegex);
+
+        assertTrue(regularExpression.hasCompilationErrors());
+        assertEquals(1, StringUtils.countMatches(regularExpression.logCompilationErrors(), nonValidRegex1));
+        assertEquals(1, StringUtils.countMatches(regularExpression.logCompilationErrors(), nonValidRegex2));
+        assertEquals(0, StringUtils.countMatches(regularExpression.logCompilationErrors(), validRegex));
     }
 }
