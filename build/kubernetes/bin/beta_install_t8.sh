@@ -252,8 +252,8 @@ do
 done
 printf '\nFinished! kubectl apply commands will follow\n'
 
-/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
-/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system 2>/dev/null
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system 2>/dev/null
 
 # Update configmaps
 /usr/local/bin/kubectl get cm -n kube-system kubeadm-config -o yaml > /etc/kubernetes/kubeadm-config.yaml
@@ -268,8 +268,8 @@ else
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
 fi
-/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system 2>/dev/null
 
 # Restart Docker
 systemctl restart docker
@@ -317,7 +317,7 @@ fi
 # Check to see if kubernetes auth secrets are being used.  If so, pre-generate the keys and
 # load them into secrets.
 # This must be done after installing Kubernetes, but before running the operator.
-egrep "enableExternalSecrets" ${chartsFile}
+egrep "enableExternalSecrets" ${chartsFile} > /dev/null 2>&1
 enableExternalSecrets=$(echo $?)
 
 if [ X${enableExternalSecrets} = X0 ]
@@ -332,7 +332,7 @@ echo "                   Operator Installation                              "
 echo "######################################################################"
 # See if the operator has an external ip
 sed -i "s/tag:.*/tag: ${turboVersion}/g" ${chartsFile}
-grep -r "externalIP:" ${chartsFile}
+grep -r "externalIP:" ${chartsFile} > /dev/null 2>&1
 result="$?"
 if [ $result -ne 0 ]; then
   sed -i "/tag:/a\
@@ -350,13 +350,13 @@ then
   echo "The database is external from this server"
   echo "${externalDB}"
 else
-  /opt/local/bin/configure_mariadb.sh
+  /opt/local/bin/configure_mariadb.sh 2>/dev/null
 fi
 
 # Setup timescaledb before bringing up XL components
 # ./configure_timescaledb.sh
 # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
-egrep "externalTimescaleDBName" ${chartsFile}
+egrep "externalTimescaleDBName" ${chartsFile} > /dev/null 2>&1
 externalTimescaleDB=$(echo $?)
 if [ X${externalTimescaleDB} = X0 ]
 then
@@ -364,9 +364,9 @@ then
   echo "The TimescaleDB database is external from this server"
   echo "${externalTimescaleDB}"
 else
-  /opt/local/bin/configure_timescaledb.sh
+  /opt/local/bin/configure_timescaledb.sh 2>/dev/null
   # Create mount point for both pgsql and mariadb
-  /opt/local/bin/switch_dbs_mount_point.sh
+  /opt/local/bin/switch_dbs_mount_point.sh 2>/dev/null
 fi
 
 
@@ -374,7 +374,7 @@ fi
 # Check to see if an external kafka is being used.  If so, do not run kafka locally
 # We have to do two checks because the external kafka variable ("externalKafka") is a substring of
 # the alternative configuration ("externalKafkaIp") that runs Kafka in the VM.
-egrep "externalKafka" ${chartsFile}
+egrep "externalKafka" ${chartsFile} > /dev/null 2>&1
 externalKafka=$(echo $?)
 egrep "externalKafkaIP" ${chartsFile}
 runKafkaInVM=$(echo $?)
@@ -387,7 +387,7 @@ then
 elif [ X${runKafkaInVM} = X0 ]
 then
   echo "Kafka is configured to run in the VM, configuring..."
-  /opt/local/bin/configure_kafka.sh
+  /opt/local/bin/configure_kafka.sh 2>/dev/null
 else
   echo "Kafka is configured to run as a container, skipping configuration for the VM service."
 fi
@@ -395,13 +395,13 @@ fi
 # Setup Consul before bringing up XL components (if so configured)
 # Check to see if our Kubernetes deployment is configured to use an external Consul
 # If so, run Consul in the VM
-egrep "externalConsulIP" ${chartsFile}
+egrep "externalConsulIP" ${chartsFile} > /dev/null 2>&1
 externalConsulIP=$(echo $?)
 
 if [ X${externalConsulIP} = X0 ]
 then
   echo "Consul is configured to run in the VM, configuring..."
-  /opt/local/bin/configure_consul.sh
+  /opt/local/bin/configure_consul.sh 2>/dev/null
 else
   echo "Consul is configured to run as a container, skipping configuration for the VM service."
 fi
@@ -446,7 +446,7 @@ kubectl create -f ${chartsFile} -n turbonomic
 
 # Apply the ip change to the instance
 sed -i "s/${oldIP}/${newIP}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml 2>/dev/null
 
 # Update other files, jic
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
@@ -491,5 +491,5 @@ done
 echo
 echo "#################################################"
 echo "Deployment Completed, please login through the UI"
-echo "https://${newIP}
+echo "https://${newIP}"
 echo "#################################################"
