@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.commons.lang.StringUtils;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -107,25 +108,12 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
             if (providerInformation == null || providerInformation.isEmpty()) {
                 return;
             }
-
             // get the recorded provider id
-            // this will be null if there are multiple provider ids
             final Long providerId = providerInformation.getProviderId();
-
-            // populate fields
-            if (providerId == null) {
-                // in this case, we have multiple providers
-                // we indicate this by populating the provider display name
-                // with the string "MULTIPLE PROVIDERS"
-                builder.setProviderDisplayName(MULTIPLE_PROVIDERS);
-            } else {
-                // in this case, we have a single provider
-                // we populate the fields for provider id and display name
+            if (providerId != null) {
                 builder.setProviderUuid(providerId.toString());
-                final String rawDisplayName = liveStatsReader.getEntityDisplayNameForId(providerId);
-                final String displayName = rawDisplayName == null ? UNKNOWN_PROVIDER : rawDisplayName;
-                builder.setProviderDisplayName(displayName);
             }
+            builder.setProviderDisplayName(providerInformation.getDisplayName(liveStatsReader));
         }
     }
 
@@ -138,6 +126,7 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
     public static class ProviderInformation  implements InformationState {
         private boolean isEmpty = true;
         private Long providerId;
+        private boolean isMultiple;
 
         /**
          * Construct empty object.
@@ -165,26 +154,45 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
          * @param newProviderId provider id to record
          */
         public void newProviderId(Long newProviderId) {
-            if (isEmpty) {
-                providerId = newProviderId;
-                isEmpty = false;
-            } else if (providerId != null && providerId != newProviderId) {
-                // by assigning the providerId to null,
-                // we signify that the object enters
-                // the "multiple providers" state
-                providerId = null;
-            }
+            isMultiple = !isEmpty && !Objects.equals(providerId, newProviderId);
+            isEmpty = false;
+            providerId = newProviderId;
         }
 
         /**
-         * Return the recorded provider id. Return null when we have
-         * multiple providers or if this is a full-market request.
+         * Returns display name of the provider. In case there are more than one provider in the
+         * collection of records then {@link ProducerIdVisitor#MULTIPLE_PROVIDERS} string will be
+         * returned. In case there is no any provider identifier in records, then {@link
+         * ProducerIdVisitor#UNKNOWN_PROVIDER} string will be returned. In all remaining cases
+         * display name of the provider will be used retrieved from {@link LiveStatsReader}.
          *
-         * @return recorded provider id or null (for multiple providers
-         *         or full market)
+         * @param liveStatsReader provides a display name by specified provider
+         *                 identifier.
+         * @return display name of the provider.
+         */
+        @Nonnull
+        public String getDisplayName(LiveStatsReader liveStatsReader) {
+            if (isMultiple) {
+                return MULTIPLE_PROVIDERS;
+            }
+            final String displayName = liveStatsReader.getEntityDisplayNameForId(providerId);
+            if (StringUtils.isBlank(displayName)) {
+                return UNKNOWN_PROVIDER;
+            }
+            return displayName;
+        }
+
+        /**
+         * Return the recorded provider id as {@link String}. Returns {@code null} when we cannot
+         * identify a provider.
+         *
+         * @return recorded provider id or null (for multiple providers or full market)
          */
         @Nullable
         public Long getProviderId() {
+            if (isMultiple) {
+                return null;
+            }
             return providerId;
         }
 
@@ -200,7 +208,7 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
 
         @Override
         public boolean isMultiple() {
-            return !isEmpty() && getProviderId() == null;
+            return isMultiple;
         }
     }
 }

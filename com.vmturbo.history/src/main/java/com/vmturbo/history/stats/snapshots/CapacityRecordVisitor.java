@@ -5,6 +5,9 @@
 package com.vmturbo.history.stats.snapshots;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -30,7 +33,7 @@ import com.vmturbo.history.stats.PropertySubType;
  */
 @NotThreadSafe
 public class CapacityRecordVisitor
-                extends AbstractVisitor<Record, Pair<StatsAccumulator, StatsAccumulator>> {
+                extends AbstractVisitor<Record, Map<Long, Pair<StatsAccumulator, StatsAccumulator>>> {
     private static final Collection<PropertySubType> CAPACITY_AWARE_SUB_TYPES =
                     ImmutableSet.of(PropertySubType.Utilization, PropertySubType.Used);
     private final SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator;
@@ -43,10 +46,7 @@ public class CapacityRecordVisitor
      */
     public CapacityRecordVisitor(
             @Nonnull SharedPropertyPopulator<Pair<StatValue, Float>> capacityPopulator) {
-        super((state) -> {
-            state.first.clear();
-            state.second.clear();
-        });
+        super(Map::clear);
         this.capacityPopulator = Objects.requireNonNull(capacityPopulator);
     }
 
@@ -67,8 +67,13 @@ public class CapacityRecordVisitor
                             StringConstants.CAPACITY), record);
             return;
         }
-        final Pair<StatsAccumulator, StatsAccumulator> state =
-                        ensureState(CapacityRecordVisitor::createAccumulators, record);
+        final Map<Long, Pair<StatsAccumulator, StatsAccumulator>> providerUuidsToAccumulators =
+                        ensureState(HashMap::new, record);
+        final Long producerUuid = RecordVisitor.getFieldValue(record,
+                        StringConstants.PRODUCER_UUID, Long.class);
+        final Pair<StatsAccumulator, StatsAccumulator> state = providerUuidsToAccumulators
+                        .computeIfAbsent(producerUuid, (k) -> new Pair<>(new StatsAccumulator(),
+                                        new StatsAccumulator()));
         state.first.record(capacity.doubleValue());
 
         // effective capacity really only makes sense in the context of an
@@ -84,17 +89,43 @@ public class CapacityRecordVisitor
 
     @Override
     protected void buildInternally(@Nonnull Builder builder, @Nonnull Record record,
-                    @Nonnull Pair<StatsAccumulator, StatsAccumulator> state) {
-        final StatsAccumulator capacityAccumulator = state.first;
-        final StatsAccumulator effectiveCapacityAccumulator = state.second;
+                    @Nonnull Map<Long, Pair<StatsAccumulator, StatsAccumulator>> providerUuidsToAccumulators) {
+        final Pair<StatsAccumulator, StatsAccumulator> accumulators =
+                        getCapacityAccumulators(providerUuidsToAccumulators);
+        if (accumulators == null) {
+            getLogger().warn("Capacity accumulators have not been created for '{}'", record);
+            return;
+        }
+        final StatsAccumulator capacityAccumulator = accumulators.first;
+        final StatsAccumulator effectiveCapacityAccumulator = accumulators.second;
         final float reserved = (float)(capacityAccumulator.getTotal() - effectiveCapacityAccumulator
                         .getTotal());
         capacityPopulator.accept(builder, new Pair<>(capacityAccumulator.toStatValue(), reserved),
                         record);
     }
 
-    private static Pair<StatsAccumulator, StatsAccumulator> createAccumulators() {
-        return new Pair<>(new StatsAccumulator(), new StatsAccumulator());
+    private static Pair<StatsAccumulator, StatsAccumulator> getCapacityAccumulators(
+                    Map<Long, Pair<StatsAccumulator, StatsAccumulator>> providerUuidsToAccumulators) {
+        final int size = providerUuidsToAccumulators.size();
+        if (size == 0) {
+            return null;
+        }
+        if (size == 1) {
+            return providerUuidsToAccumulators.values().iterator().next();
+        }
+        final StatsAccumulator capacityAccumulator = new StatsAccumulator();
+        final StatsAccumulator effectiveCapacityAccumulator = new StatsAccumulator();
+        for (Entry<Long, Pair<StatsAccumulator, StatsAccumulator>> providerUuidToAccumulators : providerUuidsToAccumulators
+                        .entrySet()) {
+            final Pair<StatsAccumulator, StatsAccumulator> accumulators =
+                            providerUuidToAccumulators.getValue();
+            capacityAccumulator.record(accumulators.first.getMin(), accumulators.first.getAvg(),
+                            accumulators.first.getMax());
+            effectiveCapacityAccumulator
+                            .record(accumulators.second.getMin(), accumulators.second.getAvg(),
+                                            accumulators.second.getMax());
+        }
+        return new Pair<>(capacityAccumulator, effectiveCapacityAccumulator);
     }
 
     /**
