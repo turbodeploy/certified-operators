@@ -157,7 +157,7 @@ public class ProjectedContainerSpecPostProcessor extends ProjectedEntityPostProc
          */
         void addInfo(long containerOID, int resizingCommodityType) {
             connectedContainers.add(containerOID);
-            if (!resizingCommodityTypes.add(resizingCommodityType)) {
+            if (resizingCommodityTypes.add(resizingCommodityType)) {
                 // Check byProduct commodities only if given resizingCommodityType doesn't
                 // exist in current containerSpecInfo.
                 List<ByProductInfo> byProductInfos = ByProductMap.byProductMap.get(
