@@ -88,12 +88,12 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
         return true;
     }
 
-    public Collection<PropertyDescriptor> getIdentifyingProperties() {
+    public List<PropertyDescriptor> getIdentifyingProperties() {
         return identifyingProperties;
     }
 
     @Override
-    public Collection<PropertyDescriptor> getHeuristicProperties() {
+    public List<PropertyDescriptor> getHeuristicProperties() {
         return heuristicProperties;
     }
 
