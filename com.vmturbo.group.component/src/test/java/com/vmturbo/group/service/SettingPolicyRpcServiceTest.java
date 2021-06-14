@@ -153,6 +153,9 @@ public class SettingPolicyRpcServiceTest {
 
     private ActionsServiceMole actionServiceMole = spy(new ActionsServiceMole());
 
+    /**
+     * Provides a mocked action service.
+     */
     @Rule
     public GrpcTestServer grpcTestServer =
             GrpcTestServer.newServer(actionServiceMole);
@@ -160,6 +163,9 @@ public class SettingPolicyRpcServiceTest {
     private SettingPolicyRpcService settingPolicyService;
     private MockTransactionProvider transactionProvider;
 
+    /**
+     * Sets up the setting policy service with mocked internals.
+     */
     @Before
     public void setup() {
         final IdentityProvider identityProvider = new IdentityProvider(0);
@@ -171,8 +177,12 @@ public class SettingPolicyRpcServiceTest {
                         identityProvider, transactionProvider, realtimeTopologyContextId, 1);
     }
 
+    /**
+     * Creating a policy should make it a USER policy, and the provided setting policy info should
+     * be returned.
+     */
     @Test
-    public void testCreatePolicy() throws Exception {
+    public void testCreatePolicy() {
 
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
@@ -192,8 +202,12 @@ public class SettingPolicyRpcServiceTest {
         Assert.assertEquals(Type.USER, response.getSettingPolicy().getSettingPolicyType());
     }
 
+    /**
+     * Not provided the setting policy info in the create request should communicate an error using
+     * the StreamObserver.
+     */
     @Test
-    public void testCreatePolicyNoInfo() throws Exception {
+    public void testCreatePolicyNoInfo() {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
         settingPolicyService.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
@@ -209,6 +223,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("Missing"));
     }
 
+    /**
+     * Create a policy with an invalid SettingPolicyInfo should communicate an error using
+     * the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testCreatePolicyInvalid() throws Exception {
         final String errorMsg = "ERR";
@@ -231,6 +251,12 @@ public class SettingPolicyRpcServiceTest {
                 GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).descriptionContains(errorMsg));
     }
 
+    /**
+     * Create a policy with a SettingPolicyInfo that has a name that already exists should
+     * communicate an error using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testCreatePolicyDuplicateName() throws Exception {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
@@ -252,6 +278,11 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("foo"));
     }
 
+    /**
+     * Resetting the policy should cause the service to call settingStore to reset the policy.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testResetPolicy() throws Exception {
         final SettingPolicy resetPolicy = SettingPolicy.newBuilder()
@@ -272,6 +303,11 @@ public class SettingPolicyRpcServiceTest {
         assertThat(resetPolicy, is(responseCaptor.getValue().getSettingPolicy()));
     }
 
+    /**
+     * Resetting a policy that is not found should communicate an error using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testResetPolicyNotFound() throws Exception {
         final StreamObserver<ResetSettingPolicyResponse> responseObserver =
@@ -291,6 +327,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("7"));
     }
 
+    /**
+     * If settingStore.resetSettingPolicy throws IAE then we should communicate an error using the
+     * StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testResetPolicyInvalid() throws Exception {
         final StreamObserver<ResetSettingPolicyResponse> responseObserver =
@@ -310,6 +352,11 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("gesundheit"));
     }
 
+    /**
+     * Resetting an automated policy should cancel any related actions.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testResetPolicyCheckCancelActionsInvocation() throws Exception {
 
@@ -325,6 +372,11 @@ public class SettingPolicyRpcServiceTest {
         verify(actionServiceMole).cancelQueuedActions(any());
     }
 
+    /**
+     * When updating a policy, the data should be passed onto the SettingPolicyStore to handle.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testUpdatePolicy() throws Exception {
         final SettingPolicy updatedPolicy = SettingPolicy.newBuilder()
@@ -350,8 +402,12 @@ public class SettingPolicyRpcServiceTest {
         assertEquals(updatedPolicy, response.getSettingPolicy());
     }
 
+    /**
+     * When trying to update a policy but forgetting to provide the policy id, an error should be
+     * communicated using the StreamObserver.
+     */
     @Test
-    public void testUpdatePolicyNoId() throws Exception {
+    public void testUpdatePolicyNoId() {
         final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
                 (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
 
@@ -368,8 +424,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("ID"));
     }
 
+    /**
+     * When trying to update a policy but forgetting to provide the setting policy, an error should be
+     * communicated using the StreamObserver.
+     */
     @Test
-    public void testUpdatePolicyNoNewInfo() throws Exception {
+    public void testUpdatePolicyNoNewInfo() {
         final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
                 (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
 
@@ -386,6 +446,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("new"));
     }
 
+    /**
+     * When trying to update a policy using data that is invalid, the error should be
+     * communicated using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testUpdatePolicyInvalid() throws Exception {
         final long policyId = 7L;
@@ -410,6 +476,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(msg));
     }
 
+    /**
+     * When trying to update a policy that does not exists, the error should be
+     * communicated using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testUpdatePolicyNotFound() throws Exception {
         final long id = 7;
@@ -434,6 +506,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(Long.toString(id)));
     }
 
+    /**
+     * When trying to update a policy to a name that already exists, the error should be
+     * communicated using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testUpdatePolicyDuplicateName() throws Exception {
         final long id = 7;
@@ -458,6 +536,11 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(name));
     }
 
+    /**
+     * Any action related to an automated policy should be canceled if that policy is updated.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testUpdatePolicyCheckCancelActionsInvocation() throws Exception {
         final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
@@ -474,6 +557,11 @@ public class SettingPolicyRpcServiceTest {
         verify(actionServiceMole).cancelQueuedActions(any());
     }
 
+    /**
+     * Deleting a policy should tell SettingPolicyStore to delete that policy.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testDeletePolicy() throws Exception {
         final long id = 7;
@@ -496,8 +584,12 @@ public class SettingPolicyRpcServiceTest {
                 Collections.singletonList(id), Type.USER);
     }
 
+    /**
+     * When trying to delete a policy that doesn't exist, an error should be communicated using the
+     * StreamObserver.
+     */
     @Test
-    public void testDeletePolicyNotFound() throws Exception {
+    public void testDeletePolicyNotFound() {
         final long id = 7;
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
@@ -514,8 +606,12 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(Long.toString(id)));
     }
 
+    /**
+     * When trying to delete a read only policy, an error should be communicated using the
+     * StreamObserver.
+     */
     @Test
-    public void testDeletePolicyImmutable() throws Exception {
+    public void testDeletePolicyImmutable() {
         final long id = 7;
         final String error = "ERRORMSG";
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
@@ -559,8 +655,11 @@ public class SettingPolicyRpcServiceTest {
                         .build());
     }
 
+    /**
+     * When getting a policy by id that does not exist, an empty response should be provided.
+     */
     @Test
-    public void testGetPolicyNotFound() throws Exception {
+    public void testGetPolicyNotFound() {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
@@ -571,6 +670,11 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onNext(eq(GetSettingPolicyResponse.getDefaultInstance()));
     }
 
+    /**
+     * Getting the setting using the name should use the criteria when querying the SettingPolicyStore.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetPolicyByName() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
@@ -587,6 +691,12 @@ public class SettingPolicyRpcServiceTest {
                 .build()));
     }
 
+    /**
+     * Getting a policy by id, should look for the policy using that id against the
+     * SettingPolicyStore.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetPolicyById() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
@@ -603,6 +713,11 @@ public class SettingPolicyRpcServiceTest {
                 .build()));
     }
 
+    /**
+     * A policy with a setting spec should return include that setting spec in the response.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetPolicyWithSpec() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
@@ -623,6 +738,12 @@ public class SettingPolicyRpcServiceTest {
                 .build()));
     }
 
+    /**
+     * Getting a setting policy has a setting spec name that cannot be recognized, don't include
+     * that setting spec.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetPolicyWithMissingSpec() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
@@ -642,6 +763,11 @@ public class SettingPolicyRpcServiceTest {
                 .build()));
     }
 
+    /**
+     * Listing policies should list all the policies from teh setting policy store.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testListPolicies() throws Exception {
         final StreamObserver<SettingPolicy> responseObserver =
@@ -661,6 +787,11 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
     }
 
+    /**
+     * Setting context id should return only plan settings.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testListPolicyForPlan() throws Exception {
         final StreamObserver<SettingPolicy> responseObserver =
@@ -687,8 +818,11 @@ public class SettingPolicyRpcServiceTest {
        verify(responseObserver).onCompleted();
     }
 
+    /**
+     * The policy filter should be passed to the policy store.
+     */
     @Test
-    public void testListPoliciesTypeFilter() throws Exception {
+    public void testListPoliciesTypeFilter() {
         final StreamObserver<SettingPolicy> responseObserver =
                 (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
         when(transactionProvider.getSettingPolicyStore().getPolicies(eq(SettingPolicyFilter.newBuilder()
@@ -705,6 +839,9 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
     }
 
+    /**
+     * Uploading invalid entity settings should communicate the error using the StreamObserver.
+     */
     @Test
     public void testUploadEntitySettingsMissingArguments() {
         final StreamObserver<UploadEntitySettingsResponse> responseObserver =
@@ -727,6 +864,9 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("Unexpected request chunk"));
     }
 
+    /**
+     * Uploading the entity settings should store them into entity setting store.
+     */
     @Test
     public void testUploadEntitySettings() {
         final StreamObserver<UploadEntitySettingsResponse> responseObserver =
@@ -862,6 +1002,8 @@ public class SettingPolicyRpcServiceTest {
 
     /**
      * Test GetEntitySettingPolicies Grpc call.
+     *
+     * @throws StoreOperationException should not be thrown.
      */
     @Test
     public void testGetEntitySettingPolicies() throws StoreOperationException {
@@ -885,6 +1027,11 @@ public class SettingPolicyRpcServiceTest {
         assertTrue(respCaptor.getValue().getSettingPoliciesList().get(0).equals(policy));
     }
 
+    /**
+     * GetEntitySettings should return entity setting using the StreamObserver.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetEntitySettings() throws Exception {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
@@ -939,6 +1086,11 @@ public class SettingPolicyRpcServiceTest {
         assertThat(settingGroup.getEntityOidsList(), containsInAnyOrder(7L));
     }
 
+    /**
+     * GetEntitySettings should return the policy for a the entity settings that has a policy.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testGetEntitySettingsWithPolicy() throws Exception {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
@@ -1010,9 +1162,9 @@ public class SettingPolicyRpcServiceTest {
      *     settingToPolicyId2, for entityOid2, excludes {tier1, tier2} and is resolved from {sp1, sp2},
      *     settingToPolicyId3, for entityOid3, excludes {tier1, tier2} and is resolved from {sp2, sp3}
      *
-     * After grouping by SettingToPolicyId, we should have:
+     * <p>After grouping by SettingToPolicyId, we should have:
      *     EntitySettingGroup1, for {entityOid1, entityOid2}, excludes {tier1, tier2} and is resolved from {sp1, sp2},
-     *     EntitySettingGroup2, for {entityOid3}, excludes {tier1, tier2} and is resolved from {sp2, sp3}
+     *     EntitySettingGroup2, for {entityOid3}, excludes {tier1, tier2} and is resolved from {sp2, sp3}</p>
      *
      * @throws Exception on exceptions occurred
      */
@@ -1121,12 +1273,19 @@ public class SettingPolicyRpcServiceTest {
         }
     }
 
+    /**
+     * When entitySettingStore has the entity, but there are no settings for that entity,
+     * there should be no error, but no objects are returned through the StreamObserver.
+     *
+     * @throws NoSettingsForTopologyException should not be thrown.
+     * @throws InvalidProtocolBufferException should not be thrown.
+     */
     @Test
     public void testGetEntitySettingsEntityNotFound() throws NoSettingsForTopologyException, InvalidProtocolBufferException {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
                 (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
         final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
-                .addEntities(7L) // SUppose this entity is not found.
+                .addEntities(7L) // Suppose this entity is not found.
                 .build();
         when(entitySettingStore.getEntitySettings(eq(TopologySelection.getDefaultInstance()),
                     eq(settingsFilter)))
@@ -1140,6 +1299,13 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
     }
 
+    /**
+     * If entitySettingStore throws NoSettingsForTopologyException then we should communicate an
+     * error using the StreamObserver.
+     *
+     * @throws NoSettingsForTopologyException should not be thrown.
+     * @throws InvalidProtocolBufferException should not be thrown.
+     */
     @Test
     public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException, InvalidProtocolBufferException {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
@@ -1202,4 +1368,5 @@ public class SettingPolicyRpcServiceTest {
         assertThat(exceptionCaptor.getValue(),
             GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).anyDescription());
     }
+
 }
