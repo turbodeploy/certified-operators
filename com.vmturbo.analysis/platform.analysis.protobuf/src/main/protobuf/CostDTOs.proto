@@ -69,9 +69,11 @@ message CostDTO {
         // Dependent cost tuples
         repeated DependentCostTuple dependent_cost_tuples = 8;
 
+        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 9;
+
         message DependentCostTuple {
             // The resource type of the dependent cost tuple
-            optional int32 dependent_resource_type = 1;
+            optional CommoditySpecificationTO dependent_resource_type = 1;
             // The resource options of the dependent cost tuple
             repeated DependentResourceOption dependent_resource_options = 2;
             message DependentResourceOption {
@@ -83,7 +85,6 @@ message CostDTO {
                 optional double price = 3;
             }
         }
-
     }
 
     // the dependency commodity and its base commodity and the max ratio between dependent
@@ -155,6 +156,5 @@ message CostDTO {
         optional int32 license_commodity_base_type = 2;
         optional int32 region_commodity_base_type = 3;
         required int32 couponBaseType = 4;
-        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 5;
     }
 }

@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import static com.vmturbo.platform.analysis.utilities.DBSRatioBasedResizeTest.createOption;
 import static java.lang.Double.POSITIVE_INFINITY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -17,6 +18,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
@@ -45,6 +47,8 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceRa
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
@@ -867,7 +871,7 @@ public class CostFunctionFactoryTest {
 
     private DatabaseTierCostDTO createDBCostDTO() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
-                .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
+                .setDependentResourceType(AnalysisToProtobuf.commoditySpecificationTO(TestUtils.ST_AMT))
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(250)
                         .setEndRange(250)
@@ -899,7 +903,7 @@ public class CostFunctionFactoryTest {
 
     private DatabaseTierCostDTO createDBCostDTOWithBasicFamily() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
-                .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
+                .setDependentResourceType(AnalysisToProtobuf.commoditySpecificationTO(TestUtils.ST_AMT))
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(2)
                         .setEndRange(2)
@@ -923,53 +927,25 @@ public class CostFunctionFactoryTest {
                 .build();
     }
 
-    private DatabaseServerTierCostDTO createDBSCostDTO() {
-        DependentCostTuple dependentCostTuple1 = DependentCostTuple.newBuilder()
-                .setDependentResourceType(TestUtils.ST_AMT.getType())
-                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
-                        .setAbsoluteIncrement(20)
-                        .setEndRange(20)
-                        .setPrice(STORAGE_COST_PER_GB)
-                        .build())
-                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
-                        .setAbsoluteIncrement(1)
-                        .setEndRange(16384)
-                        .setPrice(STORAGE_COST_PER_GB)
-                        .build())
-                .build();
-        DependentCostTuple dependentCostTuple2 = DependentCostTuple.newBuilder()
-                .setDependentResourceType(TestUtils.IOPS.getType())
-                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
-                        .setAbsoluteIncrement(IOPS_MIN)
-                        .setEndRange(IOPS_MIN)
-                        .setPrice(IOPS_COST)
-                        .build())
-                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
-                        .setAbsoluteIncrement(1)
-                        .setEndRange(8000)
-                        .setPrice(IOPS_COST)
-                        .build())
-                .build();
-
-        CostTuple costTuple = CostTuple.newBuilder()
-                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
-                .setRegionId(DB_REGION_ID)
-                .setLicenseCommodityType(licenseAccessCommBaseType)
-                .setPrice(DBS_TIER_COST)
-                .addDependentCostTuples(dependentCostTuple1)
-                .addDependentCostTuples(dependentCostTuple2)
-                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
-                .build();
-        return DatabaseServerTierCostDTO.newBuilder()
-                .addCostTupleList(costTuple)
-                .setCouponBaseType(couponBaseType)
-                .build();
+    private static List<DependentCostTuple.DependentResourceOption> createStorageAmountOptions() {
+        return ImmutableList.of(
+                createOption(20, 20, STORAGE_COST_PER_GB),
+                createOption(1, 16384, STORAGE_COST_PER_GB));
     }
 
+    private static List<DependentCostTuple.DependentResourceOption> createIOPSOptions() {
+        return ImmutableList.of(
+                createOption(IOPS_MIN, IOPS_MIN, IOPS_COST),
+                createOption(1, 8000, IOPS_COST));
+    }
+
+    private DatabaseServerTierCostDTO createDBSCostDTO() {
+        return DBSRatioBasedResizeTest.createDBSCostDTO(Optional.empty(), Optional.empty(), createStorageAmountOptions(), createIOPSOptions());
+    }
 
     private DatabaseServerTierCostDTO createDBSCostDTOWithNoIncrement() {
         DependentCostTuple dependentCostTuple1 = DependentCostTuple.newBuilder()
-                .setDependentResourceType(TestUtils.ST_AMT.getType())
+                .setDependentResourceType(AnalysisToProtobuf.commoditySpecificationTO(TestUtils.ST_AMT))
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setEndRange(2048)
                         .setPrice(STORAGE_COST_PER_GB)
