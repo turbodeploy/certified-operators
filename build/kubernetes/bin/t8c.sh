@@ -47,9 +47,6 @@ fi
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
 
-# Update the yaml files to run offline
-#/opt/local/bin/cleanKube.sh
-
 if grep -q "$localStorageDataDirectory" /etc/fstab
 then
   echo ""
@@ -59,6 +56,9 @@ then
   echo ""
   exit 0
 fi
+
+# Update the yaml files to run offline
+#/opt/local/bin/cleanKube.sh
 
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
