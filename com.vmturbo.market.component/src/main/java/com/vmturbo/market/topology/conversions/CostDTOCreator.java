@@ -295,9 +295,8 @@ public class CostDTOCreator {
                         dependentCostTuples.add(DependentCostTuple.newBuilder()
                                 .setDependentResourceType(commodityConverter.commoditySpecification(
                                         CommodityType.newBuilder()
-                                                .setType(
-                                                        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
-                                                .build()).getType())
+                                                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                                .build()))
                                 .addAllDependentResourceOptions(dependentResourceOptions)
                                 .build());
                         CommoditySpecificationTO spec =
@@ -385,9 +384,8 @@ public class CostDTOCreator {
                     for (Integer commodityType : storageOptionMap.keySet()) {
                         final Collection<DependentResourceOption> dependentResourceOptions =
                                 storageOptionMap.get(commodityType);
-                        final int dependentResourceType = commodityConverter.commoditySpecification(
-                                CommodityType.newBuilder().setType(commodityType).build())
-                                .getType();
+                        final CommoditySpecificationTO dependentResourceType = commodityConverter.commoditySpecification(
+                                CommodityType.newBuilder().setType(commodityType).build());
                         dependentCostTuples.add(
                                 DependentCostTuple.newBuilder()
                                         .setDependentResourceType(dependentResourceType)
@@ -413,14 +411,13 @@ public class CostDTOCreator {
                             }
                             storageResourceRatioDeps.add(ratioBuilder.build());
                         }
-
                     }
                     CommoditySpecificationTO spec =
                             commodityConverter.commoditySpecification(licenseCommodity);
-                    dbTierDTOBuilder.addCostTupleList(
-                            createCostTupleWithDependent(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
-                                    dependentCostTuples));
-                    dbTierDTOBuilder.addAllStorageResourceRatioDependency(storageResourceRatioDeps);
+                    CostTuple.Builder costTupleBuilder = createCostTupleWithDependent(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
+                            dependentCostTuples);
+                    costTupleBuilder.addAllStorageResourceRatioDependency(storageResourceRatioDeps);
+                    dbTierDTOBuilder.addCostTupleList(costTupleBuilder);
                 }
                 // price when license isn't available
                 dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
