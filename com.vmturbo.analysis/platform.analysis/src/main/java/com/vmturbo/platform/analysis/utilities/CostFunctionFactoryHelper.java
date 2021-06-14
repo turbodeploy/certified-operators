@@ -434,13 +434,7 @@ public class CostFunctionFactoryHelper {
                 .filter(e -> e.getValue().containsProvisionedBasedPrices())
                 .map(Entry::getKey)
                 .collect(Collectors.toSet());
-        // For decisive commodities, new capacity should come from commQuantityMap.
-        decisiveComms.forEach(c -> {
-            final Double val = commQuantityMap.get(c);
-            if (val != null) {
-                commCapacityMap.put(c, val);
-            }
-        });
+        copyDecisiveCommsToCapacityMap(decisiveComms, commQuantityMap, commCapacityMap);
         // Create CommodityContexts based on commCapacityMap.
         // CommodityContext is preserved in the Quote to reflect commodity's projected state
         // for the sl to stay on the tier.
@@ -450,6 +444,27 @@ public class CostFunctionFactoryHelper {
 
         return calculateStorageTierCost(commQuantityMap, commHistoricalQuantityMap, sl, seller,
                 commContexts, priceDataMap, appendPenalty);
+    }
+
+    /**
+     * Copy quantity of decisive commodities from commQuantityMap to commCapacityMap.
+     * @param decisiveComms decisive commodities
+     * @param commQuantityMap commodityQuantityMap
+     * @param commCapacityMap commodityCapacityMap
+     */
+    public static void copyDecisiveCommsToCapacityMap(@Nonnull final Set<CommoditySpecification> decisiveComms,
+                                                      @Nonnull final Map<CommoditySpecification, Double> commQuantityMap,
+                                                      @Nonnull final Map<CommoditySpecification, Double> commCapacityMap) {
+        if (decisiveComms == null || commCapacityMap == null || commCapacityMap == null) {
+            return;
+        }
+        // For decisive commodities, new capacity should come from commQuantityMap.
+        decisiveComms.forEach(c -> {
+            final Double val = commQuantityMap.get(c);
+            if (val != null) {
+                commCapacityMap.put(c, val);
+            }
+        });
     }
 
     /**
@@ -525,7 +540,7 @@ public class CostFunctionFactoryHelper {
      *         If one or more commodity quantities does not fit, return InfiniteRatioBasedResourceDependencyQuote.
      */
     @Nullable
-    private static MutableQuote getRatioBasedResourceDependencyQuote(@Nonnull ShoppingList sl, @Nonnull Trader seller,
+    public static MutableQuote getRatioBasedResourceDependencyQuote(@Nonnull ShoppingList sl, @Nonnull Trader seller,
                                                                      @NonNull Map<CommoditySpecification, Double> commQuantityMap,
                                                                      @Nonnull Map<CommoditySpecification, Double> commCapacityMap,
                                                                      @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacityLimitation,

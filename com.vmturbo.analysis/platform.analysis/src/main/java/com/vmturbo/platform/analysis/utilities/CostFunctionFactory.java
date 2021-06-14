@@ -9,12 +9,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,6 +48,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostD
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RangeBasedResourceDependency;
@@ -617,21 +621,48 @@ public class CostFunctionFactory {
      * @return dependent cost part
      */
     private static double getDependentCost(Trader seller, CostTuple costTuple, ShoppingList sl, List<CommodityContext> commodityContexts) {
-
-        double totalCost = 0;
+        final Map<CommoditySpecification, Double> commQuantityMap = new HashMap<>();
+        final Map<CommoditySpecification, Double> commCapacityMap = new HashMap<>();
+        final Set<CommoditySpecification> commTypesWithConstraints = new HashSet<>();
+        // Translate the CostTuple's StorageResourceRatioDependencies to RatioBasedResourceDependency objects.
+        // And also populate commTypesWithConstraints map.
+        final List<RatioBasedResourceDependency> ratioDependencyList
+                = CostFunctionFactoryHelper.translateStorageResourceRatioDependency(
+                costTuple.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
+        // Populate the commQuantityMap with quantities from the Shopping list for commodity types with constraints
+        populateCommQuantityMaps(sl, commTypesWithConstraints, commQuantityMap, Maps.newHashMap());
+        // The main purpose of calling this method is to update the commQuantityMap and commCapacityMap.
+        // If the dependent comm quantity is less than minRatio * base comm quantity, then dependentCommQuantity is
+        // increased to minRatio * base comm quantity and the new value is put into the commQuantityMap.
+        // If the dependent comm quantity is greater than maxRatio * base comm quantity, then baseCommQuantity is
+        // increased to dependent comm quantity / maxRatio and the new value is put into the commQuantityMap.
+        // Finally, the max allowed quantity of the dependent comm is put into the commCapacityMap.
+        MutableQuote ratioBasedResourceDependencyQuote = CostFunctionFactoryHelper.getRatioBasedResourceDependencyQuote(
+                sl, seller, commQuantityMap, commCapacityMap, Maps.newHashMap(), ratioDependencyList, true);
+        // If ratioBasedResourceDependencyQuote is a non-null, that means an infinite quote has been returned, and we
+        // can just return from here.
+        if (ratioBasedResourceDependencyQuote != null) {
+            return ratioBasedResourceDependencyQuote.getQuoteValue();
+        }
         List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
+        Set<CommoditySpecification> decisiveTypes = getDecisiveCommTypes(dependentCostTuplesList);
+        // For decisive commodities, we need to copy the values from the commQuantityMap to the commCapacityMap.
+        CostFunctionFactoryHelper.copyDecisiveCommsToCapacityMap(decisiveTypes, commQuantityMap, commCapacityMap);
+        double totalCost = 0;
         if (!dependentCostTuplesList.isEmpty()) {
             for (DependentCostTuple dependentCostTuple : dependentCostTuplesList) {
                 List<DependentResourceOption> dependentResourceOptions =
                         dependentCostTuple.getDependentResourceOptionsList();
                 if (!dependentResourceOptions.isEmpty()) {
-                    int dependentResourceType = dependentCostTuple.getDependentResourceType();
+                    CommoditySpecification dependentCommSpec = ProtobufToAnalysis.commoditySpecification(dependentCostTuple.getDependentResourceType());
+                    int dependentResourceType = dependentCommSpec.getType();
                     int dependentResourceIndex = sl.getBasket().indexOf(dependentResourceType);
                     // Skip if you can't find the index.
                     if (dependentResourceIndex == -1) {
                         continue;
                     }
-                    double dependentResourceQuantity = sl.getQuantities()[dependentResourceIndex];
+                    double dependentResourceQuantity = commCapacityMap.containsKey(dependentCommSpec) ?
+                            commCapacityMap.get(dependentCommSpec) : sl.getQuantities()[dependentResourceIndex];
                     int baseType = sl.getBasket().get(dependentResourceIndex).getBaseType();
                     Double currentCapacity = sl.getAssignedCapacity(baseType);
 
@@ -664,13 +695,38 @@ public class CostFunctionFactory {
                     // Update the shopping list and keep the selected value.
                     commodityContexts.add(
                             new CommodityContext(sl.getBasket().get(dependentResourceIndex),
-                                    selectedAmount, true));
+                                    selectedAmount, decisiveTypes.contains(dependentCommSpec)));
                     totalCost += cost;
                 }
             }
         }
-
         return totalCost;
+    }
+
+    private static void populateCommQuantityMaps(final ShoppingList sl,
+                                                 final Set<CommoditySpecification> commTypesWithConstraints,
+                                                 final Map<CommoditySpecification, Double> commQuantityMap,
+                                                 final Map<CommoditySpecification, Double> commHistoricalQuantityMap) {
+        commTypesWithConstraints.stream().forEach(commType -> {
+            int index = sl.getBasket().indexOf(commType);
+            if (index == -1) {
+                return;
+            }
+            commQuantityMap.put(commType, Math.ceil(sl.getQuantities()[index]));
+            commHistoricalQuantityMap.put(commType, sl.getHistoricalQuantities()[index]);
+        });
+    }
+
+    /**
+     * Decisive types are dependent commodities which have a price
+     * @param dependentCostTuplesList the dependent cost tuples
+     * @return the set of dependent types
+     */
+    private static Set<CommoditySpecification> getDecisiveCommTypes(List<DependentCostTuple> dependentCostTuplesList) {
+        return dependentCostTuplesList.stream()
+                .filter(depCostTuple -> depCostTuple.getDependentResourceOptionsList().stream().anyMatch(option -> option.getPrice() > 0))
+                .map(depCostTuple -> ProtobufToAnalysis.commoditySpecification(depCostTuple.getDependentResourceType()))
+                .collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -886,17 +942,7 @@ public class CostFunctionFactory {
                 // which is used for constraint check, and will be updated during constraint check.
                 Map<CommoditySpecification, Double> commQuantityMap = new HashMap<>();
                 Map<CommoditySpecification, Double> commHistoricalQuantityMap = new HashMap<>();
-                commTypesWithConstraints.stream().forEach(commType -> {
-                    int index = sl.getBasket().indexOf(commType);
-                    if (index == -1) {
-                        // The sl is from the buyer, which may not buy all resources sold
-                        // by the seller, e.g: some VM does not request IOPS sold by IO1.
-                        // Constraint check is irrelevant for such commodities, and we skip it.
-                        return;
-                    }
-                    commQuantityMap.put(commType, Math.ceil(sl.getQuantities()[index]));
-                    commHistoricalQuantityMap.put(commType, sl.getHistoricalQuantities()[index]);
-                });
+                populateCommQuantityMaps(sl, commTypesWithConstraints, commQuantityMap, commHistoricalQuantityMap);
                 // If volume is in Reversibility mode, try to get a quote in Reversibility mode.
                 if (!sl.getDemandScalable()) {
                     MutableQuote reversibilityModeQuote = CostFunctionFactoryHelper
