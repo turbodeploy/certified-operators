@@ -31,6 +31,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.converter.CloudSavingsDetailsDtoConverter;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
@@ -185,6 +186,7 @@ public class CompoundMoveTest {
                 mock(BuyRiScopeHandler.class),
                 REAL_TIME_TOPOLOGY_CONTEXT_ID,
                 mock(UuidMapper.class),
+                Mockito.mock(CloudSavingsDetailsDtoConverter.class),
                 false);
         IdentityGenerator.initPrefix(0);
 
