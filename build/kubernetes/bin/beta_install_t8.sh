@@ -231,16 +231,25 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/calico-kube-controllers.yml
 sed -i "s/${oldIP}/${newIP}/g" /etc/cni/net.d/calico.conflist.template
 
 kubeletStatus=$(systemctl is-active kubelet)
-
+support=0
 while [ "X${kubeletStatus}" != "Xactive" ]
 do
   echo kubelet service still starting
   kubeletStatus=$(systemctl is-active kubelet)
+  support=$(($support+1))
   if [ "X${kubeletStatus}" = "Xactive" ]
   then
     break
   else
     sleep 5
+  fi
+  # Call support if the kubelet service has not started.
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
   fi
 done
 
@@ -277,16 +286,25 @@ sleep 10
 
 kubectl cluster-info
 kStatus=$?
+support=0
 while [ "${kStatus}" -ne "0" ]
 do
   kubectl cluster-info
   kStatus="$?"
+  support=$(($support+1))
   if [ "${kStatus}" -ne "0" ]
   then
     echo "Kubernetes is not ready...."
     sleep 10
   else
     break
+  fi
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
   fi
 done
 
@@ -463,24 +481,49 @@ echo "############################"
 echo "This will take some time."
 echo ""
 # Wait for the api pod to become healthy
+support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='api' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
+  support=$(($support+1))
   sleep 120
   echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "10" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
 done
 
 # Wait for the topology-processor  pod to become healthy
+support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='topology-processor' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
   sleep 60
   echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
 done
 
 # Wait for the history pod to become healthy
+support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='history' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
   sleep 60
   echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
 done
 
 # Check on the rollout status
