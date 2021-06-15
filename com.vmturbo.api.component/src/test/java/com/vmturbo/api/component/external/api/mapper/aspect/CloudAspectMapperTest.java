@@ -26,6 +26,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.converter.EntityUptimeDtoConverter;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.EntityUptimeApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
@@ -129,7 +130,8 @@ public class CloudAspectMapperTest {
         final EntityUptimeServiceBlockingStub entityUptimeServiceBlockingStub =
                 EntityUptimeServiceGrpc.newBlockingStub(testServer.getChannel());
         cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService,
-                groupServiceBlockingStub, entityUptimeServiceBlockingStub, executorService);
+                groupServiceBlockingStub, entityUptimeServiceBlockingStub, executorService,
+                new EntityUptimeDtoConverter());
         topologyEntityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)

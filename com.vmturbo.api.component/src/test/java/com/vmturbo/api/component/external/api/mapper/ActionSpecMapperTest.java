@@ -1,8 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.api.component.external.api.mapper.ActionSpecMapper.mapXlActionStateToApi;
-import static com.vmturbo.common.protobuf.cost.Cost.CostCategory.ON_DEMAND_COMPUTE;
-import static com.vmturbo.common.protobuf.cost.Cost.CostCategory.ON_DEMAND_LICENSE;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -16,7 +14,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -35,6 +32,7 @@ import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -61,6 +59,8 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFac
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.converter.CloudSavingsDetailsDtoConverter;
+import com.vmturbo.api.component.external.api.mapper.converter.EntityUptimeDtoConverter;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
@@ -98,12 +98,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -132,12 +136,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
-import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -216,6 +220,9 @@ public class ActionSpecMapperTest {
     private static final String EXTERNAL_NAME = "CHG0030039";
     private static final String EXTERNAL_URL =
         "https://dev77145.service-now.com/change_request.do?sys_id=ee362595db02101093ac84da0b9619d9";
+
+    final CloudSavingsDetailsDtoConverter cloudSavingsDetailsDtoConverter = Mockito.spy(
+            new CloudSavingsDetailsDtoConverter(new EntityUptimeDtoConverter()));
 
     private ActionSpecMapper mapper;
     private ActionSpecMapper mapperWithStableIdEnabled;
@@ -345,6 +352,7 @@ public class ActionSpecMapperTest {
             buyRiScopeHandler,
             REAL_TIME_TOPOLOGY_CONTEXT_ID,
             uuidMapper,
+            cloudSavingsDetailsDtoConverter,
             false);
         mapperWithStableIdEnabled = new ActionSpecMapper(
             actionSpecMappingContextFactory,
@@ -355,6 +363,7 @@ public class ActionSpecMapperTest {
             buyRiScopeHandler,
             REAL_TIME_TOPOLOGY_CONTEXT_ID,
             uuidMapper,
+            cloudSavingsDetailsDtoConverter,
             true);
     }
 
@@ -1233,81 +1242,88 @@ public class ActionSpecMapperTest {
         assertEquals(ImmutableSet.of("StorageAmount"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
+    /**
+     * Test the data for {@link CloudResizeActionDetailsApiDTO}
+     * is populated from {@link CloudSavingsDetails}.
+     */
     @Test
-    public void testMapCloudResizeActionDetails() {
+    public void testMapFromCloudSavingsDetailsDtoToCloudResizeActionDetailsApiDTO() {
         final long targetId = 1;
-        // mock on-demand cost response from cost service
-        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).setTotal(10f).build();
-        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).setTotal(20f).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).setAssociatedEntityId(targetId).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).setAssociatedEntityId(targetId).build();
-        Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(0)
-                .addStatRecords(statRecord1)
-                .build();
-        Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1)
-                .addStatRecords(statRecord2)
-                .build();
-        Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
-                .newBuilder()
-                .addCloudStatRecord(record1)
-                .addCloudStatRecord(record2)
-                .build();
+        final CloudSavingsDetails cloudSavingsDetails =
+                CloudSavingsDetails.newBuilder()
+                        .setSourceTierCostDetails(TierCostDetails.newBuilder()
+                                .setCloudCommitmentCoverage(CloudCommitmentCoverage.newBuilder()
+                                        .setCapacity(
+                                                CloudCommitmentAmount.newBuilder().setCoupons(4))
+                                        .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(1)))
+                                .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(10))
+                                .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(0)))
+                        .setProjectedTierCostDetails(
+                                TierCostDetails.newBuilder()
+                                        .setCloudCommitmentCoverage(
+                                                CloudCommitmentCoverage.newBuilder()
+                                                        .setCapacity(
+                                                                CloudCommitmentAmount.newBuilder()
+                                                                        .setCoupons(4))
+                                                        .setUsed(CloudCommitmentAmount.newBuilder()
+                                                                .setCoupons(1)))
+                                        .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(20))
+                                        .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(0)))
+                        .setEntityUptime(EntityUptimeDTO.newBuilder())
+                        .build();
 
-        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
-            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
-        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
-            .thenReturn(Collections.singletonList(serviceResult));
+        final ActionEntity actionEntity = ActionEntity.newBuilder().setId(targetId).setType(
+                EntityType.VIRTUAL_MACHINE_VALUE).setEnvironmentType(
+                EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
 
-        // test RI coverage before/after
-        // mock responses
-        Cost.EntityReservedInstanceCoverage mockCoverage = Cost.EntityReservedInstanceCoverage
-                .newBuilder()
-                .setEntityCouponCapacity(4)
-                .putCouponsCoveredByRi(1, 1)
-                .setEntityId(1)
-                .build();
-        Cost.GetEntityReservedInstanceCoverageResponse currentResponse = Cost.GetEntityReservedInstanceCoverageResponse
-                .newBuilder().putCoverageByEntityId(1, mockCoverage).build();
-        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedResponse =
-                Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
-                        .putCoverageByEntityId(1, mockCoverage).build();
+        Stream.of(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(actionEntity)
+                        .setCloudSavingsDetails(cloudSavingsDetails))
+                .build(), ActionInfo.newBuilder().setAllocate(Allocate.newBuilder()
+                .setTarget(actionEntity)
+                .setWorkloadTier(ApiUtilsTest.createActionEntity(4))
+                .setCloudSavingsDetails(cloudSavingsDetails)).build()).forEach(actionInfo -> {
 
-        // mock call
-        when(reservedInstanceUtilizationCoverageServiceMole
-                .getEntityReservedInstanceCoverage(any()))
-                .thenReturn(currentResponse);
-        when(reservedInstanceUtilizationCoverageServiceMole
-                .getProjectedEntityReservedInstanceCoverageStats(any()))
-                .thenReturn(projectedResponse);
+            Mockito.reset(cloudSavingsDetailsDtoConverter);
 
-        // act
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
-                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), REAL_TIME_TOPOLOGY_CONTEXT_ID);
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
-        // check
-        assertNotNull(cloudResizeActionDetailsApiDTO);
-        // on-demand cost
-        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 10f,0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 20f,0);
-        // not implemented yet - set to $0 by default
-        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0f ,0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0f ,0);
-        // ri coverage
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getValue(), 1f, 0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getCapacity().getAvg(), 4f , 0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 1f, 0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 4f, 0);
-        // check buy ri discount is excluded
-        assertThat(costParamCaptor.getValue().getCloudCostStatsQueryList()
-                        .iterator().next().getCostSourceFilter(),
-                is(CostSourceFilter.newBuilder()
-            .setExclusionFilter(true)
-            .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
-            .build()));
+            final ActionSpec actionSpec = ActionSpec.newBuilder().setRecommendation(
+                    Action.newBuilder()
+                            .setId(ACTION_STABLE_IMPACT_ID)
+                            .setInfo(actionInfo)
+                            .setDeprecatedImportance(0)
+                            .setExplanation(Explanation.newBuilder())).build();
+
+            final ActionOrchestratorAction actionOrchestratorAction =
+                    ActionOrchestratorAction.newBuilder()
+                            .setActionId(ACTION_LEGACY_INSTANCE_ID)
+                            .setActionSpec(actionSpec)
+                            .build();
+
+            // act
+            final CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO =
+                    (CloudResizeActionDetailsApiDTO)mapper.createActionDetailsApiDTO(
+                            actionOrchestratorAction, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+            // check
+            assertNotNull(cloudResizeActionDetailsApiDTO);
+            // on-demand cost
+            assertEquals(10, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
+            assertEquals(20, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
+            // not implemented yet - set to $0 by default
+            assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0);
+            assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0);
+            // ri coverage
+            assertEquals(1, cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getValue(), 0);
+            assertEquals(4,
+                    cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getCapacity().getAvg(), 0);
+            assertEquals(1, cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 0);
+            assertEquals(4,
+                    cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 0);
+            assertNotNull(cloudResizeActionDetailsApiDTO.getEntityUptime());
+            Mockito.verify(cloudSavingsDetailsDtoConverter, Mockito.times(1)).convert(
+                    Mockito.any());
+        });
     }
 
     /**
@@ -1393,96 +1409,6 @@ public class ActionSpecMapperTest {
         //   - Suspension 30 + 40 = 70
         assertEquals(30, ((CloudProvisionActionDetailsApiDTO)provision).getOnDemandCost(), 0);
         assertEquals(70, ((CloudSuspendActionDetailsApiDTO)suspend).getOnDemandCost(), 0);
-    }
-
-    /**
-     * Test that the streaming response chunks from the cloud cost RPC are processed correctly.
-     * Specifically, if the response chunks cumulatively contain exactly two records, the action
-     * should have on-demand before and after costs drawn from these records. However, if a chunk
-     * (or a series of chunks) contains more than two records, all remaining chunks are discarded
-     * without being processed, and the action will not have these costs listed. (This also happens
-     * if the total number of records from all chunks is less than two.)
-     */
-    @Test
-    public void testCloudResizeOnDemandCosts() {
-        final long targetId = 1;
-        final Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
-            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
-                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                    .setAvg(10f)
-                    .setTotal(10f)))
-            .build();
-        final Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
-            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
-                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                    .setAvg(20f)
-                    .setTotal(20f)))
-            .build();
-        final Cost.CloudCostStatRecord record3 = Cost.CloudCostStatRecord.newBuilder()
-            .addStatRecords(Cost.CloudCostStatRecord.StatRecord.newBuilder()
-                .setValues(Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                    .setAvg(30f)
-                    .setTotal(30f)))
-            .build();
-        final Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
-                .newBuilder()
-                .addCloudStatRecord(record1)
-                .addCloudStatRecord(record2)
-                .addCloudStatRecord(record3)
-                .build();
-        Cost.GetCloudCostStatsResponse extraChunk1 =
-            Cost.GetCloudCostStatsResponse.getDefaultInstance();
-        Cost.GetCloudCostStatsResponse extraChunk2 =
-            Cost.GetCloudCostStatsResponse.getDefaultInstance();
-
-        when(costServiceMole.getCloudCostStats(any()))
-            .thenReturn(Arrays.asList(serviceResult, extraChunk1, extraChunk2));
-
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
-                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), null);
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
-
-        assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
-        assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
-    }
-
-    /**
-     * Test setting before/after onDemandCost and onDemandRate for cloud volume scale action.
-     */
-    @Test
-    public void testCloudVolumeScaleOnDemandCostRate() {
-        final long targetId = 1;
-        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).setTotal(10f).build();
-        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).setTotal(20f).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).setAssociatedEntityId(targetId).build();
-        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).setAssociatedEntityId(targetId).build();
-        Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(0)
-                .addStatRecords(statRecord1)
-                .build();
-        Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1)
-                .addStatRecords(statRecord2)
-                .build();
-        Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
-                .newBuilder()
-                .addCloudStatRecord(record1)
-                .addCloudStatRecord(record2)
-                .build();
-
-        when(costServiceMole.getCloudCostStats(any()))
-                .thenReturn(Collections.singletonList(serviceResult));
-
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
-                .createCloudResizeActionDetailsDTO(Collections.emptySet(), Collections.singleton(targetId), null);
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
-
-        assertEquals(10, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
-        assertEquals(10, cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0);
-        assertEquals(20, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
-        assertEquals(20, cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0);
     }
 
     @Test
@@ -2370,8 +2296,8 @@ public class ActionSpecMapperTest {
         inputDTO.setSavingsAmountRange(rangeInputApiDTO);
 
         final ActionQueryFilter filter = createFilter(inputDTO);
-        assertEquals(filter.getSavingsAmountRange().getMaxValue(), 20.0f, 0);
-        assertEquals(filter.getSavingsAmountRange().getMinValue(), 10.0f, 0);
+        assertEquals(20, filter.getSavingsAmountRange().getMaxValue(), 0);
+        assertEquals(10, filter.getSavingsAmountRange().getMinValue(), 0);
     }
 
     /**
@@ -2676,7 +2602,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(dbReq);
         ActionApiDTO scaleWithinTierActionApiDTO = mapper
                 .mapActionSpecToActionApiDTO(scaleWithinTierWithPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
-        assertTrue(scaleWithinTierActionApiDTO.getCurrentEntity() != null);
+        assertNotNull(scaleWithinTierActionApiDTO.getCurrentEntity());
         assertEquals(scaleWithinTierActionApiDTO.getCurrentEntity(), scaleWithinTierActionApiDTO.getNewEntity());
         assertEquals(scaleWithinTierActionApiDTO.getCurrentLocation(), scaleWithinTierActionApiDTO.getNewLocation());
 
@@ -2694,9 +2620,9 @@ public class ActionSpecMapperTest {
                 .thenReturn(dbReq);
         ActionApiDTO scaleWithinTierWithoutPrimaryProvider = mapper
                 .mapActionSpecToActionApiDTO(scaleWithinTierWithoutPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
-        assertTrue(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity() != null);
-        assertTrue(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity().getUuid() == null);
-        assertTrue(scaleWithinTierWithoutPrimaryProvider.getNewEntity() == null);
+        assertNotNull(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity());
+        assertNull(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity().getUuid());
+        assertNull(scaleWithinTierWithoutPrimaryProvider.getNewEntity());
     }
 
     /**
