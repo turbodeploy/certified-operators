@@ -270,9 +270,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
             Set<StatApiInputDTO> requestedCostPriceStats = filterStatInputsByList(
                             requestedStats,
-                            new HashSet<>( Arrays.asList(
-                                            StringConstants.COST_PRICE,
-                                            StringConstants.TOTAL_COST_FOR_DURATION)),
+                            COST_STATS_SET,
                             null);
 
             if (isResourceGroup(inputScope)) {
