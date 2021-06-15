@@ -3,6 +3,7 @@ package com.vmturbo.mediation.webhook.connector;
 import java.util.Collections;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.mediation.connector.common.HttpMethodType;
@@ -30,7 +31,7 @@ public class WebHookQueries {
          */
         public WebhookQuery(
                 @Nonnull HttpMethodType httpMethodType,
-                @Nonnull WebhookBody body) {
+                @Nullable WebhookBody body) {
             super(httpMethodType,
                     "", // not used because we overrode the query converter
                     Collections.emptyMap(), // not used because we overrode the query converter

@@ -247,7 +247,7 @@ public class ActionApprovalManager {
                 throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
             }
         } catch (ExecutionStartException | WorkflowStoreException e) {
-            logger.error("Failed to start action {} due to error {}.", action.getId(), e);
+            logger.error("Failed to start action {} due to an error.", action.getId(), e);
             executionListener.onActionFailure(ActionNotificationDTO.ActionFailure.newBuilder()
               .setActionId(action.getId()).setErrorDescription(e.getMessage()).build());
             throw new ExecutionInitiationException(e.toString(), e, Status.Code.INTERNAL);
