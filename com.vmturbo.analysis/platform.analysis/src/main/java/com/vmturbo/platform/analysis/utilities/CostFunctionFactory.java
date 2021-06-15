@@ -631,6 +631,8 @@ public class CostFunctionFactory {
                 costTuple.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
         // Populate the commQuantityMap with quantities from the Shopping list for commodity types with constraints
         populateCommQuantityMaps(sl, commTypesWithConstraints, commQuantityMap, Maps.newHashMap());
+        List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
+        Map<CommoditySpecification, CapacityLimitation> commCapacityLimitations = extractCommCapacityLimitations(dependentCostTuplesList);
         // The main purpose of calling this method is to update the commQuantityMap and commCapacityMap.
         // If the dependent comm quantity is less than minRatio * base comm quantity, then dependentCommQuantity is
         // increased to minRatio * base comm quantity and the new value is put into the commQuantityMap.
@@ -638,13 +640,12 @@ public class CostFunctionFactory {
         // increased to dependent comm quantity / maxRatio and the new value is put into the commQuantityMap.
         // Finally, the max allowed quantity of the dependent comm is put into the commCapacityMap.
         MutableQuote ratioBasedResourceDependencyQuote = CostFunctionFactoryHelper.getRatioBasedResourceDependencyQuote(
-                sl, seller, commQuantityMap, commCapacityMap, Maps.newHashMap(), ratioDependencyList, true);
+                sl, seller, commQuantityMap, commCapacityMap, commCapacityLimitations, ratioDependencyList, true);
         // If ratioBasedResourceDependencyQuote is a non-null, that means an infinite quote has been returned, and we
         // can just return from here.
         if (ratioBasedResourceDependencyQuote != null) {
             return ratioBasedResourceDependencyQuote.getQuoteValue();
         }
-        List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
         Set<CommoditySpecification> decisiveTypes = getDecisiveCommTypes(dependentCostTuplesList);
         // For decisive commodities, we need to copy the values from the commQuantityMap to the commCapacityMap.
         CostFunctionFactoryHelper.copyDecisiveCommsToCapacityMap(decisiveTypes, commQuantityMap, commCapacityMap);
@@ -701,6 +702,27 @@ public class CostFunctionFactory {
             }
         }
         return totalCost;
+    }
+
+    /**
+     * This method will extract the commodity capacity limitations from the dependent cost tuples.
+     * @param dependentCostTuples the dependent cost tuples
+     * @return a map of the commodities to the capacity limitations
+     */
+    private static Map<CommoditySpecification, CapacityLimitation> extractCommCapacityLimitations(
+            @Nonnull List<DependentCostTuple> dependentCostTuples) {
+        Map<CommoditySpecification, CapacityLimitation> commCapacityLimitations = Maps.newHashMap();
+        for (DependentCostTuple dependentCostTuple : dependentCostTuples) {
+            int size = dependentCostTuple.getDependentResourceOptionsCount();
+            if (size > 0) {
+                long min = dependentCostTuple.getDependentResourceOptions(0).getAbsoluteIncrement();
+                long max = dependentCostTuple.getDependentResourceOptions(size - 1).getEndRange();
+                CapacityLimitation capacityLimitation = new CapacityLimitation(min, max, true);
+                commCapacityLimitations.put(ProtobufToAnalysis.commoditySpecification(
+                        dependentCostTuple.getDependentResourceType()), capacityLimitation);
+            }
+        }
+        return commCapacityLimitations;
     }
 
     private static void populateCommQuantityMaps(final ShoppingList sl,
@@ -1009,7 +1031,6 @@ public class CostFunctionFactory {
             if (capacityQuote.isInfinite()) {
                 return capacityQuote;
             }
-
             return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
         };
         return costFunction;

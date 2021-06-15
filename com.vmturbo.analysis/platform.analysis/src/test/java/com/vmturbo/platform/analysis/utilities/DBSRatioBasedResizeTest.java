@@ -206,8 +206,7 @@ public class DBSRatioBasedResizeTest {
                 // Nothing needs to be resized
                 {1000, 2900, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 110d, 1000d, 3000},
                 // Nothing needs to be resized - 2
-                // ****** Failing test case - uncomment once StorageResourceLimitation is passed into M2 ******
-                // {6000, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 610, 6000, 15000},
+                {6000, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 610, 6000, 15000},
                 // IOPS causing storage amount to resize and Infinite quote
                 {1000, 16001, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5334, 100},
                 // IOPS causing Infinite quote
@@ -215,11 +214,9 @@ public class DBSRatioBasedResizeTest {
                 // IOPS causing Infinite quote
                 {5334, 16001, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5334, 100},
                 // Storage amount causing infinite quote
-                // ****** Failing test case - uncomment once StorageResourceLimitation is passed into M2 ******
-                // {65537, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5, 15000},
+                {65537, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5, 15000},
                 // Storage amount * maxRatio is less than iopsDemand. Do not resize storageAmount to meet iopsDemand
-                // ****** Failing test case - uncomment once StorageResourceLimitation is passed into M2 ******
-                // {20, 100, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 12, 20, 100},
+                {20, 100, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 12, 20, 100},
 
                 // IO1 test cases
                 // No change. Make sure IOPS stays at 2000 and does not go to maxRatio * storage amount
