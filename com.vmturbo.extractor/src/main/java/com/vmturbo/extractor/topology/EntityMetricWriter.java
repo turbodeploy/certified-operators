@@ -10,12 +10,14 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.IS_ATTACHED;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
-import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
-import static com.vmturbo.extractor.models.ModelDefinitions.WASTED_FILE_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.VOLUME_OID;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -70,9 +72,10 @@ import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.export.TargetsExtractor;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.DslRecordSink;
-import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
+import com.vmturbo.extractor.models.HashedDataManager;
+import com.vmturbo.extractor.models.HashedDataManager.CloseableConsumer;
 import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
@@ -80,6 +83,7 @@ import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
 import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
@@ -128,29 +132,34 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * List of wasted files records by storage oid.
      */
-    private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
+    private final Long2ObjectMap<List<Record>> filesByStorageId = new Long2ObjectOpenHashMap<>();
     private final PrimitiveFieldsOnTEDPatcher tedPatcher;
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher;
     private final DataPack<Long> oidPack;
     private final DataExtractionFactory dataExtractionFactory;
     private final ScopeManager scopeManager;
+    private HashedDataManager fileTableManager;
     private DSLContext dsl;
 
     /**
      * Create a new writer instance.
-     *  @param dbEndpoint        db endpoint for persisting data
-     * @param entityHashManager to track entity hash evolution across topology broadcasts
-     * @param scopeManager      scope manager
-     * @param oidPack           entity id manager
-     * @param pool              thread pool
+     *
+     * @param dbEndpoint            db endpoint for persisting data
+     * @param entityHashManager     to track entity hash evolution across topology broadcasts
+     * @param scopeManager          scope manager
+     * @param fileDataManager       hashed table manager for file table
+     * @param oidPack               entity id manager
+     * @param pool                  thread pool
      * @param dataExtractionFactory the factory for providing extractors
      */
     public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
-            final ScopeManager scopeManager, final DataPack<Long> oidPack,
+            final ScopeManager scopeManager, final HashedDataManager fileDataManager,
+            final DataPack<Long> oidPack,
             final ExecutorService pool, final DataExtractionFactory dataExtractionFactory) {
         super(dbEndpoint, pool);
         this.entityHashManager = entityHashManager;
         this.scopeManager = scopeManager;
+        this.fileTableManager = fileDataManager;
         this.oidPack = oidPack;
         this.dataExtractionFactory = dataExtractionFactory;
         TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
@@ -188,8 +197,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // supply chain will be added during finish processing
         entityRecords.add(entityRecord);
         writeMetrics(e, oid, entityType);
-        // cache wasted file records, since storage name can only be fetched later
-        createWastedFileRecords(e);
+        // cache file records, since storage name can only be fetched later
+        createFileRecords(e);
     }
 
     @Override
@@ -441,11 +450,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
 
     /**
-     * Create records for wasted files on the given entity.
+     * Create records for files on the given entity.
      *
      * @param entity {@link TopologyEntityDTO}
      */
-    private void createWastedFileRecords(@Nonnull TopologyEntityDTO entity) {
+    private void createFileRecords(@Nonnull TopologyEntityDTO entity) {
         // not volume entity or no volume info
         if (entity.getEntityType() != EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE
                 || !entity.getTypeSpecificInfo().hasVirtualVolume()) {
@@ -453,10 +462,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
         }
 
         final VirtualVolumeInfo volumeInfo = entity.getTypeSpecificInfo().getVirtualVolume();
-        // not wasted files volume
-        if (volumeInfo.getAttachmentState() != AttachmentState.UNATTACHED) {
-            return;
-        }
 
         final Optional<Long> storage = TopologyDTOUtil.getVolumeProvider(entity);
         if (!storage.isPresent()) {
@@ -465,20 +470,22 @@ public class EntityMetricWriter extends TopologyWriterBase {
             return;
         }
 
-        final Long storageId = storage.get();
+        final long storageId = storage.get();
         volumeInfo.getFilesList().forEach(file -> {
-            Record wastedFileRecord = new Record(WASTED_FILE_TABLE);
-            wastedFileRecord.set(FILE_PATH, file.getPath());
+            Record fileRecord = new Record(FILE_TABLE);
+            fileRecord.set(VOLUME_OID, entity.getOid());
+            fileRecord.set(FILE_PATH, file.getPath());
+            fileRecord.set(FILE_TYPE, FileType.valueOf(file.getType().name()));
             if (file.hasSizeKb()) {
-                wastedFileRecord.set(FILE_SIZE, file.getSizeKb());
+                fileRecord.set(FILE_SIZE, file.getSizeKb());
             }
             if (file.hasModificationTimeMs()) {
-                wastedFileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
+                fileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
             }
-            wastedFileRecord.set(STORAGE_OID, storageId);
+            fileRecord.set(STORAGE_OID, storageId);
             // storage name will be added later in finish stage
-            wastedFileRecordsByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>())
-                    .add(wastedFileRecord);
+            fileRecord.set(IS_ATTACHED, volumeInfo.getAttachmentState() != AttachmentState.UNATTACHED);
+            filesByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>()).add(fileRecord);
         });
     }
 
@@ -497,13 +504,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 getEntityUpsertSink(upsertConflicts, upsertUpdates),
                 "Entities Upserter", logger);
              TableWriter metricInserter = METRIC_TABLE.open(
-                     getMetricInserterSink(), "Metric Inserter", logger);
-             TableWriter wastedFileReplacer = WASTED_FILE_TABLE.open(
-                     getWastedFileReplacerSink(), "Wasted File Replacer", logger)) {
+                     getMetricInserterSink(), "Metric Inserter", logger)) {
             writeEntityRecords(dataProvider, entitiesUpserter);
             writeClusterStats(dataProvider);
             writeMetricRecords(metricInserter);
-            writeWastedFileRecords(wastedFileReplacer, dataProvider);
+            writeFileRecords(dataProvider);
         }
         return n;
     }
@@ -555,11 +560,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
     DslUpsertRecordSink getEntityUpsertSink(final ImmutableList<Column<?>> upsertConflicts, final ImmutableList<Column<?>> upsertUpdates) {
         return new DslUpsertRecordSink(dsl, ENTITY_TABLE, config, pool, "upsert",
                 upsertConflicts, upsertUpdates);
-    }
-
-    @VisibleForTesting
-    DslRecordSink getWastedFileReplacerSink() {
-        return new DslReplaceRecordSink(dsl, WASTED_FILE_TABLE, config, pool, "replace");
     }
 
     private void recordGroupsAsEntities(final DataProvider dataProvider) {
@@ -661,23 +661,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * Write the wasted files records into the table.
      *
-     * @param tableWriter table writer {@link DslReplaceRecordSink}
      * @param dataProvider data provider
      */
-    private void writeWastedFileRecords(TableWriter tableWriter, DataProvider dataProvider) {
-        logger.info("Writing wasted file records for topology {}", topologyLabel);
-        wastedFileRecordsByStorageId.long2ObjectEntrySet().forEach(entry -> {
-            final long storageId = entry.getLongKey();
-            final String storageName = dataProvider.getDisplayName(storageId).orElseGet(() -> {
-                // this should not happen, use empty string as default
-                logger.error("No display name for storage {}", storageId);
-                return "";
-            });
-            entry.getValue().forEach(partialWastedFileRecord -> {
-                try (Record r = tableWriter.open(partialWastedFileRecord)) {
-                    r.set(STORAGE_NAME, storageName);
-                }
-            });
-        });
+    private void writeFileRecords(DataProvider dataProvider) {
+        logger.info("Writing file records for topology {}", topologyLabel);
+
+        try (CloseableConsumer<Record> consumer = fileTableManager.open(dsl, config)) {
+            filesByStorageId.long2ObjectEntrySet().forEach(entry ->
+                    entry.getValue().forEach(consumer));
+        }
     }
 }

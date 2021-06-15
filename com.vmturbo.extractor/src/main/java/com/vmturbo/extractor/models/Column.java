@@ -13,6 +13,7 @@ import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.Severity;
 
 /**
@@ -455,4 +456,16 @@ public class Column<T> {
     public static Column<CostSource> costSourceColumn(TableField<?, CostSource> field) {
         return new Column<>(field, ColType.COST_SOURCE);
     }
+
+    /**
+     * Create a new file_type column builder with standard functions.
+     *
+     * @param name column name
+     * @return new builder
+     */
+    public static Column<FileType> fileTypeColumn(final String name) {
+        return new Column<>(name, ColType.FILE_TYPE);
+    }
+
+
 }

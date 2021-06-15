@@ -1,5 +1,10 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_HASH;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
+import static com.vmturbo.extractor.models.ModelDefinitions.FILE_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.VOLUME_OID;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,6 +18,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -46,6 +52,7 @@ import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.Constants;
+import com.vmturbo.extractor.models.HashedDataManager;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
@@ -310,7 +317,8 @@ public class TopologyListenerConfig {
         }
         if (featureFlags.isReportingEnabled()) {
             retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
-                    scopeManager(), oidPack(), pool(), dataExtractionFactory()));
+                    scopeManager(), fileDataManager(),
+                    oidPack(), pool(), dataExtractionFactory()));
             retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
@@ -356,6 +364,15 @@ public class TopologyListenerConfig {
     public ScopeManager scopeManager() {
         return new ScopeManager(oidPack(),
                 dbConfig.ingesterEndpoint(), writerConfig(), pool());
+    }
+
+    /**
+     * HashedDataManager for file table.
+     * @return file table manager
+     */
+    public HashedDataManager fileDataManager() {
+        return new HashedDataManager(
+                FILE_TABLE, FILE_HASH, ImmutableSet.of(VOLUME_OID, FILE_PATH), pool());
     }
 
     /**
