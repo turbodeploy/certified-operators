@@ -139,7 +139,7 @@ public class ActionInterpreter {
                     EntityType.COMPUTE_TIER_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
-    private boolean enableContainerClusterScalingCost;
+
     /**
      * Whether compliance action explanation needs to be overridden with perf/efficiency, needed
      * in certain cases like cloud migration.
@@ -183,17 +183,6 @@ public class ActionInterpreter {
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
         this.complianceExplanationOverride = explanationFunction;
-    }
-
-    /**
-     * Enable or disable container cluster scaling costs.
-     *
-     * @param enable Whether or not cost calculations for container cluster scaling is enabled.
-     * @return A reference to {@link this} for method chaining.
-     */
-    ActionInterpreter enableContainerClusterScalingCost(boolean enable) {
-        this.enableContainerClusterScalingCost = enable;
-        return this;
     }
 
     /**
@@ -465,10 +454,6 @@ public class ActionInterpreter {
                     return new NoSavings(trax(0, "no destination market tier for " + move.getDestination()));
                 }
             case DEACTIVATE:
-                if (!enableContainerClusterScalingCost) {
-                    return new NoSavings(trax(0, "savings calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
                 final DeactivateTO deactivateTO = actionTO.getDeactivate();
                 long deactivatedEntityOid = deactivateTO.getTraderToDeactivate();
                 TraderTO deactivatingEntityTO =  oidToProjectedTraderTOMap.get(deactivatedEntityOid);
@@ -492,10 +477,6 @@ public class ActionInterpreter {
                         deactivatingEntityTO, deactivatingEntity, true);
 
             case PROVISION_BY_SUPPLY:
-                if (!enableContainerClusterScalingCost) {
-                    return new NoSavings(trax(0, "savings calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
                 final ProvisionBySupplyTO provisionBySupply = actionTO.getProvisionBySupply();
                 long modelSellerEntityOid = provisionBySupply.getModelSeller();
                 TraderTO modelSellerEntityTO =  oidToProjectedTraderTOMap.get(modelSellerEntityOid);

@@ -796,7 +796,7 @@ public class PlanTopologyScopeEditorTest {
             .ifPresent(bought -> bought.setMovable(false));
 
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
-            .newBlockingStub(grpcServer.getChannel()), true);
+            .newBlockingStub(grpcServer.getChannel()));
         graph = TopologyEntityUtils
             .topologyGraphOf(bt, s1, s2, vmInUSEast, azUSEast, vvInUSEast, regionUSEast,
                 bapp1, appc1, vm1InDc1, vm2InDc1, vm4InDc1, virtualVolume1, vmInDc2, virtualVolume, vdcInDc1, pm1InDc1,

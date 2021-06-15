@@ -140,8 +140,6 @@ public interface AnalysisFactory {
 
         private boolean branchAndBoundEnabled;
 
-        private final boolean enableContainerClusterScalingCost;
-
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -167,8 +165,7 @@ public interface AnalysisFactory {
                                       final boolean enableOP,
                                       final boolean shouldPopulateByProducts,
                                       final boolean fastProvisionEnabled,
-                                      final boolean branchAndBoundEnabled,
-                                      final boolean enableContainerClusterScalingCost) {
+                                      final boolean branchAndBoundEnabled) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -201,7 +198,6 @@ public interface AnalysisFactory {
             this.shouldPopulateByProducts = shouldPopulateByProducts;
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
-            this.enableContainerClusterScalingCost = enableContainerClusterScalingCost;
         }
 
         /**
@@ -218,8 +214,7 @@ public interface AnalysisFactory {
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
-                licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled,
-                    enableContainerClusterScalingCost);
+                licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -383,11 +378,6 @@ public interface AnalysisFactory {
         private boolean branchAndBoundEnabled;
 
         /**
-         * Whether to show container cluster scaling costs.
-         */
-        private final boolean enableContainerClusterScalingCost;
-
-        /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
@@ -407,8 +397,6 @@ public interface AnalysisFactory {
          *                                softwareLicenseCommodity sold by a provider.
          * @param enableOP enables the changes for OverProvisioning.
          * @param shouldPopulateByProducts Whether to populate the byProducts map which permits analysis of commodity byProducts.
-         * @param enableContainerClusterScalingCost Whether to compute costs for horizontal scaling actions
-         *                                          for VMs that are part of a container cluster
          */
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
@@ -427,8 +415,7 @@ public interface AnalysisFactory {
                               final boolean enableOP,
                               final boolean shouldPopulateByProducts,
                               final boolean fastProvisionEnabled,
-                              final boolean branchAndBoundEnabled,
-                              final boolean enableContainerClusterScalingCost) {
+                              final boolean branchAndBoundEnabled) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -447,7 +434,6 @@ public interface AnalysisFactory {
             this.shouldPopulateByProducts = shouldPopulateByProducts;
             this.fastProvisionEnabled = fastProvisionEnabled;
             this.branchAndBoundEnabled = branchAndBoundEnabled;
-            this.enableContainerClusterScalingCost = enableContainerClusterScalingCost;
         }
 
         public float getQuoteFactor() {
@@ -489,8 +475,6 @@ public interface AnalysisFactory {
         public boolean shouldPopulateByProducts() {
             return shouldPopulateByProducts;
         }
-
-        public boolean enableContainerClusterScalingCost() { return enableContainerClusterScalingCost;}
 
         public MarketMode getMarketMode() {
             return marketMode;
@@ -590,18 +574,15 @@ public interface AnalysisFactory {
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
          * @param shouldPopulateByProducts Whether we should populate the byproducts map.
-         * @param enableContainerClusterScalingCost Whether to show container platform scaling action costs
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote,
-                 final int licensePriceWeightScale, final boolean enableOP, final boolean shouldPopulateByProducts,
-                                         final boolean enableContainerClusterScalingCost) {
+                 final int licensePriceWeightScale, final boolean enableOP, final boolean shouldPopulateByProducts) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                enableOP, shouldPopulateByProducts, true, true,
-                enableContainerClusterScalingCost);
+                enableOP, shouldPopulateByProducts, true, true);
         }
 
         /**
@@ -621,7 +602,6 @@ public interface AnalysisFactory {
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
          * @param shouldPopulateByProducts Whether we should populate the byproducts map.
-         * @param enableContainerClusterScalingCost Whether to show container platform scaling action costs
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
@@ -632,12 +612,10 @@ public interface AnalysisFactory {
                                                 final boolean enableOP,
                                                 final boolean shouldPopulateByProducts,
                                                 final boolean fastProvisionEnabled,
-                                                final boolean branchAndBoundEnabled,
-                                                final boolean enableContainerClusterScalingCost) {
+                                                final boolean branchAndBoundEnabled) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                    enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled,
-                    enableContainerClusterScalingCost);
+                    enableOP, shouldPopulateByProducts, fastProvisionEnabled, branchAndBoundEnabled);
         }
 
         public boolean isFastProvisionEnabled() {
@@ -685,8 +663,6 @@ public interface AnalysisFactory {
 
             private final boolean branchAndBoundEnabled;
 
-            private final boolean enableContainerClusterScalingCost;
-
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
@@ -697,8 +673,7 @@ public interface AnalysisFactory {
                             final boolean enableOP,
                             final boolean shouldPopulateByProducts,
                             final boolean fastProvisionEnabled,
-                            final boolean branchAndBoundEnabled,
-                            final boolean enableContainerClusterScalingCost) {
+                            final boolean branchAndBoundEnabled) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -710,7 +685,6 @@ public interface AnalysisFactory {
                 this.shouldPopulateByProducts = shouldPopulateByProducts;
                 this.fastProvisionEnabled = fastProvisionEnabled;
                 this.branchAndBoundEnabled = branchAndBoundEnabled;
-                this.enableContainerClusterScalingCost = enableContainerClusterScalingCost;
             }
 
             /**
@@ -821,8 +795,7 @@ public interface AnalysisFactory {
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
                     licensePriceWeightScale, enableOP, shouldPopulateByProducts, fastProvisionEnabled,
-                    branchAndBoundEnabled,
-                    enableContainerClusterScalingCost);
+                    branchAndBoundEnabled);
             }
         }
     }
