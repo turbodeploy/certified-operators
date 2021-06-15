@@ -11,6 +11,7 @@ import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.Metric;
@@ -66,15 +67,23 @@ public class ModelDefinitions {
     /** SCOPE_END column. */
     public static final Column<OffsetDateTime> SCOPE_FINISH = Column.offsetDateTimeColumn("finish");
 
+    /** Column for volume doi. */
+    public static final Column<Long> VOLUME_OID = Column.longColumn("volume_oid");
     /** Column for file path. */
     public static final Column<String> FILE_PATH = Column.stringColumn("path");
+    /** Column for file type. */
+    public static final Column<FileType> FILE_TYPE = Column.fileTypeColumn("type");
     /** Column for last modification time. */
     public static final Column<Timestamp> MODIFICATION_TIME = Column.timestampColumn("modification_time");
     /** Column for file size. */
     public static final Column<Long> FILE_SIZE = Column.longColumn("file_size_kb");
     /** Column for storage oid. */
     public static final Column<Long> STORAGE_OID = Column.longColumn("storage_oid");
-    /** Column for storage displayName. */
+    /** Column for is_attached column. */
+    public static final Column<Boolean> IS_ATTACHED = Column.boolColumn("is_attached");
+    /** Colum for file record hash. */
+    public static final Column<Long> FILE_HASH = Column.longColumn("hash");
+    /** Column for storage displayName (appears in wasted_file view). */
     public static final Column<String> STORAGE_NAME = Column.stringColumn("storage_name");
 
     /** ENTITY STATE enum column. */
@@ -91,8 +100,9 @@ public class ModelDefinitions {
     public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
 
     /** wasted_file table. */
-    public static final Table WASTED_FILE_TABLE = Table.named("wasted_file")
-            .withColumns(FILE_PATH, FILE_SIZE, MODIFICATION_TIME, STORAGE_OID, STORAGE_NAME)
+    public static final Table FILE_TABLE = Table.named("file")
+            .withColumns(VOLUME_OID, FILE_PATH, FILE_TYPE, FILE_SIZE, MODIFICATION_TIME,
+                    STORAGE_OID, IS_ATTACHED, FILE_HASH)
             .build();
 
     /** ENTITY_TABLE. */
@@ -116,7 +126,7 @@ public class ModelDefinitions {
 
     /** REPORTING_MODEL. */
     public static final Model REPORTING_MODEL = Model.named("reporting")
-            .withTables(ENTITY_TABLE, METRIC_TABLE, WASTED_FILE_TABLE)
+            .withTables(ENTITY_TABLE, METRIC_TABLE, FILE_TABLE)
             .build();
 
     /** SEARCH_ENTITY_TABLE. */
