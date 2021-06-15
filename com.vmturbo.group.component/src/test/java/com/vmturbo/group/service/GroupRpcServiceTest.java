@@ -408,7 +408,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        groupRpcService.getPaginatedGroups(request, mockObserver);
         // THEN
         ArgumentCaptor<GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
@@ -474,7 +474,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        groupRpcService.getPaginatedGroups(request, mockObserver);
         // THEN
         ArgumentCaptor<GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
@@ -582,7 +582,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(requestBuilder.build(), mockObserver);
+        groupRpcService.getPaginatedGroups(requestBuilder.build(), mockObserver);
         // THEN
         ArgumentCaptor<GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
@@ -601,7 +601,7 @@ public class GroupRpcServiceTest {
         requestBuilder.setPaginationParameters(paginationParameters);
         when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(requestBuilder.build(), mockObserver);
+        groupRpcService.getPaginatedGroups(requestBuilder.build(), mockObserver);
         // THEN
         verify(mockObserver, times(2)).onNext(captor.capture());
         response = captor.getValue();
@@ -681,7 +681,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        groupRpcService.getPaginatedGroups(request, mockObserver);
         // THEN
         ArgumentCaptor<GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
@@ -760,7 +760,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        groupRpcService.getPaginatedGroups(request, mockObserver);
         // THEN
         ArgumentCaptor<GetPaginatedGroupsResponse> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
@@ -838,7 +838,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
         // WHEN
-        groupRpcService.getPaginatedGroupsForScopedUser(request, mockObserver);
+        groupRpcService.getPaginatedGroups(request, mockObserver);
         // THEN
         // exception expected
     }
