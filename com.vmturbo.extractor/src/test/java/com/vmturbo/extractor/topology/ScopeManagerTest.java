@@ -73,6 +73,7 @@ public class ScopeManagerTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
+
     private final DataPack<Long> oidPack = new LongDataPack();
 
     /**

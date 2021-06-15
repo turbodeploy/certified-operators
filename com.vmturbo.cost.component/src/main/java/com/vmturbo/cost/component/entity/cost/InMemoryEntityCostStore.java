@@ -149,31 +149,41 @@ public class InMemoryEntityCostStore extends AbstractProjectedEntityCostStore {
         if (filter.isGlobalScope()) {
             return getEntitiesCosts();
         } else {
-            final Collection<List<Long>> startingOidsPerScope = Stream.of(filter.getEntityFilters(),
-                    filter.getRegionIds(), filter.getAvailabilityZoneIds(), filter.getAccountIds())
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .map(ArrayList::new)
-                    .collect(Collectors.toSet());
+            // There may be regions/AZs/accounts in the entity filters directly, but we do not
+            // expand them. It's the client's responsibility.
+            final Optional<Set<Long>> directEntityIds = filter.getEntityFilters();
+            final Collection<List<Long>> aggregatedScopes = Stream.of(filter.getRegionIds(),
+                    filter.getAvailabilityZoneIds(), filter.getAccountIds())
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(ArrayList::new)
+                .collect(Collectors.toList());
 
             final Set<Long> entitiesInScope;
-
-            if (startingOidsPerScope.stream().allMatch(CollectionUtils::isEmpty)) {
-                entitiesInScope = getAllStoredInMemoryCostEntityOids();
+            if (aggregatedScopes.stream().allMatch(CollectionUtils::isEmpty)) {
+                // No special aggregated scopes. Look at the requested entity costs directly.
+                entitiesInScope = directEntityIds.orElseGet(this::getAllStoredInMemoryCostEntityOids);
             } else {
-                final Stream<Set<Long>> entitiesPerScope =
-                        repositoryClient.getEntitiesByTypePerScope(startingOidsPerScope,
+                final Set<Long> entitiesInAggregatedScopes =
+                        repositoryClient.getEntitiesByTypePerScope(aggregatedScopes,
                                 supplyChainServiceBlockingStub)
                                 .map(m -> m.values().stream()
                                         .flatMap(Collection::stream)
-                                        .collect(Collectors.toSet()));
-                entitiesInScope = entitiesPerScope
+                                        .collect(Collectors.toSet()))
                         .reduce(Sets::intersection)
-                        .map(Collection::stream)
-                        .map(oids -> oids.collect(Collectors.toSet()))
-                        .orElse(getAllStoredInMemoryCostEntityOids());
+                        .orElse(Collections.emptySet());
 
+                // The entities in the scope are the intersection of the "direct" entity ids, if any,
+                // and the "in the aggregate entity scope" ids.
+                // If there are no "direct" entity ids requested we look only at the aggregated
+                // scopes.
+                if (directEntityIds.isPresent() && !directEntityIds.get().isEmpty()) {
+                    entitiesInScope = Sets.intersection(directEntityIds.get(), entitiesInAggregatedScopes);
+                } else {
+                    entitiesInScope = entitiesInAggregatedScopes;
+                }
             }
+
             getLogger().trace("Entities in scope for cached entities costs: {}",
                     () -> entitiesInScope);
             // apply the filters and return

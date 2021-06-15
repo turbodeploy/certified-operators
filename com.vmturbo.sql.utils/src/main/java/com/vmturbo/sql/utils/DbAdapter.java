@@ -152,7 +152,7 @@ public abstract class DbAdapter {
                 }
             }
         } catch (Exception e) {
-            throw new DbEndpointException("Endpoint %s failed initialization", e);
+            throw new DbEndpointException(String.format("Endpoint %s failed initialization", config), e);
         }
     }
 

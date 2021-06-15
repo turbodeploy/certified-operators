@@ -189,25 +189,12 @@ public class DbEndpointTestRule implements TestRule {
      * @throws SQLException                if there's a problem with provisioning
      */
     public void addEndpoints(final DbEndpoint... endpoints) throws InterruptedException, UnsupportedDialectException, SQLException {
-        List<DbEndpointCompleter> completers = new ArrayList<>();
-        for (DbEndpoint endpoint : endpoints) {
-            if (!endpoint.isReady()) {
-                try {
-                    setOverridesForEndpoint(endpoint, provisioningSuffix);
-                    completers.add(endpoint.getEndpointCompleter());
-                } catch (UnsupportedDialectException e) {
-                    logger.error("Failed to set properties for endpoint {}; testing is likely to fail",
-                            endpoint, e);
-                }
-            }
-        }
-
-        completers.forEach(endpointCompleter -> {
-            endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
-            endpointCompleter.onServerStarted(null);
-        });
-
         for (final DbEndpoint endpoint : endpoints) {
+            DbEndpointCompleter endpointCompleter = endpoint.getEndpointCompleter();
+            setOverridesForEndpoint(endpoint, provisioningSuffix);
+            endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
+            endpointCompleter.completeEndpoint(endpoint);
+
             if (!endpoint.isReady()) {
                 try {
                     logger.info("Completing endpoint {}", endpoint);

@@ -355,14 +355,30 @@ public class ServiceEntityMapperTest {
     }
 
     /**
+     * Verify there are no RPCs to the cost component when setting price values for on-prem entities.
+     */
+    @Test
+    public void testNoCostRpcForOnPremEntity() {
+        final HashMap<Long, ServiceEntityApiDTO> entities = new HashMap<>();
+        final ServiceEntityApiDTO entityApiDTO1 = new ServiceEntityApiDTO();
+        entityApiDTO1.setEnvironmentType(com.vmturbo.api.enums.EnvironmentType.ONPREM);
+        entities.put(1L, entityApiDTO1);
+
+        mapper.setPriceValuesForEntityComponents(entities);
+        Mockito.verifyZeroInteractions(costServiceMole);
+    }
+
+    /**
      * Test for {@link ServiceEntityMapper#setPriceValuesForEntityComponents(Map)}.
      */
     @Test
     public void testSetPriceValuesForEntityComponents() {
         final HashMap<Long, ServiceEntityApiDTO> entities = new HashMap<>();
         final ServiceEntityApiDTO entityApiDTO1 = new ServiceEntityApiDTO();
+        entityApiDTO1.setEnvironmentType(com.vmturbo.api.enums.EnvironmentType.CLOUD);
         entities.put(1L, entityApiDTO1);
         final ServiceEntityApiDTO entityApiDTO2 = new ServiceEntityApiDTO();
+        entityApiDTO2.setEnvironmentType(com.vmturbo.api.enums.EnvironmentType.CLOUD);
         entityApiDTO2.setTemplate(new TemplateApiDTO());
         entities.put(2L, entityApiDTO2);
 

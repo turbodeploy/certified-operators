@@ -581,7 +581,9 @@ public class CommunicationConfig {
 
     @Bean
     public ServiceProviderExpander serviceProviderExpander() {
-        return new ServiceProviderExpander(mapperConfig.uuidMapper(), supplyChainFetcher());
+        ServiceProviderExpander expander = new ServiceProviderExpander(repositoryApi(), supplyChainFetcher(), realtimeTopologyContextId);
+        repositoryClientConfig.repository().addListener(expander);
+        return expander;
     }
 
     @Bean
