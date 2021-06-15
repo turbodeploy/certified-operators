@@ -29,8 +29,14 @@
         <spotbugs.version>4.0.4</spotbugs.version>
         <grpc.version>1.29.0</grpc.version>
         <jackson.version>2.11.4</jackson.version>
+        <commons-logging.version>1.2</commons-logging.version>
+        <commons-lang.version>2.6</commons-lang.version>
         <commons-lang3.version>3.8.1</commons-lang3.version>
         <surefire.version>3.0.0-M4</surefire.version>
+
+        <commons-text.version>1.9</commons-text.version>
+        <velocity.version>1.7</velocity.version>
+        <velocity-tools.version>2.0</velocity-tools.version>
         <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
         https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->
         <wireMockVersion>2.27.2</wireMockVersion>
@@ -203,9 +209,34 @@
                 <version>${wireMockVersion}</version>
             </dependency>
             <dependency>
+                <groupId>commons-logging</groupId>
+                <artifactId>commons-logging</artifactId>
+                <version>${commons-logging.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-lang</groupId>
+                <artifactId>commons-lang</artifactId>
+                <version>${commons-lang.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-text</artifactId>
+                <version>${commons-text.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.velocity</groupId>
+                <artifactId>velocity</artifactId>
+                <version>${velocity.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.velocity</groupId>
+                <artifactId>velocity-tools</artifactId>
+                <version>${velocity-tools.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

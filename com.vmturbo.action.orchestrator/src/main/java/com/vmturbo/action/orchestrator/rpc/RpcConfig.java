@@ -102,7 +102,7 @@ public class RpcConfig {
      * Flag that enables all action uuids come from the stable impact oid instead of the
      * unstable action instance id.
      */
-    @Value("${useStableActionIdAsUuid:false}")
+    @Value("${useStableActionIdAsUuid:false")
     private boolean useStableActionIdAsUuid;
 
     /**
