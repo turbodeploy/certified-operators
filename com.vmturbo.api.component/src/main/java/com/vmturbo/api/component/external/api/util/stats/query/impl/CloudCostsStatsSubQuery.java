@@ -134,8 +134,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     /**
      *Collection of cloud cost stats metrics.
      */
-    public static final Set<String> COST_STATS_SET = ImmutableSet.of(StringConstants.COST_PRICE,
-        CURRENT_COST_PRICE);
+    public static final Set<String> COST_STATS_SET = ImmutableSet.of(
+                    StringConstants.COST_PRICE,
+                    StringConstants.TOTAL_COST_FOR_DURATION,
+                    CURRENT_COST_PRICE
+    );
 
     private final RepositoryApi repositoryApi;
 
@@ -265,8 +268,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     cloudEntityOids = expandedOids;
                 }
             }
-            Set<StatApiInputDTO> requestedCostPriceStats =
-                filterStatInputs(requestedStats, StringConstants.COST_PRICE, null);
+            Set<StatApiInputDTO> requestedCostPriceStats = filterStatInputsByList(
+                            requestedStats,
+                            new HashSet<>( Arrays.asList(
+                                            StringConstants.COST_PRICE,
+                                            StringConstants.TOTAL_COST_FOR_DURATION)),
+                            null);
 
             if (isResourceGroup(inputScope)) {
                 requestedCostPriceStats =
@@ -447,13 +454,24 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     private Set<StatApiInputDTO> filterStatInputs(@Nonnull final Set<StatApiInputDTO> statInputs,
-            @Nullable final String statName,
-            @Nullable final String groupBy) {
+                                                  @Nullable final String statName,
+                                                  @Nullable final String groupBy) {
+        HashSet<String> statNameList = new HashSet<>();
+        if (statName != null) statNameList.add(statName);
+        return filterStatInputsByList(statInputs, statNameList, groupBy);
+    }
+
+    @Nonnull
+    private Set<StatApiInputDTO> filterStatInputsByList(@Nonnull final Set<StatApiInputDTO> statInputs,
+                                                  final Set<String> statNameList,
+                                                  @Nullable final String groupBy) {
         return statInputs.stream()
-            .filter(input -> statName == null || statName.equals(input.getName()))
-            .filter(input -> groupBy == null ||
-                (input.getGroupBy() != null && input.getGroupBy().contains(groupBy)))
-            .collect(toSet());
+                        .filter(input -> statNameList.isEmpty() ||
+                                         statNameList.contains(input.getName()))
+                        .filter(input -> groupBy == null ||
+                                         (input.getGroupBy() != null
+                                          && input.getGroupBy().contains(groupBy)))
+                        .collect(toSet());
     }
 
     private static boolean shouldQueryUsingFilter(ApiId inputScope) {
@@ -828,6 +846,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .build());
             }
             context.getPlanInstance().ifPresent(plan -> cloudCostStatsQuery.setTopologyContextId(plan.getPlanId()));
+
+            if (StringConstants.TOTAL_COST_FOR_DURATION.equals(statApiInputDTO.getName())) {
+                cloudCostStatsQuery.setRequestTotalValues(true);
+            }
+
             Optional<Builder> cloudCostStatsQueryOptional =
                     updateQueriesByUserScope(context, cloudCostStatsQuery);
             cloudCostStatsQueryOptional.ifPresent(updatedCloudCostQuery ->
