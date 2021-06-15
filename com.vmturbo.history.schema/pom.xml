@@ -75,8 +75,6 @@
                     <user>${db.username}</user>
                     <password>${db.password}</password>
                     <locations>
-                        <!-- add a vmtplatform user just for the purpose of the flyway/jooq execution -->
-                        <location>filesystem:${basedir}/src/build/resources/jooq-setup</location>
                         <!-- run the flyway/jooq generation on the primary DB schema -->
                         <location>filesystem:${basedir}/src/main/resources/db/migration</location>
                     </locations>
