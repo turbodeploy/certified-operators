@@ -518,6 +518,17 @@ public class EntityCostFilter extends CostFilter {
         }
 
         /**
+         * Clear the account ids to filter.
+         *
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder clearAccountIds() {
+            this.accountIds = null;
+            return this;
+        }
+
+        /**
          * Return the original group by enums from the request.
          * @param requestedGroupBy requested group by enum.
          * @return the builder.
@@ -541,6 +552,17 @@ public class EntityCostFilter extends CostFilter {
         }
 
         /**
+         * Clear the availability zones to filter.
+         *
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder clearAvailabilityZoneIds() {
+            this.availabilityZoneIds = null;
+            return this;
+        }
+
+        /**
          * Sets region ids to filter.
          * @param regionIds the region ids for entities to include.
          * @return the builder.
@@ -549,6 +571,17 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilterBuilder regionIds(
             @Nonnull Collection<Long> regionIds) {
             this.regionIds = new HashSet<>(regionIds);
+            return this;
+        }
+
+        /**
+         * Clear the regions to filter.
+         *
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder clearRegionIds() {
+            this.regionIds = null;
             return this;
         }
 
