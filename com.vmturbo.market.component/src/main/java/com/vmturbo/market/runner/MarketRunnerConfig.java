@@ -145,13 +145,6 @@ public class MarketRunnerConfig {
     @Value("${shouldPopulateByProducts:false}")
     private boolean shouldPopulateByProducts;
 
-    /**
-     * Whether we should compute and represent the action savings or investment costs
-     * for horizontal scaling actions that are recommended for container platform clusters.
-     */
-    @Value("${enableContainerClusterScalingCost:false}")
-    private boolean enableContainerClusterScalingCost;
-
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -226,8 +219,7 @@ public class MarketRunnerConfig {
                 enableOP,
                 shouldPopulateByProducts,
                 fastProvisionEnabled,
-                branchAndBoundEnabled,
-                enableContainerClusterScalingCost);
+                branchAndBoundEnabled);
     }
 
     /**
