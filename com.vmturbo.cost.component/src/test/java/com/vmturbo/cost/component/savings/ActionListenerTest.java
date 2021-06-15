@@ -325,18 +325,20 @@ public class ActionListenerTest {
         final ActionEntity actionEntityWorkloadTier =
                                                     createActionEntity(5L,
                                                        EntityType.COMPUTE_TIER_VALUE);
+        // Actions could be in different states related to pre and post execution.
+        // We create recommendation events for all states.
         final Allocate allocate = createAllocate(actionEntityAllocate, actionEntityWorkloadTier);
         ActionSpec actionSpec1 =
-                createActionSpec(scale1, 1234L, 1234L, System.currentTimeMillis());
+                createActionSpec(scale1, 1234L, 1234L, System.currentTimeMillis(), ActionState.READY);
         ActionSpec actionSpec2 =
-                createActionSpec(4321L, 4321L, ActionInfo.newBuilder().setDelete(delete));
+                createActionSpec(4321L, 4321L, ActionInfo.newBuilder().setDelete(delete), null);
         ActionSpec actionSpec3 =
-                createActionSpec(5658L, 5658L, ActionInfo.newBuilder().setScale(scale2));
+                createActionSpec(5658L, 5658L, ActionInfo.newBuilder().setScale(scale2), ActionState.IN_PROGRESS);
         ActionSpec actionSpec4 =
-                createActionSpec(5154L, 5154L, ActionInfo.newBuilder().setAllocate(allocate));
+                createActionSpec(5154L, 5154L, ActionInfo.newBuilder().setAllocate(allocate), ActionState.POST_IN_PROGRESS);
         // create "duplicate" action for entity, as can be seen in the case of multi-attach volumes.
         ActionSpec actionSpec1Duplicate =
-                        createActionSpec(scale1, 1234L, 8417L, System.currentTimeMillis());
+                        createActionSpec(scale1, 1234L, 8417L, System.currentTimeMillis(), ActionState.ACCEPTED);
         // only actionId's are likely to be different.
 
         FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSpec1);
@@ -507,15 +509,15 @@ public class ActionListenerTest {
                 createActionEntity(401L, EntityType.DATABASE_SERVER_VALUE);
         final Scale scaleDbs1 = createScale(actionEntityDbs1);
         ActionSpec actionSpecVm1 =
-                createActionSpec(scaleVm1, 1234L, 1L, System.currentTimeMillis());
+                createActionSpec(scaleVm1, 1234L, 1L, System.currentTimeMillis(), null);
         ActionSpec actionSpecVm2 =
-                createActionSpec(5658L, 2L, ActionInfo.newBuilder().setScale(scaleVm2));
+                createActionSpec(5658L, 2L, ActionInfo.newBuilder().setScale(scaleVm2), null);
         ActionSpec actionSpecDb1 =
-                createActionSpec(5654L, 3L, ActionInfo.newBuilder().setScale(scaleDb1));
+                createActionSpec(5654L, 3L, ActionInfo.newBuilder().setScale(scaleDb1), null);
         ActionSpec actionSpecVv1 =
-                createActionSpec(5654L, 4L, ActionInfo.newBuilder().setScale(scaleVv1));
+                createActionSpec(5654L, 4L, ActionInfo.newBuilder().setScale(scaleVv1), null);
         ActionSpec actionSpecDbs1 =
-                createActionSpec(5654L, 5L, ActionInfo.newBuilder().setScale(scaleDbs1));
+                createActionSpec(5654L, 5L, ActionInfo.newBuilder().setScale(scaleDbs1), null);
 
         final Map<Long, EntityActionInfo> entityIdToActionInfoMap = ImmutableMap.of(
                 vmId1, new EntityActionInfo(actionSpecVm1, actionEntityVm1),
@@ -556,7 +558,8 @@ public class ActionListenerTest {
     }
 
     @NotNull
-    private ActionSpec createActionSpec(long recommendationId, long actionId, ActionInfo.Builder builder) {
+    private ActionSpec createActionSpec(long recommendationId, long actionId, ActionInfo.Builder builder,
+                                        ActionState actionState) {
         return ActionSpec.newBuilder()
                 .setRecommendationId(recommendationId)
                 .setRecommendation(Action.newBuilder()
@@ -566,13 +569,13 @@ public class ActionListenerTest {
                         .setInfo(builder.build())
                         .build())
                 .setRecommendationTime(System.currentTimeMillis())
-                .setActionState(ActionState.READY)
+                .setActionState(actionState == null ? ActionState.READY : actionState)
                 .build();
     }
 
     @NotNull
     private ActionSpec createActionSpec(Scale scale, long recommendationId, long actionId,
-            long recommendationTime) {
+            long recommendationTime, ActionState actionState) {
         return ActionSpec.newBuilder()
                 .setRecommendationId(recommendationId)
                 .setRecommendation(Action.newBuilder()
@@ -582,7 +585,7 @@ public class ActionListenerTest {
                         .setInfo(ActionInfo.newBuilder().setScale(scale).build())
                         .build())
                 .setRecommendationTime(recommendationTime)
-                .setActionState(ActionState.READY).build();
+                .setActionState(actionState == null ? ActionState.READY : actionState).build();
     }
 
     @NotNull
@@ -630,7 +633,7 @@ public class ActionListenerTest {
                         .setType(EntityType.STORAGE_TIER_VALUE)
                         .setEnvironmentType(EnvironmentType.CLOUD)
                         .build()).build())
-                .build(), 1001, actionId, 100001L);
+                .build(), 1001, actionId, 100001L, null);
 
         final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, actionEntity);
         assertNotNull(entityActionInfo);
