@@ -354,12 +354,9 @@ public class GroupsService implements IGroupsService {
          * Use the old implementation (paginate inside api component) in the following cases:
          * - if order_by is set to COST:
          *      Currently group component doesn't support ordering groups by COST.
-         * - if the user is scoped:
-         *      Currently group component doesn't support filtering groups by a specific scope.
          */
         GroupPaginationRequest.GroupOrderBy orderBy = groupPaginationRequest.getOrderBy();
-        if (orderBy == GroupOrderBy.COST
-                || userSessionContext.isUserScoped()) {
+        if (orderBy == GroupOrderBy.COST) {
             List<Grouping> groups = new ArrayList<>();
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(GroupFilter.getDefaultInstance())
@@ -1336,14 +1333,8 @@ public class GroupsService implements IGroupsService {
          * cases:
          * - if order_by is set to COST:
          *      Currently group component doesn't support ordering groups  by COST.
-         * - if scopes are being specified:
-         *      Currently group component doesn't support filtering groups by a specified scope.
-         * - if the user is scoped:
-         *      Same as the previous one.
          */
-        if (paginationRequest.getOrderBy() == SearchOrderBy.COST
-                || !CollectionUtils.isEmpty(scopes)
-                || userSessionContext.isUserScoped()) {
+        if (paginationRequest.getOrderBy() == SearchOrderBy.COST) {
             final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(
                     groupType == null ? GroupType.REGULAR : groupType,
                     filterList, scopes, includeAllGroupClasses, groupOrigin).build();
@@ -1362,44 +1353,49 @@ public class GroupsService implements IGroupsService {
         }
 
         // For all other cases we do a query to group component for paginated results.
-        return (SearchPaginationResponse)requestPaginatedGroupsFromGroupComponent(paginationRequest,
-                GetPaginatedGroupsRequest.newBuilder()
-                        .setGroupFilter(createGroupFilter(
-                                groupType == null ? GroupType.REGULAR : groupType, filterList,
-                                includeAllGroupClasses, groupOrigin, environmentType, cloudType,
-                                groupEntityTypes))
-                        .setPaginationParameters(
-                                paginationMapper.toProtoParams(
-                                        // convert the request to GroupPaginationRequest before
-                                        // converting to proto params so that we get the correct
-                                        // orderBy value
-                                        paginationMapper.searchToGroupPaginationRequest(
-                                                paginationRequest)))
-                        .build());
+        return (SearchPaginationResponse)requestPaginatedGroupsFromGroupComponent(
+                paginationRequest,
+                createGetPaginatedGroupsRequest(paginationRequest, groupType, filterList,
+                        includeAllGroupClasses, groupOrigin, environmentType, cloudType,
+                        groupEntityTypes, scopes));
     }
 
-    private GroupFilter createGroupFilter(
-            @Nonnull GroupType groupType,
+    private GetPaginatedGroupsRequest createGetPaginatedGroupsRequest(
+            final SearchPaginationRequest paginationRequest,
+            @Nullable GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
             boolean includeAllGroupClasses,
             @Nullable Origin groupOrigin,
             @Nullable EnvironmentType environmentType,
             @Nullable CloudType cloudType,
-            @Nullable final Set<String> groupEntityTypes) throws OperationFailedException {
-        GroupFilter.Builder groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType,
-                LogicalOperator.AND, filterList);
-        if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
-            String errorMessage =
-                    String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",
-                            groupType.name());
+            @Nullable final Set<String> groupEntityTypes,
+            @Nullable List<String> scopes)
+            throws OperationFailedException, InvalidOperationException {
+        GetPaginatedGroupsRequest.Builder requestBuilder = GetPaginatedGroupsRequest.newBuilder();
+        final GroupType resolvedGroupType = groupType == null ? GroupType.REGULAR : groupType;
+        GroupFilter.Builder groupFilter = groupFilterMapper.apiFilterToGroupFilter(
+                resolvedGroupType, LogicalOperator.AND, filterList);
+        if (includeAllGroupClasses && resolvedGroupType != GroupType.REGULAR) {
+            String errorMessage = "includeAllGroupClasses flag cannot be set to true for group "
+                    + "type: " + resolvedGroupType.name();
             throw new OperationFailedException(errorMessage);
         }
         // if we are including all subclasses, clear the group type from the filter
         if (includeAllGroupClasses) {
             groupFilter.clearGroupType();
         }
-        // groupOrigin if present will override setting origin filter via scopes equals
-        // USER_GROUP approach.
+        if (scopes != null) {
+            if (scopes.size() == 1 && scopes.get(0).equals(USER_GROUPS)) {
+                // if we are looking for groups created by user, we should also add a origin filter
+                groupFilter.setOriginFilter(
+                        OriginFilter.newBuilder().addOrigin(GroupDTO.Origin.Type.USER));
+            } else {
+                // add scopes to filter resulting groups
+                requestBuilder.addAllScopes(convertScopes(scopes));
+            }
+        }
+        // groupOrigin if present will override setting origin filter via scopes equals USER_GROUP
+        // approach.
         if (groupOrigin != null) {
             groupFilter.setOriginFilter(OriginFilter.newBuilder()
                     .addOrigin(API_ORIGIN_TO_GROUPDTO_ORIGIN.get(groupOrigin)));
@@ -1427,7 +1423,14 @@ public class GroupsService implements IGroupsService {
                 }
             }
         }
-        return groupFilter.build();
+        requestBuilder.setGroupFilter(groupFilter.build());
+        requestBuilder.setPaginationParameters(
+                paginationMapper.toProtoParams(
+                        // convert the request to GroupPaginationRequest before
+                        // converting to proto params so that we get the correct
+                        // orderBy value
+                        paginationMapper.searchToGroupPaginationRequest(paginationRequest)));
+        return requestBuilder.build();
     }
 
     private PaginationResponse requestPaginatedGroupsFromGroupComponent(
