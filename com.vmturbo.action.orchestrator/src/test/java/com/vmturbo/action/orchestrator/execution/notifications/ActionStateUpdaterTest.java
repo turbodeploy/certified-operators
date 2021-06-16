@@ -147,7 +147,7 @@ public class ActionStateUpdaterTest {
     private Action makeTestAction(final long actionId, ActionDTO.ActionSpec actionSpec,
             final long recommendationId) throws UnsupportedActionException {
         final Action testAction =
-                new Action(actionSpec.getRecommendation().toBuilder().setId(actionId).build(), 4,
+                new Action(actionSpec.getRecommendation().toBuilder().setId(actionId).setExecutable(true).build(), 4,
                         actionModeCalculator, recommendationId);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -680,6 +680,7 @@ public class ActionStateUpdaterTest {
     private ActionDTO.ActionSpec createActionSpec(long actionId1, long actionTargetId) {
         return ActionSpec.newBuilder()
             .setRecommendation(ActionDTO.Action.newBuilder()
+                .setExecutable(true)
                 .setId(actionId1)
                 .setDeprecatedImportance(0)
                 .setSupportingLevel(SupportLevel.SUPPORTED)

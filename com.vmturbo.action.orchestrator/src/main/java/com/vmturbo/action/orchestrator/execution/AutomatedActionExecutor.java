@@ -448,9 +448,6 @@ public class AutomatedActionExecutor {
                 .isActiveSchedule() && scheduleOpt.get().getAcceptingUser() != null) {
             isReadyForExecution = true;
         }
-        if (isReadyForExecution && !action.determineExecutability()) {
-            isReadyForExecution = false;
-        }
         return new ActionExecutionReadinessDetails(action, isReadyForExecution,
                 isAutomaticallyAccepted);
     }

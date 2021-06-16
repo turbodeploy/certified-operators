@@ -614,14 +614,6 @@ public class AutomatedActionExecutorTest {
         List<ConditionalFuture> actionFutures =
                 automatedActionExecutor.executeAutomatedFromStore(actionStore);
         assertThat(actionFutures.size(), is(1));
-
-        // Case 2: if action not executable, then no action should be submitted
-        when(testAction.getState()).thenReturn(ActionState.QUEUED);
-        when(testAction.determineExecutability()).thenReturn(false);
-        actionFutures =
-                automatedActionExecutor.executeAutomatedFromStore(actionStore);
-        assertThat(actionFutures.size(), is(0));
-        Mockito.verify(submitter, never()).execute(new ConditionalFuture(mockCallable));
     }
 
     /**
