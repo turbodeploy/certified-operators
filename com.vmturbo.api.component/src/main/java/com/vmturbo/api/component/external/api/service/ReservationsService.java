@@ -29,6 +29,7 @@ import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
+import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
@@ -59,6 +60,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  **/
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final int MINIMUM_PLACEMENT_COUNT = 1;
 
     public static final Set<String> RESERVATION_RELATED_COMMODITIES
             = Stream.of(
@@ -276,20 +279,26 @@ public class ReservationsService implements IReservationsService {
     }
 
     /**
-     * Restrict the maximum placement count. Consider restricting minimum count too when needed.
+     * Restrict the minimum and maximum placement count. Minimum count is 1 by default.
      *
      * @param inputDTO input DTO for reservation request.
-     * @throws OperationFailedException when the placement count is larger than max count.
+     * @throws OperationFailedException when the placement count is larger than max count or less than min count.
      */
     private void validatePlacementCount(@Nonnull final DemandReservationApiInputDTO inputDTO)
             throws OperationFailedException {
         if (inputDTO.getParameters() != null && inputDTO.getParameters()
                 .stream()
-                .anyMatch(dto -> dto.getPlacementParameters().getCount() > maximumPlacementCount)) {
+                        .anyMatch(dto -> placementCountOutOfRange(dto))) {
             throw new OperationFailedException(
-                    "The maximum placement count is " + maximumPlacementCount +
-                            ". Please lower the placement count and try again.");
+                   "The minimum placement count is " + MINIMUM_PLACEMENT_COUNT
+                         + ". The maximum placement count is " + maximumPlacementCount
+                         + ". Please change the placement count and try again.");
         }
+    }
+
+    private boolean placementCountOutOfRange(DemandReservationParametersDTO dto) {
+        final int count = dto.getPlacementParameters().getCount();
+        return count < MINIMUM_PLACEMENT_COUNT || count > maximumPlacementCount;
     }
 
     @Override
