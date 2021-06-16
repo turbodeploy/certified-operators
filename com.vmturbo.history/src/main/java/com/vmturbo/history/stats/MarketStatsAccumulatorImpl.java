@@ -445,11 +445,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                             e);
             }
         }
-        if (historicalUsed.hasHistUtilization()) {
-            // store smoothenedAverageUtil when available.
-            final double utilization = historicalUsed.getHistUtilization() / capacity;
-            tableBuilder.put(HistoryUtilizationType.Smoothed, 0, BigDecimal.valueOf(utilization));
-        }
+
+        // TODO: store smoothed utilization into the hist_utilization table.
         formInsertOrUpdateQueries(entityId,
                 providerId,
                 commodityKey,
