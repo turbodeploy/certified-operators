@@ -17,6 +17,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
@@ -55,12 +57,16 @@ public class SQLCloudCommitmentUtilizationStore implements CloudCommitmentUtiliz
 
         utilizationBucketsByGranularity.asMap().forEach((granularity, buckets) -> {
 
-            logger.info("Persisting {} utilization buckets to the {} table", buckets::size, granularity::toString);
+            try {
+                logger.info("Persisting {} utilization buckets to the {} table", buckets::size, granularity::toString);
 
-            final GranularTableStore<?, ?> granularTableStore =
-                    GranularTableStore.createTableStore(granularity, dslContext);
+                final GranularTableStore<?, ?> granularTableStore =
+                        GranularTableStore.createTableStore(granularity, dslContext);
 
-            buckets.forEach(granularTableStore::persistDataBucket);
+                buckets.forEach(granularTableStore::persistDataBucket);
+            } catch (NotImplementedException e) {
+                logger.warn("Ignoring utilization buckets for granularity {}", granularity, e);
+            }
 
         });
 
