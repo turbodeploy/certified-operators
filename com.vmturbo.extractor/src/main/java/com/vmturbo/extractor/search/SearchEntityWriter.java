@@ -274,6 +274,21 @@ public class SearchEntityWriter extends TopologyWriterBase {
         }
 
         /**
+         * Constructor for creating a wrapper object for entity record.
+         *
+         * @param oid entity OID
+         * @param record the partial record for an entity to be sent to database
+         * @param attrs attrs for the jsonb column in this record
+         */
+        public PartialRecordInfo(long oid, Record record, Map<String, Object> attrs) {
+            this.oid = oid;
+            this.record = record;
+            this.attrs = attrs;
+            this.entityType = -1;
+            this.groupType = null;
+        }
+
+        /**
          * Format attrs data, if any, as JSON and store in record.
          */
         public void finalizeAttrs() {

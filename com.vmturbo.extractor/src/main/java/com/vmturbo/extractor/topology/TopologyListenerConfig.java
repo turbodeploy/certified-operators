@@ -439,6 +439,7 @@ public class TopologyListenerConfig {
                 clusterStatsFetcherFactory(),
                 topDownCostFetcherFactory(),
                 bottomUpCostFetcherFactory(),
+                targetCache(),
                 extractorGlobalConfig.featureFlags());
     }
 

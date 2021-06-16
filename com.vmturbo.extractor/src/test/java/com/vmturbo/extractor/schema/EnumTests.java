@@ -6,6 +6,7 @@ import static com.vmturbo.extractor.schema.enums.EntityType.GROUP;
 import static com.vmturbo.extractor.schema.enums.EntityType.K8S_CLUSTER;
 import static com.vmturbo.extractor.schema.enums.EntityType.RESOURCE_GROUP;
 import static com.vmturbo.extractor.schema.enums.EntityType.STORAGE_CLUSTER;
+import static com.vmturbo.extractor.schema.enums.EntityType.TARGET;
 import static com.vmturbo.extractor.schema.enums.EntityType._NONE_;
 import static com.vmturbo.extractor.schema.enums.MetricType.CPU_HEADROOM;
 import static com.vmturbo.extractor.schema.enums.MetricType.CPU_READY;
@@ -63,7 +64,7 @@ public class EnumTests {
 
     private static final Set<EntityType> OK_EXTRA_ENTITY_TYPES =
             ImmutableSet.of(GROUP, RESOURCE_GROUP, COMPUTE_CLUSTER, K8S_CLUSTER, STORAGE_CLUSTER,
-                    BILLING_FAMILY, _NONE_);
+                    BILLING_FAMILY, _NONE_, TARGET);
     private static final Set<EntityDTO.EntityType> OK_MISSING_ENTITY_TYPES =
             ImmutableSet.of(EntityDTO.EntityType.UNKNOWN);
 
