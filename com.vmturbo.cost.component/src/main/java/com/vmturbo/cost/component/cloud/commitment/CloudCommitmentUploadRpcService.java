@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.UploadCloudCommitmentDataRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.UploadCloudCommitmentDataResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentUploadServiceGrpc.CloudCommitmentUploadServiceImplBase;
+import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore;
 
 /**
@@ -26,12 +27,17 @@ public class CloudCommitmentUploadRpcService extends CloudCommitmentUploadServic
 
     private final CloudCommitmentUtilizationStore cloudCommitmentUtilizationStore;
 
+    private final CloudCommitmentCoverageStore cloudCommitmentCoverageStore;
+
     /**
      * Constructs a new {@link CloudCommitmentUploadRpcService} instance.
+     * @param cloudCommitmentCoverageStore The cloud commitment coverage store.
      * @param cloudCommitmentUtilizationStore The cloud commitment utilization store.
      */
-    public CloudCommitmentUploadRpcService(@Nonnull CloudCommitmentUtilizationStore cloudCommitmentUtilizationStore) {
+    public CloudCommitmentUploadRpcService(@Nonnull CloudCommitmentUtilizationStore cloudCommitmentUtilizationStore,
+                                           @Nonnull CloudCommitmentCoverageStore cloudCommitmentCoverageStore) {
         this.cloudCommitmentUtilizationStore = Objects.requireNonNull(cloudCommitmentUtilizationStore);
+        this.cloudCommitmentCoverageStore = Objects.requireNonNull(cloudCommitmentCoverageStore);
     }
 
     /**
@@ -46,8 +52,19 @@ public class CloudCommitmentUploadRpcService extends CloudCommitmentUploadServic
         try {
             final Stopwatch stopwatch = Stopwatch.createStarted();
 
-            cloudCommitmentUtilizationStore.persistUtilizationSamples(
-                    request.getCloudCommitmentData().getUtilizationDataList());
+            try {
+                cloudCommitmentUtilizationStore.persistUtilizationSamples(
+                        request.getCloudCommitmentData().getUtilizationDataList());
+            } catch (Exception e) {
+                logger.error("Error in persisting cloud commitment utilization data", e);
+            }
+
+            try {
+                cloudCommitmentCoverageStore.persistCoverageSamples(
+                        request.getCloudCommitmentData().getCoverageDataList());
+            } catch (Exception e) {
+                logger.error("Error in persisting cloud commitment coverage data", e);
+            }
 
             logger.info("Persisted cloud commitment data in {}", stopwatch);
 
