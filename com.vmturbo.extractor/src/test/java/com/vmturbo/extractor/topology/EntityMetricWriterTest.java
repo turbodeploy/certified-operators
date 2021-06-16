@@ -130,8 +130,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Tests of EntityMetricWriter.
@@ -157,6 +162,8 @@ public class EntityMetricWriterTest {
     private ScopeManager scopeManager;
     private DataExtractionFactory dataExtractionFactory;
     private HashedDataManager fileTableManager;
+    private final ThinTargetInfo target1 = buildTarget(1000L, ProbeCategory.CLOUD_MANAGEMENT.getCategory(),
+            ProbeCategory.PUBLIC_CLOUD.getCategory(), SDKProbeType.AWS.getProbeType(), "AWS Target");
 
     /**
      * Set up for tests.
@@ -222,6 +229,24 @@ public class EntityMetricWriterTest {
         doAnswer(i -> allGroups.stream()).when(dataProvider).getAllGroups();
         LongSet relatedEntities = new LongOpenHashSet();
         doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
+
+        doAnswer(invocation -> Stream.of(1000L)).when(dataProvider).getDiscoveryTargets(anyLong());
+        doAnswer(invocation -> Stream.of(target1)).when(dataProvider).getAllTargets();
+    }
+
+    private ThinTargetInfo buildTarget(Long oid, String category, String uiCategory,
+            String probeType, String displayName) {
+        return ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(category)
+                        .uiCategory(uiCategory)
+                        .type(probeType)
+                        .oid(oid)
+                        .build())
+                .displayName(displayName)
+                .oid(oid)
+                .isHidden(false)
+                .build();
     }
 
     private WriterConfig getWriteConfig(final List<Integer> commodityWhitelist,
@@ -261,11 +286,12 @@ public class EntityMetricWriterTest {
         assertThat(n, is(2));
         // We didn't have any buys or sells in our entities
         assertThat(metricInsertCapture, is(empty()));
-        // We had two entities total
-        assertThat(entitiesUpsertCapture.size(), is(2));
+        // We had two entities total, and there is a target which is also represented as an entity
+        // in the entity table. So we expect entity count is 3.
+        assertThat(entitiesUpsertCapture.size(), is(3));
         final Map<Long, Record> recordMap = entitiesUpsertCapture.stream()
                 .collect(Collectors.toMap(r -> r.get(ENTITY_OID_AS_OID), r -> r));
-        assertThat(recordMap.keySet(), containsInAnyOrder(vm.getOid(), pm.getOid()));
+        assertThat(recordMap.keySet(), containsInAnyOrder(vm.getOid(), pm.getOid(), target1.oid()));
         // tags
         Map<String, List<String>> tags = (Map<String, List<String>>)objectMapper.readValue(
                 recordMap.get(vm.getOid()).get(ATTRS).toString(), Map.class)

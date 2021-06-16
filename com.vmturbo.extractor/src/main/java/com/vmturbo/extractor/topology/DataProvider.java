@@ -42,6 +42,9 @@ import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory.TopDownCostData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * The class which is responsible for fetching data from other components and provides interfaces
@@ -67,16 +70,19 @@ public class DataProvider {
     private final TopDownCostFetcherFactory topDownCostFetcherFactory;
     private final BottomUpCostFetcherFactory bottomUpCostFetcherFactory;
     private final ExtractorFeatureFlags extractorFeatureFlags;
+    private final ThinTargetCache targetCache;
 
     DataProvider(GroupServiceBlockingStub groupService,
             ClusterStatsFetcherFactory clusterStatsFetcherFactory,
             TopDownCostFetcherFactory topDownCostFetcherFactory,
             BottomUpCostFetcherFactory bottomUpCostFetcherFactory,
+            ThinTargetCache targetCache,
             ExtractorFeatureFlags extractorFeatureFlags) {
         this.groupService = groupService;
         this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
         this.topDownCostFetcherFactory = topDownCostFetcherFactory;
         this.bottomUpCostFetcherFactory = bottomUpCostFetcherFactory;
+        this.targetCache = targetCache;
         this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
@@ -234,6 +240,15 @@ public class DataProvider {
         return groupData.getLeafEntityToGroups().values().stream()
                 .flatMap(Collection::stream)
                 .distinct();
+    }
+
+    /**
+     * Get all targets.
+     *
+     * @return all targets in a stream.
+     */
+    public Stream<ThinTargetInfo> getAllTargets() {
+        return targetCache.getAllTargets().stream();
     }
 
     /**
@@ -534,6 +549,21 @@ public class DataProvider {
      */
     public Optional<Integer> getEntityType(long entityOid) {
         return graph.getEntity(entityOid).map(SupplyChainEntity::getEntityType);
+    }
+
+    /**
+     * Get a stream of target OIDs that discovered a given entity.
+     *
+     * @param entityOid an entity OID
+     * @return stream of target OIDs
+     */
+    @Nonnull
+    public Stream<Long> getDiscoveryTargets(long entityOid) {
+        TopologyGraphEntity<SupplyChainEntity> entity = graph.getEntity(entityOid).orElse(null);
+        if (entity != null) {
+            return entity.getDiscoveringTargetIds();
+        }
+        return Stream.empty();
     }
 
     /**

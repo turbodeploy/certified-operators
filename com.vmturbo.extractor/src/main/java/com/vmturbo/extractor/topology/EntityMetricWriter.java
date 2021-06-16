@@ -82,6 +82,7 @@ import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher.PatchCase;
+import com.vmturbo.extractor.patchers.TargetPatcher;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.MetricType;
@@ -135,6 +136,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final Long2ObjectMap<List<Record>> filesByStorageId = new Long2ObjectOpenHashMap<>();
     private final PrimitiveFieldsOnTEDPatcher tedPatcher;
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher;
+    private final TargetPatcher targetPatcher;
     private final DataPack<Long> oidPack;
     private final DataExtractionFactory dataExtractionFactory;
     private final ScopeManager scopeManager;
@@ -165,6 +167,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         TargetsExtractor targetsExtractor = dataExtractionFactory.newTargetsExtractor();
         this.tedPatcher = new PrimitiveFieldsOnTEDPatcher(PatchCase.REPORTING, targetsExtractor);
         this.groupPatcher = new GroupPrimitiveFieldsOnGroupingPatcher(PatchCase.REPORTING, targetsExtractor);
+        this.targetPatcher = new TargetPatcher();
     }
 
     @Override
@@ -499,6 +502,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         updateScopes(dataProvider);
         // create entity records for all groups
         recordGroupsAsEntities(dataProvider);
+        // create entity records for all targets
+        recordTargetAsEntities(dataProvider);
         // now write everything out!
         try (TableWriter entitiesUpserter = ENTITY_TABLE.open(
                 getEntityUpsertSink(upsertConflicts, upsertUpdates),
@@ -525,7 +530,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final RelatedEntitiesExtractor relatedEntitiesExtractor = extractorOptional.get();
 
         scopeManager.startTopology(topologyInfo);
-        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), relatedEntitiesExtractor));
+        entityRecords.forEach(r -> updateScope(r.get(ENTITY_OID_AS_OID), relatedEntitiesExtractor,
+                dataProvider));
 
         // Scope manager needs to know the types of all entities and groups appearing in
         // current topology, so we construct the needed map here.
@@ -541,6 +547,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // this happens naturally for true entities due to supply chain calculation
         dataProvider.getAllGroups().forEach(g ->
                 scopeManager.addInCurrentScope(g.getId(), g.getId()));
+
+        // Set entity types for targets.
+        dataProvider.getAllTargets().forEach(t -> entityTypes.put(oidPack.toIndex(t.oid()),
+                EntityType.TARGET.ordinal()));
+
         scopeManager.finishTopology(entityTypes);
     }
 
@@ -571,6 +582,20 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     final PartialRecordInfo rec = new PartialRecordInfo(
                             group.getId(), group.getDefinition().getType().getNumber(), r, new HashMap<>());
                     groupPatcher.patch(rec, group);
+                    rec.finalizeAttrs();
+                    entityRecords.add(r);
+                });
+    }
+
+    private void recordTargetAsEntities(final DataProvider dataProvider) {
+        logger.info("Creating entity records for targets.");
+        dataProvider.getAllTargets()
+                .forEach(target -> {
+                    logger.debug("Creating record for target {}", target.oid());
+                    Record r = new Record(ENTITY_TABLE);
+                    final PartialRecordInfo rec = new PartialRecordInfo(
+                            target.oid(), r, new HashMap<>());
+                    targetPatcher.patch(rec, target);
                     rec.finalizeAttrs();
                     entityRecords.add(r);
                 });
@@ -607,7 +632,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private Record createClusterRecord(long oid, StatRecord record, long date) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         Double capacity = record.hasCapacity() ? (double)record.getCapacity().getAvg() : null;
-        Double current = record.hasCapacity() && record.hasUsed()
+        Double current = record.hasCapacity() && record.hasUsed() && capacity != null
                 ? capacity - record.getUsed().getAvg() : null;
         Double utilization = null;
         if (capacity != null && current != null) {
@@ -625,7 +650,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         return r;
     }
 
-    private void updateScope(long oid, RelatedEntitiesExtractor relatedEntitiesExtractor) {
+    private void updateScope(long oid, RelatedEntitiesExtractor relatedEntitiesExtractor,
+            DataProvider dataProvider) {
         // first collect oids for entities related to this one via supply chain
         final LongSet entitiesInScope = relatedEntitiesExtractor.getRelatedEntitiesByType(oid).values().stream()
                 .flatMap(Collection::stream)
@@ -640,8 +666,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
         logger.debug("Adding groups to scope for entity {}: {}", () -> oid, () -> groupsInScope);
         // groups are added symmetrically to the entity scope
         scopeManager.addInCurrentScope(oid, true, groupsInScope.toLongArray());
-        LongSet result = new LongOpenHashSet(entitiesInScope);
-        result.addAll(groupsInScope);
+
+        // Add entity to target relationships to entity scope symmetrically.
+        LongSet targetIds = dataProvider.getDiscoveryTargets(oid)
+                .mapToLong(Long::longValue)
+                .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
+        scopeManager.addInCurrentScope(oid, true, targetIds.toLongArray());
     }
 
     private void writeMetricRecords(TableWriter tableWriter) {
