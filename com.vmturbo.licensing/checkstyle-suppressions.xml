@@ -11,10 +11,8 @@ The goal is for the module to become - and remain - clear of violations.
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]License.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]CWOMLicenseEdition.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]LicenseDeserializer.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]LicenseUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]TurboEncryptionUtil.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]LicenseDeserializerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]LicenseFeatureFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]licensing[/\\]utils[/\\]LicenseUtilTest.java" />
 </suppressions>

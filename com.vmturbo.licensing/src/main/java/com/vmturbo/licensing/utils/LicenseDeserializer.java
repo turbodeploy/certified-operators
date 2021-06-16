@@ -2,18 +2,14 @@ package com.vmturbo.licensing.utils;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.xml.parsers.ParserConfigurationException;
@@ -22,11 +18,8 @@ import javax.xml.parsers.SAXParserFactory;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.cisco.magellan.ciscoInfo;
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
-import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.macrovision.flexlm.FlexlmException;
 import com.macrovision.flexlm.lictext.FeatureLine;
 import com.macrovision.flexlm.lictext.LicenseCertificate;
@@ -43,7 +36,6 @@ import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 import org.xml.sax.XMLReader;
 
-import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -52,6 +44,9 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicens
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 
+/**
+ * A class capable of deserializing various types of licenses to a common DTO format.
+ */
 public class LicenseDeserializer {
 
     private static final Logger logger = LogManager.getLogger(LicenseDeserializer.class);
@@ -64,7 +59,15 @@ public class LicenseDeserializer {
             "http://xml.org/sax/features/external-general-entities";
 
     /**
-     * Deserialize three flavors of licenses to LicenseApiDTO.
+     * A constructor declaration to suppress the generation of default, public constructor and
+     * prevent instantiations of this utility class as required by Checkstyle.
+     */
+    private LicenseDeserializer() {
+        // empty body
+    }
+
+    /**
+     * Deserialize 4 flavors of licenses to LicenseDTO.
      * - turbo license xml v1
      * - turbo license xml v2
      * - CWOM license flexlm
@@ -116,7 +119,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Deserialize Turbo license XML to LicenseXmlDTO
+     * Deserialize Turbo license XML to LicenseXmlDTO.
      *
      * @param xml The XML license string.
      * @return The {@link TurboLicense}.
@@ -128,6 +131,13 @@ public class LicenseDeserializer {
             TurboLicense.Builder bldr = TurboLicense.newBuilder().setLicenseOwner(
                     xmlDto.getFirstName() + " " + xmlDto.getLastName());
             setIfNotNull(xmlDto.getEmail(), bldr::setEmail);
+            // Using a default value instead of leaving the field unset here will allow us to
+            // distinguish between cases where a newly installed license doesn't have the customer
+            // ID vs cases where a previously saved DTO that didn't have the ID is migrated.
+            // This customer ID is only intended to be sent as-is with telemetry data.
+            bldr.setCustomerId(xmlDto.getCustomerId() == null
+                ? "missing from license file"
+                : xmlDto.getCustomerId());
             setIfNotNull(xmlDto.getExpirationDate(), bldr::setExpirationDate);
             setIfNotNull(xmlDto.getFeatures(), bldr::addAllFeatures);
             setIfNotNull(xmlDto.getCountedEntity(), e -> bldr.setCountedEntity(e.name()));
@@ -149,7 +159,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Deserialize CWOM license to a LicenseCertificate
+     * Deserialize CWOM license to a LicenseCertificate.
      *
      * @param licenseData The license string.
      * @return The {@link TurboLicense}.
@@ -158,7 +168,7 @@ public class LicenseDeserializer {
     private static TurboLicense deserializeCWOMLicenseToTurboLicense(String licenseData) {
         try {
             LicenseCertificate licenseCertificate = new LicenseCertificate(new StringReader(licenseData), null, new ciscoInfo());
-            FeatureLine featureLine = (FeatureLine) licenseCertificate.getFeatures().getFirst();
+            FeatureLine featureLine = (FeatureLine)licenseCertificate.getFeatures().getFirst();
 
             Optional<CWOMLicenseEdition> cwomLicenseEdition = CWOMLicenseEdition.valueOfFeatureName(featureLine.getName());
 
@@ -200,14 +210,17 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Validate CWOM license certificates
+     * Validate CWOM license certificates.
+     *
+     * @param licenseCertificate The license certificate to validate.
+     * @return The reason why the license failed validation.
      */
     @SuppressWarnings("unchecked")
     private static ErrorReason validateCWOMLicenseCertificate(LicenseCertificate licenseCertificate) {
         if (!licenseCertificate.getElementExceptions().isEmpty()) {
             licenseCertificate.getElementExceptions().stream()
                     .filter(elementException -> elementException instanceof FlexlmException)
-                    .map(e -> ((FlexlmException) e).getBasicMessage())
+                    .map(e -> ((FlexlmException)e).getBasicMessage())
                     .forEach(logger::warn);
             return ErrorReason.INVALID_CONTENT_TYPE;
         }
@@ -224,7 +237,10 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Determines if the License Data Provided by the user of a FlexLM License.
+     * Determines if the License Data Provided by the user is a FlexLM License.
+     *
+     * @param licenseData The license contents to check.
+     * @return {@code true} if the provided license is a FlexLM license.
      */
     static boolean isLicenseGeneratedByFlexlm(String licenseData) {
         String trimmedData = StringUtils.trimToEmpty(licenseData);
@@ -241,7 +257,10 @@ public class LicenseDeserializer {
     }
 
     /**
-     * Determines if the text is well formed XML
+     * Determines if the text is well formed XML.
+     *
+     * @param text The string to check.
+     * @return {@code true} if the provided string is well-formed XML.
      */
     static boolean isWellFormedXML(String text) {
         try {
@@ -275,7 +294,7 @@ public class LicenseDeserializer {
     }
 
     /**
-     * SAX Error handler to capture xml deserialization errors
+     * SAX Error handler to capture xml deserialization errors.
      */
     private static class SimpleErrorHandler implements ErrorHandler {
         private boolean hasError;
@@ -297,151 +316,5 @@ public class LicenseDeserializer {
         }
     }
 
-    /**
-     * DTO used by jackson-xml to deserialize turbo xml v1 and v2 licenses
-     * Must have public access to be used by the XmlMapper
-     */
-    public static class LicenseXmlDTO {
-
-        private String firstName;
-        private String lastName;
-        private String email;
-        private CountedEntity countedEntity;
-        private int numSockets = 0;
-        private int vmTotal = 0;
-        private String expirationDate;
-        private String lockCode;
-        private String edition;
-
-        private List<FeatureNode> featureNodes = new ArrayList<>();
-
-        @JacksonXmlProperty(localName = "first-name")
-        public String getFirstName() {
-            return firstName;
-        }
-
-        public LicenseXmlDTO setFirstName(final String firstName) {
-            this.firstName = firstName;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "last-name")
-        public String getLastName() {
-            return lastName;
-        }
-
-        public LicenseXmlDTO setLastName(final String lastName) {
-            this.lastName = lastName;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "email")
-        public String getEmail() {
-            return email;
-        }
-
-        public LicenseXmlDTO setEmail(final String email) {
-            this.email = email;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "num-sockets")
-        public int getNumSockets() {
-            return numSockets;
-        }
-
-        @JacksonXmlProperty(localName = "vm-total")
-        public int getVmTotal() {
-            return vmTotal;
-        }
-
-        public LicenseXmlDTO setVmTotal(final int total) {
-            this.vmTotal = total;
-            this.countedEntity = CountedEntity.VM;
-            return this;
-        }
-
-        public int getNumEntities() {
-            return Math.max(numSockets, vmTotal);
-        }
-
-        @JacksonXmlProperty(localName = "edition")
-        public String getEdition() {
-            return edition;
-        }
-
-        public LicenseXmlDTO setEdition(final String edition) {
-            this.edition = edition;
-            return this;
-        }
-
-        public LicenseXmlDTO setNumSockets(final int numSockets) {
-            this.numSockets = numSockets;
-            this.countedEntity = CountedEntity.SOCKET;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "expiration-date")
-        public String getExpirationDate() {
-            return expirationDate;
-        }
-
-        public LicenseXmlDTO setExpirationDate(final String expirationDate) {
-            this.expirationDate = expirationDate;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "lock-code")
-        public String getLockCode() {
-            return lockCode;
-        }
-
-        public LicenseXmlDTO setLockCode(final String lockCode) {
-            this.lockCode = lockCode;
-            return this;
-        }
-
-        @JacksonXmlProperty(localName = "feature")
-        @JacksonXmlElementWrapper(useWrapping = false)
-        public List<FeatureNode> getFeatureNodes() {
-            return featureNodes;
-        }
-
-        public LicenseXmlDTO setFeatureNodes(List<FeatureNode> featureNodes) {
-            this.featureNodes = featureNodes;
-            return this;
-        }
-
-        public SortedSet<String> getFeatures() {
-            return getFeatureNodes().stream()
-                    .map(FeatureNode::getFeatureName)
-                    .collect(Collectors.toCollection(TreeSet::new));
-        }
-
-        public LicenseXmlDTO setFeatures(List<String> features) {
-            featureNodes = features.stream()
-                    .map(FeatureNode::new)
-                    .collect(Collectors.toList());
-            return this;
-        }
-
-        public CountedEntity getCountedEntity() {
-            return countedEntity;
-        }
-
-        public static class FeatureNode {
-            private final String featureName;
-
-            @JsonCreator()
-            public FeatureNode(@JacksonXmlProperty(isAttribute = true, localName = "FeatureName") String featureName) {
-                this.featureName = featureName;
-            }
-
-            public String getFeatureName() {
-                return featureName;
-            }
-        }
-
-    }
 }
 
