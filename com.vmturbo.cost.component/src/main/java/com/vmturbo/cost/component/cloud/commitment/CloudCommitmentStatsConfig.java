@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentStatsServiceController;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentUploadServiceController;
+import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
+import com.vmturbo.cost.component.cloud.commitment.coverage.SQLCloudCommitmentCoverageStore;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore;
 import com.vmturbo.cost.component.cloud.commitment.utilization.SQLCloudCommitmentUtilizationStore;
 
@@ -38,13 +40,25 @@ public class CloudCommitmentStatsConfig {
     }
 
     /**
+     * A bean for {@link CloudCommitmentCoverageStore}.
+     * @return A bean for {@link CloudCommitmentCoverageStore}.
+     */
+    @Nonnull
+    @Bean
+    public CloudCommitmentCoverageStore cloudCommitmentCoverageStore() {
+        return new SQLCloudCommitmentCoverageStore(dslContext);
+    }
+
+    /**
      * A bean for {@link CloudCommitmentUploadRpcService}.
      * @return A bean for {@link CloudCommitmentUploadRpcService}.
      */
     @Nonnull
     @Bean
     public CloudCommitmentUploadRpcService cloudCommitmentUploadRpcService() {
-        return new CloudCommitmentUploadRpcService(cloudCommitmentUtilizationStore());
+        return new CloudCommitmentUploadRpcService(
+                cloudCommitmentUtilizationStore(),
+                cloudCommitmentCoverageStore());
     }
 
     /**
@@ -54,7 +68,10 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     public CloudCommitmentStatsRpcService cloudCommitmentStatsRpcService() {
-        return new CloudCommitmentStatsRpcService(cloudCommitmentUtilizationStore(), maxStatRecordsPerChunk);
+        return new CloudCommitmentStatsRpcService(
+                cloudCommitmentCoverageStore(),
+                cloudCommitmentUtilizationStore(),
+                maxStatRecordsPerChunk);
     }
 
     /**
