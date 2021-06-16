@@ -101,6 +101,18 @@ while True:
             }))
             if not customer_domain:
                 customer_domain = "unlicensed"
+
+            customer_id = '_'.join(sorted({
+                license_dto['turbo']['customerId'].strip()
+                for license_dto in response.json()['response']['licenseDTO']
+                if 'turbo' in license_dto  # it's the new DTO format
+                   and license_dto['turbo'] is not None  # it's a Turbonomic license
+                   and 'customerId' in license_dto['turbo']  # it has customer_id field
+                   and datetime.today() <= datetime.strptime(license_dto['turbo']['expirationDate'],
+                                                             '%Y-%m-%d')  # it has not expired
+            }))
+            if not customer_id:
+                customer_id = "000000"
         except (requests.RequestException, OSError, ValueError) as error:
             print(datetime.now(),
                   "WARNING: Can't get licence information from auth. Using old values. Cause:",
