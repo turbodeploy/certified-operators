@@ -32,7 +32,7 @@ import org.jooq.Table;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
@@ -48,6 +48,7 @@ import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUt
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore.CloudCommitmentUtilizationStatsFilter;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.DailyCloudCommitmentUtilizationRecord;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * A store specific to a single {@link CloudStatGranularity} of a cloud commitment utilization table. This
@@ -327,16 +328,16 @@ class GranularTableStore<
                 .setSnapshotDate(sampleTime.toEpochMilli())
                 .setSampleCount(sampleCount)
                 .setValues(StatValue.newBuilder()
-                        .setMin(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, minUtilizationAmount))
-                        .setMax(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, maxUtilizationAmount))
-                        .setTotal(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, sumUtilizationAmount))
-                        .setAvg(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, avgUtilizationAmount.doubleValue()))
+                        .setMin(buildCommitmentAmount(coverageType, coverageSubType, minUtilizationAmount))
+                        .setMax(buildCommitmentAmount(coverageType, coverageSubType, maxUtilizationAmount))
+                        .setTotal(buildCommitmentAmount(coverageType, coverageSubType, sumUtilizationAmount))
+                        .setAvg(buildCommitmentAmount(coverageType, coverageSubType, avgUtilizationAmount.doubleValue()))
                         .build())
                 .setCapacity(StatValue.newBuilder()
-                        .setMin(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, minCommitmentCapacity))
-                        .setMax(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, maxCommitmentCapacity))
-                        .setTotal(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, sumCommitmentCapacity))
-                        .setAvg(CloudCommitmentUtils.buildCommitmentAmount(coverageType, coverageSubType, avgCommitmentCapacity.doubleValue()))
+                        .setMin(buildCommitmentAmount(coverageType, coverageSubType, minCommitmentCapacity))
+                        .setMax(buildCommitmentAmount(coverageType, coverageSubType, maxCommitmentCapacity))
+                        .setTotal(buildCommitmentAmount(coverageType, coverageSubType, sumCommitmentCapacity))
+                        .setAvg(buildCommitmentAmount(coverageType, coverageSubType, avgCommitmentCapacity.doubleValue()))
                         .build());
 
         // Add scoping information
@@ -367,15 +368,32 @@ class GranularTableStore<
                 .setAccountId(record.accountId())
                 .setRegionId(record.regionId())
                 .setServiceProviderId(record.serviceProviderId())
-                .setUsed(CloudCommitmentUtils.buildCommitmentAmount(
+                .setUsed(buildCommitmentAmount(
                         record.coverageType(),
                         record.coverageSubType(),
                         record.utilizationAmount()))
-                .setCapacity(CloudCommitmentUtils.buildCommitmentAmount(
+                .setCapacity(buildCommitmentAmount(
                         record.coverageType(),
                         record.coverageSubType(),
                         record.capacity()))
                 .build();
+    }
+
+    private CloudCommitmentAmount buildCommitmentAmount(@Nonnull CloudCommitmentCoverageType coverageType,
+                                                        int coverageSubType,
+                                                        double amount) {
+        if (coverageType == CloudCommitmentCoverageType.SPEND_COMMITMENT) {
+
+            return CloudCommitmentAmount.newBuilder()
+                    .setAmount(CurrencyAmount.newBuilder()
+                            .setCurrency(coverageSubType)
+                            .setAmount(amount))
+                    .build();
+        } else { // assume coupons for now
+            return CloudCommitmentAmount.newBuilder()
+                    .setCoupons(amount)
+                    .build();
+        }
     }
 
     private boolean isValidDataPoint(@Nonnull CloudCommitmentDataPoint dataPoint) {

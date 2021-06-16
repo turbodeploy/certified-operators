@@ -90,41 +90,6 @@ message GetHistoricalCloudCommitmentUtilizationResponse {
     repeated CloudCommitmentStatRecord commitment_stat_record_chunk = 1;
 }
 
-message GetHistoricalCommitmentCoverageStatsRequest {
-
-    // The start_time (inclusive) and end_time (exclusive), represented as milliseconds since epoch in UTC,
-    // are the window in which utilization stats should be queried. If start_time is not set, stats
-    // since epoch are returned. If end_time is not set, stats up until current are returned.
-    optional uint64 start_time = 1;
-    optional uint64 end_time = 2;
-
-    optional cloud_common.CloudStatGranularity granularity = 4 [default = HOURLY];
-
-    // filters become necessary when scopes other than global are supported
-    // Region filter representing the purchasing region. Therefore, global cloud
-    // commitment utilization data will not be returned when a specific filter is
-    // requested
-    optional cloud_common.RegionFilter region_filter = 5;
-    optional cloud_common.AccountFilter account_filter = 6;
-    optional cloud_common.ServiceProviderFilter service_provider_filter = 7;
-
-    // returned stats will always be grouped by the timestamp
-    repeated GroupByCondition group_by = 8;
-
-    // The number of stat records to return per chunk. The max value is 100.
-    optional uint32 chunk_size = 9 [default = 100];
-
-    enum GroupByCondition {
-        ACCOUNT = 1;
-        REGION = 2;
-        SERVICE_PROVIDER = 3;
-    }
-}
-
-message GetHistoricalCommitmentCoverageStatsResponse {
-    repeated CloudCommitmentStatRecord commitment_stat_record_chunk = 1;
-}
-
 message CloudCommitmentStatRecord {
     optional int64 snapshot_date = 1;
 
@@ -139,9 +104,9 @@ message CloudCommitmentStatRecord {
     optional int64 entity_id = 6;
     // service to which the commitment applies
     optional int64 cloud_service_id = 7;
-    // region to which the commitment applies or is purchased within
+    // region to which the commitment applies
     optional int64 region_id = 8;
-    // account to which the commitment applies (if coverage) or is purchased within (if utilization)
+
     optional int64 account_id = 9;
 
     optional int64 service_provider_id = 10;
@@ -161,7 +126,4 @@ service CloudCommitmentUploadService {
 service CloudCommitmentStatsService {
     rpc GetHistoricalCommitmentUtilization(GetHistoricalCloudCommitmentUtilizationRequest)
     returns (stream GetHistoricalCloudCommitmentUtilizationResponse);
-
-    rpc GetHistoricalCommitmentCoverageStats(GetHistoricalCommitmentCoverageStatsRequest)
-    returns (stream GetHistoricalCommitmentCoverageStatsResponse);
 }

@@ -135,7 +135,6 @@ public class EntityUptimeSpringConfig {
 
         logger.info("Entity uptime settings: {}",
                 new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE)
-                        .append("isUptimeEnabled", isUptimeEnabled)
                         .append("uptimeFromCreation", uptimeFromCreation)
                         .append("uptimeIntervalAmount", uptimeIntervalAmount)
                         .append("uptimeIntervalUnit", uptimeIntervalUnit)
