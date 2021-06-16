@@ -99,10 +99,10 @@ public class RpcConfig {
     private boolean grpcDebugServicesEnabled;
 
     /**
-     * Flag that enables all action uuids come from the stable impact oid instead of the
+     * Flag that enables all action uuids to come from the stable oid instead of the
      * unstable action instance id.
      */
-    @Value("${useStableActionIdAsUuid:false")
+    @Value("${useStableActionIdAsUuid:false}")
     private boolean useStableActionIdAsUuid;
 
     /**
