@@ -1195,7 +1195,9 @@ public class EntityStore {
                         EntityType.VIRTUAL_MACHINE,
                         ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase(),
                         EntityType.VIRTUAL_MACHINE,
-                        ProbeCategory.CLOUD_NATIVE.getCategoryInUpperCase(), EntityType.NAMESPACE);
+                        ProbeCategory.CLOUD_NATIVE.getCategoryInUpperCase(), EntityType.NAMESPACE,
+                        ProbeCategory.BILLING.getCategoryInUpperCase(), EntityType.BUSINESS_ACCOUNT
+                );
 
         private static final String KUBERNETES = "Kubernetes";
 
