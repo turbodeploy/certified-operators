@@ -1,6 +1,8 @@
 # When updating grafana versions, copy the "defaults.ini" of the new version into the
 # docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
 ARG grafana_version=7.3.8
+# Not all image renderer versions work with all versions of grafana.
+ARG grafana_img_renderer_version=v2.1.1
 
 FROM registry.access.redhat.com/ubi8 AS builder
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
@@ -18,6 +20,7 @@ FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 ARG grafana_version
+ARG grafana_img_renderer_version
 
 # Required OpenShift Labels
 LABEL name="grafana" \
@@ -56,7 +59,7 @@ RUN dnf search chrom && \
 RUN python3 -m pip install --upgrade pip
 RUN $GF_PATHS_HOME/bin/grafana-cli \
     --pluginsDir "$GF_PATHS_PLUGINS" \
-    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/latest/download/plugin-linux-x64-glibc-no-chromium.zip \
+    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc-no-chromium.zip \
     plugins install grafana-image-renderer
 
 COPY rsyslog.conf /etc

@@ -501,7 +501,7 @@ public class DbEndpoint {
                 adapter.init();
                 endpoint.markComplete(adapter);
             } catch (Exception e) {
-                logger.warn("Failed to create {}. Error: {}", endpoint, e.getMessage());
+                logger.warn("Failed to create {}.", endpoint, e);
                 endpoint.markComplete(e);
             }
         }

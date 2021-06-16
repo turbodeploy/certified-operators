@@ -13,6 +13,16 @@
     <artifactId>com.vmturbo.mediation.webhook</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <pre-integration-test-phase>pre-integration-test</pre-integration-test-phase>
+        <integration-test-phase>integration-test</integration-test-phase>
+        <dockerImageName>turbonomic/robot-docker</dockerImageName>
+        <dockerImageVersion>1.0.0</dockerImageVersion>
+        <turborepo>registry.turbonomic.com</turborepo>
+        <dockerRobotImage>${turborepo}/${dockerImageName}:${dockerImageVersion}</dockerRobotImage>
+        <robotCommand>'cd /usr/src/project/target; robot --name ${project.artifactId} --outputdir integrationTest ../src/it'</robotCommand>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -27,6 +37,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacocoVersion}</version>
                 <configuration>
                     <dataFile>${project.build.directory}/jacoco.exec</dataFile>
                 </configuration>
@@ -74,6 +85,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
                 <configuration>
                     <forkMode>always</forkMode>
                     <argLine>${jacoco.agent.argLine}</argLine>
@@ -89,6 +101,62 @@
                     <failOnError>true</failOnError>
                     <maxHeap>512</maxHeap>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <configuration>
+                    <skip>${skipTests}</skip>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>integration-test</id>
+                        <phase>${integration-test-phase}</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>docker</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <!-- Mount the container's root filesystem as read only -->
+                                <argument>--read-only</argument>
+                                <!-- Automatically remove the container when it exits -->
+                                <argument>--rm</argument>
+                                <!-- Set environment variables -->
+                                <argument>--env</argument>
+                                <argument>PROJECT_VERSION=${project.version}</argument>
+                                <!-- Bind mount a volume -->
+                                <argument>--volume</argument>
+                                <argument>${project.basedir}:/usr/src/project</argument>
+                                <!-- The image to run -->
+                                <argument>${dockerRobotImage}</argument>
+                                <argument>/bin/bash</argument>
+                                <argument>-c</argument>
+                                <argument>'${robotCommand}'</argument>
+                                <workingDirectory>${project.basedir}</workingDirectory>
+                                <includeScope>compile</includeScope>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-libs</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <!-- outputDirectory>${was.dir.path}</outputDirectory -->
+                            <includeScope>compile</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
@@ -113,6 +181,35 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.common</artifactId>
             <scope>provided</scope>
+        </dependency>
+
+        <!-- Conversion to Public Api Message -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api.conversion</artifactId>
+            <scope>compile</scope>
+        </dependency>
+
+        <!-- Velocity Libraries -->
+        <dependency>
+            <groupId>org.apache.velocity</groupId>
+            <artifactId>velocity</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.velocity</groupId>
+            <artifactId>velocity-tools</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
         </dependency>
 
         <!-- Unit testing related libraries: junit and mockito -->
@@ -143,6 +240,5 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
-
     </dependencies>
 </project>

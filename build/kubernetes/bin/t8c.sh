@@ -47,9 +47,6 @@ fi
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
 
-# Update the yaml files to run offline
-#/opt/local/bin/offlineUpdate.sh
-
 if grep -q "$localStorageDataDirectory" /etc/fstab
 then
   echo ""
@@ -59,6 +56,9 @@ then
   echo ""
   exit 0
 fi
+
+# Update the yaml files to run offline
+#/opt/local/bin/cleanKube.sh
 
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
@@ -212,7 +212,7 @@ else
   echo ""
   echo "######################################################################"
   echo "                   Kubespray Failed:                                  "
-  echo "       Please check the /opt/local/etc/turbo.conf settings            "
+  echo "                Please Contact Support                                "
   echo "######################################################################"
   echo ""
   exit 0
@@ -311,7 +311,7 @@ then
     echo ""
     echo "######################################################################"
     echo "                 Local Storage Failed                                 "
-    echo "       Please check the /opt/local/etc/turbo.conf settings            "
+    echo "                Please Contact Support                                "
     echo "######################################################################"
     echo ""
     echo ""
@@ -395,7 +395,7 @@ EOF
       echo ""
       echo "######################################################################"
       echo "                 Gluster-Heketi Failed                                "
-      echo "       Please check the /opt/local/etc/turbo.conf settings            "
+      echo "                 Please Contact Support                               "
       echo "######################################################################"
       echo ""
       echo ""
@@ -418,7 +418,7 @@ EOF
       echo ""
       echo "######################################################################"
       echo "                 Gluster-Heketi Failed                                "
-      echo "       Please check the /opt/local/etc/turbo.conf settings            "
+      echo "                 Please Contact Support                               "
       echo "######################################################################"
       echo ""
       echo ""
@@ -452,6 +452,7 @@ then
     echo ""
     echo "============================="
     echo "Turbonomic Environment Failed"
+    echo "Please Contact Support       "
     echo "============================="
     echo ""
     exit 0

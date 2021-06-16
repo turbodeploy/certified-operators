@@ -42,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -482,7 +483,15 @@ public class ServiceEntityMapper {
     @Nonnull
     protected void setPriceValuesForEntityComponents(
             final Map<Long, ServiceEntityApiDTO> entities) {
-        setPriceValuesForEntityComponents(entities, getCloudCostStatRecords(entities.keySet()));
+        Set<Long> cloudEntityOids = new HashSet<>();
+        entities.forEach((oid, se) -> {
+            if (se.getEnvironmentType() == EnvironmentType.CLOUD) {
+                cloudEntityOids.add(oid);
+            }
+        });
+        if (!cloudEntityOids.isEmpty()) {
+            setPriceValuesForEntityComponents(entities, getCloudCostStatRecords(cloudEntityOids));
+        }
     }
 
     /**

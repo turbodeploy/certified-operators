@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.tools.StringUtils;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
 
@@ -103,14 +104,19 @@ public class DslRecordSink implements Consumer<Record> {
      */
     @Override
     public void accept(final Record record) {
-        if (record == null) {
-            synchronized (this) {
-                if (recordWriter != null) {
-                    recordWriter.close();
+        try {
+            if (record == null) {
+                synchronized (this) {
+                    if (recordWriter != null) {
+                        recordWriter.close();
+                    } else {
+                        // make sure pre- and post- hooks are executed, since tney may be
+                        // important (e.g. a post- hook that removes stale records following
+                        // an upsert of current records)
+                        createRecordWriter().close();
+                    }
                 }
-            }
-        } else {
-            try {
+            } else {
                 if (recordWriter == null) {
                     synchronized (this) {
                         if (recordWriter == null) {
@@ -121,9 +127,9 @@ public class DslRecordSink implements Consumer<Record> {
                     throw new IllegalStateException("Attempt to write to closed record writer");
                 }
                 recordWriter.write(record);
-            } catch (IOException e) {
-                logger.error("Failed to create record writer for table: {}", getWriteTableName(), e);
             }
+        } catch (IOException e) {
+            logger.error("Failed to create record writer for table: {}", getWriteTableName(), e);
         }
     }
 
@@ -137,6 +143,7 @@ public class DslRecordSink implements Consumer<Record> {
      * <p>We use the high-speed Postgres COPY statement, sending records in CSV format.</p>
      */
     class RecordWriter {
+        protected static final int MAX_SQL_LOG_LENGTH = 1000;
         private final PipedOutputStream outputStream;
         private final Collection<Column<?>> columns;
         private final Future<InsertResults> future;
@@ -205,7 +212,8 @@ public class DslRecordSink implements Consumer<Record> {
         private void runPreCopyHook(Connection transConn) throws SQLException {
             try {
                 for (final String sql : getPreCopyHookSql(transConn)) {
-                    logger.info("Executing pre-copy hook SQL: {}", sql);
+                    logger.info("Executing pre-copy hook SQL: {}",
+                            StringUtils.abbreviate(sql, MAX_SQL_LOG_LENGTH));
                     DSL.using(transConn).execute(sql);
                 }
             } catch (SQLException e) {
@@ -237,7 +245,8 @@ public class DslRecordSink implements Consumer<Record> {
         private void runPostCopyHook(Connection transConn) throws SQLException {
             try {
                 for (final String sql : getPostCopyHookSql(transConn)) {
-                    logger.info("Executing post-copy hook SQL: {}", sql);
+                    logger.info("Executing post-copy hook SQL: {}",
+                            StringUtils.abbreviate(sql, MAX_SQL_LOG_LENGTH));
                     DSL.using(transConn).execute(sql);
                 }
             } catch (SQLException e) {

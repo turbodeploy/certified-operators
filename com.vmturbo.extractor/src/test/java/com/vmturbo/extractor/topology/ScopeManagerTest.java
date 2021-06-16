@@ -57,7 +57,7 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 @TestPropertySource(properties = {"enableReporting=true"})
 public class ScopeManagerTest {
 
@@ -73,6 +73,7 @@ public class ScopeManagerTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
+
     private final DataPack<Long> oidPack = new LongDataPack();
 
     /**

@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.2.3-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.137-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.138-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -116,7 +116,6 @@
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <commons-validator.version>1.6</commons-validator.version>
         <memory-metrics.version>0.3.3</memory-metrics.version>
-        <commons-text.version>1.9</commons-text.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
@@ -2420,11 +2419,6 @@
                 <groupId>commons-beanutils</groupId>
                 <artifactId>commons-beanutils</artifactId>
                 <version>${commons-beanutils.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.commons</groupId>
-                <artifactId>commons-text</artifactId>
-                <version>${commons-text.version}</version>
             </dependency>
 
             <!-- The Test dependencies for auth -->

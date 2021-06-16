@@ -18,8 +18,8 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
 import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudCommitmentAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerTierAspectMapper;
@@ -39,6 +39,8 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspect
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeEntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.WorkloadControllerAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.converter.CloudSavingsDetailsDtoConverter;
+import com.vmturbo.api.component.external.api.mapper.converter.EntityUptimeDtoConverter;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
@@ -121,6 +123,16 @@ public class MapperConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Bean
+    public EntityUptimeDtoConverter entityUptimeDtoConverter() {
+        return new EntityUptimeDtoConverter();
+    }
+
+    @Bean
+    public CloudSavingsDetailsDtoConverter cloudSavingsDetailsDtoConverter() {
+        return new CloudSavingsDetailsDtoConverter(entityUptimeDtoConverter());
+    }
+
+    @Bean
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
@@ -131,6 +143,7 @@ public class MapperConfig {
             mapperConfig.buyRiScopeHandler(),
             communicationConfig.getRealtimeTopologyContextId(),
             uuidMapper(),
+            cloudSavingsDetailsDtoConverter(),
             useStableActionIdAsUuid);
     }
 
@@ -368,7 +381,8 @@ public class MapperConfig {
         return new CloudAspectMapper(communicationConfig.repositoryApi(),
                 communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
                 communicationConfig.groupRpcService(),
-                communicationConfig.entityUptimeServiceBlockingStub(), executorService());
+                communicationConfig.entityUptimeServiceBlockingStub(), executorService(),
+                entityUptimeDtoConverter());
     }
 
     @Bean

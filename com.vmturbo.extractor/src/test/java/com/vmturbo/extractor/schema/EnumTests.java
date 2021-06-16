@@ -41,12 +41,14 @@ import com.vmturbo.extractor.schema.enums.CostSource;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineFileType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -192,6 +194,14 @@ public class EnumTests {
     @Test
     public void testCostSourceEnum() {
         testEnum(CostSource.class, Cost.CostSource.class, null, OK_EXTRA_COST_SOURCES);
+    }
+
+    /**
+     * Test that we have the correct `file_type` values.
+     */
+    @Test
+    public void testFileTypeEnum() {
+        testEnum(FileType.class, VirtualMachineFileType.class, null, null);
     }
 
     /**

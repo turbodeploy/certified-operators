@@ -148,7 +148,7 @@ else
   exit 1
 fi
 
-LISTENING=$(netstat -an|grep LISTEN|grep 3306|wc -l)
+LISTENING=$(netstat -an|grep LISTEN| grep -w 3306 | wc -l)
 if [ "$LISTENING" -eq '1' ]
 then
   echo
@@ -185,13 +185,13 @@ else
 fi
 
 # Add check for db process running, including some testing in case of start timing issues.
-LISTENING=$(netstat -an|grep LISTEN|grep 3306|wc -l)
+LISTENING=$(netstat -an| grep LISTEN | grep -w 3306 | wc -l)
 if [ "$LISTENING" -ne '1' ]
 then
   increment=1
   while [ $increment -le 5 ]
   do
-    LISTENING=$(netstat -an|grep LISTEN|grep 3306|wc -l)
+    LISTENING=$(netstat -an|grep LISTEN| grep -w 3306 | wc -l)
     if [ "$LISTENING" -ne '1' ]
     then
       sleep 5
@@ -202,7 +202,7 @@ then
   done
 fi
 
-LISTENING=$(netstat -an|grep LISTEN|grep 3306|wc -l)
+LISTENING=$(netstat -an|grep LISTEN | grep -w 3306 | wc -l)
 if [ "$LISTENING" -eq '1' ]
 then
   echo

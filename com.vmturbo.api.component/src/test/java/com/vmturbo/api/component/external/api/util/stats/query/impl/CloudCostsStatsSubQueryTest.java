@@ -846,6 +846,74 @@ public class CloudCostsStatsSubQueryTest {
                         .build()).build()
         ));
     }
+    /**
+     * Tests getting the cost totals over a time period.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetTotalStats() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = Collections
+                        .singleton(createRequestStat(
+                                        StringConstants.TOTAL_COST_FOR_DURATION,
+                                        ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(false);
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
+
+        // Behaviors associated to inputScope
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+        when(inputScope.isRealtimeMarket()).thenReturn(true);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+                        ArgumentCaptor.forClass(GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+                        Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+                        .thenReturn(Collections.singletonList(response));
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        int apiEntityType = ApiEntityType.VIRTUAL_MACHINE.typeNumber();
+        RegionFilter regionFilter = RegionFilter.newBuilder().build();
+        CostCategoryFilter costCategoryFilter = CostCategoryFilter.newBuilder()
+                        .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .build();
+        EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder()
+                        .addEntityTypeId(apiEntityType);
+        CloudCostStatsQuery cloudCostStatsQueryWithRequestTotalValues =
+                        CloudCostStatsQuery.newBuilder()
+                        .setQueryId(0L)
+                        .setCostCategoryFilter(costCategoryFilter)
+                        .setEntityTypeFilter(entityTypeFilter)
+                        .setRequestProjected(false)
+                        .setRequestTotalValues(true)
+                        .build();
+        GetCloudCostStatsRequest cloudCostStatsRequestWithRequestTotalValues =
+                        GetCloudCostStatsRequest.newBuilder()
+                        .addCloudCostStatsQuery(cloudCostStatsQueryWithRequestTotalValues)
+                        .build();
+        assertThat(costParamCaptor.getValue(), is(cloudCostStatsRequestWithRequestTotalValues));
+    }
 
     /**
      * Tests that {@link StringConstants#WORKLOAD} type expands to the types in

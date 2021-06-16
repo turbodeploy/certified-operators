@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# redirect stdout/stderr to a file
-logFile="install_$(date +%Y-%m-%d_%H_%M_%S).log"
-echo "Install logging will be in /opt/turbonmic/${logFile}"
-exec &> /opt/turbonomic/${logFile}
-
 # Run this as the root user
 if [[ $(/usr/bin/id -u) -ne 0 ]]
 then
@@ -12,7 +7,26 @@ then
   exit
 fi
 
-# Variable to use if a non-turbonomic deployment
+# Check if the install script has been run already
+localStorageDataDirectory="/data/turbonomic/"
+if grep -q "$localStorageDataDirectory" /etc/fstab
+then
+  echo ""
+  echo "Detected existing installation..."
+  echo "exiting......"
+  echo "Please do not re-run on an existing install."
+  echo ""
+  exit 0
+fi
+
+# Ask if the ipsetup script has been run
+read -e -p "Have you ran the ipsetup script yet? [y/n] " ipAnswer
+
+if [ "$ipAnswer" != "${ipAnswer#[Nn]}" ]
+then
+  /opt/local/bin/ipsetup
+fi
+
 # Variable to use if a non-turbonomic deployment
 while getopts b:h: flag
 do
@@ -67,7 +81,7 @@ source /opt/local/etc/turbo.conf
 # Create the ssh keys to run with
 if [ ! -f ~/.ssh/id_rsa.pub ]
 then
-  ssh-keygen -f ~/.ssh/id_rsa -t rsa -N ''
+  ssh-keygen -f ~/.ssh/id_rsa -t rsa -N '' > /dev/null 2>&1
   cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
   # Make sure authorized_keys has the appropriate permissions, otherwise sshd does not allow
   # passwordless ssh.
@@ -148,9 +162,9 @@ cd /etc/kubernetes/ssl/etcd/
 ln -s ca.pem ca.crt
 ln -s ca-key.pem ca.key
 
-/usr/local/bin/kubeadm init phase certs etcd-server
-/usr/local/bin/kubeadm init phase certs etcd-peer
-/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client
+/usr/local/bin/kubeadm init phase certs etcd-server 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-peer 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client 2>/dev/null
 
 if [ ! -z "${hostName}" ]
 then
@@ -189,20 +203,20 @@ else
 fi
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 
-/usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml
+/usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
 
 cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf
+/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
 if [ ! -z "${hostName}" ]
 then
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf 2>/dev/null
 else
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
 fi
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
 
 systemctl restart kubelet
 
@@ -217,12 +231,26 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/calico-kube-controllers.yml
 sed -i "s/${oldIP}/${newIP}/g" /etc/cni/net.d/calico.conflist.template
 
 kubeletStatus=$(systemctl is-active kubelet)
-
+support=0
 while [ "X${kubeletStatus}" != "Xactive" ]
 do
   echo kubelet service still starting
   kubeletStatus=$(systemctl is-active kubelet)
-  sleep 5
+  support=$(($support+1))
+  if [ "X${kubeletStatus}" = "Xactive" ]
+  then
+    break
+  else
+    sleep 5
+  fi
+  # Call support if the kubelet service has not started.
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
 done
 
 # Show progress bar for the 2 min wait
@@ -233,8 +261,8 @@ do
 done
 printf '\nFinished! kubectl apply commands will follow\n'
 
-/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
-/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system 2>/dev/null
+/usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system 2>/dev/null
 
 # Update configmaps
 /usr/local/bin/kubectl get cm -n kube-system kubeadm-config -o yaml > /etc/kubernetes/kubeadm-config.yaml
@@ -249,8 +277,8 @@ else
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
 fi
-/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system
+/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+/usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system 2>/dev/null
 
 # Restart Docker
 systemctl restart docker
@@ -258,12 +286,26 @@ sleep 10
 
 kubectl cluster-info
 kStatus=$?
+support=0
 while [ "${kStatus}" -ne "0" ]
 do
   kubectl cluster-info
   kStatus="$?"
-  echo "Kubernetes is not ready...."
-  sleep 10
+  support=$(($support+1))
+  if [ "${kStatus}" -ne "0" ]
+  then
+    echo "Kubernetes is not ready...."
+    sleep 10
+  else
+    break
+  fi
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
 done
 
 # Install pre-turbonomic environmental requirementes
@@ -293,7 +335,7 @@ fi
 # Check to see if kubernetes auth secrets are being used.  If so, pre-generate the keys and
 # load them into secrets.
 # This must be done after installing Kubernetes, but before running the operator.
-egrep "enableExternalSecrets" ${chartsFile}
+egrep "enableExternalSecrets" ${chartsFile} > /dev/null 2>&1
 enableExternalSecrets=$(echo $?)
 
 if [ X${enableExternalSecrets} = X0 ]
@@ -308,7 +350,7 @@ echo "                   Operator Installation                              "
 echo "######################################################################"
 # See if the operator has an external ip
 sed -i "s/tag:.*/tag: ${turboVersion}/g" ${chartsFile}
-grep -r "externalIP:" ${chartsFile}
+grep -r "externalIP:" ${chartsFile} > /dev/null 2>&1
 result="$?"
 if [ $result -ne 0 ]; then
   sed -i "/tag:/a\
@@ -326,13 +368,13 @@ then
   echo "The database is external from this server"
   echo "${externalDB}"
 else
-  /opt/local/bin/configure_mariadb.sh
+  /opt/local/bin/configure_mariadb.sh 2>/dev/null
 fi
 
 # Setup timescaledb before bringing up XL components
 # ./configure_timescaledb.sh
 # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
-egrep "externalTimescaleDBName" ${chartsFile}
+egrep "externalTimescaleDBName" ${chartsFile} > /dev/null 2>&1
 externalTimescaleDB=$(echo $?)
 if [ X${externalTimescaleDB} = X0 ]
 then
@@ -340,16 +382,17 @@ then
   echo "The TimescaleDB database is external from this server"
   echo "${externalTimescaleDB}"
 else
-  /opt/local/bin/configure_timescaledb.sh
+  /opt/local/bin/configure_timescaledb.sh 2>/dev/null
   # Create mount point for both pgsql and mariadb
-  /opt/local/bin/switch_dbs_mount_point.sh
+  /opt/local/bin/switch_dbs_mount_point.sh 2>/dev/null
 fi
+
 
 # Setup kafka/zookeeper before bringing up XL components (if so configured)
 # Check to see if an external kafka is being used.  If so, do not run kafka locally
 # We have to do two checks because the external kafka variable ("externalKafka") is a substring of
 # the alternative configuration ("externalKafkaIp") that runs Kafka in the VM.
-egrep "externalKafka" ${chartsFile}
+egrep "externalKafka" ${chartsFile} > /dev/null 2>&1
 externalKafka=$(echo $?)
 egrep "externalKafkaIP" ${chartsFile}
 runKafkaInVM=$(echo $?)
@@ -362,7 +405,7 @@ then
 elif [ X${runKafkaInVM} = X0 ]
 then
   echo "Kafka is configured to run in the VM, configuring..."
-  /opt/local/bin/configure_kafka.sh
+  /opt/local/bin/configure_kafka.sh 2>/dev/null
 else
   echo "Kafka is configured to run as a container, skipping configuration for the VM service."
 fi
@@ -370,13 +413,13 @@ fi
 # Setup Consul before bringing up XL components (if so configured)
 # Check to see if our Kubernetes deployment is configured to use an external Consul
 # If so, run Consul in the VM
-egrep "externalConsulIP" ${chartsFile}
+egrep "externalConsulIP" ${chartsFile} > /dev/null 2>&1
 externalConsulIP=$(echo $?)
 
 if [ X${externalConsulIP} = X0 ]
 then
   echo "Consul is configured to run in the VM, configuring..."
-  /opt/local/bin/configure_consul.sh
+  /opt/local/bin/configure_consul.sh 2>/dev/null
 else
   echo "Consul is configured to run as a container, skipping configuration for the VM service."
 fi
@@ -421,7 +464,7 @@ kubectl create -f ${chartsFile} -n turbonomic
 
 # Apply the ip change to the instance
 sed -i "s/${oldIP}/${newIP}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml 2>/dev/null
 
 # Update other files, jic
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
@@ -429,9 +472,67 @@ sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/local/etc/turbo.conf
 
-# Reboot the instance:
+# Status
 echo ""
 echo ""
-echo "################################################"
-echo "Please reboot the server to pick up the changes"
-echo "################################################"
+echo "############################"
+echo "Start the deployment rollout"
+echo "############################"
+echo "This will take some time."
+echo ""
+# Wait for the api pod to become healthy
+support=0
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='api' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  support=$(($support+1))
+  sleep 120
+  echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "10" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
+done
+
+# Wait for the topology-processor  pod to become healthy
+support=0
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='topology-processor' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  sleep 60
+  echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
+done
+
+# Wait for the history pod to become healthy
+support=0
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='history' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
+  sleep 60
+  echo "Waiting for Broker to be ready."
+  if [ "${support}" -ge "5" ]
+  then
+    echo "============================================"
+    echo "Something went wrong, please contact Support"
+    echo "============================================"
+    exit
+  fi
+done
+
+# Check on the rollout status
+for deploy in $(/usr/local/bin/kubectl get deploy --no-headers | awk '{print $1}')
+do 
+  kubectl rollout status deployment/${deploy} -n turbonomic
+done
+echo
+echo "#################################################"
+echo "Deployment Completed, please login through the UI"
+echo "https://${newIP}"
+echo "#################################################"

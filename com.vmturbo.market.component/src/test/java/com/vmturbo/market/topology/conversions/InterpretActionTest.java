@@ -174,7 +174,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
         converter.setConvertToMarketComplete();
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
@@ -216,7 +216,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
@@ -274,7 +274,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
@@ -568,7 +568,7 @@ public class InterpretActionTest {
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology,
-                false, false);
+                false);
         topologyConverter.setConvertToMarketComplete();
         Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
@@ -716,7 +716,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
@@ -754,7 +754,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         converter.setConvertToMarketComplete();
 
         final Collection<TraderTO> traderTOs =
@@ -788,7 +788,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         converter.setConvertToMarketComplete();
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
@@ -823,7 +823,7 @@ public class InterpretActionTest {
             MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false);
+            false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -866,7 +866,7 @@ public class InterpretActionTest {
             MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false);
+            false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -912,7 +912,7 @@ public class InterpretActionTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -950,7 +950,7 @@ public class InterpretActionTest {
             MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false);
+            false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
         // Insert the commodity type into the converter's mapping
@@ -1016,7 +1016,7 @@ public class InterpretActionTest {
             MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false, false);
+            false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = spy(topologyConverter);
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -1279,7 +1279,6 @@ public class InterpretActionTest {
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
                 null);
-        interpreter.enableContainerClusterScalingCost(true);
 
         final ActionTO deactivateActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -1399,7 +1398,6 @@ public class InterpretActionTest {
                 CommodityIndex.newFactory()::newIndex,
                 null);
 
-        interpreter.enableContainerClusterScalingCost(true);
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
                         .setKey("Seg")
@@ -1518,7 +1516,6 @@ public class InterpretActionTest {
                 CommodityIndex.newFactory()::newIndex,
                 null);
 
-        interpreter.enableContainerClusterScalingCost(true);
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
                         .setKey("Seg")

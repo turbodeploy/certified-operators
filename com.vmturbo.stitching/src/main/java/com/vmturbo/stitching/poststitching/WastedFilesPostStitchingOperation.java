@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -10,7 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +53,7 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
         @Nonnull final Stream<TopologyEntity> entities,
         @Nonnull final EntitySettingsCollection settingsCollection,
         @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+        final RegexCompilerAndErrorHandler regexCompiler = new RegexCompilerAndErrorHandler();
         // iterate over storages and update the related wasted files volume
         entities.forEach(storage -> {
             // Get the regex for ignored directories and files from the settings for the storage
@@ -63,53 +65,79 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
             final Optional<Setting> ignoreFilesSetting =
                 settingsCollection.getEntitySetting(storage.getOid(),
                     EntitySettingSpecs.IgnoreFiles);
-            final Optional<Pattern> ignoreDirsPattern = ignoreDirectorySetting.isPresent() ?
-                safePatternCompile(ignoreDirectorySetting.get().getStringSettingValue()
-                    .getValue())
-                : Optional.empty();
-            final Optional<Pattern> ignoreFilesPattern = ignoreFilesSetting.isPresent() ?
-                safePatternCompile(ignoreFilesSetting.get().getStringSettingValue().getValue())
-                : Optional.empty();
 
-            WastedFiles.getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
-                resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate -> {
-                    Set<VirtualVolumeFileDescriptor> keepFiles =
-                        Sets.newHashSet(toUpdate.getTopologyEntityDtoBuilder()
-                            .getTypeSpecificInfo()
-                            .getVirtualVolume()
-                            .getFilesList()
-                            .stream()
-                            .filter(file -> !isIgnored(file.getPath(), ignoreFilesPattern,
-                                ignoreDirsPattern))
-                            .filter(file -> file.getLinkedPathsList().stream().noneMatch(link ->
-                                isIgnored(link, ignoreFilesPattern, ignoreDirsPattern)))
-                            .collect(Collectors.toList()));
-                    toUpdate.getTopologyEntityDtoBuilder()
-                        .getTypeSpecificInfoBuilder()
-                        .getVirtualVolumeBuilder()
-                        .clearFiles()
-                        .addAllFiles(keepFiles);
-                });
-            });
+            final Optional<Pattern> ignoreDirsPattern = ignoreDirectorySetting.isPresent()
+                ? regexCompiler.safePatternCompile(ignoreDirectorySetting.get().getStringSettingValue().getValue()) : Optional.empty();
+            final Optional<Pattern> ignoreFilesPattern = ignoreFilesSetting.isPresent()
+                ? regexCompiler.safePatternCompile(ignoreFilesSetting.get().getStringSettingValue().getValue()) : Optional.empty();
+
+            if (WastedFiles.getWastedFilesVirtualVolume(storage).isPresent()) {
+                final TopologyEntity wastedFilesVolume =
+                    WastedFiles.getWastedFilesVirtualVolume(storage).get();
+                final Set<VirtualVolumeFileDescriptor> keepFiles =
+                    getFilesToKeepForVirtualVolume(wastedFilesVolume, ignoreFilesPattern, ignoreDirsPattern);
+                resultBuilder.queueUpdateEntityAlone(wastedFilesVolume,
+                    entityToUpdate -> updateFilesForVirtualVolume(entityToUpdate, keepFiles));
+            }
         });
+
+        if (regexCompiler.hasCompilationErrors()) {
+            regexCompiler.logCompilationErrors();
+        }
         return resultBuilder.build();
     }
 
     /**
-     * Check that the regex the user specified is a valid regex pattern.  Suppress a
-     * {@link PatternSyntaxException} if it occurs.
+     * Overwrite the files of a Virtual Volume with the given set of files.
      *
-     * @param patternRegex to create a {@link Pattern} from.
-     * @return {@link Optional<Pattern>} if the regex compiles, Optional.empty otherwise.
+     * @param virtualVolume to update
+     * @param files to overwrite to the volume
      */
-    private Optional<Pattern> safePatternCompile(String patternRegex) {
-        try {
-            return Optional.of(Pattern.compile(patternRegex));
-        } catch (PatternSyntaxException e) {
-            logger.error("Could not compile pattern for regex {} when processing wasted files.",
-                    patternRegex, e);
-            return Optional.empty();
+    private void updateFilesForVirtualVolume(@Nonnull final TopologyEntity virtualVolume,
+                                             @Nonnull final Set<VirtualVolumeFileDescriptor> files) {
+        virtualVolume.getTopologyEntityDtoBuilder().getTypeSpecificInfoBuilder()
+            .getVirtualVolumeBuilder().clearFiles().addAllFiles(files);
+    }
+
+    /**
+     * Get a set of files for Virtual Volume that should NOT be ignored.
+     *
+     * @param virtualVolume the virtual volume
+     * @param ignoreFilesPattern the {@link Pattern} to ignore the files
+     * @param ignoreDirsPattern the {@link Pattern} to ignore the directory
+     * @return the files that should NOT be ignored
+     */
+    private Set<VirtualVolumeFileDescriptor> getFilesToKeepForVirtualVolume(@Nonnull final TopologyEntity virtualVolume,
+                                                                            @Nonnull final Optional<Pattern> ignoreFilesPattern,
+                                                                            @Nonnull final Optional<Pattern> ignoreDirsPattern) {
+        return virtualVolume.getTopologyEntityDtoBuilder()
+            .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
+            .filter(file -> !shouldFileBeIgnored(file, ignoreFilesPattern, ignoreDirsPattern))
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * A file should NOT be ignored if the path for the file is not being ignored according to
+     * the filesPattern AND all the {@link VirtualVolumeFileDescriptor#getLinkedPathsList()} are
+     * not matched by the files patterns.
+     *
+     * @param file the {@link VirtualVolumeFileDescriptor}
+     * @param ignoreFilesPattern pattern for ignoring the files
+     * @param ignoreDirsPattern pattern for ignoring the directoris
+     * @return whether or not the file should be ignored
+     */
+    private boolean shouldFileBeIgnored(@Nonnull final VirtualVolumeFileDescriptor file,
+                                        @Nonnull final Optional<Pattern> ignoreFilesPattern,
+                                        @Nonnull final Optional<Pattern> ignoreDirsPattern ) {
+        if (isIgnored(file.getPath(), ignoreFilesPattern, ignoreDirsPattern)) {
+            return true;
         }
+        for (String linkedPaths : file.getLinkedPathsList()) {
+            if (isIgnored(linkedPaths, ignoreFilesPattern, ignoreDirsPattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -121,8 +149,9 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
      * @param ignoreFiles ignore files pattern
      * @return true if the path should be ignored
      */
-    private static boolean isIgnored(@Nonnull String path, @Nonnull Optional<Pattern> ignoreFiles,
-                             @Nonnull Optional<Pattern> ignoreDirs) {
+    private static boolean isIgnored(@Nonnull final String path,
+                                     @Nonnull final Optional<Pattern> ignoreFiles,
+                                     @Nonnull final  Optional<Pattern> ignoreDirs) {
         File f = new File(path);
         if (ignoreFiles.isPresent() && ignoreFiles.get().matcher(f.getName()).matches()) {
             return true;
@@ -138,5 +167,52 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
             parent = parent.getParentFile();
         }
         return false;
+    }
+
+    /**
+     * Class that compiles and validates regular expressions. It also has the additional function
+     * to count how many compilation errors it has encountered and log them
+     */
+    @VisibleForTesting
+    static class RegexCompilerAndErrorHandler {
+
+        private final Set<String> compilationErrors = new HashSet<>();
+
+        /**
+         * Check that the regex the user specified is a valid regex pattern.  Suppress a
+         * {@link PatternSyntaxException} if it occurs.
+         *
+         * @param patternRegex to create a {@link Pattern} from.
+         * @return {@link Optional<Pattern>} if the regex compiles, Optional.empty otherwise.
+         */
+        public Optional<Pattern> safePatternCompile(@Nonnull String patternRegex) {
+            try {
+                return Optional.of(Pattern.compile(patternRegex));
+            } catch (PatternSyntaxException e) {
+                logger.debug("Could not compile pattern for regex {} when processing wasted files.",
+                    patternRegex, e);
+                compilationErrors.add(patternRegex);
+                return Optional.empty();
+            }
+        }
+
+        /**
+         * Returns whether or not there are compilation errors.
+         * @return true if there are errors
+         */
+        public boolean hasCompilationErrors() {
+            return compilationErrors.size() > 0;
+        }
+
+        /**
+         * Logs the number of compilation errors.
+         * @return the error message
+         */
+        public String logCompilationErrors() {
+            final String errorMessage = "Could not compile the following regex patterns when processing wasted files: "
+                    + String.join(", ", compilationErrors);
+            logger.error(errorMessage);
+            return errorMessage;
+        }
     }
 }

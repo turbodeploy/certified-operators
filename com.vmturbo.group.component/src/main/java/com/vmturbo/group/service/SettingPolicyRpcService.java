@@ -118,7 +118,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      * @param identityProvider identity provider
      * @param transactionProvider transaction provider to operate with DB objects
      * @param realtimeTopologyContextId realtimme topology context ID
-     * @param entitySettingsResponseChunkSize entity setttings chunk size
+     * @param entitySettingsResponseChunkSize entity settings chunk size
      */
     public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
                                    @Nonnull final SettingSpecStore settingSpecStore,
@@ -181,6 +181,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     "Update request must have ID and new setting policy info.").asException());
             return;
         }
+
         grpcTransactionUtil.executeOperation(responseObserver,
                 stores -> updateSettingPolicyInternal(request, responseObserver,
                         stores.getSettingPolicyStore()));
@@ -280,6 +281,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     /**
      * If user is changing Automation Settings, send message to ActionOrchestrator
      * to purge the outstanding actions which are in the execution queue.
+     *
+     * @param policy the policy that we check if it has an automation setting
      */
     private void cancelAutomationActions(SettingPolicy policy) {
         if (hasAutomationSetting(policy)) {
@@ -294,8 +297,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     }
 
     private boolean hasAutomationSetting(final SettingPolicy settingPolicy) {
-        return (settingPolicy != null &&
-                settingPolicy.getInfo().getSettingsList().stream()
+        return (settingPolicy != null
+                && settingPolicy.getInfo().getSettingsList().stream()
                         .anyMatch(setting ->
                                 EntitySettingSpecs.isAutomationSetting(
                                         setting.getSettingSpecName())));
@@ -354,8 +357,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                 .map(name -> {
                     Optional<SettingSpec> specOpt = settingSpecStore.getSettingSpec(name);
                     if (!specOpt.isPresent()) {
-                        logger.warn("Setting {} from setting policy ID: {} Name: {} does not" +
-                                        " exist. Did it get deleted?", name, settingPolicy.getId(),
+                        logger.warn("Setting {} from setting policy ID: {} Name: {} does not"
+                                        + " exist. Did it get deleted?", name, settingPolicy.getId(),
                                 settingPolicy.getInfo().getName());
                     }
                     return specOpt;
@@ -541,9 +544,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     responseObserver.onCompleted();
                 } catch (StoreOperationException e) {
                     logger.error(
-                            "Failed to process UploadEntitySettingsRequest request for context " +
-                                    contextVal.getTopologyContextId() + " topology " +
-                                    contextVal.getTopologyId(), e);
+                            "Failed to process UploadEntitySettingsRequest request for context "
+                                    + contextVal.getTopologyContextId() + " topology "
+                                    + contextVal.getTopologyId(), e);
                     responseObserver.onError(
                             e.getStatus().withDescription(e.getMessage()).asException());
                 }
@@ -672,8 +675,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             responseStreamObserver.onNext(response.build());
             responseStreamObserver.onCompleted();
         } catch (StoreOperationException e) {
-            logger.error("Failed processing entity setting policies request for " +
-                request.getEntityOidListList(), e);
+            logger.error("Failed processing entity setting policies request for "
+                + request.getEntityOidListList(), e);
             responseStreamObserver.onError(
                 e.getStatus().withDescription(e.getMessage()).asException());
         }

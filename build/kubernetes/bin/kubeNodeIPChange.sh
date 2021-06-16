@@ -93,9 +93,9 @@ cd /etc/kubernetes/ssl/etcd/
 ln -s ca.pem ca.crt
 ln -s ca-key.pem ca.key
 
-/usr/local/bin/kubeadm init phase certs etcd-server
-/usr/local/bin/kubeadm init phase certs etcd-peer
-/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client
+/usr/local/bin/kubeadm init phase certs etcd-server 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-peer 2>/dev/null
+/usr/local/bin/kubeadm init phase certs etcd-healthcheck-client 2>/dev/null
 
 mv peer.crt member-node1.pem
 mv peer.key member-node1-key.pem
@@ -120,10 +120,11 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 /usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml
 
 cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf
+/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
+/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
 
 systemctl restart kubelet
 

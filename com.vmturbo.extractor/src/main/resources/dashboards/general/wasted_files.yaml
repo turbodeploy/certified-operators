@@ -318,7 +318,7 @@ panels:
       SELECT storage_name as "Datastore",
              path as "File Path",
              coalesce(file_size_kb::text, '-') as "File Size",
-             coalesce(to_char(modification_time, 'DD-MON-YYYY HH24:MI:SSxFF TZH:TZM'), '-') as "Last Modified Time"
+             coalesce(to_char(modification_time, 'DD-MON-YYYY HH24:MI:SS TZH:TZM'), '-') as "Last Modified Time"
         FROM wasted_file
        WHERE (file_size_kb >= $MinFileSize OR $MinFileSize = 0)
          AND ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]

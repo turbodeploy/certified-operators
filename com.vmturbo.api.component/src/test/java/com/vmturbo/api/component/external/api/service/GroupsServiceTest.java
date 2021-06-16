@@ -1941,6 +1941,7 @@ public class GroupsServiceTest {
         final EnvironmentType envType = EnvironmentType.HYBRID;
         final CloudType cloudType = CloudType.AWS;
         final com.vmturbo.api.enums.Origin origin = com.vmturbo.api.enums.Origin.USER;
+        final long scope = 1234L;
         when(groupFilterMapper.apiFilterToGroupFilter(eq(groupType),
                 eq(LogicalOperator.AND),
                 eq(Collections.singletonList(filterApiDTO))))
@@ -1963,30 +1964,37 @@ public class GroupsServiceTest {
                                 .setGroupSearch(GroupOrderBy.GROUP_SEVERITY)
                                 .build())
                         .build());
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(scope);
+        when(uuidMapper.fromUuid(Long.toString(scope))).thenReturn(apiId);
         GetPaginatedGroupsResponse groupResponse = GetPaginatedGroupsResponse.newBuilder().build();
         when(groupServiceSpyMole.getPaginatedGroups(any())).thenReturn(groupResponse);
         // WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(filterList,
                 paginationRequest, groupType, groupEntityTypes, envType, cloudType,
-                null, false, origin);
+                Collections.singletonList(Long.toString(scope)), false, origin);
         //THEN
         ArgumentCaptor<GetPaginatedGroupsRequest> captor =
                 ArgumentCaptor.forClass(GetPaginatedGroupsRequest.class);
         verify(groupServiceSpyMole, times(1)).getPaginatedGroups(
                 captor.capture());
         // verify input parameters"
+        GetPaginatedGroupsRequest requestToTest = captor.getValue();
         // - pagination
-        assertTrue(captor.getValue().hasPaginationParameters());
-        PaginationParameters capturedPaginationParams = captor.getValue().getPaginationParameters();
+        assertTrue(requestToTest.hasPaginationParameters());
+        PaginationParameters capturedPaginationParams = requestToTest.getPaginationParameters();
         assertFalse(capturedPaginationParams.getAscending());
         assertEquals(cursor, capturedPaginationParams.getCursor());
         assertEquals(1, capturedPaginationParams.getLimit());
         assertTrue(capturedPaginationParams.getOrderBy().hasGroupSearch());
         assertEquals(GroupOrderBy.GROUP_SEVERITY,
                 capturedPaginationParams.getOrderBy().getGroupSearch());
+        // - scopes
+        assertEquals(1, requestToTest.getScopesCount());
+        assertEquals(scope, requestToTest.getScopes(0));
         // - filters
-        assertTrue(captor.getValue().hasGroupFilter());
-        GroupFilter capturedGroupFilter = captor.getValue().getGroupFilter();
+        assertTrue(requestToTest.hasGroupFilter());
+        GroupFilter capturedGroupFilter = requestToTest.getGroupFilter();
         assertEquals(1, capturedGroupFilter.getPropertyFiltersCount());
         PropertyFilter propertyFilter = capturedGroupFilter.getPropertyFiltersList().get(0);
         assertEquals(SearchableProperties.DISPLAY_NAME, propertyFilter.getPropertyName());
@@ -2012,14 +2020,11 @@ public class GroupsServiceTest {
      * Tests the cases for which {@link GroupsService#getPaginatedGroupApiDTOs} uses the old
      * implementation (retrieving all groups from group component and paginating inside the api
      * component instead of forwarding the paginated query to group component).
-     * Currently there are 3 cases:
-     * - if orderBy is set to COST,
-     * - if scopes parameter is present,
-     * - if the user is a scoped user.
+     * Currently there is 1 case:
+     * - if orderBy is set to COST
      * As the relevant functionality is being implemented in group component (see OM-65839 for
-     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
-     * eventually the entire test should be removed, once everything is being forwarded to group
-     * component.
+     * orderBy COST), the cases tested here should be removed and eventually the entire test should
+     * be removed, once everything is being forwarded to group component.
      */
     @Test
     public void testGetPaginatedGroupApiDTOsNotForwardingRequest()
@@ -2038,25 +2043,6 @@ public class GroupsServiceTest {
                 new SearchPaginationRequest(cursor, limit, ascending, orderBy);
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
                 null, null, null, null, false, null);
-        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
-
-        // scoped user
-        when(userSessionContextMock.isUserScoped()).thenReturn(true);
-        orderBy = "SEVERITY";
-        paginationRequest = new SearchPaginationRequest(cursor, limit, ascending, orderBy);
-        when(userSessionContextMock.isUserScoped()).thenReturn(true);
-        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
-                null, null, null, null, false, null);
-        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
-
-        // scopes parameter
-        when(userSessionContextMock.isUserScoped()).thenReturn(false);
-        final Long scope = 123L;
-        final ApiId apiId = mock(ApiId.class);
-        when(uuidMapper.fromUuid(scope.toString())).thenReturn(apiId);
-        when(apiId.oid()).thenReturn(scope);
-        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(), paginationRequest, null,
-                null, null, null, Collections.singletonList(scope.toString()), false, null);
         verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }
 
@@ -2108,13 +2094,11 @@ public class GroupsServiceTest {
      * Tests the cases for which {@link GroupsService#getPaginatedGroups} uses the old
      * implementation (retrieving all groups from group component and paginating inside the api
      * component instead of forwarding the paginated query to group component).
-     * Currently there are 2 cases:
-     * - if orderBy is set to COST,
-     * - if the user is a scoped user.
+     * Currently there is 1 case:
+     * - if orderBy is set to COST
      * As the relevant functionality is being implemented in group component (see OM-65839 for
-     * orderBy COST and OM-64261 for scoping), the cases tested here should be removed and
-     * eventually the entire test should be removed, once everything is being forwarded to group
-     * component.
+     * orderBy COST), the cases tested here should be removed and eventually the entire test should
+     * be removed, once everything is being forwarded to group component.
      */
     @Test
     public void testGetPaginatedGroupsNotForwardingRequest()
@@ -2131,13 +2115,6 @@ public class GroupsServiceTest {
         String orderBy = "COST";
         GroupPaginationRequest paginationRequest =
                 new GroupPaginationRequest(cursor, limit, ascending, orderBy);
-        groupsService.getPaginatedGroups(paginationRequest);
-        verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
-
-        // scoped user
-        orderBy = "SEVERITY";
-        paginationRequest = new GroupPaginationRequest(cursor, limit, ascending, orderBy);
-        when(userSessionContextMock.isUserScoped()).thenReturn(true);
         groupsService.getPaginatedGroups(paginationRequest);
         verify(groupServiceSpyMole, times(0)).getPaginatedGroups(any());
     }

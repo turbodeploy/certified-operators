@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -580,6 +581,102 @@ public class StatSnapshotCreatorTest {
         // Total capacity should be (3+3+6) = 12, and total effective capacity should be (3+1.5+3) = 7.5
         // so we expect the "reserved" amount to be (capacity - effective capacity) = (4 - 2.5) = 1.5
         Assert.assertEquals(4.5, snapshots.get(0).getStatRecords(0).getReserved(), 0);
+    }
+
+    /**
+     * Checks that capacity is accumulated per provider and not per consumer.
+     */
+    @Test
+    public void checkCapacitiesForConsumerGroupWithMoreThanOneProvider() {
+        // verify that the effective capacity calculation in the stat snapshot is behaving as expected
+        // we need a non-mocked stat record builder to do this.
+        final Collection<String> firstProviderConsumerUuids =
+                        Arrays.asList("111", "222", "333", "444");
+        final Collection<String> secondProviderConsumerUuids = Arrays.asList("555", "666", "777");
+        final List<Record> records = new ArrayList<>(firstProviderConsumerUuids.size()
+                        + secondProviderConsumerUuids.size());
+        final String producer1Uuid = Long.toString(1000);
+
+        firstProviderConsumerUuids.forEach(uuid -> records.add(StatsTestUtils
+                        .createRecord(uuid, SNAPSHOT_TIME, C_1, C_1_SUBTYPE, 1D,
+                                        producer1Uuid)));
+        final String producer2Uuid = Long.toString(2000);
+        secondProviderConsumerUuids.forEach(uuid -> records.add(StatsTestUtils
+                        .createRecord(uuid, SNAPSHOT_TIME, C_1, C_1_SUBTYPE, 1D,
+                                        producer2Uuid)));
+        final Collection<StatSnapshot> snapshots =
+                        snapshotCreator.createStatSnapshots(records, false, Collections.emptyList())
+                                        .map(StatSnapshot.Builder::build)
+                                        .collect(Collectors.toList());
+        Assert.assertEquals(1, snapshots.size());
+        final StatSnapshot snapshot = snapshots.iterator().next();
+        Assert.assertThat(snapshot.getStatRecordsCount(), CoreMatchers.is(1));
+        /*
+         6 is expected number because:
+         we had 7 VMs connected to two providers. For every VM we are creating test record with
+         capacity equal to: testValue * 3 (please, refer to
+         com.vmturbo.history.stats.StatsTestUtils.createRecord and
+         com.vmturbo.history.stats.StatsTestUtils.testCapacity)
+         So in total we will have 7 records: 4 records connected to one provider, 3 records
+         connected to second provider. Every record has capacity equal to 3.
+         As a result before the fix we would have 7 * 3 = 21. After the fix we are grouping capacity
+         value by providers, i.e. will will have capacity equal to 3 from one and 3 from second, so
+         total capacity value will be 6.
+         */
+        checkStatRecord(snapshot.getStatRecords(0), 6F, "",
+                        ProducerIdVisitor.MULTIPLE_PROVIDERS);
+    }
+
+    /**
+     * Checks that capacity accumulated per provider and not per consumer.
+     */
+    @Test
+    public void checkCapacitiesForConsumerGroupWithMoreThanOneProviderGroupedByProvider() {
+        final long provider1Oid = 1000;
+        final long provider2Oid = 2000;
+        final String provider1000DisplayName = "provider1000DisplayName";
+        Mockito.when(liveStatsReader.getEntityDisplayNameForId(provider1Oid))
+                        .thenReturn(provider1000DisplayName);
+        final String provider2000DisplayName = "provider2000DisplayName";
+        Mockito.when(liveStatsReader.getEntityDisplayNameForId(provider2Oid))
+                        .thenReturn(provider2000DisplayName);
+        // verify that the effective capacity calculation in the stat snapshot is behaving as expected
+        // we need a non-mocked stat record builder to do this.
+        final Collection<String> firstProviderConsumerUuids =
+                        Arrays.asList("111", "222", "333", "444");
+        final Collection<String> secondProviderConsumerUuids = Arrays.asList("555", "666", "777");
+        final List<Record> records = new ArrayList<>(firstProviderConsumerUuids.size()
+                        + secondProviderConsumerUuids.size());
+        final String producer1Uuid = Long.toString(provider1Oid);
+        firstProviderConsumerUuids.forEach(uuid -> records.add(StatsTestUtils
+                        .createRecord(uuid, SNAPSHOT_TIME, C_1, C_1_SUBTYPE, 1D, producer1Uuid)));
+
+        final String producer2Uuid = Long.toString(provider2Oid);
+        secondProviderConsumerUuids.forEach(uuid -> records.add(StatsTestUtils
+                        .createRecord(uuid, SNAPSHOT_TIME, C_1, C_1_SUBTYPE, 1D, producer2Uuid)));
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+                        CommodityRequest.newBuilder().setCommodityName(C_1)
+                                        .addGroupBy(StringConstants.RELATED_ENTITY).build());
+        final Collection<StatSnapshot> snapshots =
+                        snapshotCreator.createStatSnapshots(records, false, commodityRequests)
+                                        .map(StatSnapshot.Builder::build)
+                                        .collect(Collectors.toList());
+        Assert.assertEquals(1, snapshots.size());
+        final StatSnapshot snapshot = snapshots.iterator().next();
+        Assert.assertThat(snapshot.getStatRecordsCount(), CoreMatchers.is(2));
+        checkStatRecord(snapshot.getStatRecords(0), 9F, producer2Uuid,
+                        provider2000DisplayName);
+        checkStatRecord(snapshot.getStatRecords(1), 12F, producer1Uuid,
+                        provider1000DisplayName);
+    }
+
+    private static void checkStatRecord(StatRecord statRecord, float total, String providerUuid,
+                    String expectedDisplayName) {
+        Assert.assertThat(statRecord.getReserved(), CoreMatchers.is(0F));
+        Assert.assertThat(statRecord.getCapacity().getTotal(), CoreMatchers.is(total));
+        Assert.assertThat(statRecord.getProviderUuid(), CoreMatchers.is(providerUuid));
+        Assert.assertThat(statRecord.getProviderDisplayName(),
+                        CoreMatchers.is(expectedDisplayName));
     }
 
     /**

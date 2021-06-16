@@ -14,8 +14,8 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
+import static com.vmturbo.extractor.models.ModelDefinitions.IS_ATTACHED;
 import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
-import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static com.vmturbo.extractor.schema.enums.EntityType.COMPUTE_CLUSTER;
@@ -115,6 +115,8 @@ import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
+import com.vmturbo.extractor.models.HashedDataManager;
+import com.vmturbo.extractor.models.HashedDataManager.CloseableConsumer;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.MetricType;
@@ -148,12 +150,13 @@ public class EntityMetricWriterTest {
     private List<Record> entitiesUpsertCapture;
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
-    private List<Record> wastedFileReplacerCapture;
+    private List<Record> fileCapture = new ArrayList();
     private List<Grouping> allGroups = new ArrayList<>();
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private ScopeManager scopeManager;
     private DataExtractionFactory dataExtractionFactory;
+    private HashedDataManager fileTableManager;
 
     /**
      * Set up for tests.
@@ -194,8 +197,6 @@ public class EntityMetricWriterTest {
         this.entitiesUpdateCapture = captureSink(entitiesUpdaterSink, false);
         DslRecordSink metricInserterSink = mock(DslRecordSink.class);
         this.metricInsertCapture = captureSink(metricInserterSink, false);
-        DslRecordSink wastedFileReplacerSink = mock(DslRecordSink.class);
-        this.wastedFileReplacerCapture = captureSink(wastedFileReplacerSink, false);
         final DataPack<Long> oidPack = new LongDataPack();
         final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
         entityHashManager.injectPriorTopology();
@@ -205,10 +206,12 @@ public class EntityMetricWriterTest {
         doReturn(Collections.emptyMap()).when(relatedEntitiesExtractor).getRelatedEntitiesByType(anyLong());
         doAnswer(i -> Stream.empty()).when(relatedEntitiesExtractor).getRelatedGroups(anyObject());
         doReturn(Optional.of(relatedEntitiesExtractor)).when(dataExtractionFactory).newRelatedEntitiesExtractor();
-
+        this.fileTableManager = mock(HashedDataManager.class);
+        CloseableConsumer<Record> closeableConsumer = mock(CloseableConsumer.class);
+        doAnswer(i -> fileCapture.add(i.getArgumentAt(0, Record.class))).when(closeableConsumer).accept(any(Record.class));
+        doReturn(closeableConsumer).when(fileTableManager).open(any(DSLContext.class), any(WriterConfig.class));
         this.writer = spy(new EntityMetricWriter(endpoint,
-                entityHashManager,
-                scopeManager, oidPack,
+                entityHashManager, scopeManager, fileTableManager, oidPack,
                 Executors.newSingleThreadScheduledExecutor(), dataExtractionFactory));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(), any());
@@ -217,7 +220,6 @@ public class EntityMetricWriterTest {
         // note that EntityMetricWriter consumes groups multiple times, so we need to
         // construct a new stream each time.
         doAnswer(i -> allGroups.stream()).when(dataProvider).getAllGroups();
-        doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink();
         LongSet relatedEntities = new LongOpenHashSet();
         doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
     }
@@ -676,7 +678,7 @@ public class EntityMetricWriterTest {
     }
 
     /**
-     * Test that wasted files are ingested correctly for on-prem case. For onprem, only wasted
+     * Test that files files are ingested correctly for on-prem case. For onprem, only wasted
      * files on volume2 are persisted, since volume1 is used by vm1 and volume3 is on storage2
      * whose wasted files should be ignored. For cloud, wasted files on volume4 should also be
      * persisted.
@@ -729,6 +731,7 @@ public class EntityMetricWriterTest {
         final TopologyEntityDTO storageTier2 = mkEntity(STORAGE_TIER);
         final List<VirtualVolumeFileDescriptor> filesList4 = Arrays.asList(
                 file("/disks/wasted", DISK, null, null));
+        final TopologyEntityDTO volume4 = cloudVolume(filesList4, AttachmentState.ATTACHED, storageTier2.getOid());
 
         // mock
         doReturn(Optional.of(storage1.getDisplayName())).when(dataProvider).getDisplayName(storage1.getOid());
@@ -736,20 +739,22 @@ public class EntityMetricWriterTest {
         doReturn(Optional.of(storageTier2.getDisplayName())).when(dataProvider).getDisplayName(storageTier2.getOid());
 
         // write
-        List<TopologyEntityDTO> entities = Arrays.asList(vm, volume1, volume2, volume3, storage1,
+        List<TopologyEntityDTO> entities = Arrays.asList(vm, volume1, volume2, volume3, volume4, storage1,
                 storageTier1, storageTier2);
         // shuffle so the order of receiving entity is randomized each time
         Collections.shuffle(entities);
         entities.forEach(entityConsumer);
         writer.finish(dataProvider);
 
-        // verify that the files on volume2 and volume3 are persisted
-        assertThat(wastedFileReplacerCapture.size(), is(5));
+        // verify that all files were captured
+        assertThat(fileCapture.size(), is(9));
+        // five of them should be marked as unattached
+        assertThat(fileCapture.stream().filter(r -> !r.get(IS_ATTACHED)).count(), is(5L));
 
         final Map<Long, TopologyEntityDTO> storageById = Stream.of(storage1, storageTier1, storageTier2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         final Map<Long, Map<String, VirtualVolumeFileDescriptor>> wastedFileByStorageAndPath = ImmutableMap.of(
-                storage1.getOid(), filesList2.stream()
+                storage1.getOid(), Stream.concat(filesList1.stream(), filesList2.stream())
                         .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity())),
                 storageTier1.getOid(), filesList3.stream()
                         .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity())),
@@ -757,21 +762,23 @@ public class EntityMetricWriterTest {
                         .collect(Collectors.toMap(VirtualVolumeFileDescriptor::getPath, Function.identity()))
         );
 
-        for (Record record : wastedFileReplacerCapture) {
+        // make sure that records have correct data
+        for (Record record : fileCapture) {
             final Long storageId = record.get(STORAGE_OID);
             final VirtualVolumeFileDescriptor expected =
                     wastedFileByStorageAndPath.get(storageId).get(record.get(FILE_PATH));
-            if (expected.hasSizeKb()) {
-                assertThat(record.get(FILE_SIZE), is(expected.getSizeKb()));
-            } else {
-                assertThat(record.get(FILE_SIZE), is(nullValue()));
+            if (expected != null) {
+                if (expected.hasSizeKb()) {
+                    assertThat(record.get(FILE_SIZE), is(expected.getSizeKb()));
+                } else {
+                    assertThat(record.get(FILE_SIZE), is(nullValue()));
+                }
+                if (expected.hasModificationTimeMs()) {
+                    assertThat(record.get(MODIFICATION_TIME).getTime(), is(expected.getModificationTimeMs()));
+                } else {
+                    assertThat(record.get(MODIFICATION_TIME), is(nullValue()));
+                }
             }
-            if (expected.hasModificationTimeMs()) {
-                assertThat(record.get(MODIFICATION_TIME).getTime(), is(expected.getModificationTimeMs()));
-            } else {
-                assertThat(record.get(MODIFICATION_TIME), is(nullValue()));
-            }
-            assertThat(record.get(STORAGE_NAME), is(storageById.get(storageId).getDisplayName()));
         }
     }
 

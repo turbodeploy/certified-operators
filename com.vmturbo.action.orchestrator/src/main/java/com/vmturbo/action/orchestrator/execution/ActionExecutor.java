@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,11 +24,9 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.velocity.runtime.parser.ParseException;
 
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
-import com.vmturbo.action.orchestrator.template.Velocity;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -211,25 +208,22 @@ public class ActionExecutor implements ActionExecutionListener {
             @Nonnull final WorkflowInfo workflowInfo) throws ExecutionInitiationException {
         if (workflowInfo.hasWebhookInfo()) {
             WebhookInfo webhookInfo = workflowInfo.getWebhookInfo();
-            if (webhookInfo.hasHttpMethod() && webhookInfo.hasUrl() && webhookInfo.hasTemplate()) {
-                try {
-                    return workflowInfo.toBuilder()
+            if (webhookInfo.hasHttpMethod() && webhookInfo.hasUrl()) {
+                WorkflowInfo.Builder builder = workflowInfo.toBuilder()
                         .addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(HTTP_METHOD)
-                            .setValue(webhookInfo.getHttpMethod().name())
-                            .build())
+                                .setName(HTTP_METHOD)
+                                .setValue(webhookInfo.getHttpMethod().name())
+                                .build())
                         .addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(URL)
-                            .setValue(webhookInfo.getUrl())
-                            .build())
-                        .addWorkflowProperty(WorkflowProperty.newBuilder()
+                                .setName(URL)
+                                .setValue(webhookInfo.getUrl())
+                                .build());
+                if (workflowInfo.getWebhookInfo().hasTemplate()) {
+                    builder.addWorkflowProperty(WorkflowProperty.newBuilder()
                             .setName(TEMPLATED_ACTION_BODY)
-                            // TODO (OM-71250) Replace action.getRecommendation
-                            .setValue(Velocity.apply(webhookInfo.getTemplate(), action.getRecommendation())).build()).build();
-                } catch (ParseException | IOException e) {
-                    throw new ExecutionInitiationException("Failed to fill in properties for Webhook workflow",
-                            e, Status.INTERNAL.getCode());
+                            .setValue(webhookInfo.getTemplate()));
                 }
+                return builder.build();
             } else {
                 throw new ExecutionInitiationException("The HTTP METHOD, URL and TEMPLATE are required parameters "
                         + "for Webhook workflows", Status.INTERNAL.getCode());

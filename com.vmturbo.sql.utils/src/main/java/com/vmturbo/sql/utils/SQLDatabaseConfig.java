@@ -312,11 +312,14 @@ public abstract class SQLDatabaseConfig {
                 dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, dbRootPassword);
         try (Connection rootConnection = rootDataSource.getConnection()) {
             if (hasGrantPrivilege(rootConnection, dbRootUsername, dbRootPassword, schemaName)) {
-                // Run flyway migration under root credentials.
-                flyway(schemaName, rootDataSource);
+                // explicitly create the needed database if it doesn't exist, so we can run
+                // migrations with non-root user
+                createDatabase(rootConnection, schemaName);
                 // Allow given user to access the database (= grants.sql):
                 final String requestUser = "'" + dbUsername + "'@'%'";
                 grantDbPrivileges(schemaName, dbPassword, rootConnection, requestUser);
+                // now run flyway using our non-root connection
+                flyway(schemaName, dataSource);
             } else {
                 logger.error("Database connection is not available with root credentials" +
                         " or doesn't have GRANT permission. Failed " +
@@ -330,6 +333,13 @@ public abstract class SQLDatabaseConfig {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
         return dataSource;
+    }
+
+    protected void createDatabase(
+            @Nonnull final Connection connection, @Nonnull final String schemaName) throws SQLException {
+        logger.info("Ensuring that database {} exists", schemaName);
+        connection.createStatement()
+                .execute(String.format("CREATE DATABASE IF NOT EXISTS `%s`", schemaName));
     }
 
     protected void grantDbPrivileges(@Nonnull final String schemaName,

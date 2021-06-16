@@ -65,6 +65,16 @@ public abstract class AbstractVisitor<R extends Record, S> implements RecordVisi
     }
 
     /**
+     * Returns logger instance related to specific visitor.
+     *
+     * @return logger instance.
+     */
+    @Nonnull
+    protected Logger getLogger() {
+        return logger;
+    }
+
+    /**
      * Adds record to the collection of potentially problematic records.
      *
      * @param reason  reason why we are treating the record as problematic.

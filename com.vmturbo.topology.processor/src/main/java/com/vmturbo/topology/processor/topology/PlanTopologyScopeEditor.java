@@ -152,16 +152,13 @@ public class PlanTopologyScopeEditor {
             ImmutableSet.of(EntityType.VIRTUAL_DATACENTER_VALUE);
 
     private final GroupServiceBlockingStub groupServiceClient;
-    private final boolean enableContainerClusterScalingCost;
 
     /**
      * Constructor.
      * @param groupServiceClient gRPC handle to group service
      */
-    public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient,
-                                   final boolean enableContainerClusterScalingCost) {
+    public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
-        this.enableContainerClusterScalingCost = enableContainerClusterScalingCost;
     }
 
     /**
@@ -546,7 +543,7 @@ public class PlanTopologyScopeEditor {
             // are used to pull in VirtualVolumes
             // If the cost feature flag is disabled, the region entity and tiers will not be included in the scope,
             // so revert back to fetching storage tiers for the VV entities too
-            if (!enableContainerClusterScalingCost || buyer.getEntityType() != VIRTUAL_VOLUME_VALUE) {
+            if (buyer.getEntityType() != VIRTUAL_VOLUME_VALUE) {
                 potentialSellers.addAll(getPotentialSellers(topology, index,
                         buyer.getTopologyEntityDtoBuilder()
                                 .getCommoditiesBoughtFromProvidersList()
@@ -572,11 +569,11 @@ public class PlanTopologyScopeEditor {
             if (buyer.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 // To compute costs for cloud VMs we need the BA and Region associated with them in the scope
                 // Azure VMs are not associated with any AZ, so we get Region using the Aggregator relationship
-                if (enableContainerClusterScalingCost && !buyer.getAggregators().isEmpty()) {
+                if (!buyer.getAggregators().isEmpty()) {
                     buyer.getAggregators().stream().filter(a -> a.getEntityType() == REGION_VALUE)
                             .forEach(a -> costEntitiesSeeds.tryAdd(a.getOid()));
                 }
-                if (enableContainerClusterScalingCost && buyer.getOwner().isPresent()
+                if (buyer.getOwner().isPresent()
                         && buyer.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
                     costEntitiesSeeds.tryAdd(buyer.getOwner().get().getOid());
                 }
@@ -604,9 +601,7 @@ public class PlanTopologyScopeEditor {
                 // Region, tiers and service providers to compute costs for entities in the scope
                 // AWS VMs are connected to AZ, Azure VMs are not connected to AZ
                 // so we obtain the Region for those VMs
-                if (enableContainerClusterScalingCost) {
-                    costEntitiesSeeds.tryAdd(buyer.getOid());
-                }
+                costEntitiesSeeds.tryAdd(buyer.getOid());
             }
 
             associatedEntities.forEach(sellerId -> {
@@ -634,11 +629,9 @@ public class PlanTopologyScopeEditor {
         stopwatch.stop();
 
         // Fetching the entities required for the entity calculations
-        if (enableContainerClusterScalingCost) {
-            final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
-            scopeCostTopology(topology, costEntitiesSeeds, resultEntityMap);
-            resultEntityMap.values().stream().forEach(e -> scopedTopologyOIDs.add(e.getOid()));
-        }
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap = new Long2ObjectOpenHashMap<>();
+        scopeCostTopology(topology, costEntitiesSeeds, resultEntityMap);
+        resultEntityMap.values().stream().forEach(e -> scopedTopologyOIDs.add(e.getOid()));
 
         final TopologyGraphCreator<TopologyEntity.Builder, TopologyEntity> graphCreator =
             new TopologyGraphCreator<>(scopedTopologyOIDs.size());

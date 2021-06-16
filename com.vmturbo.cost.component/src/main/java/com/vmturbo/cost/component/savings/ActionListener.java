@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -344,6 +345,22 @@ public class ActionListener implements ActionsListener {
     }
 
     /**
+     * Handle action state transitions.  We currently do nothing other than log the transition.
+     * These transitions are currently logged at the info level while the feature is hidden behind
+     * a feature flag and is in private preview.  This should be moved to debug level once the
+     * feature is permanently enabled.
+     *
+     * @param actionProgress action progress information.
+     */
+    @Override
+    public void onActionProgress(@Nonnull ActionProgress actionProgress) {
+        logger.info("Action ID {} progress {}%: {}",
+                actionProgress.getActionId(),
+                actionProgress.getProgressPercentage(),
+                actionProgress.getDescription());
+    }
+
+    /**
      * Generate savings related events for missed savings/investments.
      *
      * <p><p>Process new Pending VM Scale actions and add to RECOMMENDATION_ADDED events to Events Journal.
@@ -373,9 +390,7 @@ public class ActionListener implements ActionsListener {
             final Long newActionId = newActionInfo.getActionId();
             final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
-            // We need to create RECOMMENDATION_ADDED events for actions in READY (PENDING_ACCEPT)
-            // states only.
-            if (actionPriceChange != null && actionState == ActionState.READY) {
+            if (actionPriceChange != null) {
                 logger.debug("New action price change for {}, {}, {}, {}:",
                         newActionId,
                         actionState, actionPriceChange.getSourceCost(),

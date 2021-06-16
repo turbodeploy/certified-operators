@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.template;
+package com.vmturbo.mediation.webhook.template;
 
 import java.io.IOException;
 import java.io.StringReader;

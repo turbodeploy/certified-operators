@@ -76,7 +76,80 @@ public class ProjectedContainerSpecPostProcessorTest {
     }
 
     /**
-     * Test {@link ProjectedContainerSpecPostProcessor#process}.
+     * Test {@link ProjectedContainerSpecPostProcessor#process} when a ContainerSpec has a single container.
+     */
+    @Test
+    public void testProjectedContainerSpecsPostProcessingWithSingleContainer() {
+        long containerSpecOID = 11L;
+        final ProjectedTopologyEntity containerSpec = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setOid(containerSpecOID)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build())
+                    .setCapacity(1)
+                    .setHistoricalUsed(HistoricalValues.newBuilder()
+                        .setPercentile(10)
+                        .build())
+                    .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
+                        .build())
+                    .setCapacity(100)
+                    .setUsed(50)
+                    .build())
+                .build())
+            .build();
+        long containerOID1 = 22L;
+        final ProjectedTopologyEntity container = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(containerOID1)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build())
+                    .setCapacity(4)
+                    .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE)
+                        .build())
+                    .setCapacity(100)
+                    .setUsed(20)
+                    .build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(containerSpecOID)
+                    .build())
+                .build())
+            .build();
+        final Map<Long, ProjectedTopologyEntity> projectedTopologyEntityMap = new HashMap<>();
+        projectedTopologyEntityMap.put(containerSpecOID, containerSpec);
+        projectedTopologyEntityMap.put(containerOID1, container);
+        Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities =
+            projectedTopologyEntityMap.values().stream()
+                .collect(Collectors.groupingBy(entity -> entity.getEntity().getEntityType()));
+
+        ActionTO actionTO1 = mockActionTO(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE);
+
+        postProcessor.process(topologyInfo, projectedTopologyEntityMap, entityTypeToProjectedEntities,
+            Collections.singletonList(actionTO1));
+
+        ProjectedTopologyEntity updatedProjectedContainerSpec = projectedTopologyEntityMap.get(containerSpecOID);
+        Assert.assertNotNull(updatedProjectedContainerSpec);
+        Assert.assertEquals(4,
+            updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getCapacity(), DELTA);
+        Assert.assertEquals(2.5,
+            updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getHistoricalUsed().getPercentile(), DELTA);
+        Assert.assertEquals(20,
+            updatedProjectedContainerSpec.getEntity().getCommoditySoldList(1).getUsed(), DELTA);
+    }
+
+    /**
+     * Test {@link ProjectedContainerSpecPostProcessor#process} when a ContainerSpec has multiple containers.
      */
     @Test
     public void testProjectedContainerSpecsPostProcessing() {

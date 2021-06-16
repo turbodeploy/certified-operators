@@ -470,8 +470,7 @@ public class TopologyConverter {
                              @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                              @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP,
-                             final boolean enableContainerClusterScalingCost) {
+                             final boolean enableOP) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -503,7 +502,6 @@ public class TopologyConverter {
                 tierExcluder,
                 commodityIndex,
                 getExplanationOverride())
-            .enableContainerClusterScalingCost(enableContainerClusterScalingCost)
         );
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
@@ -536,7 +534,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
     }
 
     /**
@@ -567,7 +565,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false, false);
+                false);
     }
 
 
@@ -601,7 +599,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
-                analysisConfig.isEnableOP(), analysisConfig.enableContainerClusterScalingCost());
+                analysisConfig.isEnableOP());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -620,12 +618,11 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP,
-                             final boolean enableContainerClusterScalingCost) {
+                             final boolean enableOP) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, enableContainerClusterScalingCost);
+                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP);
     }
 
     /**
@@ -644,7 +641,6 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
-     * @param enableContainerClusterScalingCost Flag to enable or disable cost calculations for container cluster scaling.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -660,12 +656,11 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP,
-                             final boolean enableContainerClusterScalingCost) {
+                             final boolean enableOP) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP, enableContainerClusterScalingCost);
+            enableOP);
     }
 
     /**
@@ -684,8 +679,6 @@ public class TopologyConverter {
      * @param licensePriceWeightScale value to scale the price weight of commodities for every
      *            softwareLicenseCommodity sold by a provider.
      * @param enableOP flag to check if to use over provisioning commodity changes.
-     * @param enableContainerClusterScalingCost Flag to enable or disable cost calculations for
-     *                                          container cluster scaling.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -702,12 +695,11 @@ public class TopologyConverter {
                     reversibilitySettingFetcher,
             final int licensePriceWeightScale,
             final CloudTopology cloudTopology,
-            final boolean enableOP,
-            final boolean enableContainerClusterScalingCost) {
+            final boolean enableOP) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP, enableContainerClusterScalingCost);
+                enableOP);
     }
 
 
