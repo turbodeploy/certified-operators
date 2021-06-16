@@ -34,7 +34,6 @@ import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.StatsTestUtils;
@@ -155,8 +154,7 @@ public class LiveStatsAggregatorTest {
         // 3 VM attribute + 2 VM cpu bought + 2 VM flow bought = 7
         // 2 entities * 3 commodities each = 6 market stats records
         // 3 count metrics for non-occurring entity types = 3 market stats records
-        // 3 PM's CPU values stored as 3 hist_utilization stats records
-        assertEquals(28, (long)(Integer)dbMock.getTables().stream()
+        assertEquals(25, (long)(Integer)dbMock.getTables().stream()
                 .map(dbMock::getRecords)
                 .mapToInt(Collection::size)
                 .sum());
@@ -182,9 +180,6 @@ public class LiveStatsAggregatorTest {
         dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
                 .filter(r -> r.getPropertySubtype().equalsIgnoreCase("Flow-0"))
                 .forEach(r -> assertEquals(100_000_000, r.getAvgValue(), 0.0));
-        // assert that all the 3 histUtil records are of type averageUtilization
-        assertEquals(dbMock.getRecords(Tables.HIST_UTILIZATION).stream()
-                .filter(r -> r.getValueType() == HistoryUtilizationType.Smoothed.ordinal()).count(), 3);
     }
 
     /**
