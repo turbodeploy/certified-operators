@@ -1116,7 +1116,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                                 ErrorDTO.newBuilder()
                                                         .setDescription(e.getLocalizedMessage())
                                                         .setSeverity(ErrorSeverity.CRITICAL)
-                                                        .setErrorType(ErrorType.OTHER)
+                                                        .setErrorType(ErrorType.DUPLICATION)
                                                         .build());
                                 // only add a notification if it is a full discovery
                                 if (discoveryType == DiscoveryType.FULL) {

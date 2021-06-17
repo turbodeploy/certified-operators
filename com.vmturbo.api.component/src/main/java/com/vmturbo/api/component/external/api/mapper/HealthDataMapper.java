@@ -37,6 +37,7 @@ public class HealthDataMapper {
         result.put(ErrorType.PROBE_PARSING_ERROR, TargetErrorType.DATA_ACCESS_ERROR);
         result.put(ErrorType.OTHER, TargetErrorType.INTERNAL_PROBE_ERROR);
         result.put(ErrorType.INTERNAL_PROBE_ERROR, TargetErrorType.INTERNAL_PROBE_ERROR);
+        result.put(ErrorType.DUPLICATION, TargetErrorType.DUPLICATION);
         return result;
     }
 
@@ -52,6 +53,8 @@ public class HealthDataMapper {
         result.put(TargetErrorType.DATA_ACCESS_ERROR, "Wrong data received from target. Check what is being sent.");
         result.put(TargetErrorType.INTERNAL_PROBE_ERROR,
                 "Check the Target Configuration page for more information. Please contact support if the problem persists.");
+        result.put(TargetErrorType.DUPLICATION, "There're duplicate targets present in the system."
+                        + " Check the Target Configuration page for more information.");
         return result;
     }
 
@@ -63,6 +66,7 @@ public class HealthDataMapper {
                         TargetHealthSubcategory.class);
         result.put(TargetHealthSubcategory.DISCOVERY, TargetCheckSubcategory.DISCOVERY);
         result.put(TargetHealthSubcategory.VALIDATION, TargetCheckSubcategory.VALIDATION);
+        result.put(TargetHealthSubcategory.DUPLICATION, TargetCheckSubcategory.DUPLICATION);
         return result;
     }
 
