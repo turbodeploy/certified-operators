@@ -2,12 +2,17 @@ package com.vmturbo.api.conversion.action;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
 
@@ -23,6 +28,10 @@ import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.AnnotationNote;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
  * Tests the case where we are converting different SDK messages to API messages.
@@ -471,6 +480,120 @@ public class SdkActionToApiConverterTest {
         assertThat(compoundAction.getCurrentValue(), is(String.valueOf(STORAGE_TIER_1_UUID)));
         assertThat(compoundAction.getNewValue(), is(String.valueOf(STORAGE_TIER_2_UUID)));
 
+    }
+
+    /**
+     * If tags are provided using VirtualMachineData's AnnotationNotes, they should be placed in
+     * the api DTO's tags.
+     */
+    @Test
+    public void testTagFromAnnotationNote() {
+        ActionExecution.ActionExecutionDTO actionExecutionDTO = ActionExecution.ActionExecutionDTO.newBuilder()
+                .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
+                        .setUuid(String.valueOf(ACTION_UUID))
+                        .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                .setVirtualMachineData(VirtualMachineData.newBuilder()
+                                        .addAnnotationNote(AnnotationNote.newBuilder()
+                                                .setKey("Department")
+                                                .setValue("Development")
+                                                .build())
+                                        .buildPartial())
+                                .buildPartial())
+                        .buildPartial())
+                .buildPartial();
+        SdkActionInformationProvider provider =
+                new SdkActionInformationProvider(actionExecutionDTO);
+        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+
+        assertEquals(
+                ImmutableMap.of("Department", Arrays.asList("Development")),
+                actionApiDTO.getTarget().getTags());
+    }
+
+    /**
+     * When there are multiple annotation notes with the same key, their values should be grouped
+     * together.
+     */
+    @Test
+    public void testTagWithMultipleValues() {
+        ActionExecution.ActionExecutionDTO actionExecutionDTO = ActionExecution.ActionExecutionDTO.newBuilder()
+                .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
+                        .setUuid(String.valueOf(ACTION_UUID))
+                        .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                .setVirtualMachineData(VirtualMachineData.newBuilder()
+                                        .addAnnotationNote(AnnotationNote.newBuilder()
+                                                .setKey("Department")
+                                                .setValue("Development")
+                                                .build())
+                                        .addAnnotationNote(AnnotationNote.newBuilder()
+                                                .setKey("Department")
+                                                .setValue("Quality Engineering")
+                                                .build())
+                                        .buildPartial())
+                                .buildPartial())
+                        .buildPartial())
+                .buildPartial();
+        SdkActionInformationProvider provider =
+                new SdkActionInformationProvider(actionExecutionDTO);
+        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+
+        assertEquals(
+                ImmutableMap.of("Department", Arrays.asList("Development", "Quality Engineering")),
+                actionApiDTO.getTarget().getTags());
+    }
+
+    /**
+     * Having both VCTags and annotation notes should not cause failures. Instead the keys
+     * and values from both should be combined.
+     */
+    @Test
+    public void testTagFromBothVCTAGSAndAnnotationNote() {
+        ActionExecution.ActionExecutionDTO actionExecutionDTO = ActionExecution.ActionExecutionDTO.newBuilder()
+                .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
+                        .setUuid(String.valueOf(ACTION_UUID))
+                        .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                .addEntityProperties(EntityProperty.newBuilder()
+                                        .setNamespace(SDKUtil.VC_TAGS_NAMESPACE)
+                                        .setName("Department")
+                                        .setValue("Quality Engineering")
+                                        .build())
+                                .setVirtualMachineData(VirtualMachineData.newBuilder()
+                                        .addAnnotationNote(AnnotationNote.newBuilder()
+                                                .setKey("Department")
+                                                .setValue("Development")
+                                                .build())
+                                        .buildPartial())
+                                .buildPartial())
+                        .buildPartial())
+                .buildPartial();
+        SdkActionInformationProvider provider =
+                new SdkActionInformationProvider(actionExecutionDTO);
+        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+
+        assertEquals(
+                ImmutableMap.of("Department", Arrays.asList("Quality Engineering", "Development")),
+                actionApiDTO.getTarget().getTags());
+    }
+
+    /**
+     * No annotations should not cause an error for tag processing and return null tags.
+     */
+    @Test
+    public void testTagEmptyAnnotationNote() {
+        ActionExecution.ActionExecutionDTO actionExecutionDTO = ActionExecution.ActionExecutionDTO.newBuilder()
+                .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
+                        .setUuid(String.valueOf(ACTION_UUID))
+                        .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                .setVirtualMachineData(VirtualMachineData.newBuilder()
+                                        .buildPartial())
+                                .buildPartial())
+                        .buildPartial())
+                .buildPartial();
+        SdkActionInformationProvider provider =
+                new SdkActionInformationProvider(actionExecutionDTO);
+        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+
+        assertNull(actionApiDTO.getTarget().getTags());
     }
 
     private void assertEntityData(ServiceEntityApiDTO entityApiDTO, String state, String type,

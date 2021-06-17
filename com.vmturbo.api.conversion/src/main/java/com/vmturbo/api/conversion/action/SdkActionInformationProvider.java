@@ -39,6 +39,7 @@ import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.AnnotationNote;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
@@ -367,6 +368,15 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
             if (SDKUtil.VC_TAGS_NAMESPACE.equals(property.getNamespace())) {
                 tags.computeIfAbsent(property.getName(), e -> new ArrayList<>())
                     .add(property.getValue());
+            }
+        }
+
+        // find VM annotations
+        if (entityDTO.hasVirtualMachineData()) {
+            for (AnnotationNote annotationNote : entityDTO.getVirtualMachineData().getAnnotationNoteList()) {
+                tags.computeIfAbsent(annotationNote.getKey(),
+                        k -> new ArrayList<>())
+                        .add(annotationNote.getValue());
             }
         }
 
