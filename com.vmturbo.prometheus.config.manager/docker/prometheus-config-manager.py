@@ -88,19 +88,39 @@ while True:
             # Modify configuration to include the proper customer domain and ID.
             # The code to get customer domain tries to mimic code to do the same thing in
             # com.vmturbo.clustermgr.DiagEnvironmentSummary.computeLicenseDomain
-            customer_domain = '_'.join(sorted({
-                # Remove '@' and anything before it if it exists from e-mail address to get
-                # domain. Also trim whitespace.
-                re.sub(r'^[^@]*@', '', license_dto['turbo']['email'].strip())
-                for license_dto in response.json()['response']['licenseDTO']
-                if 'turbo' in license_dto  # it's the new DTO format
-                   and license_dto['turbo'] is not None  # it's a Turbonomic license
-                   and 'email' in license_dto['turbo']  # it has an e-mail
-                   and datetime.today() <= datetime.strptime(license_dto['turbo']['expirationDate'],
-                                                             '%Y-%m-%d')  # it has not expired
-            }))
-            if not customer_domain:
-                customer_domain = "unlicensed"
+            customer_domains = list()
+            customer_ids = list()
+            for license_dto in response.json()['response']['licenseDTO']:
+                if ('turbo' not in license_dto # it's not the new DTO format
+                    or license_dto['turbo'] is None  # it's not a Turbonomic license
+                    or datetime.today() > datetime.strptime(
+                        license_dto['turbo']['expirationDate'], '%Y-%m-%d')): # it has expired
+                    continue
+
+                # Populate customer_domain by taking this information from e-mail address
+                if 'email' in license_dto['turbo']:
+                    # Remove '@' and anything before it if it exists from e-mail address to get
+                    # domain. Also trim whitespace.
+                    customer_domains.append(re.sub(r'^[^@]*@', '', license_dto['turbo']['email'].strip()))
+
+                # Populate customer_id from a response
+                if 'customerId' in license_dto['turbo']:
+                    if license_dto['turbo']['customerId'] is None:
+                        # If customerId is presented in a response but has 'null' value
+                        customer_ids.append('missing from license DTO')
+                    else:
+                        customer_ids.append(license_dto['turbo']['customerId'].strip())
+                else:
+                    # If customerId is not presented in a response at all
+                    customer_ids.append('missing from license API response')
+
+            # Sort customer information by customer_domain
+            customer_info = sorted(zip(customer_domains, customer_ids), key = lambda k: k[0])
+            if customer_info:
+                customer_domains, customer_ids = zip(*customer_info)
+
+            customer_domain = '_'.join(customer_domains) if customer_domains else 'unlicensed'
+            customer_id = '_'.join(customer_ids) if customer_ids else '000000'
         except (requests.RequestException, OSError, ValueError) as error:
             print(datetime.now(),
                   "WARNING: Can't get licence information from auth. Using old values. Cause:",
