@@ -160,7 +160,7 @@ public class ActionStoreConfig {
      * Flag set to true when the action ID in use is the stable recommendation OID instead of the
      * unstable action instance id.
      */
-    @Value("${useStableActionIdAsUuid:false}")
+    @Value("${useStableActionIdAsUuid:true}")
     private boolean useStableActionIdAsUuid;
 
     /**
