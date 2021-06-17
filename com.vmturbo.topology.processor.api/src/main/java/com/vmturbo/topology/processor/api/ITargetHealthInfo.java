@@ -21,11 +21,7 @@ public interface ITargetHealthInfo {
         /**
          * Target health check: checked Discovery.
          */
-        DISCOVERY,
-        /**
-         * Target health check: checked targets duplication.
-         */
-        DUPLICATION
+        DISCOVERY
     }
 
     /**
