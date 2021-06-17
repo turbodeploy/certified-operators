@@ -96,19 +96,31 @@ while True:
                     or datetime.today() > datetime.strptime(
                         license_dto['turbo']['expirationDate'], '%Y-%m-%d')): # it has expired
                     continue
+
+                # Populate customer_domain by taking this information from e-mail address
                 if 'email' in license_dto['turbo']:
                     # Remove '@' and anything before it if it exists from e-mail address to get
                     # domain. Also trim whitespace.
                     customer_domains.append(re.sub(r'^[^@]*@', '', license_dto['turbo']['email'].strip()))
-                if 'customerId' in license_dto['turbo'] and license_dto['turbo']['customerId'] is not None:
-                    customer_ids.append(license_dto['turbo']['customerId'].strip())
-                else:
-                    # Set customer_id to 'missing from licence DTO' only if it's not defined
-                    # in valid license or it set to 'null'
-                    customer_ids.append('missing from license DTO')
 
-            customer_domain = '_'.join(sorted(customer_domains)) if customer_domains else 'unlicensed'
-            customer_id = '_'.join(sorted(customer_ids)) if customer_ids else '000000'
+                # Populate customer_id from a response
+                if 'customerId' in license_dto['turbo']:
+                    if license_dto['turbo']['customerId'] is None:
+                        # If customerId is presented in a response but has 'null' value
+                        customer_ids.append('missing from license DTO')
+                    else:
+                        customer_ids.append(license_dto['turbo']['customerId'].strip())
+                else:
+                    # If customerId is not presented in a response at all
+                    customer_ids.append('missing from license API response')
+
+            # Sort customer information by customer_domain
+            customer_info = sorted(zip(customer_domains, customer_ids), key = lambda k: k[0])
+            if customer_info:
+                customer_domains, customer_ids = zip(*customer_info)
+
+            customer_domain = '_'.join(customer_domains) if customer_domains else 'unlicensed'
+            customer_id = '_'.join(customer_ids) if customer_ids else '000000'
         except (requests.RequestException, OSError, ValueError) as error:
             print(datetime.now(),
                   "WARNING: Can't get licence information from auth. Using old values. Cause:",
