@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -300,22 +301,21 @@ public class CloudAspectMapperTest {
      */
     @Test
     public void testMapEntityToAspectBatchPartial() {
-        final Map<Long, EntityAspect> entityAspectMap =
-                cloudAspectMapper.mapEntityToAspectBatchPartial(
-                        Collections.singletonList(ApiPartialEntity.newBuilder()
-                                .setOid(VIRTUAL_MACHINE_OID)
-                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                .setEnvironmentType(EnvironmentType.CLOUD)
-                                .build())).get();
+        final Optional<Map<Long, EntityAspect>> result =
+            cloudAspectMapper.mapEntityToAspectBatchPartial(
+                Collections.singletonList(ApiPartialEntity.newBuilder()
+                    .setOid(VIRTUAL_MACHINE_OID)
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                    .build())
+            );
+        Assert.assertTrue(result.isPresent());
+        final Map<Long, EntityAspect> entityAspectMap = result.get();
         Assert.assertEquals(1, entityAspectMap.size());
         final CloudAspectApiDTO aspect = (CloudAspectApiDTO)entityAspectMap.get(
                 VIRTUAL_MACHINE_OID);
 
-        final EntityUptimeApiDTO entityUptime = aspect.getEntityUptime();
-        Assert.assertEquals(UPTIME_DURATION, entityUptime.getUptimeDurationInMilliseconds());
-        Assert.assertEquals(TOTAL_ANALYZED_DURATION, entityUptime.getTotalDurationInMilliseconds());
-        Assert.assertEquals(UPTIME_PERCENTAGE, entityUptime.getUptimePercentage(), DELTA);
-        Assert.assertEquals(CREATION_TIMESTAMP, entityUptime.getCreationTimestamp());
+        Assert.assertNull(aspect.getEntityUptime());
         final BaseApiDTO account = aspect.getBusinessAccount();
         Assert.assertEquals(ApiEntityType.BUSINESS_ACCOUNT.apiStr(), account.getClassName());
         Assert.assertEquals(String.valueOf(BUSINESS_ACCOUNT_OID), account.getUuid());
