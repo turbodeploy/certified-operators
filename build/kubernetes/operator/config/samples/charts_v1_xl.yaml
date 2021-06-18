@@ -41,6 +41,12 @@ spec:
   # Component selector - Probes
   actionscript:
     enabled: true
+  # ActionStream Kafka is in private preview. Please also add:
+  # spec:
+  #   properties:
+  #     global:
+  #       useStableActionIdAsUuid: true
+  # if you plan to enable this.
   actionstream-kafka:
     enabled: false
   appdynamics:
