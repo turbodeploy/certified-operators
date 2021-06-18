@@ -43,6 +43,7 @@ import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository.ActionMergeSpecsBuilder;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository.ActionMergeSpecsBuilder.ActionExecutionTarget;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader.TargetEntityCache;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
@@ -559,6 +560,7 @@ public class ActionMergeSpecsRepositoryTest {
                 constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
                                                                     KUBERNETES_TARGET_ID,
+                                                                    new TargetEntityCache(kubernetesGraph),
                                                                     kubernetesGraph);
         Assert.assertEquals(2, specs.size());
 
@@ -596,6 +598,7 @@ public class ActionMergeSpecsRepositoryTest {
 
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(TERRAFORM_PROBE_ID,
                 TERRAFORM_TARGET_ID,
+                new TargetEntityCache(terraformGraph),
                 terraformGraph);
         Assert.assertEquals(2, specs.size());
         for (AtomicActionSpec mergeSpec : specs) {
@@ -640,6 +643,7 @@ public class ActionMergeSpecsRepositoryTest {
                 constructKubernetesTopology(ConnectionType.AGGREGATED_BY_CONNECTION);
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
                                                                     KUBERNETES_TARGET_ID,
+                                                                    new TargetEntityCache(kubernetesGraph),
                                                                     kubernetesGraph);
         Assert.assertEquals(2, specs.size());
         List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
@@ -670,6 +674,7 @@ public class ActionMergeSpecsRepositoryTest {
                 constructKubernetesTopology(ConnectionType.CONTROLLED_BY_CONNECTION);
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
                                                                     KUBERNETES_TARGET_ID,
+                                                                    new TargetEntityCache(kubernetesGraph),
                                                                     kubernetesGraph);
         Assert.assertEquals(2, specs.size());
         List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);
@@ -700,6 +705,7 @@ public class ActionMergeSpecsRepositoryTest {
                 constructKubernetesTopology(ConnectionType.CONTROLLED_BY_CONNECTION);
         List<AtomicActionSpec> specs = repo.createAtomicActionSpecs(KUBERNETES_PROBE_ID,
                                                                     KUBERNETES_TARGET_ID,
+                                                                    new TargetEntityCache(kubernetesGraph),
                                                                     kubernetesGraph);
         Assert.assertEquals(2, specs.size());
         List<Long> deDuplicationTargetIds = Arrays.asList(31L, 32L);

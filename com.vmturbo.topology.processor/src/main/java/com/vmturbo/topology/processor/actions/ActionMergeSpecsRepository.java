@@ -38,6 +38,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository.ActionMergeSpecsBuilder.ActionExecutionTarget;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsUploader.TargetEntityCache;
 
 /**
  * The {@link ActionMergeSpecsRepository} implements the action merge and conversion repository.
@@ -88,11 +89,14 @@ public class ActionMergeSpecsRepository {
      *
      * @param probeId   Probe Id
      * @param targetId      Target Id
+     * @param targetEntityCache TargetEntityCache Cache backed by topologyGraph for efficient
+     *                          look up of entities by type and targetId
      * @param topologyGraph {@link TopologyGraph} graph of entities with connections after stitching
      *
      * @return  list of {@link AtomicActionSpec} for the entities
      */
     public List<AtomicActionSpec> createAtomicActionSpecs(Long probeId, Long targetId,
+                                                          @Nonnull final TargetEntityCache targetEntityCache,
                                                           TopologyGraph<TopologyEntity> topologyGraph) {
         // no action merge policies for the given probe, nothing to do
         if (!actionMergePolicyMap.containsKey(probeId)) {
@@ -103,25 +107,15 @@ public class ActionMergeSpecsRepository {
         // Map of policies by entity type
         Map<EntityType, ActionMergePolicyDTO> policyMap = actionMergePolicyMap.get(probeId);
 
-        Map<Integer, List<TopologyEntity>> discoveredEntityList =
-        policyMap.keySet().stream()
-                .flatMap(entityType -> topologyGraph.entitiesOfType(entityType.getNumber())
-                                    .filter(entity -> entity.getDiscoveringTargetIds()
-                                                .anyMatch(discoveringTarget -> targetId.equals(discoveringTarget))))
-                .collect(Collectors.groupingBy(TopologyEntity::getEntityType));
-
         ActionMergeSpecsBuilder actionMergeSpecBuilder
                 = new ActionMergeSpecsBuilder(targetId, topologyGraph);
 
         for (EntityType policyEntityType : policyMap.keySet()) {
             // no entities of this type were discovered, nothing to do
-            if (!discoveredEntityList.containsKey(policyEntityType.getNumber())) {
-                logger.warn("{} : no discovered entities for entity type {}", targetId, policyEntityType);
-                continue;
-            }
+            final List<TopologyEntity> entitiesForTarget = targetEntityCache
+                .entitiesOfTypeForTarget(policyEntityType.getNumber(), targetId);
 
-            List<TopologyEntity> entities = discoveredEntityList.get(policyEntityType.getNumber());
-            if (entities.size() == 0) {
+            if (entitiesForTarget.size() == 0) {
                 logger.warn("{} : no discovered entities for entity type {}", targetId, policyEntityType);
                 continue;
             }
@@ -131,7 +125,7 @@ public class ActionMergeSpecsRepository {
 
             // Iterate over all the entities of this type to create or find the action merge spec
             // based on the aggregate entity it is connected to
-            for (TopologyEntity policyEntity : entities) {
+            for (TopologyEntity policyEntity : entitiesForTarget) {
                 actionMergeSpecBuilder.entityActionMergeSpec(policyEntity, mergePolicyDTO);
             }
         } //done all entity types
