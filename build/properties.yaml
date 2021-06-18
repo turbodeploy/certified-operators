@@ -95,6 +95,7 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
+        migrationLocation: db/api/migration
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
