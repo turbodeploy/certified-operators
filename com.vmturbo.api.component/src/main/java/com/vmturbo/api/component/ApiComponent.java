@@ -1,12 +1,15 @@
 package com.vmturbo.api.component;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.servlet.DispatcherType;
 import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,15 +27,18 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.api.component.external.api.ExternalApiConfig;
+import com.vmturbo.api.component.external.api.dbconfig.SpringJdbcHttpSessionDBConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -48,7 +54,8 @@ import com.vmturbo.components.common.config.PropertiesLoader;
     DBAdminController.class,
     SwaggerConfig.class,
     ServiceConfig.class,
-    ApiDiagnosticsConfig.class
+    ApiDiagnosticsConfig.class,
+    SpringJdbcHttpSessionDBConfig.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -113,17 +120,44 @@ public class ApiComponent extends BaseVmtComponent {
                 multipartConfigMaxRequestSizeKb,
                 multipartConfigMaxRequestSizeKb));
 
+        final List<FilterHolder> filterHolderList = Lists.newArrayList();
+
+        // Get Spring JDBC HTTP SESSION flag
+        final boolean isJdbcHttpSessionEnabled = EnvironmentUtils.parseBooleanFromEnv(
+                SpringJdbcHttpSessionCondition.ENABLED);
+        // Add springSessionRepositoryFilter to wrap container session (JSESSIONID) to Spring
+        // HTTP Session to support clustered sessions.
+        if (isJdbcHttpSessionEnabled) {
+            final FilterHolder springSessionFilterHolder = getFilterHolder(contextServer,
+                    "springSessionRepositoryFilter", false);
+            filterHolderList.add(springSessionFilterHolder);
+        }
+
         // Explicitly add Spring security to the following servlets: REST API, WebSocket messages
-        final FilterHolder filterHolder = new FilterHolder();
-        filterHolder.setFilter(new DelegatingFilterProxy());
-        filterHolder.setName("springSecurityFilterChain");
-        contextServer.addFilter(filterHolder, ApiWebsocketConfig.WEBSOCKET_URL,
-            EnumSet.of(DispatcherType.REQUEST));
+        final FilterHolder springSecurityFilterChainHolder = getFilterHolder(contextServer,
+                "springSecurityFilterChain", true);
+        filterHolderList.add(springSecurityFilterChainHolder);
+
         for (String pathSpec : ExternalApiConfig.BASE_URL_MAPPINGS) {
             contextServer.addServlet(restServletHolder, pathSpec);
-            contextServer.addFilter(filterHolder, pathSpec, EnumSet.of(DispatcherType.REQUEST));
+            for (FilterHolder holder : filterHolderList) {
+                contextServer.addFilter(holder, pathSpec, EnumSet.of(DispatcherType.REQUEST));
+            }
         }
         return restServletHolder;
+    }
+
+    private static FilterHolder getFilterHolder(@Nonnull ServletContextHandler contextServer,
+            String filterName, boolean isDefaultFilterProxy) {
+        final DelegatingFilterProxy filter =
+                isDefaultFilterProxy ? new DelegatingFilterProxy() : new DelegatingFilterProxy(
+                        filterName);
+        final FilterHolder filterHolder = new FilterHolder();
+        filterHolder.setFilter(filter);
+        filterHolder.setName(filterName);
+        contextServer.addFilter(filterHolder, ApiWebsocketConfig.WEBSOCKET_URL,
+                EnumSet.of(DispatcherType.REQUEST));
+        return filterHolder;
     }
 
     /**
