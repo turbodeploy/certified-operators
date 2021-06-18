@@ -1,0 +1,56 @@
+{
+  "actionType": "RESIZE",
+  "actionItem": [{
+    "actionType": "RESIZE",
+    "uuid": "144151046183109",
+    "targetSE": {
+      "entityType": "VIRTUAL_MACHINE",
+      "id": "Test1",
+      "displayName": "turbonomic-t8c",
+      "entityProperties": [{
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-27442"
+      }, {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "hp-dl365.corp.vmturbo.com"
+      }],
+      "powerState": "POWERED_ON",
+      "turbonomicInternalId": "23525323"
+    },
+    "currentComm": {
+      "commodityType": "VCPU",
+      "capacity": 2.0
+    },
+    "newComm": {
+      "commodityType": "VCPU",
+      "capacity": 3.0
+    },
+    "description": "Resize up VCPU for Virtual Machine turbonomic-t8c from 2 to 3",
+    "risk": {
+      "severity": "CRITICAL",
+      "category": "PERFORMANCE_ASSURANCE",
+      "affectedCommodity": ["VCPU"],
+      "description": "Q4 VCPU, Mem Congestion"
+    }
+  }],
+  "workflow": {
+    "id": "Webhook",
+    "property": [{
+      "name": "URL",
+      "value": "http://localhost:5000/probeHarnessTest"
+    }, {
+      "name": "TEMPLATED_ACTION_BODY",
+      "value": "Test Payload"
+    }, {
+      "name": "HTTP_METHOD",
+      "value": "POST"
+    }]
+  },
+  "actionOid": "144151046183109",
+  "actionState": "IN_PROGRESS",
+  "createTime": "1609367961000",
+  "updateTime": "1609367994000",
+  "acceptedBy": "administrator(3391249354768)"
+}
