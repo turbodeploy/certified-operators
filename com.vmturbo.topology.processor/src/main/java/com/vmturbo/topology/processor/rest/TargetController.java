@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceB
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -481,7 +482,16 @@ public class TargetController {
         ResponseEntity<ITargetHealthInfo> response;
         Optional<Target> target = targetStore.getTarget(targetId);
         if (target.isPresent()) {
-            response = new ResponseEntity<>(targetToTargetHealthInfo(target.get()), HttpStatus.OK);
+            List<TargetHealthInfo> targetHealthData = targetToTargetHealthInfo(target.get());
+            TargetHealthInfo healthInfo = targetHealthData.get(0);
+            if (targetHealthData.size() > 1 &&
+                            healthInfo.getSubcategory() == TargetHealthSubcategory.DUPLICATION) {
+                //Currently we support the DUPLICATION health check subcategory only for the aggregated
+                //'/admin/health' calls, not for the per target calls. Thus the data about this subcategory
+                //needs to be excluded from the results of the latter calls.
+                healthInfo = targetHealthData.get(1);
+            }
+            response = new ResponseEntity<>(healthInfo, HttpStatus.OK);
         } else {
             response = new ResponseEntity<>(new TargetHealthInfo(null, null, null), HttpStatus.NOT_FOUND);
         }
@@ -495,24 +505,27 @@ public class TargetController {
     public ResponseEntity<AllTargetsHealthResponse> getAllTargetsHealth()   {
         final List<TargetHealthInfo> allHealth = targetStore.getAll().stream ()
                         .map(this::targetToTargetHealthInfo)
+                        .flatMap(Collection::stream)
                         .collect(Collectors.toList());
         final AllTargetsHealthResponse response = new AllTargetsHealthResponse(allHealth);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    private TargetHealthInfo targetToTargetHealthInfo(@Nonnull final Target target) {
+    private List<TargetHealthInfo> targetToTargetHealthInfo(@Nonnull final Target target) {
         long targetId = target.getId();
         String targetName = target.getDisplayName();
 
         Optional<Validation> lastValidation = operationManager.getLastValidationForTarget(targetId);
         Optional<Discovery> lastDiscovery = operationManager.getLastDiscoveryForTarget(
                         targetId, DiscoveryType.FULL);
+        List<TargetHealthInfo> result = new ArrayList<>(2);
 
         //Check if we have info about validation.
         if (!lastValidation.isPresent())    {
             if (!lastDiscovery.isPresent())  {
-                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                                targetName, "Validation pending.");
+                result.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
+                                targetName, "Validation pending."));
+                return result;
             } else {
                 return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }
@@ -522,7 +535,8 @@ public class TargetController {
         //Check if the validation has passed fine.
         if (validation.getStatus() == Status.SUCCESS)    {
             if (!lastDiscovery.isPresent())  {
-                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName);
+                result.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName));
+                return result;
             } else {
                 return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }
@@ -530,39 +544,74 @@ public class TargetController {
 
         //Validation was not Ok, but check the last discovery.
         if (lastDiscovery.isPresent())  {
+            result.add(checkTargetDuplication(targetId, targetName, lastDiscovery.get()));
+
             LocalDateTime validationCompletionTime = validation.getCompletionTime();
             LocalDateTime discoveryCompletionTime = lastDiscovery.get().getCompletionTime();
             //Check if there's a discovery that has happened later and passed fine.
             if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0 &&
                             lastDiscovery.get().getStatus() == Status.SUCCESS) {
                 //All is good!
-                return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
+                result.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName));
+                return result;
             }
         }
 
         //Report the failed validation.
-        return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName,
+        result.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName,
                         validation.getErrorTypes().get(0), validation.getErrors().get(0),
-                        validation.getCompletionTime());
+                        validation.getCompletionTime()));
+        return result;
     }
 
-    private TargetHealthInfo verifyDiscovery(long targetId, String targetName, Discovery lastDiscovery)  {
+    /**
+     * Check for the specific case of duplicate target error.
+     * @param targetId ID of the checked target
+     * @param targetName Display name of the checked target
+     * @param lastDiscovery The last discovery results.
+     * @return the info for the targets DUPLICATION health check.
+     */
+    private TargetHealthInfo checkTargetDuplication(long targetId, String targetName, Discovery lastDiscovery) {
+        boolean isDuplicateTarget = false;
+        for (ErrorType errorType : lastDiscovery.getErrorTypes()) {
+            if (errorType == ErrorType.DUPLICATION) {
+                isDuplicateTarget = true;
+                break;
+            }
+        }
+        if (isDuplicateTarget) {
+            //The data from this case will be interpreted as the CRITICAL health check state later.
+            return new TargetHealthInfo(TargetHealthSubcategory.DUPLICATION, targetId, targetName,
+                            ErrorType.DUPLICATION, "Duplicate targets.", lastDiscovery.getCompletionTime());
+        } else {
+            //The data from this case will be interpreted as the NORMAL health check state later.
+            return new TargetHealthInfo(TargetHealthSubcategory.DUPLICATION, targetId, targetName);
+        }
+    }
+
+    private List<TargetHealthInfo> verifyDiscovery(long targetId, String targetName, Discovery lastDiscovery)  {
+        List<TargetHealthInfo> result = new ArrayList<>(2);
+        result.add(checkTargetDuplication(targetId, targetName, lastDiscovery));
+
         if (lastDiscovery.getStatus() == Status.SUCCESS)  {
             //The discovery was ok.
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
+            result.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName));
+            return result;
         }
         Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
         if (discoveryFailure != null)   {
             //There was a discovery failure.
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
+            result.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
                             discoveryFailure.getErrorType(), discoveryFailure.getErrorText(),
-                            discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
+                            discoveryFailure.getFailTime(), discoveryFailure.getFailsCount()));
+            return result;
         } else {
             //The last discovery was probably attempted while there was no probe registered for it
             //(e.g. after the topology-processor restart).
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
-                    "No finished discovery. May be because of the unregistered probe during the last attempt.");
+            result.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
+                    "No finished discovery. May be because of the unregistered probe during the last attempt."));
+            return result;
         }
     }
 }
