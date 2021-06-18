@@ -204,7 +204,7 @@ public class ConsistentResizer {
             // current maxLowerBound value to make sure finalNewCapacity is always larger than lower
             // bound when resizing down. Ensure this updated lower bound is not above the upper bound.
             maxLowerBound = maxLowerBound.dividedBy(capacityIncrement)
-                .ceiling()
+                .approxCeiling()
                 .times(capacityIncrement);
             maxLowerBound = ConsistentScalingNumber.min(maxLowerBound, minUpperBound);
             maxCapacity = ConsistentScalingNumber.max(maxCapacity, maxLowerBound);
@@ -287,7 +287,7 @@ public class ConsistentResizer {
 
             final ConsistentScalingNumber integralIncrementCount = newCapacity
                 .dividedBy(capacityIncrement)
-                .floor();
+                .approxFloor();
             final ConsistentScalingNumber finalNewCapacity = integralIncrementCount.times(capacityIncrement);
             // prevent scale down when target is not eligible for resize down.
             if (resizes.stream()

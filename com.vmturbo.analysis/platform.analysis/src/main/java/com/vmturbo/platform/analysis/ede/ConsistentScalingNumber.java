@@ -181,21 +181,33 @@ public class ConsistentScalingNumber {
     }
 
     /**
-     * Compute a new number equal to Math.ceiling(this.number).
+     * Compute a new number equal to Math.ceiling(this.number). If given number is rounded to
+     * Math.floor(this.number) due to floating point, return Math.floor(this.number).
+     * For example, 1.00001 should be treated as 1.
      *
      * @return A new number equal to Math.ceiling(this.number).
      */
-    public ConsistentScalingNumber ceiling() {
-        return new ConsistentScalingNumber(Math.ceil(consistentScalingNumber));
+    public ConsistentScalingNumber approxCeiling() {
+        double consistentScalingNumberCeiling =
+            consistentScalingNumber - Math.floor(consistentScalingNumber) < COMPARISON_EPSILON
+                ? Math.floor(consistentScalingNumber)
+                : Math.ceil(consistentScalingNumber);
+        return new ConsistentScalingNumber(consistentScalingNumberCeiling);
     }
 
     /**
-     * Compute a new number equal to Math.floor(this.number).
+     * Compute a new number equal to Math.floor(this.number). If given number is rounded to
+     * Math.ceiling(this.number) due to floating point, return Math.ceiling(this.number).
+     * For example, 1.99999 should be treated as 2.
      *
      * @return A new number equal to Math.floor(this.number).
      */
-    public ConsistentScalingNumber floor() {
-        return new ConsistentScalingNumber(Math.floor(consistentScalingNumber));
+    public ConsistentScalingNumber approxFloor() {
+        double consistentScalingNumberFloor =
+            Math.ceil(consistentScalingNumber) - consistentScalingNumber < COMPARISON_EPSILON
+                ? Math.ceil(consistentScalingNumber)
+                : Math.floor(consistentScalingNumber);
+        return new ConsistentScalingNumber(consistentScalingNumberFloor);
     }
 
     /**

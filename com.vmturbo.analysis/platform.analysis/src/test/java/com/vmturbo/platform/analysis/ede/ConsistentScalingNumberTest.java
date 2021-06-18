@@ -131,21 +131,41 @@ public class ConsistentScalingNumberTest {
     }
 
     /**
-     * testCeiling.
+     * testApproxCeiling.
      */
     @Test
-    public void testCeiling() {
-        final ConsistentScalingNumber a = ConsistentScalingNumber.fromConsistentNumber(1.1);
-        assertEquals(2.0, a.ceiling().inConsistentUnits(), 0);
+    public void testApproxCeiling() {
+        assertEquals(2.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.99999).approxCeiling().inConsistentUnits(), 0);
+        assertEquals(2.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.001).approxCeiling().inConsistentUnits(), 0);
+        assertEquals(1.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.00001).approxCeiling().inConsistentUnits(), 0);
+        assertEquals(-2.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.99999).approxCeiling().inConsistentUnits(), 0);
+        assertEquals(-1.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.001).approxCeiling().inConsistentUnits(), 0);
+        assertEquals(-1.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.00001).approxCeiling().inConsistentUnits(), 0);
     }
 
     /**
-     * testFloor.
+     * testApproxFloor.
      */
     @Test
-    public void testFloor() {
-        final ConsistentScalingNumber a = ConsistentScalingNumber.fromConsistentNumber(1.1);
-        assertEquals(1.0, a.floor().inConsistentUnits(), 0);
+    public void testApproxFloor() {
+        assertEquals(2.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.99999).approxFloor().inConsistentUnits(), 0);
+        assertEquals(1.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.001).approxFloor().inConsistentUnits(), 0);
+        assertEquals(1.0,
+            ConsistentScalingNumber.fromConsistentNumber(1.00001).approxFloor().inConsistentUnits(), 0);
+        assertEquals(-2.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.99999).approxFloor().inConsistentUnits(), 0);
+        assertEquals(-2.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.001).approxFloor().inConsistentUnits(), 0);
+        assertEquals(-1.0,
+            ConsistentScalingNumber.fromConsistentNumber(-1.00001).approxFloor().inConsistentUnits(), 0);
     }
 
     /**
