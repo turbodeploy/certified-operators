@@ -438,6 +438,15 @@ public abstract class SQLDatabaseConfig {
     }
 
     /**
+     * Enable sub class to overwrite DB migration location.
+     *
+     * @param migrationLocation DB migration location.
+     */
+    protected void setMigrationLocation(@Nonnull final String migrationLocation) {
+        this.migrationLocation = migrationLocation;
+    }
+
+    /**
      * A value object contains all the SQL connection parameters.
      */
     @Immutable

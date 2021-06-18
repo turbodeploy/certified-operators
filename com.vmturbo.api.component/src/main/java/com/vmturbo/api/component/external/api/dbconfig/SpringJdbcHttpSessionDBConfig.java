@@ -45,6 +45,12 @@ public class SpringJdbcHttpSessionDBConfig extends SQLDatabaseConfig {
     private String dbSchemaName;
 
     /**
+     * DB schema location.
+     */
+    @Value("${apiMigrationLocation:db/api/migration}")
+    private String apiMigrationLocation;
+
+    /**
      * Initialize api component DB config by running flyway migration and creating a user.
      *
      * @return DataSource of market component DB.
@@ -52,6 +58,7 @@ public class SpringJdbcHttpSessionDBConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
+        super.setMigrationLocation(apiMigrationLocation);
         return getDataSource(dbSchemaName, apiDbUsername, Optional.ofNullable(
                 !Strings.isEmpty(apiDbPassword) ? apiDbPassword : null));
     }

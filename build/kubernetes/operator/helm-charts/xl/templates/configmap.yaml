@@ -81,7 +81,6 @@ data:
         settingStyleFile: settingSpecStyle.json
         externalApiSwaggerUri: /vmturbo/apidoc/**
         externalApiFileSystemBase: file:/swagger/
-        migrationLocation: db/api/migration
       auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
