@@ -20,7 +20,7 @@ then
 fi
 
 # Ask if the ipsetup script has been run
-read -e -p "Have you ran the ipsetup script yet? [y/n] " ipAnswer
+read -e -p "Have you run the ipsetup script to setup netowkring yet? [y/n] " ipAnswer
 
 if [ "$ipAnswer" != "${ipAnswer#[Nn]}" ]
 then
@@ -478,7 +478,7 @@ echo ""
 echo "############################"
 echo "Start the deployment rollout"
 echo "############################"
-echo "This will take some time."
+echo "This will take some time. If this is not completed in 20 minutes, the script will exit with instructions"
 echo ""
 # Wait for the api pod to become healthy
 support=0
@@ -486,7 +486,7 @@ while [ "$(kubectl get pods -l=app.kubernetes.io/name='api' -o jsonpath='{.items
 do
   support=$(($support+1))
   sleep 120
-  echo "Waiting for Broker to be ready."
+  echo "Waiting for Deployment to be ready."
   if [ "${support}" -ge "10" ]
   then
     echo "============================================"
@@ -501,7 +501,7 @@ support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='topology-processor' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
   sleep 60
-  echo "Waiting for Broker to be ready."
+  echo "Waiting for Deployment to be ready."
   if [ "${support}" -ge "5" ]
   then
     echo "============================================"
@@ -516,7 +516,7 @@ support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='history' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
   sleep 60
-  echo "Waiting for Broker to be ready."
+  echo "Waiting for Deployment to be ready."
   if [ "${support}" -ge "5" ]
   then
     echo "============================================"
