@@ -51,6 +51,7 @@ glusterDeployPath="/opt/gluster-kubernetes/deploy"
 # Change the node name if it is passed in
 if [ ! -z "${hostName}" ]
 then
+  hostnamectl set-hostname ${hostName}
   pushd /etc/; for i in `grep -lr node1 *`; do sed -i "s/node1/${hostName}/g" $i; done; popd
   sed -i "s/node1/${hostName}/g" ${yamlBasePath}/persistent-volumes/local-storage-pv.yaml
 fi
@@ -212,7 +213,7 @@ cd /etc/kubernetes
 /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
 if [ ! -z "${hostName}" ]
 then
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:${hostName} > kubelet.conf 2>/dev/null
 else
   /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
 fi
@@ -471,6 +472,13 @@ sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/local/etc/turbo.conf
+
+# If the hostname changes, run these to disable node1 and make ${hostName} the master
+if [ ! -z "${hostName}" ]
+then
+  /usr/local/bin/kubectl delete node node1
+  /usr/local/bin/kubectl label nodes ${hostName} kubernetes.io/role=master
+fi
 
 # Status
 echo ""
