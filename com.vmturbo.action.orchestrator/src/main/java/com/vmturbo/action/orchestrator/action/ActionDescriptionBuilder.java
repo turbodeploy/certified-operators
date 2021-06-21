@@ -116,7 +116,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE_WITH_CURRENT_PROVIDER("Scale {0} {1} for {2} on {3} from {4} to {5}"),
         ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE("{0} {1} from {2} to {3}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
-        ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
+        ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} ({1}) in {2}"),
         CONTAINER_VCPU_MILLICORES("{0,number,integer} millicores"),
         STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
         IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
@@ -358,6 +358,16 @@ public class ActionDescriptionBuilder {
         }
         final ActionPartialEntity workloadEntity = workloadEntityOpt.get();
 
+        final long workloadTierId = allocate.getWorkloadTier().getId();
+        final Optional<ActionPartialEntity> workloadTierOpt = entitiesSnapshot.getEntityFromOid(workloadTierId);
+        if(!workloadTierOpt.isPresent()){
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getAllocateActionDescription",
+                "workloadTierId", workloadTierId);
+            return "";
+        }
+        final ActionPartialEntity workloadTier = workloadTierOpt.get();
+        final String workloadTierName = workloadTier.getDisplayName();
+
         // Get account
         final Optional<EntityWithConnections> accountOpt = entitiesSnapshot
                 .getOwnerAccountOfEntity(workloadEntityId);
@@ -371,7 +381,7 @@ public class ActionDescriptionBuilder {
         }
 
         return ActionMessageFormat.ACTION_DESCRIPTION_ALLOCATE.format(
-                beautifyEntityTypeAndName(workloadEntity), accountName);
+                beautifyEntityTypeAndName(workloadEntity), workloadTierName, accountName);
     }
 
     /**
@@ -646,7 +656,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         ActionPartialEntity computeTier = entitiesSnapshot.getEntityFromOid(computeTierId).get();
-        final String computeTierName = (computeTier != null) ? computeTier.getDisplayName() : "";
+        final String computeTierName = computeTier.getDisplayName();
 
         long masterAccountId =  buyRI.getMasterAccount().getId();
         if (!entitiesSnapshot.getEntityFromOid(masterAccountId).isPresent()) {
@@ -654,7 +664,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(masterAccountId).get();
-        final String masterAccountName = (masterAccount != null) ? masterAccount.getDisplayName() : "";
+        final String masterAccountName = masterAccount.getDisplayName();
 
         long regionId = buyRI.getRegion().getId();
         if (!entitiesSnapshot.getEntityFromOid(regionId).isPresent()) {
@@ -662,7 +672,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(regionId).get();
-        final String regionName = (region != null) ? region.getDisplayName() : "";
+        final String regionName = region.getDisplayName();
 
         if (buyRI.hasTargetEntity()) {
             // If the BuyRI has a virtual machine then this is a BuyRI action from the MPC plan. We want to show the
@@ -673,7 +683,7 @@ public class ActionDescriptionBuilder {
                 return "";
             }
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
-            final String targetEntityName = (targetEntity != null) ? targetEntity.getDisplayName() : "";
+            final String targetEntityName = targetEntity.getDisplayName();
 
             // Return the description with the virtual machine name instead of the master account name
             return ActionMessageFormat.ACTION_DESCRIPTION_BUYRI.format(count, computeTierName,

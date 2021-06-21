@@ -1693,6 +1693,11 @@ public class ActionDescriptionBuilderTest {
                         EntityType.VIRTUAL_MACHINE.getNumber(),
                         VM1_DISPLAY_NAME)));
 
+        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
+            .thenReturn(createEntity(COMPUTE_TIER_SOURCE_ID,
+                EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME));
+
         final long businessAccountOid = 88L;
         final String businessAccountName = "Development";
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
@@ -1705,7 +1710,7 @@ public class ActionDescriptionBuilderTest {
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, allocateRecommendation);
         assertEquals(description,
-                "Increase RI coverage for Virtual Machine vm1_test in Development");
+                "Increase RI coverage for Virtual Machine vm1_test (tier_t1) in Development");
     }
 
     /**
@@ -1721,13 +1726,18 @@ public class ActionDescriptionBuilderTest {
                         EntityType.VIRTUAL_MACHINE.getNumber(),
                         VM1_DISPLAY_NAME)));
 
+        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
+            .thenReturn(createEntity(COMPUTE_TIER_SOURCE_ID,
+                EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME));
+
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
                 .thenReturn(Optional.empty());
 
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, allocateRecommendation);
         assertEquals(description,
-                "Increase RI coverage for Virtual Machine vm1_test in ");
+                "Increase RI coverage for Virtual Machine vm1_test (tier_t1) in ");
     }
 
     /**
