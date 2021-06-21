@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
 import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.COMMODITIES_TO_SKIP;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyInfo;
@@ -1281,6 +1282,57 @@ public class CloudMigrationPlanHelperTest {
                 new HashMap<>(), false, false, graph);
         // Verify that the configVVBuilder has no CommoditiesBoughtFromProviders
         assertEquals(0, configVVBuilder.getCommoditiesBoughtFromProvidersCount());
+    }
+
+    /**
+     * Check that we correctly generate a Map to migrate the Volumes to Cloud.
+     * If the Volume is connected to the same Storage the input entity is also connected.
+     */
+    @Test
+    public void testGetStorageProviders() {
+        long stId = 4444L;
+        long st2Id = 3333L;
+        long volumeId = 2222L;
+        long vmId = 1111L;
+        TopologyEntityDTO.Builder vmDTOBuilder = TopologyEntityDTO.newBuilder().addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder().setProviderId(volumeId).setMovable(false)
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setScalable(false)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
+                                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_AMOUNT_VALUE))))
+                .setOid(vmId).setEntityType(VIRTUAL_MACHINE_VALUE).setEnvironmentType(EnvironmentType.ON_PREM);
+
+        TopologyEntity.Builder stBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(stId)
+                .setEntityType(STORAGE_VALUE));
+
+        TopologyEntity.Builder st2Builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(st2Id)
+                .setEntityType(STORAGE_VALUE));
+
+        TopologyEntity.Builder vvBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(volumeId)
+                .setEntityType(VIRTUAL_VOLUME_VALUE))
+                .addOutboundAssociation(stBuilder);
+
+        TopologyEntity.Builder vmBuilder = TopologyEntity.newBuilder(vmDTOBuilder)
+                .addProvider(stBuilder)
+                .addOutboundAssociation(vvBuilder);
+
+        // Assert that the migration Map is populated because VM and Volume are consuming from the same Storage
+        Map<EntityType, List<TopologyMigration.MigrationReference>> migrationMap = cloudMigrationPlanHelper
+                .getStorageProviders(vmBuilder.build());
+
+        assertFalse(migrationMap.isEmpty());
+
+        // Assert that the migration Map is empty because VM and Volume are consuming from the different Storage
+        TopologyEntity.Builder vmBuilderWithDifferentSt = TopologyEntity.newBuilder(vmDTOBuilder)
+                .addProvider(st2Builder)
+                .addOutboundAssociation(vvBuilder);
+
+        migrationMap = cloudMigrationPlanHelper
+                .getStorageProviders(vmBuilderWithDifferentSt.build());
+
+        assertTrue(migrationMap.isEmpty());
     }
 
     /**

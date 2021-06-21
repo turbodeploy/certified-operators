@@ -1604,10 +1604,18 @@ public class CloudMigrationPlanHelper {
      * @param inputEntity Source VM being migrated.
      * @return Provider to volumes map.
      */
+    @VisibleForTesting
     @Nonnull
-    private Map<EntityType, List<MigrationReference>> getStorageProviders(
+    protected Map<EntityType, List<MigrationReference>> getStorageProviders(
             @Nonnull final TopologyEntity inputEntity) {
         Map<EntityType, List<MigrationReference>> volumesByStorageType = new HashMap<>();
+
+        // For On Prem volumes, get the Storage Ids to match the ones connected to the Volume,
+        // for Cloud this will be empty since the provider is the Volume itself
+        Set<Long> storageIds = inputEntity.getProviders().stream()
+                .filter(e -> e.getEntityType() == STORAGE_VALUE || e.getEntityType() == STORAGE_TIER_VALUE)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
 
         // either vm buys-> volume buys-> storage tier
         // or (temporarily) vm connectedto-> volume connectedto-> storage
@@ -1615,11 +1623,15 @@ public class CloudMigrationPlanHelper {
             .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
             .forEach(volume -> {
                 addVolumeConnections(volumesByStorageType, volume,
-                                volume.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList(),
-                                CommoditiesBoughtFromProvider::getProviderEntityType);
+                        volume.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList(),
+                        CommoditiesBoughtFromProvider::getProviderEntityType,
+                        CommoditiesBoughtFromProvider::getProviderId,
+                        storageIds);
                 addVolumeConnections(volumesByStorageType, volume,
-                                volume.getOutboundAssociatedEntities(),
-                                TopologyEntity::getEntityType);
+                        volume.getOutboundAssociatedEntities(),
+                        TopologyEntity::getEntityType,
+                        TopologyEntity::getOid,
+                        storageIds);
             });
         return volumesByStorageType;
     }
@@ -1627,8 +1639,12 @@ public class CloudMigrationPlanHelper {
     private static <T> void addVolumeConnections(
                     Map<EntityType, List<MigrationReference>> volumesByStorageType,
                     TopologyEntity volume, List<T> associatedEntities,
-                    Function<T, Integer> typeExtractor) {
+                    Function<T, Integer> typeExtractor,
+                    Function<T, Long> oidExtractor,
+                    Set<Long> storageIds) {
         associatedEntities.stream()
+                        .filter(connectedTo -> storageIds.isEmpty()
+                                || storageIds.contains(oidExtractor.apply(connectedTo)))
                         .filter(connectedTo -> typeExtractor.apply(connectedTo) == STORAGE_VALUE
                                         || typeExtractor.apply(connectedTo) == STORAGE_TIER_VALUE)
                         .forEach(connectedTo -> {
