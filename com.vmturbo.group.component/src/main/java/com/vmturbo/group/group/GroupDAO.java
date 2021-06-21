@@ -36,6 +36,7 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
@@ -1489,12 +1490,10 @@ public class GroupDAO implements IGroupStore {
                     .or(GROUPING.ENTITY_FILTERS.isNotNull()));
         }
         if (!filter.getDirectMemberTypesList().isEmpty()) {
-            filter.getDirectMemberTypesList().forEach(directMemberType ->
-                    createExpectedMembersCondition(directMemberType, conditions, Boolean.TRUE));
+            createExpectedMembersCondition(filter.getDirectMemberTypesList(), conditions, Boolean.TRUE);
         }
         if (!filter.getIndirectMemberTypesList().isEmpty()) {
-            filter.getIndirectMemberTypesList().forEach(indirectMemberType ->
-                    createExpectedMembersCondition(indirectMemberType, conditions, null));
+            createExpectedMembersCondition(filter.getIndirectMemberTypesList(), conditions, null);
         }
         if (filter.getExcludeEmpty()) {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.EMPTY.eq(false));
@@ -1530,33 +1529,38 @@ public class GroupDAO implements IGroupStore {
     /**
      * Creates conditions related to expected members, based on input.
      *
-     * @param memberType The member type to add to the condition.
+     * @param memberTypes The member types to add to the condition, as an OR statement.
      * @param conditions Collection of current conditions. The new condition will be added to the
      *                   collection.
      * @param isDirectMember boolean flag to specify if the member type will be added to the
      *                       condition as direct or indirect only. If null, both direct and indirect
      *                       members will be queried.
      */
-    private void createExpectedMembersCondition(@Nonnull GroupDTO.MemberType memberType,
+    private void createExpectedMembersCondition(@Nonnull List<GroupDTO.MemberType> memberTypes,
             @Nonnull final Collection<Condition> conditions,
             @Nullable final Boolean isDirectMember) {
-        if (memberType.hasEntity()) {
-            conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID)
-                    .from(GROUP_EXPECTED_MEMBERS_ENTITIES)
-                    .where(isDirectMember == null
-                            ? GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
-                            : GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
-                                    .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
-                                            isDirectMember)))));
-        } else if (memberType.hasGroup()) {
-            conditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID)
-                    .from(GROUP_EXPECTED_MEMBERS_GROUPS)
-                    .where(isDirectMember == null
-                            ? GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
-                            : GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
-                                    .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(
-                                            isDirectMember)))));
-        }
+
+        final List<Condition> memberORconditions = Lists.newArrayList();
+        memberTypes.stream().forEach(memberType -> {
+            if (memberType.hasEntity()) {
+                memberORconditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID)
+                        .from(GROUP_EXPECTED_MEMBERS_ENTITIES)
+                        .where(isDirectMember == null
+                                ? GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                                : GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE.eq(memberType.getEntity())
+                                .and(GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER.eq(
+                                        isDirectMember)))));
+            } else if (memberType.hasGroup()) {
+                memberORconditions.add(GROUPING.ID.in(DSL.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID)
+                        .from(GROUP_EXPECTED_MEMBERS_GROUPS)
+                        .where(isDirectMember == null
+                                ? GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                                : GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE.eq(memberType.getGroup())
+                                .and(GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER.eq(
+                                        isDirectMember)))));
+            }
+        });
+        combineConditions(memberORconditions, Condition::or).ifPresent(conditions::add);
     }
 
     @Nonnull

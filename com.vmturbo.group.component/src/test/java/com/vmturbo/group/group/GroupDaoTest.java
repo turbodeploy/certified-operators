@@ -1816,6 +1816,47 @@ public class GroupDaoTest {
     }
 
     /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct response when
+     * filtering by multiple groups' direct members.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetGroupsFilterByMultipleDirectMembers() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "myGroupA";
+        final String group3DisplayName = "TestGroupD";
+        final String group4DisplayName = "testGroupB";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        GroupFilter groupFilter = GroupFilter.newBuilder()
+                .addDirectMemberTypes(MemberType.newBuilder()
+                        .setEntity(EntityType.PHYSICAL_MACHINE.getNumber())
+                        .build())
+                .addDirectMemberTypes(MemberType.newBuilder()
+                        .setEntity(EntityType.VIRTUAL_MACHINE.getNumber())
+                        .build())
+                .build();
+
+        // expected to return all 4 groups: 3 with PMs and 1 with VMs
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setCursor("0")
+                        .setLimit(10)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(4, response.getGroupsCount());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+    }
+
+    /**
      * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
      * filtering by groups' indirect members.
      *
