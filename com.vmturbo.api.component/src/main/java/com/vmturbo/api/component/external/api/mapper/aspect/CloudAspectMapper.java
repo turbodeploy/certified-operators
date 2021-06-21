@@ -116,13 +116,18 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * @return the {@link CloudAspectApiDTO}
      */
     @Override
-    @Nonnull
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(
             @Nonnull final List<ApiPartialEntity> entities) {
-        final Set<Long> cloudEntities = entities.stream()
-            .filter(AbstractAspectMapper::isCloudEntity)
-            .map(ApiPartialEntity::getOid)
-            .collect(Collectors.toSet());
+        final Set<Long> cloudEntities = new HashSet<>();
+        final Set<Long> entityIdsForUptimeQuery = new HashSet<>();
+        for (ApiPartialEntity entity : entities) {
+            if (isCloudEntity(entity)) {
+                cloudEntities.add(entity.getOid());
+                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    entityIdsForUptimeQuery.add(entity.getOid());
+                }
+            }
+        }
 
         if (cloudEntities.isEmpty()) {
             return Optional.empty();
@@ -135,8 +140,12 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                         EntityType.BUSINESS_ACCOUNT).build()).build();
         final Future<GraphResponse> graphResponseF = executorService.submit(
                 () -> repositoryApi.graphSearch(request));
+        final Future<Map<Long, EntityUptimeDTO>> uptimeByEntityF = executorService.submit(
+                () -> getEntityUptimeForEntities(entityIdsForUptimeQuery));
         try {
             final GraphResponse graphResponse = graphResponseF.get();
+            final Map<Long, EntityUptimeDTO> uptimeByEntity = uptimeByEntityF.get();
+
             final Map<Long, MinimalEntity> accounts = SearchProtoUtil.getMapMinimalWithFirst(
                     graphResponse.getNodesOrThrow("account"));
             cloudEntities.forEach(oid -> {
@@ -145,6 +154,10 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 final MinimalEntity account = accounts.get(oid);
                 if (account != null) {
                     aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(account));
+                }
+                final EntityUptimeDTO entityUptime = uptimeByEntity.get(oid);
+                if (entityUptime != null) {
+                    aspect.setEntityUptime(entityUptimeDtoConverter.convert(entityUptime));
                 }
             });
         } catch (InterruptedException e) {
