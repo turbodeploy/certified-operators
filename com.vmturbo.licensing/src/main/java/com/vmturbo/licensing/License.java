@@ -18,6 +18,7 @@ public class License implements ILicense, Comparable<ILicense>, Serializable {
     private String uuid;
     private String licenseOwner;
     private String email;
+    private String customerId;
     private String expirationDate;
     private String licenseKey;
     private String externalLicenseKey;
@@ -59,6 +60,16 @@ public class License implements ILicense, Comparable<ILicense>, Serializable {
 
     public License setEmail(final String email) {
         this.email = email;
+        return this;
+    }
+
+    @Override
+    public String getCustomerId() {
+        return customerId;
+    }
+
+    public License setCustomerId(final String customerId) {
+        this.customerId = customerId;
         return this;
     }
 

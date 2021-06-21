@@ -81,6 +81,8 @@ public class LicenseDTOUtils {
 
         TurboLicense turboLicense = licenseDTO.getTurbo();
         doIf(turboLicense.hasEmail(), () -> license.setEmail(turboLicense.getEmail()));
+        // No need to check if customer id is set because it has a default value.
+        license.setCustomerId(turboLicense.getCustomerId());
         doIf(turboLicense.hasEdition(), () -> license.setEdition(turboLicense.getEdition()));
         doIf(turboLicense.hasExpirationDate(), () -> license.setExpirationDate(turboLicense.getExpirationDate()));
         doIf(turboLicense.hasLicenseOwner(), () -> license.setLicenseOwner(turboLicense.getLicenseOwner()));
@@ -122,6 +124,9 @@ public class LicenseDTOUtils {
         TurboLicense.Builder builder = retBldr.getTurboBuilder();
         if (null != license.getEmail()) {
             builder.setEmail(license.getEmail());
+        }
+        if (null != license.getCustomerId()) {
+            builder.setCustomerId(license.getCustomerId());
         }
         if (null != license.getEdition()) {
             builder.setEdition(license.getEdition());
