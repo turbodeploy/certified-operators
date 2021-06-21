@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
@@ -122,7 +123,6 @@ import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCatego
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -297,6 +297,16 @@ public class TopologyConverter {
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE
     );
+
+    //<CONSUMER_TYPE, SELLER_TYPE, COMMODITY_TYPE_THAT_MAY_HAVE_RESERVATION>
+    private static final Map<Integer, Map<Integer, Set<Integer>>> ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION = ImmutableMap
+            .of(EntityType.VIRTUAL_MACHINE_VALUE,
+                    ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableSet.of(CommodityDTO.CommodityType.CPU_VALUE)));
+
+
+    //Store the entities whose commodity usage need to be modified because of reservation during convertingToMarket
+    //<commBought, providerId>
+    final private Map<CommodityBoughtDTO, Long> commoditiesWithReservationGreaterThanUsed = Maps.newHashMap();
 
     private static final float MEDIUM_RATE_OF_RESIZE = 2.0f;
 
@@ -888,6 +898,33 @@ public class TopologyConverter {
                             tierExcluderEntityTypeScope.contains(entityType)) {
                             tierExcluderEntityOids.add(entity.getOid());
                         }
+
+                        //If a VM's bought CPU used is smaller than its CPU reservation, we record this commodityBought along with its providerId
+                        //While converting to shopping list, we use the reservation of the CPU commodity as its quantity
+                        //We also need to add the diff (reservation - used) to sold used of the provider host.
+                        if (!oidsToRemove.contains(entity.getOid()) &&
+                                entity.getEnvironmentType() == EnvironmentType.ON_PREM &&
+                                entity.getEntityState() == EntityState.POWERED_ON &&
+                                ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.containsKey(entity.getEntityType())) {
+                            Map<Integer, Set<Integer>> providerTypesWithReservation =
+                                    ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.get(entity.getEntityType());
+                            for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider: entity.getCommoditiesBoughtFromProvidersList()) {
+                                if (providerTypesWithReservation.containsKey(commoditiesBoughtFromProvider.getProviderEntityType()) &&
+                                        topology.get(commoditiesBoughtFromProvider.getProviderId()) != null) {
+                                    Set<Integer> commodityTypesWithReservation =
+                                            providerTypesWithReservation.get(commoditiesBoughtFromProvider.getProviderEntityType());
+                                    for (CommodityBoughtDTO commodity: commoditiesBoughtFromProvider.getCommodityBoughtList()) {
+                                        if (commodityTypesWithReservation.contains(commodity.getCommodityType().getType()) &&
+                                            commodity.getReservedCapacity() > commodity.getUsed()) {
+                                            logger.debug("Adding entity {} 's {} commodity into commoditiesWithReservationGreaterThanUsed table"
+                                            , entity.getOid(), commodity.getCommodityType().getType());
+                                            commoditiesWithReservationGreaterThanUsed.put(commodity, commoditiesBoughtFromProvider.getProviderId());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                     }
                 } catch (Exception e) {
                     logger.error(EconomyConstants.EXCEPTION_MESSAGE, entityDebugInfo(entity),
@@ -898,8 +935,13 @@ public class TopologyConverter {
             // Initialize the template exclusion applicator
             tierExcluder.initialize(topology, tierExcluderEntityOids);
 
-            commodityConverter.setProviderUsedSubtractionMap(
-                createProviderUsedSubtractionMap(entityOidToDto, oidsToRemove));
+            Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> providerUsedModificationMap = createProviderUsedModificationMap(entityOidToDto, oidsToRemove);
+            //For bought commodities whose reservation is greater than used, we need to add reservation - used onto its provider.
+            for (Entry<CommodityBoughtDTO, Long> commodityBoughtWithReservationGreaterThanUsed: commoditiesWithReservationGreaterThanUsed.entrySet()) {
+                addReservationUsedDiffIntoProviderUsedModificationMap(providerUsedModificationMap,
+                        commodityBoughtWithReservationGreaterThanUsed.getKey(), commodityBoughtWithReservationGreaterThanUsed.getValue());
+            }
+            commodityConverter.setProviderUsedSubtractionMap(providerUsedModificationMap);
 
             Collection<TraderTO> convertedTraders = convertToMarket();
             convertedTraders.forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), new MinimalOriginalTrader(t)));
@@ -4223,14 +4265,23 @@ public class TopologyConverter {
                                                              CommodityBoughtDTO topologyCommBought,
                                                              @Nullable final Long providerOid) {
 
-        final float[][] newQuantity = getResizedCapacity(buyer, topologyCommBought, providerOid);
-        float[] usedQuantities = newQuantity[0];
-        float[] peakQuantities = newQuantity[1];
-        List<UsedAndPeak> newQuantityList = new ArrayList<>();
-        if (newQuantity.length == 0) {
-            logger.warn("Received  empty resized quantities for {}", topologyCommBought);
-            return newQuantityList;
+        //If commBought is in this map, that means its reservation is greater than used, and we use reservation as quantity
+        float[] usedQuantities = new float[1];
+        float[] peakQuantities = new float[1];
+        if (commoditiesWithReservationGreaterThanUsed.containsKey(topologyCommBought)) {
+            logger.debug("replacing buyer {}'s {} comm used with reservation", buyer.getOid(), topologyCommBought.getCommodityType().getType());
+            usedQuantities[0] = (float)topologyCommBought.getReservedCapacity();
+            peakQuantities[0] = (float)topologyCommBought.getPeak();
+        } else {
+            final float[][] newQuantity = getResizedCapacity(buyer, topologyCommBought, providerOid);
+            usedQuantities = newQuantity[0];
+            peakQuantities = newQuantity[1];
+            if (newQuantity.length == 0) {
+                logger.warn("Received  empty resized quantities for {}", topologyCommBought);
+                return new ArrayList<>();
+            }
         }
+        List<UsedAndPeak> newQuantityList = new ArrayList<>();
         int maxLength = Math.max(usedQuantities.length, peakQuantities.length);
         for (int index = 0; index < maxLength; index++) {
             float usedQuantity = getQuantity(index, usedQuantities, topologyCommBought, "used");
@@ -4781,7 +4832,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Create providerUsedSubtractionMap.
+     * Create providerUsedModificationMap.
      * provider oid -> commodity type -> used value of all consumers to be removed of this provider.
      * This map is used to update the utilization of providers if there are entities to be removed.
      * This can only happen in a plan with entities to remove.
@@ -4791,10 +4842,10 @@ public class TopologyConverter {
      * @return providerUsedSubtractionMap
      */
     @VisibleForTesting
-    Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> createProviderUsedSubtractionMap(
+    Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> createProviderUsedModificationMap(
             final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
         if (oidsToRemove.isEmpty()) {
-            return Collections.emptyMap();
+            return Maps.newHashMap();
         }
 
         final Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> providerUsedSubtractionMap = new HashMap<>();
@@ -4830,6 +4881,29 @@ public class TopologyConverter {
 
         return providerUsedSubtractionMap;
     }
+
+    /**
+     * This method add commBought.used - commBought.reservation into the providerUsedSubtractionMap.
+     * So we add up the difference onto the provider's sold commodity later.
+     * @param providerUsedSubtractionMap The subtraction map to be populated
+     * @param commBought The commBought whose used - reservation needs to be saved.
+     * @param providerId The provider that provides the commodity.
+     */
+    private void addReservationUsedDiffIntoProviderUsedModificationMap(
+           Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> providerUsedSubtractionMap,
+           CommodityBoughtDTO commBought, long providerId) {
+       Map<TopologyDTO.CommodityType, UsedAndPeak> commodityUsed = providerUsedSubtractionMap
+               .computeIfAbsent(providerId, k -> new HashMap());
+       //We need to add reservation - used onto the provider's sold used,
+       //so add used - reservation into this modification map, as it is used for subtraction.
+       UsedAndPeak currentVal = commodityUsed.containsKey(commBought.getCommodityType())
+               ? commodityUsed.get(commBought.getCommodityType()) : new UsedAndPeak(0.0f, 0.0f);
+       float diff = (float)((commBought.getUsed() - commBought.getReservedCapacity()) * commBought.getScalingFactor());
+       logger.debug("Adding modified value {} into providermodificationmap for provider {}, commType {}",
+               diff, providerId, commBought.getCommodityType().getType());
+       commodityUsed.put(commBought.getCommodityType(), new UsedAndPeak(
+               currentVal.used + diff, currentVal.peak));
+   }
 
     /**
      * Sets the cost notification status to be used by topology converter for setting movable on cloud entities.

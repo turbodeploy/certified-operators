@@ -295,9 +295,30 @@ public class TopologyConverterToMarketTest {
                 .orElse(null);
     }
 
+    static TraderTO getPmTrader(Collection<TraderTO> traders) {
+        return traders.stream()
+                .filter(tto -> tto.getType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .findFirst()
+                .orElse(null);
+    }
+
     static CommodityBoughtTO getMem(List<CommodityBoughtTO> commoditiesBoughtList) {
         return commoditiesBoughtList.stream()
                 .filter(comm -> comm.getSpecification().getBaseType() == CommodityDTO.CommodityType.MEM_VALUE)
+                .findFirst()
+                .orElse(null);
+    }
+
+    static CommodityBoughtTO getCPU(List<CommodityBoughtTO> commoditiesBoughtList) {
+        return commoditiesBoughtList.stream()
+                .filter(comm -> comm.getSpecification().getBaseType() == CommodityDTO.CommodityType.CPU_VALUE)
+                .findFirst()
+                .orElse(null);
+    }
+
+    static CommoditySoldTO getCPUSold(List<CommoditySoldTO> commoditiesSoldList) {
+        return commoditiesSoldList.stream()
+                .filter(comm -> comm.getSpecification().getBaseType() == CommodityDTO.CommodityType.CPU_VALUE)
                 .findFirst()
                 .orElse(null);
     }
@@ -343,6 +364,9 @@ public class TopologyConverterToMarketTest {
         assertEquals(80.0, aCommodityBought.getPeakQuantity(), epsilon);
         CommoditySpecificationTO commBoughtSpec = aCommodityBought.getSpecification();
         assertEquals("MEM", commBoughtSpec.getDebugInfoNeverUseInCode());
+        CommodityBoughtTO cpuCommodityBought = getCPU(commoditiesBoughtList);
+        //reservation * scalingFactor
+        assertEquals(105, cpuCommodityBought.getQuantity(), epsilon);
         assertEquals(0, pmShoppingList.getStorageMoveCost(), epsilon);
         // Get the shopping list that buys from DS
         ShoppingListTO dsShoppingList = shoppingLists.stream()
@@ -350,6 +374,10 @@ public class TopologyConverterToMarketTest {
                 .findAny().orElseThrow(() -> new RuntimeException("cannot find supplier 205"));
         // Buys 1024 from on DS and 2048 from another DS
         assertEquals(3.0, dsShoppingList.getStorageMoveCost(), epsilon);
+
+        final TraderTO pmTraderTO = getPmTrader(traderTOs);
+        CommoditySoldTO pmSoldCPU = getCPUSold(pmTraderTO.getCommoditiesSoldList());
+        assertEquals(2075, pmSoldCPU.getQuantity(), epsilon);
     }
 
     /**
@@ -2327,7 +2355,7 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
-     * Test {@link TopologyConverter#createProviderUsedSubtractionMap(Map, Set)}.
+     * Test {@link TopologyConverter#createProviderUsedModificationMap(Map, Set)}.
      */
     @Test
     public void testCreateProviderUsedSubtractionMap() {
@@ -2375,7 +2403,7 @@ public class TopologyConverterToMarketTest {
                 MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
 
         final Map<Long, Map<CommodityType, UsedAndPeak>> result =
-                converter.createProviderUsedSubtractionMap(ImmutableMap.of(pm.getOid(), pm,
+                converter.createProviderUsedModificationMap(ImmutableMap.of(pm.getOid(), pm,
                         removedVM1.getOid(), removedVM1, removedVM2.getOid(), removedVM2),
                         ImmutableSet.of(removedVM1.getOid(), removedVM2.getOid()));
 

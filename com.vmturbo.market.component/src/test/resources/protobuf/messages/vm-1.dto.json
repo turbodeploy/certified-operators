@@ -89,7 +89,10 @@
           },
           "historicalPeak": {
             "histUtilization": 20.0
-          }
+
+          },
+          "reservedCapacity": 35.0,
+          "scalingFactor": 3.0
         }
       ]
     },
@@ -145,5 +148,6 @@
     "common_dto.EntityDTO.VirtualMachineData.vmState" : "connected: true\n",
     "shopTogether" : "false",
     "common_dto.EntityDTO.VirtualMachineData.ipAddress" : "[10.0.1.15]"
-  }
+  },
+  "environmentType": "ON_PREM"
 }
