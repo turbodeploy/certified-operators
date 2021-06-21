@@ -10,7 +10,7 @@ import com.vmturbo.platform.common.builders.metadata.EntityIdentityMetadataBuild
  * The VMTPolicyMatcherDefault implements default heuristics property matcher.
  * Checks whether two sets of heuristic properties match to within 75%.
  */
-class PolicyMatcherDefault implements PolicyMatcher {
+public class PolicyMatcherDefault implements PolicyMatcher {
 
     /**
      * The threshold for determining a heuristic match using this matcher.
@@ -26,7 +26,7 @@ class PolicyMatcherDefault implements PolicyMatcher {
      *  the dummy value will be replaced by the real value.
      *
      */
-    private static final String DUMMY_VALUE = "DUMMY_VALUE";
+    public static final String DUMMY_VALUE = "DUMMY_VALUE";
 
     /**
      * Create a new default policy matcher.
@@ -71,16 +71,19 @@ class PolicyMatcherDefault implements PolicyMatcher {
             for (Map.Entry<String, PropertyReferenceCounter> entry : oldValues.entrySet()) {
                 total += entry.getValue().intValue();
                 // Always match to new value if the old value is set to dummy_value.
-                PropertyReferenceCounter i =
-                        entry.getKey().equals(DUMMY_VALUE) ?
-                                new PropertyReferenceCounter() :
-                                newValues.get(entry.getKey());
-                // None, skip
-                if (i == null) {
-                    continue;
+                final int count;
+                if (entry.getKey().equals(DUMMY_VALUE)) {
+                    count = 1;
+                } else {
+                    PropertyReferenceCounter i = newValues.get(entry.getKey());
+                    // None, skip
+                    if (i == null) {
+                        continue;
+                    }
+                    count = i.intValue();
                 }
 
-                matches += Math.min(entry.getValue().intValue(), i.intValue());
+                matches += Math.min(entry.getValue().intValue(), count);
             }
         }
 
