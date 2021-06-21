@@ -52,7 +52,7 @@ public class EntityConfig {
      * Ratio of overlap between among key entity type of two targets for us to declare them
      * duplicates. Set to 0 or negative to disable.
      */
-    @Value("${targetDeduplicationOverlapRatio:0.0f}")
+    @Value("${targetDeduplicationOverlapRatio:0.3f}")
     private float targetDeduplicationOverlapRatio;
 
     /**

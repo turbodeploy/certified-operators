@@ -1118,17 +1118,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                                         .setSeverity(ErrorSeverity.CRITICAL)
                                                         .setErrorType(ErrorType.DUPLICATION)
                                                         .build());
-                                // only add a notification if it is a full discovery
-                                if (discoveryType == DiscoveryType.FULL) {
-                                    responseBuilder.addNotification(
-                                            NotificationDTO.newBuilder()
-                                                    .setCategory(
-                                                            NotificationCategoryDTO.DISCOVERY.name())
-                                                    .setEvent("DuplicateTarget")
-                                                    .setSeverity(Severity.CRITICAL)
-                                                    .setDescription(e.getLocalizedMessage())
-                                                    .build());
-                                }
                                 responseUsed = responseBuilder.build();
                                 success = false;
                             }
