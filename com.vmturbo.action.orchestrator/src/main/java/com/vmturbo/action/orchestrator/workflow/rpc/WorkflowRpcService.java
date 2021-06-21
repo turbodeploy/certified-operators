@@ -234,10 +234,20 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             return;
         }
 
+        final long workflowToUpdateId = currentWorkflow.getId();
+        if (request.getId() != workflowToUpdateId) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                    "The workflow id provided in the request body must be equal to the id provided as path parameter when updating the workflow."
+                            + " Workflow id from request body - " + workflowToUpdateId
+                            + " and from path parameters - " + request.getId() + ".")
+                    .asException());
+            return;
+        }
+
         try {
             Optional<Workflow> workflow = workflowStore.getWorkflowByDisplayName(
                     currentWorkflowInfo.getDisplayName());
-            if (workflow.isPresent() && workflow.get().getId() != currentWorkflow.getId()) {
+            if (workflow.isPresent() && workflow.get().getId() != workflowToUpdateId) {
                 responseObserver.onError(
                         Status.INVALID_ARGUMENT
                             .withDescription(
@@ -281,7 +291,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
                 .build());
             responseObserver.onCompleted();
         } catch (WorkflowStoreException e) {
-            logger.error("Cannot update the workflow with ID: " + currentWorkflow.getId(), e);
+            logger.error("Cannot update the workflow with ID: " + workflowToUpdateId, e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }

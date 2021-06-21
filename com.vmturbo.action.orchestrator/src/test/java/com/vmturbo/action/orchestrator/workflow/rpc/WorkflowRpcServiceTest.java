@@ -16,6 +16,8 @@ import java.util.Optional;
 
 import io.grpc.stub.StreamObserver;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -285,7 +287,7 @@ public class WorkflowRpcServiceTest {
     public void testUpdateWithoutId() {
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
-            .setWorkflow(CREATE_WORKFLOW) // create does not have an oid
+            .setWorkflow(CREATE_WORKFLOW) // create_workflow does not have an oid
             .buildPartial(), updateObs);
         verify(updateObs, times(0)).onNext(any());
         verify(updateObs, times(0)).onCompleted();
@@ -304,7 +306,8 @@ public class WorkflowRpcServiceTest {
         when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
-            .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
+            .setWorkflow(UPDATE_WORKFLOW)
+            .setId(UPDATE_WORKFLOW.getId())
             .buildPartial(), updateObs);
         verify(updateObs, times(0)).onNext(any());
         verify(updateObs, times(0)).onCompleted();
@@ -323,7 +326,8 @@ public class WorkflowRpcServiceTest {
         when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
-            .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
+            .setWorkflow(UPDATE_WORKFLOW)
+            .setId(UPDATE_WORKFLOW.getId())
             .buildPartial(), updateObs);
         verify(workflowStore, times(1))
             .updateWorkflow(
@@ -336,6 +340,32 @@ public class WorkflowRpcServiceTest {
         verify(updateObs, times(1)).onNext(any());
         verify(updateObs, times(1)).onCompleted();
         verify(updateObs, times(0)).onError(any());
+    }
+
+    /**
+     * Update should fail when workflow id provided in the body request doesn't match with
+     * workflow id from path parameters.
+     *
+     * @throws WorkflowStoreException should not be thrown.
+     */
+    @Test
+    public void testFailedUpdate() throws WorkflowStoreException {
+        long mismatchedWorkflowId = 1242L;
+        final ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
+        when(workflowStore.fetchWorkflow(anyLong())).thenReturn(Optional.of(EXISTING_WORKFLOW));
+        when(workflowStore.getWorkflowByDisplayName(any())).thenReturn(Optional.empty());
+        StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
+        workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
+                .setWorkflow(UPDATE_WORKFLOW)
+                .setId(mismatchedWorkflowId)
+                .setId(mismatchedWorkflowId)
+                .buildPartial(), updateObs);
+        verify(updateObs, times(0)).onNext(any());
+        verify(updateObs, times(0)).onCompleted();
+        verify(updateObs, times(1)).onError(exceptionCaptor.capture());
+
+        Assert.assertThat(exceptionCaptor.getValue().getMessage(), CoreMatchers.containsString(
+                "The workflow id provided in the request body must be equal to the id provided as path parameter"));
     }
 
     /**
@@ -396,7 +426,7 @@ public class WorkflowRpcServiceTest {
 
         StreamObserver<UpdateWorkflowResponse> updateObs = mock(StreamObserver.class);
         workflowRpcService.updateWorkflow(UpdateWorkflowRequest.newBuilder()
-            .setWorkflow(UPDATE_WORKFLOW) // create does not have an oid
+            .setWorkflow(UPDATE_WORKFLOW)
             .buildPartial(), updateObs);
         verify(updateObs, times(0)).onNext(any());
         verify(updateObs, times(0)).onCompleted();
