@@ -88,10 +88,10 @@ public class LatestActionStatTable implements ActionStatTable {
 
         private final RolledUpStatCalculator statCalculator;
 
-        private LatestReader(@Nonnull final DSLContext dsl,
-                             @Nonnull final Clock clock,
-                             @Nonnull final RolledUpStatCalculator statCalculator,
-                             @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
+        LatestReader(@Nonnull final DSLContext dsl,
+                     @Nonnull final Clock clock,
+                     @Nonnull final RolledUpStatCalculator statCalculator,
+                     @Nonnull final TableInfo<? extends Record, ? extends Record> toTableInfo) {
             super(dsl, clock, LATEST_TABLE_INFO, Optional.of(toTableInfo));
             this.statCalculator = Objects.requireNonNull(statCalculator);
         }

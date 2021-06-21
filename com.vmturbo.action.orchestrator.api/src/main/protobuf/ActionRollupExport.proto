@@ -1,0 +1,58 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.action.orchestrator.api.export";
+
+import "common/EnvironmentTypeEnum.proto";
+import "action/ActionDTO.proto";
+
+message ActionRollupNotification {
+
+  repeated HourlyActionStat hourly_action_stats = 1;
+
+  // The action groups referenced in the hourly action stats.
+  repeated ActionGroup action_groups = 10;
+}
+
+message HourlyActionStat {
+
+  optional int64 hour_time = 1;
+
+  optional int64 scope_oid = 2;
+
+  optional int32 scope_entity_type = 3;
+
+  optional .common.EnvironmentType scope_environment_type = 4;
+
+  // The id of the action group this stat belongs to.
+  // The action groups definitions are sent separately to reduce duplication.
+  // These action group ids are generally going to be stable over time, but that's an implementation
+  // detail of the action orchestrator. The receiver should assign a stable id to each distinct
+  // action group.
+  optional int32 action_group_id = 5;
+
+  optional int32 prior_action_count = 10;
+
+  optional int32 cleared_action_count = 11;
+
+  optional int32 new_action_count = 12;
+
+  optional int32 entity_count = 20;
+
+  optional float savings = 30;
+
+  optional float investments = 31;
+}
+
+message ActionGroup {
+
+  optional int32 id = 1;
+
+  optional ActionType action_type = 2;
+
+  optional ActionCategory action_category = 3;
+
+  optional Severity action_severity = 4;
+
+  repeated string risk_descriptions = 5;
+}
