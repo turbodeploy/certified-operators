@@ -139,9 +139,11 @@ public class BindToGroupPolicyTest {
         topologyMap.get(11L)
             .getEntityBuilder()
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(7L))
+                    .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setProviderId(7L))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(8L));
+                    .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                    .setProviderId(8L));
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);

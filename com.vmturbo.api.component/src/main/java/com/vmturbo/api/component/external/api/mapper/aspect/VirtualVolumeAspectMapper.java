@@ -449,21 +449,25 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         requestEntities(vmIds, topologyContextId, true);
 
         // Mapping from Volume identifier to consuming or connected VM
-        final Map<Long, Long> volumeIdToVmId = collectVolumesOfVms(sourceVms);
+        final Map<Long, Set<Long>> volumeIdToVmIds = collectVolumesOfVms(sourceVms);
 
         // Map of volume ID to volume entities on the source topology
-        final Set<Long> volumeIds = volumeIdToVmId.keySet();
+        final Set<Long> volumeIds = volumeIdToVmIds.keySet();
         final Map<Long, TopologyEntityDTO> sourceVolumes =
                         requestEntities(volumeIds, topologyContextId, false);
 
         // Map of volume ID to volume entities on the projected topology
         // there may be less projected volumes than source ones
-        final Map<Long, Long> projVolumeIdToVmId = collectVolumesOfVms(projectedVms);
+        final Map<Long, Set<Long>> projVolumeIdToVmIds = collectVolumesOfVms(projectedVms);
         // Inverse map so that projected volumes can be accessed by vm ID later on
-        final Map<Long, Set<Long>> projVmIdToVolumeId = projVolumeIdToVmId.entrySet().stream()
-            .collect(Collectors.groupingBy(Map.Entry::getValue,
-                Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
-        final Map<Long, TopologyEntityDTO> projectedVolumes = requestEntities(projVolumeIdToVmId.keySet(),
+        final Map<Long, Set<Long>> projVmIdToVolumeIds = Maps.newHashMap();
+        projVolumeIdToVmIds.entrySet().stream().forEach(entry -> entry.getValue().stream()
+                .forEach(vmId -> {
+                    Set<Long> volIds = projVmIdToVolumeIds.getOrDefault(vmId, Sets.newHashSet());
+                    volIds.add(entry.getKey());
+                    projVmIdToVolumeIds.put(vmId, volIds);
+        }));
+        final Map<Long, TopologyEntityDTO> projectedVolumes = requestEntities(projVolumeIdToVmIds.keySet(),
                         topologyContextId, true);
 
         // Map of volume ID to a list of cost stats
@@ -508,25 +512,31 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                             .put(volumeId, storageTier));
         }
 
-        final Map<Long, Collection<CommodityBoughtDTO>> volumeIdToSourceBoughtCommodities =
+        final Map<Long, Map<Long, Collection<CommodityBoughtDTO>>> vmIdToVolumeIdToSourceBoughtCommodities =
                         new HashMap<>();
         final Map<Long, List<CommoditySoldDTO>> volumeIdToSourceSoldCommodities = new HashMap<>();
         for (Entry<Long, TopologyEntityDTO> vvIdToVv : sourceVolumes.entrySet()) {
             final Long vvId = vvIdToVv.getKey();
             final TopologyEntityDTO vv = vvIdToVv.getValue();
-            final Long vmId = volumeIdToVmId.get(vvId);
+            final Set<Long> vmIdSet = volumeIdToVmIds.get(vvId);
             final Set<Long> connectedProviders = vv.getConnectedEntityListList().stream()
                             .filter(ce -> STORAGE_PROVIDER_TYPES
                                             .contains(ce.getConnectedEntityType()))
                             .map(ConnectedEntity::getConnectedEntityId).collect(Collectors.toSet());
-            for (CommoditiesBoughtFromProvider cbfp : sourceVms.get(vmId)
-                            .getCommoditiesBoughtFromProvidersList()) {
-                if (!STORAGE_PROVIDER_TYPES.contains(cbfp.getProviderEntityType())) {
-                    continue;
+            for (Long vmId: vmIdSet) {
+                Map<Long, Collection<CommodityBoughtDTO>> volumeIdToSourceBoughtCommodities =
+                        vmIdToVolumeIdToSourceBoughtCommodities.getOrDefault(vmId, new HashMap<>());
+                        new HashMap<>();
+                for (CommoditiesBoughtFromProvider cbfp : sourceVms.get(vmId)
+                        .getCommoditiesBoughtFromProvidersList()) {
+                    if (!STORAGE_PROVIDER_TYPES.contains(cbfp.getProviderEntityType())) {
+                        continue;
+                    }
+                    if (connectedProviders.contains(cbfp.getProviderId())) {
+                        volumeIdToSourceBoughtCommodities.put(vvId, cbfp.getCommodityBoughtList());
+                    }
                 }
-                if (connectedProviders.contains(cbfp.getProviderId())) {
-                    volumeIdToSourceBoughtCommodities.put(vvId, cbfp.getCommodityBoughtList());
-                }
+                vmIdToVolumeIdToSourceBoughtCommodities.put(vmId, volumeIdToSourceBoughtCommodities);
             }
             // For Cloud Volume, use volume's commoditySold to create VirtualDiskApiDTO later
             volumeIdToSourceSoldCommodities.put(vvId, vv.getCommoditySoldListList());
@@ -542,7 +552,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                                                             .contains(commList
                                                                             .getProviderEntityType()))
                                             .collect(Collectors.toList());
-            final Set<Long> projectedVolIds = projVmIdToVolumeId.get(vmId);
+            final Set<Long> projectedVolIds = projVmIdToVolumeIds.get(vmId);
             if (CollectionUtils.isNotEmpty(projectedVolIds)) {
                 final List<VirtualDiskApiDTO> virtualDiskApiDTOs = new ArrayList<>(projectedVolIds.size());
                 for (final long volId : projectedVolIds) {
@@ -575,8 +585,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         }
                     }
                     final Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
-                    final Collection<CommodityBoughtDTO> sourceBoughtCommodities = volumeIdToSourceBoughtCommodities
-                        .getOrDefault(volId, Collections.emptySet());
+                    final Collection<CommodityBoughtDTO> sourceBoughtCommodities = vmIdToVolumeIdToSourceBoughtCommodities
+                        .getOrDefault(vmId, Collections.emptyMap())
+                            .getOrDefault(volId, Collections.emptySet());
                     final VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm,
                         projectedVolume,
                         sourceBoughtCommodities,
@@ -640,19 +651,19 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     @Nonnull
-    private static Map<Long, Long> collectVolumesOfVms(@Nonnull Map<Long, TopologyEntityDTO> vms) {
-        Map<Long, Long> volumeIdToVmId = new HashMap<>();
+    private static Map<Long, Set<Long>> collectVolumesOfVms(@Nonnull Map<Long, TopologyEntityDTO> vms) {
+        Map<Long, Set<Long>> volumeIdToVmIds = new HashMap<>();
         vms.forEach((vmId, vm) -> {
             // In old model (On Prem) volumes are attached to VMs using ConnectedTo relationship
             collectVolumeIds(TopologyEntityDTO::getConnectedEntityListList,
                             ConnectedEntity::getConnectedEntityType,
-                            ConnectedEntity::getConnectedEntityId, vm, volumeIdToVmId);
+                            ConnectedEntity::getConnectedEntityId, vm, volumeIdToVmIds);
             // In new model (Cloud) volumes are attached to VMs using bought commodities
             collectVolumeIds(TopologyEntityDTO::getCommoditiesBoughtFromProvidersList,
                             CommoditiesBoughtFromProvider::getProviderEntityType,
-                            CommoditiesBoughtFromProvider::getProviderId, vm, volumeIdToVmId);
+                            CommoditiesBoughtFromProvider::getProviderId, vm, volumeIdToVmIds);
         });
-        return volumeIdToVmId;
+        return volumeIdToVmIds;
     }
 
     @Nonnull
@@ -671,10 +682,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     Function<TopologyEntityDTO, Collection<T>> relatedEntitiesGetter,
                     Function<T, Integer> entityTypeExtractor,
                     Function<T, Long> relatedEntityIdExtractor, TopologyEntityDTO vm,
-                    Map<Long, Long> volumeIdToVmId) {
+                    Map<Long, Set<Long>> volumeIdToVmIds) {
         relatedEntitiesGetter.apply(vm).stream().filter(e -> entityTypeExtractor.apply(e)
                         == EntityType.VIRTUAL_VOLUME_VALUE).map(relatedEntityIdExtractor)
-                        .forEach(volumeId -> volumeIdToVmId.put(volumeId, vm.getOid()));
+                        .forEach(volumeId -> {
+                            Set<Long> vmIds = volumeIdToVmIds.getOrDefault(volumeId, Sets.newHashSet());
+                            vmIds.add(vm.getOid());
+                            volumeIdToVmIds.put(volumeId, vmIds);
+                        });
     }
 
     /**

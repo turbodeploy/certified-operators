@@ -153,9 +153,11 @@ public class BindToComplementaryGroupPolicyTest {
         topologyMap.get(12L)
             .getEntityBuilder()
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(8L))
+                    .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setProviderId(8L))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(9L));
+                    .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setProviderId(9L));
 
         topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
