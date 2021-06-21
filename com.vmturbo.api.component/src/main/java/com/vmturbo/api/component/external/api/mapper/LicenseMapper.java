@@ -39,6 +39,8 @@ public class LicenseMapper {
             if (turboLicense.hasEmail()) {
                 license.setEmail(turboLicense.getEmail());
             }
+            // No need to check if customer id is set because it has a default value.
+            license.setCustomerId(turboLicense.getCustomerId());
             if (turboLicense.hasEdition()) {
                 license.setEdition(turboLicense.getEdition());
             }

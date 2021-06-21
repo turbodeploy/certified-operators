@@ -101,6 +101,7 @@ public class LicenseUtil {
     public static LicenseApiDTO toDTO(License model) {
         LicenseApiDTO dto = new LicenseApiDTO()
                 .setEmail(model.getEmail())
+                .setCustomerId(model.getCustomerId())
                 .setExpirationDate(model.getExpirationDate())
                 .setLicenseOwner(model.getLicenseOwner())
                 .setLicenseKey(model.getLicenseKey())

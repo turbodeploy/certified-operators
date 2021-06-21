@@ -7,10 +7,16 @@ import static org.junit.Assert.assertTrue;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
+
+import com.google.common.collect.Lists;
 
 import org.junit.Test;
 
+import com.vmturbo.api.dto.license.ILicense;
+import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.licensing.Licensing;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 
 /**
@@ -37,7 +43,6 @@ public class LicenseMapperTest {
 
     }
 
-
     /**
      * Verify that the isExpired flag is based directly off of the LicenseSummary.isExpired attributes,
      * rather than using the ILicense.isExpired() dynamic calculation based on the expirationDate field.
@@ -59,5 +64,69 @@ public class LicenseMapperTest {
                 .build();
         // should not be expired, even if the date is before today.
         assertFalse(LicenseMapper.licenseSummaryToLicenseApiDTO(invalidLicenseSummary).isExpired());
+    }
+
+    private static final String UUID = "a-b-c-d";
+    private static final String FILENAME = "lic.xml";
+    private static final String EMAIL = "joe@vmt.com";
+    private static final String CUSTOMER_ID = "abcdEFG";
+    private static final String EDITION = "Super";
+    private static final String EXPIRATION = "2030-12-31";
+    private static final String OWNER = "Joe B.";
+    private static final String KEY = "key-123";
+    private static final String EXTERNAL_KEY = "ext-key-123";
+    private static final int NUM = 1000;
+    private static final List<String> FEATURES = Lists.newArrayList("F1", "F2", "F3");
+
+    /**
+     * Increase code coverage.
+     */
+    @Test
+    public void testMapper() {
+        Licensing.LicenseDTO dto = Licensing.LicenseDTO.newBuilder()
+                .setUuid(UUID)
+                .setFilename(FILENAME)
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder()
+                        .setEmail(EMAIL)
+                        .setCustomerId(CUSTOMER_ID)
+                        .setEdition(EDITION)
+                        .setExpirationDate(EXPIRATION)
+                        .setLicenseOwner(OWNER)
+                        .setLicenseKey(KEY)
+                        .setExternalLicenseKey(EXTERNAL_KEY)
+                        // This will be ignored
+                        .setCountedEntity(ILicense.CountedEntity.SOCKET.name())
+                        .setNumLicensedEntities(NUM)
+                        .addAllFeatures(FEATURES)
+                        .build())
+                .build();
+        LicenseApiDTO apiDto = LicenseMapper.licenseDTOtoLicenseApiDTO(dto);
+
+        assertEquals(UUID, apiDto.getUuid());
+        assertEquals(FILENAME, apiDto.getFilename());
+        assertEquals(EMAIL, apiDto.getEmail());
+        assertEquals(CUSTOMER_ID, apiDto.getCustomerId());
+        assertEquals(EDITION, apiDto.getEdition());
+        assertEquals(EXPIRATION, apiDto.getExpirationDate());
+        assertEquals(OWNER, apiDto.getLicenseOwner());
+        assertEquals(KEY, apiDto.getLicenseKey());
+        assertEquals(EXTERNAL_KEY, apiDto.getExternalLicenseKey());
+        // Always returns VM
+        assertEquals(ILicense.CountedEntity.VM, apiDto.getCountedEntity());
+        assertEquals(NUM, apiDto.getNumLicensedEntities());
+        assertTrue(FEATURES.containsAll(apiDto.getFeatures()));
+    }
+
+    /**
+     * Verify that default customer ID is used when not set in the license.
+     */
+    @Test
+    public void testDefaultCustomerId() {
+        Licensing.LicenseDTO dto = Licensing.LicenseDTO.newBuilder()
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder().build())
+                .build();
+        LicenseApiDTO apiDto = LicenseMapper.licenseDTOtoLicenseApiDTO(dto);
+        assertEquals(Licensing.LicenseDTO.TurboLicense.getDefaultInstance().getCustomerId(),
+                apiDto.getCustomerId());
     }
 }

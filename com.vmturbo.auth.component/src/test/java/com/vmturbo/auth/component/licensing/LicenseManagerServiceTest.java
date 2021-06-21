@@ -34,6 +34,7 @@ import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.auth.component.licensing.store.LicenseKVStore;
 import com.vmturbo.auth.component.store.LicenseLocalStoreTest;
+import com.vmturbo.common.protobuf.licensing.Licensing;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
@@ -50,6 +51,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
 import com.vmturbo.licensing.utils.LicenseUtil;
 import com.vmturbo.notification.api.NotificationSender;
@@ -534,6 +536,20 @@ public class LicenseManagerServiceTest {
         Assert.assertTrue(validatedLicense.getExternal()
                 .getErrorReasonList()
                 .contains(ErrorReason.EXPIRED.name()));
+    }
+
+    /**
+     * Verify that default customer ID is used when not set in the license.
+     */
+    @Test
+    public void testDefaultCustomerId() {
+        Licensing.LicenseDTO dto = Licensing.LicenseDTO.newBuilder()
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder().build())
+                .build();
+
+        License license = LicenseDTOUtils.licenseDTOtoLicense(dto).get();
+        assertEquals(Licensing.LicenseDTO.TurboLicense.getDefaultInstance().getCustomerId(),
+                license.getCustomerId());
     }
 
     // TODO: When we support authorization in this service (OM-35910), add test validating Admin role
