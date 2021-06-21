@@ -174,7 +174,9 @@ public class CommodityConverter {
         // Subtract used value of consumers from used value of provider.
         // This can only happen in a plan with entities to remove.
         if (shouldSubtractUsageAndPeak) {
-            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).used;
+            float subtractedUsed = providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).used;
+            logger.debug("provider {} is subtracting {} used for commodity ()", dto.getOid(), subtractedUsed, topologyCommSold.getCommodityType().getType());
+            used -= subtractedUsed;
         }
 
         final int type = commodityType.getType();
