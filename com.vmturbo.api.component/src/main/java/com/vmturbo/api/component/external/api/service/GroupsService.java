@@ -408,7 +408,6 @@ public class GroupsService implements IGroupsService {
                     true).values().iterator().next();
         } else {
             final String msg = "Group not found: " + uuid;
-            logger.error(msg);
             throw new UnknownObjectException(msg);
         }
     }
