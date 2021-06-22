@@ -143,6 +143,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -261,7 +262,7 @@ public class TargetsServiceTest {
                         if (registeredTargets.get(id) == null) {
                             throw new TopologyProcessorException("Error getting target health info: " + id);
                         } else {
-                            return new TargetHealthInfo(null, id, null);
+                            return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, id, null);
                         }
                     }
                 });
