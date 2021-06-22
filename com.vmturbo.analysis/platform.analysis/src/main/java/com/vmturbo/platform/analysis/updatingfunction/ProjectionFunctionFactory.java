@@ -31,6 +31,9 @@ public class ProjectionFunctionFactory {
             case MM1_DISTRIBUTION:
                 // return MM1 projection function.
                 return MM1;
+            case INVERSE_SQUARE:
+                // return inverse square projection function.
+                return INVERSE_SQUARE_PROJECTION;
             default:
                 throw new IllegalArgumentException("input = " + updatingFunctionTO.getUpdatingFunctionTypeCase());
         }
@@ -38,9 +41,9 @@ public class ProjectionFunctionFactory {
 
     /**
      * Create {@link ProjectionFunction} for MM1 projection.
-     * byProductUtil' = byProductUtil * normalizedResizingCommUtil' * (1 - resizingCommUtil)
-     *                                  ----------------------------------------------------
-     *                                  resizingCommUtil * (1 - normalizedResizingCommUtil')
+     *                                      (1 - resizingCommUtil)
+     * byProductUtil' = byProductUtil * ---------------------------------
+     *                                  (1 - normalizedResizingCommUtil')
      *
      * @return ProjectionFunction
      */
@@ -53,10 +56,34 @@ public class ProjectionFunctionFactory {
                 // the same unit and so we normalize the percentile utilization into a smoothened average utilization representation.
                 double normalizedAverageUtil = u * (resizingCommodity.getQuantity()
                         / resizingCommodity.getHistoricalOrElseCurrentQuantity());
-                return (byProductUtilization * normalizedAverageUtil) * (1 - resizingCommodity.getUtilization())
-                            / (resizingCommodity.getUtilization() * (1 - normalizedAverageUtil));
+                return byProductUtilization * (1 - resizingCommodity.getUtilization())
+                        / (1 - normalizedAverageUtil);
             };
         }
     };
 
+    /**
+     * Create {@link ProjectionFunction} for projection with the inverse square formula below.
+     * byProductUtil' = byProductUtil * oldCapacity * oldCapacity / newCapacity / newCapacity
+     *
+     * @return ProjectionFunction based on the inverse square formula
+     */
+    public static final ProjectionFunction INVERSE_SQUARE_PROJECTION = new ProjectionFunction() {
+        @Override
+        public DoubleUnaryOperator project(Trader seller, CommoditySold resizingCommodity, double byProductUtilization) {
+            return u -> {
+                if (u <= 0 || resizingCommodity.getHistoricalOrElseCurrentQuantity() <= 0) {
+                    logger.warn("This inverse-square projection function only works when both "
+                            + "the projected utilization and current quantity are greater than 0, "
+                            + "but at least one of them is not: projection utilization = {} and "
+                            + "current quantity = {}", u,
+                            resizingCommodity.getHistoricalOrElseCurrentQuantity());
+                    return 0;
+                }
+                final double oldCapacity = resizingCommodity.getCapacity();
+                final double newCapacity = resizingCommodity.getHistoricalOrElseCurrentQuantity() / u;
+                return byProductUtilization * oldCapacity * oldCapacity / newCapacity / newCapacity;
+            };
+        }
+    };
 }
