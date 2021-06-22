@@ -22,7 +22,6 @@ import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
@@ -34,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
@@ -134,6 +134,9 @@ public class ActionStoreConfig {
 
     @Value("${actionExecution.isConditionalSubmitter:false}")
     private boolean isConditionalSubmitter;
+
+    @Value("${actionExecution.isConditionalSubmitter.delaySecs:30}")
+    private int conditionalSubmitterDelaySecs;
 
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
@@ -247,7 +250,8 @@ public class ActionStoreConfig {
                 .setNameFormat("auto-act-exec-%d").build();
 
         return isConditionalSubmitter
-                ? new ConditionalSubmitter(concurrentAutomatedActions, threadFactory)
+                ? new ConditionalSubmitter(concurrentAutomatedActions, threadFactory,
+                        conditionalSubmitterDelaySecs)
                 : Executors.newFixedThreadPool(concurrentAutomatedActions, threadFactory);
     }
 

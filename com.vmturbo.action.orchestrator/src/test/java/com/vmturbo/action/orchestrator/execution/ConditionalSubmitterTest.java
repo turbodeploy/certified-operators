@@ -309,7 +309,8 @@ public class ConditionalSubmitterTest {
         private final CountDownLatch countDownLatch;
 
         CountDownSubmitter(int poolSize, CountDownLatch countDownLatch) {
-            super(poolSize, new ThreadFactoryBuilder().setNameFormat("auto-act-exec-%d").build());
+            super(poolSize, new ThreadFactoryBuilder().setNameFormat("auto-act-exec-%d").build(),
+                    0);
             this.countDownLatch = countDownLatch;
         }
 
