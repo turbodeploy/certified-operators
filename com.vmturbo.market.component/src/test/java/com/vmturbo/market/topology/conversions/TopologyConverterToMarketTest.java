@@ -2327,7 +2327,7 @@ public class TopologyConverterToMarketTest {
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false)
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false)
                 .convertToMarket(topologyDTOs);
 
         assertEquals(2, traderTOs.size());
@@ -2434,7 +2434,7 @@ public class TopologyConverterToMarketTest {
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false);
         final long computeTierOid = 111111L;
         final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
                 .setOid(computeTierOid)
@@ -2553,7 +2553,7 @@ public class TopologyConverterToMarketTest {
                 tierExcluderFactory,
                 consistentScalingHelperFactory,
                 settingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology, false, false);
 
         final Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
 

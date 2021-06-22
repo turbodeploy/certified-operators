@@ -144,7 +144,7 @@ public class MarketExceptionsTest {
             commodityIndexFactory,
             tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
+            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false);
         topologyConverter.setConvertToMarketComplete();
         converter = Mockito.spy(topologyConverter);
     }

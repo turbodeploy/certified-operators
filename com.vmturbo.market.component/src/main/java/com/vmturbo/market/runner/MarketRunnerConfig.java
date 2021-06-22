@@ -145,6 +145,12 @@ public class MarketRunnerConfig {
     @Value("${shouldPopulateByProducts:false}")
     private boolean shouldPopulateByProducts;
 
+    /**
+     * Use max(reservation, used) as VM's commodity bought used.
+     */
+    @Value("${useVMReservationAsUsed:false}")
+    private boolean useVMReservationAsUsed;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -219,7 +225,8 @@ public class MarketRunnerConfig {
                 enableOP,
                 shouldPopulateByProducts,
                 fastProvisionEnabled,
-                branchAndBoundEnabled);
+                branchAndBoundEnabled,
+                useVMReservationAsUsed);
     }
 
     /**
