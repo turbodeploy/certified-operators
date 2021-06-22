@@ -67,6 +67,9 @@ class PropertyRegistry {
         props.put("topologyProcessorDbPassword", "vmturbo");
         props.put("marketDbPassword", "vmturbo");
 
+        props.put("dbs.grafana.databaseName", "grafana");
+        props.put("dbs.grafana.userName", "grafana_backend");
+        props.put("dbs.grafana.password", "vmturbo");
         if (voltronConfiguration.isUseLocalBus()) {
             props.put("kafkaConfigFile", "");
         } else {

@@ -1,0 +1,449 @@
+---
+annotations:
+  list:
+  - builtIn: 1
+    datasource: -- Grafana --
+    enable: true
+    hide: true
+    iconColor: rgba(0, 211, 255, 1)
+    name: Annotations & Alerts
+    type: dashboard
+description: Proof of Concept
+editable: true
+gnetId: null
+graphTooltip: 0
+iteration: 1624286314051
+links: []
+panels:
+- aliasColors: {}
+  bars: true
+  dashLength: 10
+  dashes: false
+  datasource: Turbo Timescale
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fill: 1
+  fillGradient: 0
+  gridPos:
+    h: 10
+    w: 23
+    x: 0
+    y: 0
+  hiddenSeries: false
+  id: 2
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: false
+  linewidth: 1
+  nullPointMode: null as zero
+  options:
+    alertThreshold: false
+  percentage: false
+  pluginVersion: 7.3.8
+  pointradius: 2
+  points: false
+  renderer: flot
+  seriesOverrides: []
+  spaceLength: 10
+  stack: true
+  steppedLine: false
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    queryType: randomWalk
+    rawQuery: true
+    rawSql: |
+      SELECT DATE_TRUNC('hour', time) as time
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'MOVE') as "MOVE"
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'PROVISION') as "PROVISION"
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'RESIZE') as "RESIZE"
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'DEACTIVATE') as "DEACTIVATE"
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'DELETE') as "DELETE"
+            ,SUM(prior_action_count + new_action_count - cleared_action_count) FILTER (where type = 'SCALE') as "SCALE"
+        FROM pending_action_stats JOIN action_group ON pending_action_stats.action_group = action_group.id
+       WHERE scope_oid = $scope AND entity_type = ${entityType:singlequote} AND environment_type = ${environmentType:singlequote} AND $__timeFilter(time)
+       GROUP BY 1
+    refId: A
+    select:
+    - - params:
+        - savings
+        type: column
+    table: completed_action
+    timeColumn: recommendation_time
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  thresholds: []
+  timeFrom: null
+  timeRegions: []
+  timeShift: null
+  title: Total Recommendations Over Time
+  tooltip:
+    shared: true
+    sort: 0
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets: null
+    mode: time
+    name: null
+    show: true
+    values: []
+  yaxes:
+  - decimals: 0
+    format: short
+    label: ""
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  - format: short
+    label: null
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  yaxis:
+    align: false
+    alignLevel: null
+- aliasColors: {}
+  bars: true
+  dashLength: 10
+  dashes: false
+  datasource: Turbo Timescale
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fill: 1
+  fillGradient: 0
+  gridPos:
+    h: 10
+    w: 23
+    x: 0
+    y: 10
+  hiddenSeries: false
+  id: 5
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: false
+  linewidth: 1
+  nullPointMode: null as zero
+  options:
+    alertThreshold: true
+  percentage: false
+  pluginVersion: 7.3.8
+  pointradius: 2
+  points: false
+  renderer: flot
+  seriesOverrides: []
+  spaceLength: 10
+  stack: true
+  steppedLine: false
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    queryType: randomWalk
+    rawQuery: true
+    rawSql: |
+      SELECT DATE_TRUNC('hour', time) as time
+            ,SUM(new_action_count) FILTER (where type = 'MOVE') as "MOVE"
+            ,SUM(new_action_count) FILTER (where type = 'PROVISION') as "PROVISION"
+            ,SUM(new_action_count) FILTER (where type = 'RESIZE') as "RESIZE"
+            ,SUM(new_action_count) FILTER (where type = 'DEACTIVATE') as "DEACTIVATE"
+            ,SUM(new_action_count) FILTER (where type = 'DELETE') as "DELETE"
+            ,SUM(new_action_count) FILTER (where type = 'SCALE') as "SCALE"
+        FROM pending_action_stats JOIN action_group ON pending_action_stats.action_group = action_group.id
+       WHERE scope_oid = $scope AND entity_type = ${entityType:singlequote} AND environment_type = ${environmentType:singlequote} AND $__timeFilter(time)
+       GROUP BY 1
+    refId: A
+    select:
+    - - params:
+        - savings
+        type: column
+    table: completed_action
+    timeColumn: recommendation_time
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  thresholds: []
+  timeFrom: null
+  timeRegions: []
+  timeShift: null
+  title: New Recommendations Over Time
+  tooltip:
+    shared: true
+    sort: 0
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets: null
+    mode: time
+    name: null
+    show: true
+    values: []
+  yaxes:
+  - decimals: 0
+    format: short
+    label: ""
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  - format: short
+    label: null
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  yaxis:
+    align: false
+    alignLevel: null
+- aliasColors: {}
+  bars: true
+  dashLength: 10
+  dashes: false
+  datasource: Turbo Timescale
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fill: 1
+  fillGradient: 0
+  gridPos:
+    h: 10
+    w: 23
+    x: 0
+    y: 20
+  hiddenSeries: false
+  id: 6
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: false
+  linewidth: 1
+  nullPointMode: null as zero
+  options:
+    alertThreshold: true
+  percentage: false
+  pluginVersion: 7.3.8
+  pointradius: 2
+  points: false
+  renderer: flot
+  seriesOverrides: []
+  spaceLength: 10
+  stack: true
+  steppedLine: false
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    queryType: randomWalk
+    rawQuery: true
+    rawSql: |
+      SELECT DATE_TRUNC('hour', time) as time
+            ,SUM(cleared_action_count) FILTER (where type = 'MOVE') as "MOVE"
+            ,SUM(cleared_action_count) FILTER (where type = 'PROVISION') as "PROVISION"
+            ,SUM(cleared_action_count) FILTER (where type = 'RESIZE') as "RESIZE"
+            ,SUM(cleared_action_count) FILTER (where type = 'DEACTIVATE') as "DEACTIVATE"
+            ,SUM(cleared_action_count) FILTER (where type = 'SCALE') as "SCALE"
+            ,SUM(cleared_action_count) FILTER (where type = 'DELETE') as "DELETE"
+        FROM pending_action_stats JOIN action_group ON pending_action_stats.action_group = action_group.id
+       WHERE scope_oid = $scope AND entity_type = ${entityType:singlequote} AND environment_type = ${environmentType:singlequote} AND $__timeFilter(time)
+       GROUP BY 1
+    refId: A
+    select:
+    - - params:
+        - savings
+        type: column
+    table: completed_action
+    timeColumn: recommendation_time
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  thresholds: []
+  timeFrom: null
+  timeRegions: []
+  timeShift: null
+  title: Cleared Recommendations Over Time
+  tooltip:
+    shared: true
+    sort: 0
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets: null
+    mode: time
+    name: null
+    show: true
+    values: []
+  yaxes:
+  - decimals: 0
+    format: short
+    label: ""
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  - format: short
+    label: null
+    logBase: 1
+    max: null
+    min: null
+    show: true
+  yaxis:
+    align: false
+    alignLevel: null
+refresh: false
+schemaVersion: 26
+style: dark
+tags: []
+templating:
+  list:
+  - error: null
+    hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+  - allValue: "0"
+    current:
+      selected: false
+      text: All
+      value: $__all
+    datasource: $DB
+    definition: |-
+      SELECT name as __text, oid as __value
+      FROM entity
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND entity.type IN ('COMPUTE_CLUSTER', 'STORAGE_CLUSTER', 'K8S_CLUSTER', 'BUSINESS_ACCOUNT', 'RESOURCE_GROUP')
+      GROUP BY name, oid
+      ORDER BY 1
+    error: null
+    hide: 0
+    includeAll: true
+    label: Scope
+    multi: false
+    name: scope
+    options: []
+    query: |-
+      SELECT name as __text, oid as __value
+      FROM entity
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND entity.type IN ('COMPUTE_CLUSTER', 'STORAGE_CLUSTER', 'K8S_CLUSTER', 'BUSINESS_ACCOUNT', 'RESOURCE_GROUP')
+      GROUP BY name, oid
+      ORDER BY 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
+  - allValue: '''_NONE_'''
+    current:
+      selected: false
+      text: ALL
+      value: _NONE_
+    datasource: $DB
+    definition: |-
+      SELECT regexp_replace(entity_type::text, '_NONE_', 'ALL') AS __text, entity_type AS __value
+      FROM pending_action_stats
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (time, time)
+      ORDER BY 1
+    error: null
+    hide: 0
+    includeAll: false
+    label: Entity Type
+    multi: false
+    name: entityType
+    options: []
+    query: |-
+      SELECT regexp_replace(entity_type::text, '_NONE_', 'ALL') AS __text, entity_type AS __value
+      FROM pending_action_stats
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (time, time)
+      ORDER BY 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
+  - allValue: '''_NONE_'''
+    current:
+      selected: true
+      text: ON_PREM
+      value: ON_PREM
+    datasource: $DB
+    definition: |-
+      SELECT environment_type::text AS __text, environment_type AS __value
+      FROM pending_action_stats
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (time, time)
+      ORDER BY 1
+    error: null
+    hide: 0
+    includeAll: false
+    label: Environment Type
+    multi: false
+    name: environmentType
+    options: []
+    query: |-
+      SELECT environment_type::text AS __text, environment_type AS __value
+      FROM pending_action_stats
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (time, time)
+      ORDER BY 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
+time:
+  from: now-6h
+  to: now
+timepicker: {}
+timezone: ""
+title: Historical Action Recommendations
+uid: historical-action-recommendations

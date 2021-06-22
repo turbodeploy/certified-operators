@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.groups;
 
+import static com.vmturbo.action.orchestrator.db.Tables.MGMT_UNIT_SUBGROUP;
 import static com.vmturbo.action.orchestrator.db.tables.ActionGroup.ACTION_GROUP;
 import static com.vmturbo.action.orchestrator.db.tables.RelatedRiskForAction.RELATED_RISK_FOR_ACTION;
 
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -302,6 +304,17 @@ public class ActionGroupStore {
         });
         return matchedActionGroups;
     }
+
+    /**
+     * Retrieve {@link ActionGroup}s by id.
+     * @param groupIds The input list of groups to look up.
+     * @return The subgroups, arranged by id. Missing ids will not be present.
+     */
+    @Nonnull
+    public Map<Integer, ActionGroup> getGroupsById(@Nonnull final Set<Integer> groupIds) {
+        return getActionGroups(dsl, Collections.singletonList(ACTION_GROUP.ID.in(groupIds)));
+    }
+
 
     /**
      * Query the {@link ActionGroupStore} to get the action groups that match a filter.

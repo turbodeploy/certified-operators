@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.action.orchestrator.api.EntitySeverityClientCache;
+import com.vmturbo.action.orchestrator.api.export.ActionRollupExport.ActionRollupNotification;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
@@ -53,6 +54,13 @@ public class ActionOrchestratorClientConfig {
      * Topic for severity update broadcasts.
      */
     public static final String SEVERITY_TOPIC = "entity-severities";
+
+    /**
+     * Topic for action stat rollup notifications.
+     *
+     * <p/>The action orchestrator broadcasts rolled up action data on this topic.
+     */
+    public static final String ROLLUP_TOPIC = "action-stat-rollups";
 
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConsumerConfig;
@@ -95,6 +103,18 @@ public class ActionOrchestratorClientConfig {
     }
 
     /**
+     * Clients should use this to listen to action rollup notifications.
+     *
+     * @return The {@link ActionRollupNotificationReceiver}.
+     */
+    @Bean
+    @Lazy
+    public ActionRollupNotificationReceiver actionRollupNotificationReceiver() {
+        return new ActionRollupNotificationReceiver(actionRollupReceiver(),
+                actionOrchestratorClientThreadPool(), kafkaReceiverTimeoutSeconds);
+    }
+
+    /**
      * An asynchronous message receiver for action approval requests.
      *
      * @return message receiver
@@ -104,6 +124,18 @@ public class ActionOrchestratorClientConfig {
     public IMessageReceiver<ActionApprovalRequests> createActionApprovalRequestListener() {
         return baseKafkaConsumerConfig.kafkaConsumer().messageReceiver(
                 ACTION_APPROVAL_REQUEST_TOPIC, ActionApprovalRequests::parseFrom);
+    }
+
+    /**
+     * An asynchronous message receiver for action rollup notifications.
+     *
+     * @return message receiver
+     */
+    @Bean
+    @Lazy
+    IMessageReceiver<ActionRollupNotification> actionRollupReceiver() {
+        return baseKafkaConsumerConfig.kafkaConsumer().messageReceiver(
+                ROLLUP_TOPIC, ActionRollupNotification::parseFrom);
     }
 
     /**

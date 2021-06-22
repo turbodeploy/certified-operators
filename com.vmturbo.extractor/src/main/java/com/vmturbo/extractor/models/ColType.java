@@ -21,6 +21,8 @@ import org.jooq.EnumType;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
+import com.vmturbo.extractor.schema.enums.ActionMode;
+import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.AttrType;
 import com.vmturbo.extractor.schema.enums.CostCategory;
@@ -103,6 +105,16 @@ public enum ColType {
      * Action category column.
      */
     ACTION_CATEGORY(ActionCategory.values()[0].getName()),
+
+    /**
+     * Action state column.
+     */
+    ACTION_STATE(ActionState.values()[0].getName()),
+
+    /**
+     * Action mode column.
+     */
+    ACTION_MODE(ActionMode.values()[0].getName()),
 
     /** attr_type column of historical attributes. */
     ATTR_TYPE(AttrType.values()[0].getName()),
@@ -240,6 +252,8 @@ public enum ColType {
             case ENTITY_STATE:
             case ACTION_TYPE:
             case FINAL_STATE:
+            case ACTION_STATE:
+            case ACTION_MODE:
             case ACTION_CATEGORY:
             case ATTR_TYPE:
             case FILE_TYPE:
@@ -465,6 +479,8 @@ public enum ColType {
             case ENTITY_STATE:
             case ACTION_TYPE:
             case FINAL_STATE:
+            case ACTION_STATE:
+            case ACTION_MODE:
             case ACTION_CATEGORY:
             case METRIC_TYPE:
             case ATTR_TYPE:

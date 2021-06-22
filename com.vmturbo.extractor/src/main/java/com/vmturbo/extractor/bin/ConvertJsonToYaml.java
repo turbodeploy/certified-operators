@@ -34,7 +34,7 @@ public class ConvertJsonToYaml {
     }
 
 
-    private static final String[] DIRS_TO_SCAN = new String[]{"dashboards/general"};
+    private static final String[] DIRS_TO_SCAN = new String[]{"dashboards/general", "dashboards/prototype"};
 
     private static final ObjectMapper jsonMapper = new ObjectMapper();
     private static final ObjectMapper yamlMapper = createYamlMapper();
