@@ -1,8 +1,17 @@
 package com.vmturbo.action.orchestrator.stats;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +21,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
@@ -21,14 +31,25 @@ import com.vmturbo.action.orchestrator.stats.aggregator.ResourceGroupActionAggre
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
+import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.RollupDirection;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
-import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
+import com.vmturbo.action.orchestrator.stats.rollup.DayActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.HourActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.ImmutableRollupDirection;
+import com.vmturbo.action.orchestrator.stats.rollup.LatestActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.RolledUpStatCalculator;
+import com.vmturbo.action.orchestrator.stats.rollup.export.RollupExporter;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -39,7 +60,7 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
         RepositoryClientConfig.class,
         ActionOrchestratorDBConfig.class,
         ActionTranslationConfig.class,
-        ActionStatsRollupConfig.class,
+        ActionOrchestratorApiConfig.class,
         ActionOrchestratorGlobalConfig.class,
         TopologyProcessorConfig.class,
         UserSessionConfig.class})
@@ -58,13 +79,13 @@ public class ActionStatsConfig {
     private ActionTranslationConfig actionTranslationConfig;
 
     @Autowired
-    private ActionStatsRollupConfig rollupConfig;
-
-    @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
     @Autowired
     private TopologyProcessorConfig tpConfig;
+
+    @Autowired
+    private ActionOrchestratorApiConfig apiConfig;
 
     /**
      * Auto-wiring the action store config without an @Import
@@ -78,6 +99,65 @@ public class ActionStatsConfig {
 
     @Value("${actionStatsWriteBatchSize:500}")
     private int actionStatsWriteBatchSize;
+
+    @Value("${actionStatRollup.corePoolSize:1}")
+    private int rollupCorePoolSize;
+
+    @Value("${actionStatRollup.maxPoolSize:4}")
+    private int rollupMaxPoolSize;
+
+    @Value("${actionStatRollup.threadKeepAliveMins:1}")
+    private int rollupThreadKeepAliveMins;
+
+    @Value("${actionStatRollup.executorQueueSize:10}")
+    private int rollupExecutorQueueSize;
+
+    @Value("${retention.numRetainedMinutes:130}")
+    private int numRetainedMinutes;
+
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
+    private int updateRetentionIntervalSeconds;
+
+    @Value("${actionStatCleanup.minTimeBetweenCleanupsMinutes:60}")
+    private int minTimeBetweenCleanupsMinutes;
+
+    @Value("${actionStatRollup.corePoolSize:1}")
+    private int cleanupCorePoolSize;
+
+    @Value("${actionStatRollup.maxPoolSize:10}")
+    private int cleanupMaxPoolSize;
+
+    @Value("${actionStatRollup.threadKeepAliveMins:1}")
+    private int cleanupThreadKeepAliveMins;
+
+    @Value("${actionStatRollup.executorQueueSize:100}")
+    private int cleanupExecutorQueueSize;
+
+    /**
+     * If true, reporting is enabled in the system.
+     * Note - these are shared with the extractor, and used to control whether or not we export
+     * rollups for the extractor's consumption.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
+    /**
+     * If true, reporting action ingestion is enabled in the system.
+     * Note - these are shared with the extractor, and used to control whether or not we export
+     * rollups for the extractor's consumption.
+     */
+    @Value("${enableActionIngestion:true}")
+    private boolean enableActionIngestion;
+
+    /**
+     * If true, rollup exports are enabled in the system. The action orchestrator will broadcast
+     * hourly rollups onto a Kafka topic.
+     *
+     * <p/>This is true by default (rollup export is controlled by the reporting feature flags),
+     * but can be set to false in case of emergency to disable the feature.
+     */
+    @Value("${enableRollupExport:false}")
+    private boolean enableRollupExport;
 
     @Bean
     public ClusterActionAggregatorFactory clusterAggregatorFactory() {
@@ -142,16 +222,16 @@ public class ActionStatsConfig {
     @Bean
     public TimeFrameCalculator timeFrameCalculator() {
         return new TimeFrameCalculator(globalConfig.actionOrchestratorClock(),
-            rollupConfig.retentionPeriodFetcher());
+            retentionPeriodFetcher());
     }
 
     @Bean
     public HistoricalActionStatReader historicalActionStatReader() {
         final Map<TimeFrame, ActionStatTable.Reader> statReadersForTimeFrame = new HashMap<>();
-        statReadersForTimeFrame.put(TimeFrame.LATEST, rollupConfig.latestTable().reader());
-        statReadersForTimeFrame.put(TimeFrame.HOUR, rollupConfig.hourlyTable().reader());
-        statReadersForTimeFrame.put(TimeFrame.DAY, rollupConfig.dailyTable().reader());
-        statReadersForTimeFrame.put(TimeFrame.MONTH, rollupConfig.monthlyTable().reader());
+        statReadersForTimeFrame.put(TimeFrame.LATEST, latestTable().reader());
+        statReadersForTimeFrame.put(TimeFrame.HOUR, hourlyTable().reader());
+        statReadersForTimeFrame.put(TimeFrame.DAY, dailyTable().reader());
+        statReadersForTimeFrame.put(TimeFrame.MONTH, monthlyTable().reader());
 
         return new HistoricalActionStatReader(actionGroupStore(),
             mgmtUnitSubgroupStore(),
@@ -182,8 +262,8 @@ public class ActionStatsConfig {
                     businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory(),
                               propagatedActionsAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
-                rollupConfig.rollupScheduler(),
-                rollupConfig.cleanupScheduler());
+                rollupScheduler(),
+                cleanupScheduler());
     }
 
     /**
@@ -196,5 +276,121 @@ public class ActionStatsConfig {
     @Bean
     public InvolvedEntitiesExpander involvedEntitiesExpander() {
         return new InvolvedEntitiesExpander(tpConfig.actionTopologyStore(), new SupplyChainCalculator());
+    }
+
+    /**
+     * Captures completed action statistic rollups and sends them to Kafka for export.
+     *
+     * @return The {@link RollupExporter}.
+     */
+    @Bean
+    public RollupExporter rollupExporter() {
+        return new RollupExporter(apiConfig.rollupNotificationSender(),
+                mgmtUnitSubgroupStore(),
+                actionGroupStore(),
+                globalConfig.actionOrchestratorClock(),
+                enableRollupExport && enableActionIngestion && enableReporting);
+    }
+
+    @Bean
+    public ActionStatRollupScheduler rollupScheduler() {
+        final List<RollupDirection> rollupDependencies = new ArrayList<>();
+        rollupDependencies.add(ImmutableRollupDirection.builder()
+                .fromTableReader(latestTable().reader())
+                .toTableWriter(hourlyTable().writer())
+                .exporter(rollupExporter())
+                .description("latest to hourly")
+                .build());
+        rollupDependencies.add(ImmutableRollupDirection.builder()
+                .fromTableReader(hourlyTable().reader())
+                .toTableWriter(dailyTable().writer())
+                .description("hourly to daily")
+                .build());
+        rollupDependencies.add(ImmutableRollupDirection.builder()
+                .fromTableReader(dailyTable().reader())
+                .toTableWriter(monthlyTable().writer())
+                .description("daily to monthly")
+                .build());
+        return new ActionStatRollupScheduler(rollupDependencies, rollupExecutorService());
+    }
+
+    @Bean
+    public ActionStatCleanupScheduler cleanupScheduler() {
+        return new ActionStatCleanupScheduler(globalConfig.actionOrchestratorClock(),
+                Arrays.asList(latestTable(), hourlyTable(), dailyTable(), monthlyTable()),
+                retentionPeriodFetcher(),
+                cleanupExecutorService(),
+                minTimeBetweenCleanupsMinutes, TimeUnit.MINUTES);
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService cleanupExecutorService() {
+        return new ThreadPoolExecutor(cleanupCorePoolSize,
+                cleanupMaxPoolSize,
+                cleanupThreadKeepAliveMins,
+                TimeUnit.MINUTES,
+                new ArrayBlockingQueue<>(cleanupExecutorQueueSize),
+                new ThreadFactoryBuilder()
+                        .setNameFormat("action-cleanup-thread-%d")
+                        .setDaemon(true)
+                        .build(),
+                new CallerRunsPolicy());
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService rollupExecutorService() {
+        return new ThreadPoolExecutor(rollupCorePoolSize,
+                rollupMaxPoolSize,
+                rollupThreadKeepAliveMins,
+                TimeUnit.MINUTES,
+                new ArrayBlockingQueue<>(rollupExecutorQueueSize),
+                new ThreadFactoryBuilder()
+                        .setNameFormat("action-rollup-thread-%d")
+                        .setDaemon(true)
+                        .build(),
+                new CallerRunsPolicy());
+    }
+
+    @Bean
+    public LatestActionStatTable latestTable() {
+        return new LatestActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), HourActionStatTable.HOUR_TABLE_INFO);
+    }
+
+    @Bean
+    public HourActionStatTable hourlyTable() {
+        return new HourActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), DayActionStatTable.DAY_TABLE_INFO);
+    }
+
+    @Bean
+    public DayActionStatTable dailyTable() {
+        return new DayActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock(),
+                rolledUpStatCalculator(), MonthActionStatTable.MONTH_TABLE_INFO);
+    }
+
+    @Bean
+    public MonthActionStatTable monthlyTable() {
+        return new MonthActionStatTable(sqlDatabaseConfig.dsl(),
+                globalConfig.actionOrchestratorClock());
+    }
+
+    @Bean
+    public RolledUpStatCalculator rolledUpStatCalculator() {
+        return new RolledUpStatCalculator();
+    }
+
+    /**
+     * This may not be the best place for this bean, since it's not strictly rollup-specific.
+     * But leaving it here for now, because it's needed by the cleanup scheduler.
+     */
+    @Bean
+    public RetentionPeriodFetcher retentionPeriodFetcher() {
+        return new RetentionPeriodFetcher(globalConfig.actionOrchestratorClock(),
+                updateRetentionIntervalSeconds, TimeUnit.SECONDS,
+                numRetainedMinutes, SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 }

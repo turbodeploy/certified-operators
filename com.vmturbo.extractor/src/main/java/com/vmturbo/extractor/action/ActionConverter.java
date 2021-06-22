@@ -44,6 +44,8 @@ import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
+import com.vmturbo.extractor.schema.enums.ActionMode;
+import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
@@ -101,10 +103,40 @@ public class ActionConverter {
      * Action state enum mappings. We make these explicit, instead of relying on name equivalence,
      * to make it harder to accidentally break things.
      */
-    private static final BiMap<ActionDTO.ActionState, TerminalState> STATE_MAP =
+    private static final BiMap<ActionDTO.ActionState, TerminalState> TERMINAL_STATE_MAP =
             ImmutableBiMap.<ActionDTO.ActionState, TerminalState>builder()
                     .put(ActionDTO.ActionState.SUCCEEDED, TerminalState.SUCCEEDED)
                     .put(ActionDTO.ActionState.FAILED, TerminalState.FAILED)
+                    .build();
+
+    /**
+     * Action state mappings.
+     */
+    private static final BiMap<ActionDTO.ActionState, ActionState> STATE_MAP =
+            ImmutableBiMap.<ActionDTO.ActionState, ActionState>builder()
+                    .put(ActionDTO.ActionState.READY, ActionState.READY)
+                    .put(ActionDTO.ActionState.CLEARED, ActionState.CLEARED)
+                    .put(ActionDTO.ActionState.ACCEPTED, ActionState.ACCEPTED)
+                    .put(ActionDTO.ActionState.REJECTED, ActionState.REJECTED)
+                    .put(ActionDTO.ActionState.QUEUED, ActionState.QUEUED)
+                    .put(ActionDTO.ActionState.IN_PROGRESS, ActionState.IN_PROGRESS)
+                    .put(ActionDTO.ActionState.SUCCEEDED, ActionState.SUCCEEDED)
+                    .put(ActionDTO.ActionState.FAILED, ActionState.FAILED)
+                    .put(ActionDTO.ActionState.PRE_IN_PROGRESS, ActionState.PRE_IN_PROGRESS)
+                    .put(ActionDTO.ActionState.POST_IN_PROGRESS, ActionState.POST_IN_PROGRESS)
+                    .put(ActionDTO.ActionState.FAILING, ActionState.FAILING)
+                    .build();
+
+    /**
+     * Action mode mappings.
+     */
+    private static final BiMap<ActionDTO.ActionMode, ActionMode> MODE_MAP =
+            ImmutableBiMap.<ActionDTO.ActionMode, ActionMode>builder()
+                    .put(ActionDTO.ActionMode.AUTOMATIC, ActionMode.AUTOMATIC)
+                    .put(ActionDTO.ActionMode.DISABLED, ActionMode.DISABLED)
+                    .put(ActionDTO.ActionMode.EXTERNAL_APPROVAL, ActionMode.EXTERNAL_APPROVAL)
+                    .put(ActionDTO.ActionMode.MANUAL, ActionMode.MANUAL)
+                    .put(ActionDTO.ActionMode.RECOMMEND, ActionMode.RECOMMEND)
                     .build();
 
 
@@ -195,7 +227,7 @@ public class ActionConverter {
                 executedActionRecord.set(CompletedAction.RECOMMENDATION_TIME,
                         new Timestamp(actionSpec.getRecommendationTime()));
 
-                TerminalState state = STATE_MAP.get(actionSpec.getActionState());
+                TerminalState state = TERMINAL_STATE_MAP.get(actionSpec.getActionState());
                 if (state == null) {
                     // Only succeeded/failed actions get mapped successfully.
                     logger.error("Completed action {} (id: {}) has non-final state: {}",
@@ -295,13 +327,68 @@ public class ActionConverter {
         return ACTION_CATEGORY_MAP.getOrDefault(spec.getCategory(), ActionCategory.UNKNOWN);
     }
 
+    /**
+     * Map action category from protobuf to db schema.
+     *
+     * @param actionCategory the protobuf action category
+     * @return the db schema action category
+     */
+    public static ActionCategory extractActionCategory(ActionDTO.ActionCategory actionCategory) {
+        return ACTION_CATEGORY_MAP.getOrDefault(actionCategory, ActionCategory.UNKNOWN);
+    }
+
     private ActionType extractType(ActionSpec spec) {
         ActionDTO.ActionType type = ActionDTOUtil.getActionInfoActionType(spec.getRecommendation());
         return ACTION_TYPE_MAP.getOrDefault(type, ActionType.NONE);
     }
 
+    /**
+     * Map action mode from protobuf to db enum.
+     *
+     * @param actionMode The {@link ActionDTO.ActionMode}.
+     * @return The {@link ActionMode}.
+     */
+    @Nonnull
+    public static ActionMode extractActionMode(final ActionDTO.ActionMode actionMode) {
+        // Default just for safety; we shouldn't need it.
+        return MODE_MAP.getOrDefault(actionMode, ActionMode.MANUAL);
+    }
+
+    /**
+     * Map action state from protobuf to db enum.
+     *
+     * @param actionState The {@link ActionDTO.ActionState}.
+     * @return The {@link ActionState}.
+     */
+    @Nonnull
+    public static ActionState extractActionState(final ActionDTO.ActionState actionState) {
+        // Default just for safety.
+        return STATE_MAP.getOrDefault(actionState, ActionState.READY);
+    }
+
+
+    /**
+     * Map action type from protobuf to db schema.
+     *
+     * @param actionType the protobuf action type
+     * @return the db schema action type
+     */
+    public static ActionType extractActionType(ActionDTO.ActionType actionType) {
+        return ACTION_TYPE_MAP.getOrDefault(actionType, ActionType.NONE);
+    }
+
     private Severity extractSeverity(ActionSpec spec) {
         return SEVERITY_MAP.getOrDefault(spec.getSeverity(), Severity.NORMAL);
+    }
+
+    /**
+     * Map action severity from protobuf to db schema.
+     *
+     * @param severity the protobuf action severity
+     * @return the db schema action severity
+     */
+    public static Severity extractActionSeverity(ActionDTO.Severity severity) {
+        return SEVERITY_MAP.getOrDefault(severity, Severity.NORMAL);
     }
 
     @Nullable

@@ -89,6 +89,9 @@ topics:
   - topic: settings-updates
     properties:
       retention.ms: 360000
+  - topic: action-stat-rollups
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
   - topic: external-action-approval-requests
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
