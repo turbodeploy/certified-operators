@@ -446,6 +446,11 @@ public class TopologyConverter {
     private boolean unquotedCommoditiesEnabled = false;
 
     /**
+     * If the setting is true, we use max(reservation, used)as VM's commodity bought used.
+     */
+    private boolean useVMReservationAsUsed = false;
+
+    /**
      * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
      *
      * @param topologyInfo Information about the topology.
@@ -480,7 +485,8 @@ public class TopologyConverter {
                              @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                              @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final boolean useVMReservationAsUsed) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -516,6 +522,7 @@ public class TopologyConverter {
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
         this.reversibilitySettingFetcher = reversibilitySettingFetcher;
+        this.useVMReservationAsUsed = useVMReservationAsUsed;
     }
 
     /**
@@ -544,7 +551,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, true);
     }
 
     /**
@@ -575,7 +582,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, true);
     }
 
 
@@ -609,7 +616,7 @@ public class TopologyConverter {
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
                 cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale(),
-                analysisConfig.isEnableOP());
+                analysisConfig.isEnableOP(), analysisConfig.useVMReservationAsUsed());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -628,11 +635,12 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher,
                              final int licensePriceWeightScale,
-                             final boolean enableOP) {
+                             final boolean enableOP,
+                             final boolean useVMReservationAsUsed) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP);
+                null, reversibilitySettingFetcher, licensePriceWeightScale, enableOP, useVMReservationAsUsed);
     }
 
     /**
@@ -670,7 +678,7 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale,
-            enableOP);
+            enableOP, true);
     }
 
     /**
@@ -705,11 +713,12 @@ public class TopologyConverter {
                     reversibilitySettingFetcher,
             final int licensePriceWeightScale,
             final CloudTopology cloudTopology,
-            final boolean enableOP) {
+            final boolean enableOP,
+            final boolean useVMReservationAsUsed) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale,
-                enableOP);
+                enableOP, useVMReservationAsUsed);
     }
 
 
@@ -902,7 +911,7 @@ public class TopologyConverter {
                         //If a VM's bought CPU used is smaller than its CPU reservation, we record this commodityBought along with its providerId
                         //While converting to shopping list, we use the reservation of the CPU commodity as its quantity
                         //We also need to add the diff (reservation - used) to sold used of the provider host.
-                        if (!oidsToRemove.contains(entity.getOid()) &&
+                        if (useVMReservationAsUsed && !oidsToRemove.contains(entity.getOid()) &&
                                 entity.getEnvironmentType() == EnvironmentType.ON_PREM &&
                                 entity.getEntityState() == EntityState.POWERED_ON &&
                                 ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.containsKey(entity.getEntityType())) {
@@ -3826,6 +3835,7 @@ public class TopologyConverter {
                 .map(setting -> setting.getBooleanSettingValue().getValue())
                 .orElse(false);
     }
+
 
     /**
      * For throughput driven volumes, drop IOPS demand for analysis.

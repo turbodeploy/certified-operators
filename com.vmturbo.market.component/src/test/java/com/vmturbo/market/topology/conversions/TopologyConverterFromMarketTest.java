@@ -871,7 +871,7 @@ public class TopologyConverterFromMarketTest {
             false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false);
+            false, false);
         topologyConverter.setConvertToMarketComplete();
         TopologyConverter converter = Mockito.spy(topologyConverter);
 
@@ -2859,7 +2859,7 @@ public class TopologyConverterFromMarketTest {
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false);
+            false, false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = Mockito.spy(topologyConverter);
 
@@ -2984,7 +2984,7 @@ public class TopologyConverterFromMarketTest {
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-            false);
+            false, false);
         topologyConverter.setConvertToMarketComplete();
         final TopologyConverter converter = Mockito.spy(topologyConverter);
 
