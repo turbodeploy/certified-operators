@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.util.Strings;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
@@ -16,6 +17,7 @@ import org.springframework.session.jdbc.config.annotation.web.http.EnableJdbcHtt
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
+import com.vmturbo.api.flyway.MigrationCallbackForVersion11;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -89,5 +91,13 @@ public class SpringJdbcHttpSessionDBConfig extends SQLDatabaseConfig {
     @Bean
     public PlatformTransactionManager transactionManager(DataSource dataSource) {
         return new DataSourceTransactionManager(dataSource);
+    }
+
+    @Override
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[]{
+                // V1_1 migrations
+                new MigrationCallbackForVersion11(),
+        };
     }
 }
