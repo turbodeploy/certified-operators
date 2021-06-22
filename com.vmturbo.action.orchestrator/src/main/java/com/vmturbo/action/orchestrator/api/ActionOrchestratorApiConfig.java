@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.api.export.ActionRollupExport.ActionRollupNotification;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
@@ -32,6 +33,12 @@ public class ActionOrchestratorApiConfig {
     public IMessageSender<ActionOrchestratorNotification> actionOrchestratorMessageSender() {
         return baseKafkaProducerConfig.kafkaMessageSender()
                 .messageSender(ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC);
+    }
+
+    @Bean
+    public IMessageSender<ActionRollupNotification> rollupNotificationSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(ActionOrchestratorClientConfig.ROLLUP_TOPIC);
     }
 
     /**
