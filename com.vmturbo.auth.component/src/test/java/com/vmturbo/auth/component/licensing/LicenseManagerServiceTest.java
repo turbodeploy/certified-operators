@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.licensing;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -92,7 +93,7 @@ public class LicenseManagerServiceTest {
     // non-admin cannot store a license
     // unauthenticated user can retrieve a license.
     @Test
-    public void testStoreAndRetrieveWorkloadLicense() throws IOException {
+    public void testStoreAndRetrieveWorkloadLicense()  {
         // create a workload license DTO by loading it to a LicenseApiDTO, then converting to a
         // LicenseDTO.
         LicenseDTO workloadLicense = LicenseDeserializer.deserialize(LicenseLocalStoreTest.WORKLOAD_LICENSE, "test.file");
@@ -164,7 +165,7 @@ public class LicenseManagerServiceTest {
     }
 
     @Test
-    public void testStoreAndRetrieveCWOMLicense() throws IOException {
+    public void testStoreAndRetrieveCWOMLicense() {
         LicenseDTO workloadLicense = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, "test.file");
 
         AddLicensesResponse addResponse = clientStub.addLicenses(AddLicensesRequest.newBuilder()
@@ -185,7 +186,7 @@ public class LicenseManagerServiceTest {
 
     // test a bad CWOM license
     @Test
-    public void testCWOMBad() throws IOException {
+    public void testCWOMBad() {
         LicenseDTO workloadLicense = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_INVALID_LICENSE, "test.file");
 
         AddLicensesResponse addResponse = clientStub.addLicenses(AddLicensesRequest.newBuilder()
@@ -539,17 +540,25 @@ public class LicenseManagerServiceTest {
     }
 
     /**
-     * Verify that default customer ID is used when not set in the license.
+     * Verify proper handling when customer ID is unset or missing.
      */
     @Test
     public void testDefaultCustomerId() {
-        Licensing.LicenseDTO dto = Licensing.LicenseDTO.newBuilder()
+        // Customer ID unset
+        Licensing.LicenseDTO dto1 = Licensing.LicenseDTO.newBuilder()
                 .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder().build())
                 .build();
+        License license1 = LicenseDTOUtils.licenseDTOtoLicense(dto1).get();
+        assertNull(license1.getCustomerId());
 
-        License license = LicenseDTOUtils.licenseDTOtoLicense(dto).get();
-        assertEquals(Licensing.LicenseDTO.TurboLicense.getDefaultInstance().getCustomerId(),
-                license.getCustomerId());
+        // Customer ID set to MISSING string
+        Licensing.LicenseDTO dto2 = Licensing.LicenseDTO.newBuilder()
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder()
+                        .setCustomerId(LicenseDeserializer.CUSTOMER_ID_MISSING)
+                        .build())
+                .build();
+        License license2 = LicenseDTOUtils.licenseDTOtoLicense(dto2).get();
+        assertNull(license2.getCustomerId());
     }
 
     // TODO: When we support authorization in this service (OM-35910), add test validating Admin role

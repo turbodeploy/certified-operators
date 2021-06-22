@@ -59,6 +59,11 @@ public class LicenseDeserializer {
             "http://xml.org/sax/features/external-general-entities";
 
     /**
+     * String to use when customer ID is missing from the license file.
+     */
+    public static final String CUSTOMER_ID_MISSING = "missing from license file";
+
+    /**
      * A constructor declaration to suppress the generation of default, public constructor and
      * prevent instantiations of this utility class as required by Checkstyle.
      */
@@ -136,7 +141,7 @@ public class LicenseDeserializer {
             // ID vs cases where a previously saved DTO that didn't have the ID is migrated.
             // This customer ID is only intended to be sent as-is with telemetry data.
             bldr.setCustomerId(xmlDto.getCustomerId() == null
-                ? "missing from license file"
+                ? CUSTOMER_ID_MISSING
                 : xmlDto.getCustomerId());
             setIfNotNull(xmlDto.getExpirationDate(), bldr::setExpirationDate);
             setIfNotNull(xmlDto.getFeatures(), bldr::addAllFeatures);

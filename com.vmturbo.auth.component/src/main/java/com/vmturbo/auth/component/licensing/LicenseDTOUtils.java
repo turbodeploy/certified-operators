@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.licensing.utils.LicenseDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -82,7 +83,7 @@ public class LicenseDTOUtils {
         TurboLicense turboLicense = licenseDTO.getTurbo();
         doIf(turboLicense.hasEmail(), () -> license.setEmail(turboLicense.getEmail()));
         // No need to check if customer id is set because it has a default value.
-        license.setCustomerId(turboLicense.getCustomerId());
+        doIf(customerIdNotMissing(turboLicense), () -> license.setCustomerId(turboLicense.getCustomerId()));
         doIf(turboLicense.hasEdition(), () -> license.setEdition(turboLicense.getEdition()));
         doIf(turboLicense.hasExpirationDate(), () -> license.setExpirationDate(turboLicense.getExpirationDate()));
         doIf(turboLicense.hasLicenseOwner(), () -> license.setLicenseOwner(turboLicense.getLicenseOwner()));
@@ -102,6 +103,11 @@ public class LicenseDTOUtils {
                 .collect(Collectors.toSet())));
 
         return Optional.of(license);
+    }
+
+    private static boolean customerIdNotMissing(TurboLicense turboLicense) {
+        return turboLicense.hasCustomerId()
+                && !LicenseDeserializer.CUSTOMER_ID_MISSING.equals(turboLicense.getCustomerId());
     }
 
     static void doIf(final boolean condition, @Nonnull final Runnable doIt) {
