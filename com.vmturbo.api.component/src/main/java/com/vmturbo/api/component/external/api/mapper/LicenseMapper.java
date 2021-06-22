@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicens
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.licensing.utils.LicenseDeserializer;
 
 /**
  * Conversions between {@link LicenseApiDTO}, {@link LicenseDTO} and {@link LicenseSummary} objects.
@@ -39,8 +40,10 @@ public class LicenseMapper {
             if (turboLicense.hasEmail()) {
                 license.setEmail(turboLicense.getEmail());
             }
-            // No need to check if customer id is set because it has a default value.
-            license.setCustomerId(turboLicense.getCustomerId());
+            if (turboLicense.hasCustomerId()
+                && !LicenseDeserializer.CUSTOMER_ID_MISSING.equals(turboLicense.getCustomerId())) {
+                license.setCustomerId(turboLicense.getCustomerId());
+            }
             if (turboLicense.hasEdition()) {
                 license.setEdition(turboLicense.getEdition());
             }

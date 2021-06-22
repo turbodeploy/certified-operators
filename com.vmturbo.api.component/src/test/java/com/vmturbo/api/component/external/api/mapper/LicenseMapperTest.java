@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.licensing.utils.LicenseDeserializer;
 
 /**
  * Tests for LicenseMapper.
@@ -118,15 +120,25 @@ public class LicenseMapperTest {
     }
 
     /**
-     * Verify that default customer ID is used when not set in the license.
+     * Verify that customer ID is unset when unset or missing from the license.
      */
     @Test
     public void testDefaultCustomerId() {
-        Licensing.LicenseDTO dto = Licensing.LicenseDTO.newBuilder()
-                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder().build())
+        // Customer ID unset
+        Licensing.LicenseDTO dto2 = Licensing.LicenseDTO.newBuilder()
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder()
+                        .build())
                 .build();
-        LicenseApiDTO apiDto = LicenseMapper.licenseDTOtoLicenseApiDTO(dto);
-        assertEquals(Licensing.LicenseDTO.TurboLicense.getDefaultInstance().getCustomerId(),
-                apiDto.getCustomerId());
+        LicenseApiDTO apiDto2 = LicenseMapper.licenseDTOtoLicenseApiDTO(dto2);
+        assertNull(apiDto2.getCustomerId());
+
+        // Customer ID set to MISSING string
+        Licensing.LicenseDTO dto1 = Licensing.LicenseDTO.newBuilder()
+                .setTurbo(Licensing.LicenseDTO.TurboLicense.newBuilder()
+                        .setCustomerId(LicenseDeserializer.CUSTOMER_ID_MISSING)
+                        .build())
+                .build();
+        LicenseApiDTO apiDto1 = LicenseMapper.licenseDTOtoLicenseApiDTO(dto1);
+        assertNull(apiDto1.getCustomerId());
     }
 }
