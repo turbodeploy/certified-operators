@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.commons.Units;
 
 /**
  * Submit futures based on the condition for execution. If a future with the
@@ -38,7 +37,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
     private static final int MAX_QUEUE_SIZE = 1000;
 
     private final ThreadPoolExecutor executor;
-    private final int conditionalSubmitterDelaySecs;
 
     /**
      * Currently executing futures.
@@ -55,11 +53,8 @@ public class ConditionalSubmitter implements Executor, Closeable {
      *
      * @param poolSize thread tool size
      * @param threadFactory thread factory
-     * @param conditionalSubmitterDelaySecs delay between the conditional
-     *            actions
      */
-    public ConditionalSubmitter(int poolSize, @Nonnull ThreadFactory threadFactory,
-            int conditionalSubmitterDelaySecs) {
+    public ConditionalSubmitter(int poolSize, @Nonnull ThreadFactory threadFactory) {
         this.executor = new ThreadPoolExecutor(poolSize, poolSize, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(), threadFactory) {
             @Override
@@ -67,7 +62,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
                 onFutureCompletion(r, t);
             }
         };
-        this.conditionalSubmitterDelaySecs = conditionalSubmitterDelaySecs;
     }
 
     @Override
@@ -136,9 +130,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
         }
 
         ConditionalFuture future = (ConditionalFuture)r;
-        logger.info("Done executing {}", future.getOriginalTask());
         runningFutures.remove(future);
-
         submitFromQueue(future);
     }
 
@@ -165,16 +157,6 @@ public class ConditionalSubmitter implements Executor, Closeable {
             logger.error(
                     "Error submitting from queue {}. Queue should be unblocked for condition {}",
                     future, futureToCompare);
-            return;
-        }
-
-        logger.info("Delaying submitting from queue {} for {} secs", future.getOriginalTask(),
-                conditionalSubmitterDelaySecs);
-        try {
-            Thread.sleep((long)(conditionalSubmitterDelaySecs / Units.MILLI));
-        } catch (InterruptedException e) {
-            logger.error("Delay for " + future.getOriginalTask() + " was interrupted ", e);
-            Thread.currentThread().interrupt();
             return;
         }
 
