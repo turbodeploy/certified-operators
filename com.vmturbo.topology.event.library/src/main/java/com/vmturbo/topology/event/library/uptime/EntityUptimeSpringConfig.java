@@ -35,7 +35,7 @@ public class EntityUptimeSpringConfig {
     @Autowired
     private TopologyEventProvider topologyEventProvider;
 
-    @Value("${entityUptime.isEnabled:false}")
+    @Value("${entityUptime.isEnabled:true}")
     boolean isUptimeEnabled;
 
     @Value("${entityUptime.uptimeFromCreation:true}")
