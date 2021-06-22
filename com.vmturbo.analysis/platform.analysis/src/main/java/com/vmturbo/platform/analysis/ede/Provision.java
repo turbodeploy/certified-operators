@@ -365,6 +365,12 @@ public class Provision {
             return false;
         }
 
+        // If the market's active sellers available for placement are all not cloneable, then the market cannot
+        // provision sellers.
+        if (market.getActiveSellersAvailableForPlacement().stream().allMatch(seller -> !seller.getSettings().isCloneable())) {
+            return false;
+        }
+
         List<ShoppingList> buyers = market.getBuyers();
         // there is no point in cloning in a market with a single buyer, and the single buyer
         // is not a guaranteed buyer
