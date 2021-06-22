@@ -75,15 +75,20 @@ public class HealthDataMapper {
      * @param healthInfo a container to transmit info internally between the components.
      * @return target health API DTO
      */
-    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(ITargetHealthInfo healthInfo)    {
+    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(ITargetHealthInfo healthInfo) {
         TargetHealthApiDTO result = new TargetHealthApiDTO();
         result.setUuid(healthInfo.getTargetId().toString());
         result.setTargetName(healthInfo.getDisplayName());
-        TargetHealthSubcategory healthCheckSubcategory = healthInfo.getSubcategory();
-        if (TargetHealthSubcategory.DISCOVERY.equals(healthCheckSubcategory))   {
-            result.setCheckSubcategory(TargetCheckSubcategory.DISCOVERY);
-        } else if (TargetHealthSubcategory.VALIDATION.equals(healthCheckSubcategory))   {
-            result.setCheckSubcategory(TargetCheckSubcategory.VALIDATION);
+        switch (healthInfo.getSubcategory()) {
+            case DISCOVERY:
+                result.setCheckSubcategory(TargetCheckSubcategory.DISCOVERY);
+                break;
+            case VALIDATION:
+                result.setCheckSubcategory(TargetCheckSubcategory.VALIDATION);
+                break;
+            case DUPLICATION:
+                result.setCheckSubcategory(TargetCheckSubcategory.DUPLICATION);
+                break;
         }
 
         String errorText = healthInfo.getErrorText();
