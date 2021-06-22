@@ -71,6 +71,11 @@ message UpdatingFunctionTO {
         optional float min_decrease_pct = 2 [default = 0.2];
     }
 
+    // The update function which projects commodity values based on the inverse square formula.
+    // projected = current x (old_capacity / new_capacity) ^ 2
+    message InverseSquare {
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -84,5 +89,6 @@ message UpdatingFunctionTO {
         UpdateCoupon update_coupon = 9;
         StandardDistribution standard_distribution = 10;
         MM1Distribution mm1_distribution = 11;
+        InverseSquare inverse_square = 12;
     }
 }

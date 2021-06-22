@@ -171,11 +171,10 @@ public class AnalysisToProtobufTest {
         pm2.getCommoditySold(CPU).setCapacity(25).setQuantity(10);
         pm2.getCommoditySold(MEM).setCapacity(200).setQuantity(10);
         Map<Integer, ProjectionFunction> projectionFunctionMap = new HashMap<>();
-        projectionFunctionMap.put(BYPROD.getBaseType(), ProjectionFunctionFactory.createProjectionFunction(UpdatingFunctionDTOs
-                .UpdatingFunctionTO.newBuilder().setMm1Distribution(UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution.newBuilder()
-                        .addDependentCommodities(UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity.newBuilder()
-                                .setCommodityType(BYPROD.getBaseType()).build())
-                        .build()).build()));
+        projectionFunctionMap.put(BYPROD.getBaseType(), ProjectionFunctionFactory
+                .createProjectionFunction(UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder()
+                        .setInverseSquare(UpdatingFunctionDTOs.UpdatingFunctionTO.InverseSquare
+                                .newBuilder().build()).build()));
 
         Topology topo = new Topology();
         topo.getModifiableByProductsMap().put(CPU.getBaseType(), new ByProducts(projectionFunctionMap));

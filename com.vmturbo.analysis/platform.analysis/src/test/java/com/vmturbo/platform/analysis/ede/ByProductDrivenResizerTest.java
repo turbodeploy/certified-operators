@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.List;
@@ -133,7 +132,7 @@ public class ByProductDrivenResizerTest {
         }
 
         economy.getModifiableByProductMap().put(drivingComm.getBaseType(), new ByProducts(ImmutableMap.of(byProductComm.getBaseType(),
-                        ProjectionFunctionFactory.MM1)));
+                        ProjectionFunctionFactory.INVERSE_SQUARE_PROJECTION)));
 
         TestUtils.setupRawCommodityMap(economy);
         TestUtils.setupCommodityResizeDependencyMap(economy);
@@ -145,8 +144,8 @@ public class ByProductDrivenResizerTest {
         if (numActions == 1) {
             Resize resize = (Resize)actions.get(0);
             // assert resize up
-            if (newCapacity > resize.getNewCapacity()) {
-                assertTrue(newCapacity == resize.getNewCapacity());
+            if (newCapacity > resize.getOldCapacity()) {
+                assertEquals(newCapacity, resize.getNewCapacity(), 0.0001);
             }
         }
     }
@@ -155,11 +154,11 @@ public class ByProductDrivenResizerTest {
     private static Object[] parametersForTestByProductDrivenResizeDecisions() {
         return new Object[][] {
                 // drivingCommOverhead, drivingCommConsumerUsage, byProductOverhead, rawMaterialOverhead, rawMaterialConsumerUsage, additionalRawMaterialConsumerUsage
-                {0, 30, 80, 0, 30, 0, 1, 115},
+                {0, 30, 80, 0, 30, 0, 1, 110},
                 {20, 30, 80, 0, 30, 0, 1, 110},
-                {70, 10, 80, 0, 30, 0, 1, 120},
-                {50, 30, 30, 0, 30, 0, 1, 115},
-                {0, 80, 30, 0, 30, 0, 1, 115},
+                {70, 10, 80, 0, 30, 0, 1, 125},
+                {50, 30, 30, 0, 30, 0, 1, 120},
+                {0, 80, 30, 0, 30, 0, 1, 120},
                 {0, 80, 0, 0, 30, 0, 1, 115},
 
                 // resize down use-case with 2 rawMaterials.
