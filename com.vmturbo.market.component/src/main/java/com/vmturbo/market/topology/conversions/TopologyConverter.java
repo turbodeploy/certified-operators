@@ -4924,7 +4924,7 @@ public class TopologyConverter {
             if (status != Status.SUCCESS) {
                 logger.error("WARNING!!:Cost notification reception failed for analysis with context id"
                                 + " : {}, topology id: {} with status: {} and message: {}. This will result"
-                                + "in movable being set to false for cloud entities.", analysis.getContextId(), analysis.getTopologyId(), status,
+                                + " in movable being set to false for cloud entities.", analysis.getContextId(), analysis.getTopologyId(), status,
                         statusUpdate.getStatusDescription());
                 costNotificationStatus = Status.FAIL;
             } else {
