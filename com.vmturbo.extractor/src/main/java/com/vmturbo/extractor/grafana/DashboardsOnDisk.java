@@ -46,19 +46,15 @@ public class DashboardsOnDisk {
     private static final String PERMISSIONS_FILE = "permissions.yaml";
     private static final String FOLDER_FILE = "folder.yaml";
     private static final String GENERAL_FOLDER = "general";
-    private static final String PROTOTYPE_FOLDER = "prototype";
 
     private final String dashboardsPath;
-    private final boolean includePrototypes;
 
     /**
      * Create a new instance.
      * @param dashboardsPath The path to the dashboards folder.
-     * @param includePrototypes Whether to include the prototype folder.
      */
-    public DashboardsOnDisk(@Nonnull final String dashboardsPath, final boolean includePrototypes) {
+    public DashboardsOnDisk(@Nonnull final String dashboardsPath) {
         this.dashboardsPath = dashboardsPath;
-        this.includePrototypes = includePrototypes;
     }
 
     /**
@@ -132,15 +128,6 @@ public class DashboardsOnDisk {
 
     }
 
-    private Optional<String> shouldScanFolder(String folderName) {
-        if (folderName.equals(PROTOTYPE_FOLDER) && !includePrototypes) {
-            return Optional.of("Prototype reports disabled."
-                + " Set \"includePrototypes\" property to \"true\" in the CR to enable.");
-        } else {
-            return Optional.empty();
-        }
-    }
-
     /**
      * Visit the dashboards on disk. See: {@link DashboardVisitor}.
      *
@@ -157,11 +144,6 @@ public class DashboardsOnDisk {
         for (File file : dashboardsDir.listFiles()) {
             if (file.isDirectory()) {
                 final String fileName = file.getName();
-                final Optional<String> skipReason = shouldScanFolder(fileName);
-                if (skipReason.isPresent()) {
-                    logger.info("Skipping folder {}.", skipReason.get());
-                    continue;
-                }
                 logger.info("Scanning folder {}", fileName);
                 final List<DashboardSpec> dashboards  = new ArrayList<>();
                 JsonObject permissions = null;

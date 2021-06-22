@@ -22,7 +22,7 @@ public class DashboardSpecValidationTest {
     @Test
     public void testDashboardsValid() throws Exception {
         final DashboardsOnDisk dashboards = new DashboardsOnDisk(
-            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString(), true);
+            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
         // The "visit" method performs validation on the dashboards, so we make sure that
         // it doesn't crash.
         dashboards.visit(folderData -> {

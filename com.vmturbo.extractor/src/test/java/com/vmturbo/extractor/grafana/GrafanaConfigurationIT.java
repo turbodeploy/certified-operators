@@ -74,7 +74,7 @@ public class GrafanaConfigurationIT {
         grafanaClient = new GrafanaClient(clientConfig);
 
         dashboardsOnDisk = new DashboardsOnDisk(
-                ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString(), true);
+                ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
         final Map<String, String> m = Collections.emptyMap();
         final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(

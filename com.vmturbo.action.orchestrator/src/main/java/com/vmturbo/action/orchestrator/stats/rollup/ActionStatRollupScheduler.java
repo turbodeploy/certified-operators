@@ -23,7 +23,6 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.TableInfo;
-import com.vmturbo.action.orchestrator.stats.rollup.export.RollupExporter;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -210,13 +209,6 @@ public class ActionStatRollupScheduler {
          */
         abstract String description();
 
-        /**
-         * Exporter to use to export rollups going to the "toTable".
-         *
-         * @return The {@link RollupExporter}.
-         */
-        abstract Optional<RollupExporter> exporter();
-
         @Override
         public String toString() {
             return description();
@@ -289,13 +281,8 @@ public class ActionStatRollupScheduler {
                 final int mgmtUnitSubgroupId = scheduledRollupInfo.mgmtUnitSubgroupId();
                 final Optional<RolledUpActionStats> rolledUpStatsOpt = rollupDirection.fromTableReader()
                     .rollup(mgmtUnitSubgroupId, scheduledRollupInfo.startTime());
-                rolledUpStatsOpt.ifPresent(rolledUpStats -> {
-                    rollupDirection.toTableWriter().insert(mgmtUnitSubgroupId, rolledUpStats);
-                    scheduledRollupInfo.rollupDirection().exporter().ifPresent(rollupExporter -> {
-                        rollupExporter.exportRollup(mgmtUnitSubgroupId, rolledUpStats);
-                    });
-                });
-
+                rolledUpStatsOpt.ifPresent(rolledUpStats ->
+                    rollupDirection.toTableWriter().insert(mgmtUnitSubgroupId, rolledUpStats));
                 completed.trySetValue(true);
                 logger.debug("Completed rollup: {}", scheduledRollupInfo);
             } catch (RuntimeException e) {

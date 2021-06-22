@@ -60,12 +60,6 @@ public class GrafanaConfig {
     private String builtinDashboardPath;
 
     /**
-     * False by default. If true, upload prototype reports to Grafana in a separate folder.
-     */
-    @Value("${includePrototypes:false}")
-    private boolean includePrototypes;
-
-    /**
      * Configuration used to enable/disable reporting data ingestion.
      */
     @Value("${enableReporting:false}")
@@ -123,7 +117,7 @@ public class GrafanaConfig {
      */
     @Bean
     public DashboardsOnDisk dashboardsOnDisk() {
-        return new DashboardsOnDisk(builtinDashboardPath, includePrototypes);
+        return new DashboardsOnDisk(builtinDashboardPath);
     }
 
     /**

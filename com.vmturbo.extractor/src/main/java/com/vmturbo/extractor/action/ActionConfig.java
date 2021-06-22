@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
-import com.vmturbo.extractor.action.stats.HistoricalPendingCountReceiver;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -93,22 +92,6 @@ public class ActionConfig {
     @Bean
     public ActionAttributeExtractor actionAttributeExtractor() {
         return new ActionAttributeExtractor(topologyListenerConfig.actionCommodityDataRetriever());
-    }
-
-    /**
-     * See {@link HistoricalPendingCountReceiver}.
-     *
-     * @return The {@link HistoricalPendingCountReceiver}.
-     */
-    @Bean
-    public HistoricalPendingCountReceiver historicalPendingCountReceiver() {
-        HistoricalPendingCountReceiver pendingCountReceiver =
-                new HistoricalPendingCountReceiver(globalConfig.featureFlags(),
-                        extractorDbConfig.ingesterEndpoint(),
-                        topologyListenerConfig.pool(),
-                        topologyListenerConfig.writerConfig());
-        actionClientConfig.actionRollupNotificationReceiver().addListener(pendingCountReceiver);
-        return pendingCountReceiver;
     }
 
     /**

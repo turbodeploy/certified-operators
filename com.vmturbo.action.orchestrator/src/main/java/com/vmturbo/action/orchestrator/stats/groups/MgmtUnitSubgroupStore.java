@@ -145,23 +145,6 @@ public class MgmtUnitSubgroupStore {
     }
 
     /**
-     * Retrieve {@link MgmtUnitSubgroup}s by id.
-     * @param msuIds The input list of subgroups to look up.
-     * @return The subgroups, arranged by id. Missing ids will not be present.
-     */
-    @Nonnull
-    public Map<Integer, MgmtUnitSubgroup> getGroupsById(@Nonnull final Set<Integer> msuIds) {
-        return dsl.selectFrom(MGMT_UNIT_SUBGROUP)
-            .where(MGMT_UNIT_SUBGROUP.ID.in(msuIds))
-            .fetch()
-            .stream()
-            .map(this::recordToGroup)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toMap(MgmtUnitSubgroup::id, Function.identity()));
-    }
-
-    /**
      * Query the {@link MgmtUnitSubgroupStore} to get the subgroups that match a filter.
      *
      * @param mgmtUnitSubgroupFilter A {@link MgmtUnitSubgroupFilter} indicating which
@@ -233,6 +216,7 @@ public class MgmtUnitSubgroupStore {
             "filter {}\nConditions:{}", mgmtUnitSubgroupFilter, conditions);
 
         try (final DataMetricTimer timer = Metrics.QUERY_HISTOGRAM.startTimer()) {
+
             final Set<MgmtUnitSubgroup> matchingSubgroups = dsl.selectFrom(MGMT_UNIT_SUBGROUP)
                 .where(conditions)
                 .fetch()

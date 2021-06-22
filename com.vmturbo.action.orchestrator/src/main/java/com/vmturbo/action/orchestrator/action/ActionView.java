@@ -216,21 +216,7 @@ public interface ActionView {
      */
     @Nonnull
     default Severity getActionSeverity() {
-        return categoryToSeverity(getActionCategory());
-    }
-
-    /**
-     * Convert an {@link ActionCategory} to the associated severity.
-     * Note - this should not be moved out of the Action Orchestrator because action orchestrator
-     * owns what gets defined as "Severity." Other components should just consume the Severity
-     * directly.
-     *
-     * @param category The category.
-     * @return The severity.
-     */
-    @Nonnull
-    static Severity categoryToSeverity(@Nonnull final ActionCategory category) {
-        switch (category) {
+        switch (getActionCategory()) {
             case PERFORMANCE_ASSURANCE:
             case COMPLIANCE:
                 return Severity.CRITICAL;

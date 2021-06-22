@@ -295,43 +295,13 @@ public class ActionConverter {
         return ACTION_CATEGORY_MAP.getOrDefault(spec.getCategory(), ActionCategory.UNKNOWN);
     }
 
-    /**
-     * Map action category from protobuf to db schema.
-     *
-     * @param actionCategory the protobuf action category
-     * @return the db schema action category
-     */
-    public static ActionCategory extractActionCategory(ActionDTO.ActionCategory actionCategory) {
-        return ACTION_CATEGORY_MAP.getOrDefault(actionCategory, ActionCategory.UNKNOWN);
-    }
-
     private ActionType extractType(ActionSpec spec) {
         ActionDTO.ActionType type = ActionDTOUtil.getActionInfoActionType(spec.getRecommendation());
         return ACTION_TYPE_MAP.getOrDefault(type, ActionType.NONE);
     }
 
-    /**
-     * Map action type from protobuf to db schema.
-     *
-     * @param actionType the protobuf action type
-     * @return the db schema action type
-     */
-    public static ActionType extractActionType(ActionDTO.ActionType actionType) {
-        return ACTION_TYPE_MAP.getOrDefault(actionType, ActionType.NONE);
-    }
-
     private Severity extractSeverity(ActionSpec spec) {
         return SEVERITY_MAP.getOrDefault(spec.getSeverity(), Severity.NORMAL);
-    }
-
-    /**
-     * Map action severity from protobuf to db schema.
-     *
-     * @param severity the protobuf action severity
-     * @return the db schema action severity
-     */
-    public static Severity extractActionSeverity(ActionDTO.Severity severity) {
-        return SEVERITY_MAP.getOrDefault(severity, Severity.NORMAL);
     }
 
     @Nullable

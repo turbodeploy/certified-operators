@@ -2,6 +2,8 @@ package com.vmturbo.action.orchestrator.stats.groups;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import org.immutables.value.Value;
 
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;

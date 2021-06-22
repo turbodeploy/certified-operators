@@ -178,18 +178,9 @@ public class Column<T> {
      * @param name column name
      * @return new column
      */
+
     public static Column<Float> floatColumn(final String name) {
         return new Column<>(name, ColType.FLOAT);
-    }
-
-    /**
-     * Create a new float column.
-     *
-     * @param field column field
-     * @return new column
-     */
-    public static Column<Float> floatColumn(Field<Float> field) {
-        return new Column<>(field, ColType.FLOAT);
     }
 
     /**

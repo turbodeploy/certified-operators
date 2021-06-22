@@ -663,9 +663,9 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "true"
       GF_USERS_DEFAULT_THEME: "light"
       GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Editor"
-#      GF_AUTH_PROXY_ENABLED: "true"
-#      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/reports"
-#      GF_SERVE_FROM_SUB_PATH: "true"
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/reports"
+      GF_SERVE_FROM_SUB_PATH: "true"
       # Uncomment the following five lines to store Grafana data in postgres.
       # Mainly for use when testing embedded reporting. The db name, user, and
       # password needs to be in sync with the extractor's environment variables abobe.
