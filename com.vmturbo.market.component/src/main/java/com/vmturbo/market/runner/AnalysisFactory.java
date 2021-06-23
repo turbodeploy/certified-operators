@@ -39,6 +39,8 @@ import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -130,6 +132,8 @@ public interface AnalysisFactory {
 
         private final CommodityIdUpdater commodityIdUpdater;
 
+        private final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory;
+
         private final int licensePriceWeightScale;
 
         private final boolean enableOP;
@@ -163,6 +167,7 @@ public interface AnalysisFactory {
                                       @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                                       final boolean fullPriceForQuote,
                                       @Nonnull final CommodityIdUpdater commodityIdUpdater,
+                                      @Nonnull JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory,
                                       final int licensePriceWeightScale,
                                       final boolean enableOP,
                                       final boolean shouldPopulateByProducts,
@@ -196,6 +201,7 @@ public interface AnalysisFactory {
             this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
             this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
             this.commodityIdUpdater = Objects.requireNonNull(commodityIdUpdater);
+            this.actionSavingsCalculatorFactory = Objects.requireNonNull(actionSavingsCalculatorFactory);
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
             this.shouldPopulateByProducts = shouldPopulateByProducts;
@@ -226,7 +232,8 @@ public interface AnalysisFactory {
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
                 initialPlacementFinder, reversibilitySettingFetcherFactory,
-                migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater);
+                migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater,
+                actionSavingsCalculatorFactory);
         }
 
         /**

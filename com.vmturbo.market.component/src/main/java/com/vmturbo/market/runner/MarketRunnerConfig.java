@@ -56,6 +56,7 @@ import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactor
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory.DefaultReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.topology.processor.api.util.ConcurrentLimitProcessingGate;
 import com.vmturbo.topology.processor.api.util.SingleTopologyProcessingGate;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
@@ -221,6 +222,7 @@ public class MarketRunnerConfig {
                 migratedWorkloadCloudCommitmentAnalysisService(),
                 fullPriceForQuote,
                 commodityIdUpdater(),
+                actionSavingsCalculatorFactory(),
                 licensePriceWeightScale,
                 enableOP,
                 shouldPopulateByProducts,
@@ -237,6 +239,11 @@ public class MarketRunnerConfig {
     @Bean
     public CommodityIdUpdater commodityIdUpdater() {
         return new CommodityIdUpdater();
+    }
+
+    @Bean
+    public JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory() {
+        return new JournalActionSavingsCalculatorFactory();
     }
 
     /**

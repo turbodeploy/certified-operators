@@ -33,6 +33,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -70,7 +71,8 @@ public class CommodityIdUpdaterTest {
             mock(BuyRIImpactAnalysisFactory.class), mock(TierExcluderFactory.class),
             mock(AnalysisRICoverageListener.class), mock(ConsistentScalingHelperFactory.class),
             mock(InitialPlacementFinder.class), mock(ReversibilitySettingFetcherFactory.class),
-            mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater);
+            mock(MigratedWorkloadCloudCommitmentAnalysisService.class), commodityIdUpdater,
+            mock(JournalActionSavingsCalculatorFactory.class));
     }
 
     /**

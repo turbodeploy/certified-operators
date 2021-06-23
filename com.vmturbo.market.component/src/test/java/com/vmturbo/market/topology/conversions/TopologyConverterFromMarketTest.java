@@ -108,6 +108,8 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
@@ -639,6 +641,11 @@ public class TopologyConverterFromMarketTest {
         assertNotNull(converter.getShoppingListOidToInfos().get(-DA_OID));
         assertNotNull(projectedTopo.get(DA_OID + 100L));
 
+        // mock action savings
+        final CloudActionSavingsCalculator savingsCalculator =
+                mock(CloudActionSavingsCalculator.class);
+        when(savingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
+
         // Call interpret
         // Create ActionTO for provision by demand
         ActionTO provByDemandTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
@@ -647,7 +654,7 @@ public class TopologyConverterFromMarketTest {
                         .setProvisionedSeller(DA_OID + 100L).build())
                 .build();
         List<Action> provByDemandList =
-                converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
+                converter.interpretAction(provByDemandTO, projectedTopo, null, savingsCalculator);
         assertTrue(!provByDemandList.isEmpty());
         assertNotNull(provByDemandList.get(0));
 

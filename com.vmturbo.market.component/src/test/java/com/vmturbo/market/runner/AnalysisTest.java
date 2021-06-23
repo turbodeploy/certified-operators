@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -94,6 +95,9 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -159,6 +163,9 @@ public class AnalysisTest {
     private InitialPlacementFinder initialPlacementFinder =
             mock(InitialPlacementFinder.class);
 
+    private JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory =
+            mock(JournalActionSavingsCalculatorFactory.class);
+
     private ConsistentScalingHelper csm = mock(ConsistentScalingHelper.class);
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory
             = mock(ReversibilitySettingFetcherFactory.class);
@@ -181,6 +188,12 @@ public class AnalysisTest {
             .thenReturn(csm);
         when(buyRIImpactAnalysisFactory.createAnalysis(eq(topologyInfo), any(), any(), any()))
                 .thenReturn(buyRIImpactAnalysis);
+
+        // setup default action savings
+        final JournalActionSavingsCalculator savingsCalculator = mock(JournalActionSavingsCalculator.class);
+        when(actionSavingsCalculatorFactory.newCalculator(anyMap(), any(), any(), anyMap(), anyMap(), anyMap()))
+                .thenReturn(savingsCalculator);
+        when(savingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
     }
 
     /**
@@ -229,7 +242,7 @@ public class AnalysisTest {
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
             listener, consistentScalingHelperFactory, initialPlacementFinder,
             reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-            new CommodityIdUpdater());
+            new CommodityIdUpdater(), actionSavingsCalculatorFactory);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

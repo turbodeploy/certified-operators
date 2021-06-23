@@ -8,9 +8,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Represents the subset of the topology that lives in the cloud, and provides methods required
@@ -21,6 +24,12 @@ import com.vmturbo.group.api.GroupAndMembers;
  *                      {@link TopologyEntityDTO} for the realtime topology.
  */
 public interface CloudTopology<ENTITY_CLASS> {
+
+    Set<Integer> CLOUD_TIER_TYPES = ImmutableSet.of(
+            EntityType.COMPUTE_TIER_VALUE,
+            EntityType.DATABASE_TIER_VALUE,
+            EntityType.DATABASE_SERVER_TIER_VALUE,
+            EntityType.STORAGE_TIER_VALUE);
 
     /**
      * Return an unmodifiable map of the entities in the topology.
@@ -112,6 +121,9 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ENTITY_CLASS> getStorageTier(final long entityId);
+
+    @Nonnull
+    Set<TopologyEntityDTO> getTierProviders(final long entityId);
 
     /**
      * Get the volumes attached to an entity.

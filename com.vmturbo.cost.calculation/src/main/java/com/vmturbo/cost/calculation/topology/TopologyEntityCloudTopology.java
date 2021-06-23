@@ -218,6 +218,11 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         return providers.isEmpty() ? Optional.empty() : Optional.of(providers.get(0));
     }
 
+    @Override
+    public Set<TopologyEntityDTO> getTierProviders(final long entityId) {
+        return ImmutableSet.copyOf(getProvidersOfTypes(entityId, CLOUD_TIER_TYPES));
+    }
+
     @Nonnull
     @Override
     public Collection<TopologyEntityDTO> getAttachedVolumes(final long entityId) {
