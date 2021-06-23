@@ -162,6 +162,9 @@ message DeactivateTO {
     // A low demand for this list of commodity specifications triggered deactivation of the trader.
     // It will be a subset of the set of commodity specifications sold by the deactivating trader.
     repeated CommoditySpecificationTO triggering_basket = 2;
+
+    // Trader responsible for the suspend recommendation. This is the VM while suspending a daemon.
+    optional int64 reason_entity = 3;
 }
 
 // An action to provision a trader unlike any other in the system based on the demand of a specific
@@ -210,6 +213,9 @@ message ProvisionBySupplyTO {
 
     // The commSpec of the most expensive commodity
     optional CommoditySpecificationTO most_expensive_commodity = 3;
+
+    // Trader responsible for the clone recommendation. This is the VM while cloning a daemon.
+    optional int64 reason_entity = 4;
 }
 
 // An action to resize the capacity of a particular commodity sold by a specified trader.

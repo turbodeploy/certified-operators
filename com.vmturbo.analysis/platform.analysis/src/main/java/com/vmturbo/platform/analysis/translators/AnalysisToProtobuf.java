@@ -595,9 +595,13 @@ public final class AnalysisToProtobuf {
             builder.setActivate(activateBuilder);
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
-            builder.setDeactivate(DeactivateTO.newBuilder()
-                   .setTraderToDeactivate(deactivate.getTarget().getOid())
-                   .addAllTriggeringBasket(specificationTOs(deactivate.getTriggeringBasket())));
+            DeactivateTO.Builder deactivateBuilder = DeactivateTO.newBuilder()
+                    .setTraderToDeactivate(deactivate.getTarget().getOid())
+                    .addAllTriggeringBasket(specificationTOs(deactivate.getTriggeringBasket()));
+            if (deactivate.getReasonTrader() != null) {
+                deactivateBuilder.setReasonEntity(deactivate.getReasonTrader().getOid());
+            }
+            builder.setDeactivate(deactivateBuilder);
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
@@ -668,6 +672,9 @@ public final class AnalysisToProtobuf {
                                                                             // find expensive comm across all sold comms.
                                                                             provSupply.getModelSeller().getCommoditiesSold())
                                                             : provSupply.getReason()));
+            if (provSupply.getReasonTrader() != null) {
+                provSupplyTO.setReasonEntity(provSupply.getReasonTrader().getOid());
+            }
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provSupply.getProvisionedSeller())

@@ -18,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
@@ -38,6 +39,8 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     private static final Logger logger = LogManager.getLogger();
     private List<ShoppingList> removedShoppingLists = new ArrayList<>();
+    // trader responsible for the suspension.
+    private @Nullable Trader reasonTrader_ = null;
 
     // Constructors
 
@@ -238,5 +241,13 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         final Basket newTriggeringBasket =
             getTriggeringBasket().createBasketWithNewCommodityId(commodityIdMapping);
         return new Deactivate(getEconomy(), getTarget(), newTriggeringBasket);
+    }
+
+    public void setReasonTrader(Trader reasonTrader) {
+        reasonTrader_ = reasonTrader;
+    }
+
+    public Trader getReasonTrader() {
+        return reasonTrader_;
     }
 } // end Deactivate class

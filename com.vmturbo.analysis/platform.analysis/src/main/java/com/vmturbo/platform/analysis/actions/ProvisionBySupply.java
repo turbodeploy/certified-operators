@@ -52,6 +52,8 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     private static final Logger logger = LogManager.getLogger();
     private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
     private @Nullable CommoditySpecification reasonCommodity;
+    // trader responsible for the clone.
+    private @Nullable Trader reasonTrader_ = null;
     // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
@@ -121,15 +123,17 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         getProvisionedSeller().setCloneOf(getModelSeller());
         // Copy trader settings
         TraderSettings copySettings = getProvisionedSeller().getSettings();
-        copySettings.setCloneable(getModelSeller().getSettings().isCloneable());
+        TraderSettings modelSellerSettings = getModelSeller().getSettings();
         copySettings.setSuspendable(true);
-        copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
-        copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
-        copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
-        copySettings.setReconfigurable(getModelSeller().getSettings().isReconfigurable());
-        copySettings.setMinReplicas(getModelSeller().getSettings().getMinReplicas());
-        copySettings.setMaxReplicas(getModelSeller().getSettings().getMaxReplicas());
+        copySettings.setCloneable(modelSellerSettings.isCloneable());
+        copySettings.setDaemon(modelSellerSettings.isDaemon());
+        copySettings.setMinDesiredUtil(modelSellerSettings.getMinDesiredUtil());
+        copySettings.setMaxDesiredUtil(modelSellerSettings.getMaxDesiredUtil());
+        copySettings.setGuaranteedBuyer(modelSellerSettings.isGuaranteedBuyer());
+        copySettings.setProviderMustClone(modelSellerSettings.isProviderMustClone());
+        copySettings.setReconfigurable(modelSellerSettings.isReconfigurable());
+        copySettings.setMinReplicas(modelSellerSettings.getMinReplicas());
+        copySettings.setMaxReplicas(modelSellerSettings.getMaxReplicas());
 
         List<Trader> unPlacedClones = new ArrayList<>();
         // Add basket(s) bought
@@ -232,6 +236,10 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         // adjust the quantity of provisionedSeller, if it sells economy.getCommsToAdjustOverhead()
         // keep only the overhead in the commSold, otherwise, set the quantity and peak quantity to 0
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
+
+        // Provision daemons
+        Utility.provisionDaemons(getEconomy(), getModelSeller(), getProvisionedSeller(), getSubsequentActions(), this);
+
         // if the trader being cloned is a provider for a guaranteedBuyer, then the clone should
         // be a provider for that guaranteedBuyer as well
         if (slBetweenModelSellerAndGuaranteedBuyer.size() != 0) {
@@ -451,5 +459,13 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     @VisibleForTesting
     Map<CommoditySpecification, CommoditySpecification> getCommSoldToReplaceMap() {
         return commSoldToReplaceMap_;
+    }
+
+    public void setReasonTrader(Trader reasonTrader) {
+        reasonTrader_ = reasonTrader;
+    }
+
+    public Trader getReasonTrader() {
+        return reasonTrader_;
     }
 } // end ProvisionBySupply class

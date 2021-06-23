@@ -50,14 +50,6 @@ public class SuspensionTest {
     private static final Basket EMPTY = new Basket();
     private static final Basket PM_SMALL = new Basket(CPU, MEM);
     private static final Basket ST_SMALL = new Basket(STORAGE);
-    private static final Basket APPLICATION_BASKET =
-        new Basket(TestUtils.RESPONSE_TIME, TestUtils.TRANSACTION);
-    private static final Basket CONTAINER_BASKET =
-        new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
-    private static final Basket POD_BASKET =
-        new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
-    private static final Basket VM_BASKET =
-        new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
 
     /**
      * Verify that we do not suspend non-suspendaable traders.
@@ -784,13 +776,12 @@ public class SuspensionTest {
                                          final int numApplications) {
         Economy economy = new Economy();
         // Add a VM
-        Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, VM_BASKET);
+        Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, TestCommon.VM_BASKET);
         vm.setDebugInfoNeverUseInCode("VM").getSettings().setSuspendable(true);
-        vm.getSettings().setDaemon(true);
         // Add a guaranteed buyer if requested
         Trader gb = addGuaranteedBuyer
                         ? economy.addTrader(TestUtils.VAPP_TYPE, TraderState.ACTIVE, EMPTY,
-                                            APPLICATION_BASKET)
+                TestCommon.APPLICATION_BASKET)
                             .setDebugInfoNeverUseInCode("GuaranteedBuyer")
                         : null;
         if (gb != null) {
@@ -798,21 +789,21 @@ public class SuspensionTest {
         }
         // Add applications with their respective containers and pods
         for (int i = 0, type = 0; i < numApplications; i++, type += 100) {
-            Trader pod = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, POD_BASKET,
-                                           VM_BASKET);
+            Trader pod = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET,
+                    TestCommon.VM_BASKET);
             pod.getSettings().setDaemon(true);
             pod.setDebugInfoNeverUseInCode("POD-" + i).getSettings().setDaemon(true);
             // Move the pod onto the VM
             economy.getMarketsAsBuyer(pod).keySet().forEach(sl -> sl.move(vm));
 
             Trader container = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE,
-                                                 CONTAINER_BASKET, POD_BASKET);
+                    TestCommon.CONTAINER_BASKET, TestCommon.POD_BASKET);
             container.getSettings().setDaemon(true);
             container.setDebugInfoNeverUseInCode("CONTAINER-" + i);
             // Move the container onto the pod
             economy.getMarketsAsBuyer(container).keySet().forEach(sl -> sl.move(pod));
             Trader app = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE,
-                                           APPLICATION_BASKET, CONTAINER_BASKET);
+                    TestCommon.APPLICATION_BASKET, TestCommon.CONTAINER_BASKET);
             app.getSettings().setDaemon(true);
             app.setDebugInfoNeverUseInCode("APP-" + i);
             // Move the app onto the container
