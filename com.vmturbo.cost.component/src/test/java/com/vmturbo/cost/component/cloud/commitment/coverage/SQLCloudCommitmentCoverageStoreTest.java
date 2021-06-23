@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.cloud.commitment.coverage;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -439,6 +440,172 @@ public class SQLCloudCommitmentCoverageStoreTest {
         // 2 data timestamps x 2 coverage types x 1 service provider
         assertThat(actualStats, hasSize(4));
         assertThat(actualStats, hasItems(firstCouponStat, firstSpendStat, secondCouponStat, secondSpendStat));
+
+    }
+
+    /**
+     * Tests the stats query with a group by cloud service
+     */
+    @Test
+    public void testStatsGroupByCloudService() {
+
+        // persist data buckets
+        final List<CloudCommitmentDataBucket> dataBuckets = createCoverageDataBuckets(CloudStatGranularity.HOURLY);
+        coverageStore.persistCoverageSamples(dataBuckets);
+
+        // query the stats
+        final AccountCoverageStatsFilter statsFilter = AccountCoverageStatsFilter.builder()
+                .granularity(CloudStatGranularity.HOURLY)
+                .addGroupByList(GroupByCondition.CLOUD_SERVICE)
+                .build();
+        final List<CloudCommitmentStatRecord> actualStats = coverageStore.streamCoverageStats(statsFilter)
+                .collect(ImmutableList.toImmutableList());
+
+        /*
+        Setup expected
+         */
+
+        // should be datapoint 1A
+        final CloudCommitmentStatRecord firstCouponStatTwo = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(0).getTimestampMillis())
+                .setCloudServiceId(2)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(1.0))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .build())
+                .build();
+
+        // should be datapoint 5A
+        final CloudCommitmentStatRecord firstCouponStatSix = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(0).getTimestampMillis())
+                .setCloudServiceId(6)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(3.0))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .build())
+                .build();
+
+        // Should be data point 59A
+        final CloudCommitmentStatRecord firstSpendStat = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(0).getTimestampMillis())
+                .setCloudServiceId(9)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(2.0)))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .build())
+                .build();
+
+        // should be datapoint 1B
+        final CloudCommitmentStatRecord secondCouponStatTwo = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(1).getTimestampMillis())
+                .setCloudServiceId(2)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .build())
+                .build();
+
+        // should be datapoint 5B
+        final CloudCommitmentStatRecord secondCouponStatSix = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(1).getTimestampMillis())
+                .setCloudServiceId(6)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(2.0))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setMin(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setCoupons(4.0))
+                        .build())
+                .build();
+
+        // Should be data point 59B
+        final CloudCommitmentStatRecord secondSpendStat = CloudCommitmentStatRecord.newBuilder()
+                .setSnapshotDate(dataBuckets.get(1).getTimestampMillis())
+                .setCloudServiceId(9)
+                .setServiceProviderId(8)
+                .setSampleCount(1)
+                .setValues(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(3.0)))
+                        .build())
+                .setCapacity(StatValue.newBuilder()
+                        .setMax(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setMin(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setAvg(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .setTotal(CloudCommitmentAmount.newBuilder().setAmount(
+                                CurrencyAmount.newBuilder().setCurrency(123).setAmount(5.0)))
+                        .build())
+                .build();
+
+        // ASSERTIONS
+        // 2 data timestamps x 2 coverage types x 1 service provider
+        assertThat(actualStats, hasSize(6));
+        assertThat(actualStats, containsInAnyOrder(firstCouponStatTwo, firstCouponStatSix, firstSpendStat,
+                secondCouponStatTwo, secondCouponStatSix, secondSpendStat));
 
     }
 

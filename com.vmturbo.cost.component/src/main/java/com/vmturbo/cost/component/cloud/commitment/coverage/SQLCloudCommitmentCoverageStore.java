@@ -177,6 +177,10 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
                         selectFields.add(coverageTable.regionIdField());
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
+                    case CLOUD_SERVICE:
+                        selectFields.add(coverageTable.cloudServiceIdField());
+                        selectFields.add(coverageTable.serviceProviderIdField());
+                        break;
                     case SERVICE_PROVIDER:
                         selectFields.add(coverageTable.serviceProviderIdField());
                         break;
@@ -209,6 +213,9 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
                     break;
                 case SERVICE_PROVIDER:
                     groupFields.add(coverageTable.serviceProviderIdField());
+                    break;
+                case CLOUD_SERVICE:
+                    groupFields.add(coverageTable.cloudServiceIdField());
                     break;
                 default:
                     throw new UnsupportedOperationException(
@@ -312,6 +319,10 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         if (record.hasRegionId()) {
             statRecord.setRegionId(record.regionId());
+        }
+
+        if (record.hasCloudServiceId()) {
+            statRecord.setCloudServiceId(record.cloudServiceId());
         }
 
         if (record.hasServiceProviderId()) {
