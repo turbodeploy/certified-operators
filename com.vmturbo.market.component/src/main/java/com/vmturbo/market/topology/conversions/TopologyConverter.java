@@ -122,6 +122,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGr
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -1183,23 +1184,20 @@ public class TopologyConverter {
      * @param projectedTopology The projected topology. All entities involved in the action are
      *                          expected to be in the projected topology.
      * @param originalCloudTopology {@link CloudTopology} of the original {@link TopologyEntityDTO}s  received by Analysis
-     * @param projectedCosts  A map of id of projected topologyEntityDTO -> {@link CostJournal} for the entity with that ID.
-     * @param topologyCostCalculator the topologyCostCalculator is used to calculate costs of entities
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @Nonnull
     public List<Action> interpretAllActions(@Nonnull final List<ActionTO> actionTOs,
                                               @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                               @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                              @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                              @Nonnull TopologyCostCalculator topologyCostCalculator) {
+                                            @Nonnull CloudActionSavingsCalculator actionSavingsCalculator) {
         // Before beginning to interpret actions, compute the reason settings for the tier exclusion
         // actions
         tierExcluder.computeReasonSettings(actionTOs, originalCloudTopology);
         List<Action> actions = Lists.newArrayList();
         actionTOs.forEach(actionTO -> {
             List<Action> currentActions = interpretAction(actionTO, projectedTopology,
-                originalCloudTopology, projectedCosts, topologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
             actions.addAll(currentActions);
         });
         return actions;
@@ -1233,12 +1231,11 @@ public class TopologyConverter {
      */
     @NonNull
     List<Action> interpretAction(@Nonnull final ActionTO actionTO,
-                                     @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                     @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                     @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                     @Nonnull TopologyCostCalculator topologyCostCalculator) {
+                                 @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                 @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                 @Nonnull CloudActionSavingsCalculator actionSavingsCalculator) {
         return actionInterpreter.get().interpretAction(actionTO, projectedTopology, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
+                actionSavingsCalculator);
     }
 
     /**

@@ -107,6 +107,9 @@ import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.ShoppingListInfo;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
@@ -242,6 +245,8 @@ public class Analysis {
 
     private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
 
+    private final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory;
+
     /**
      * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
      */
@@ -297,7 +302,8 @@ public class Analysis {
                     @Nonnull final InitialPlacementFinder initialPlacementFinder,
                     @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
-                    @Nonnull final CommodityIdUpdater commodityIdUpdater) {
+                    @Nonnull final CommodityIdUpdater commodityIdUpdater,
+                    @Nonnull final JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -324,6 +330,7 @@ public class Analysis {
         this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
         this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
         this.commodityIdUpdater = commodityIdUpdater;
+        this.actionSavingsCalculatorFactory = Objects.requireNonNull(actionSavingsCalculatorFactory);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -764,8 +771,14 @@ public class Analysis {
                             .setMarket(MarketActionPlanInfo.newBuilder()
                                 .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
+
+                    final CloudActionSavingsCalculator actionSavingsCalculator = actionSavingsCalculatorFactory.newCalculator(
+                            topologyDTOs, originalCloudTopology, topologyCostCalculator,
+                            projectedEntities, projectedEntityCosts,
+                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+
                     List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                         originalCloudTopology, actionSavingsCalculator);
 
                     actions.removeIf(action -> {
                         try {
@@ -780,7 +793,7 @@ public class Analysis {
                     //SMA is not supported for Migrate to Cloud plan
                     if (config.isSMAOnly() && isSMAEnabled) {
                         actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
-                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                         originalCloudTopology, actionSavingsCalculator);
                             actions.forEach(actionPlanBuilder::addAction);
                     }
                     if (!isMigrateToCloud) {

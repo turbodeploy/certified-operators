@@ -52,8 +52,9 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
-import com.vmturbo.market.topology.conversions.ActionInterpreter.CalculatedSavings;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
@@ -62,6 +63,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.trax.Trax;
 
 /**
  * Tests Explanations for cloud actions.
@@ -100,8 +103,7 @@ public class InterpretCloudExplanationTest {
     private final TierExcluder tierExcluder = mock(TierExcluder.class);
     private final Map<Long, ProjectedTopologyEntity> projectedTopology = Maps.newHashMap();
     private final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
-    private final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = Maps.newHashMap();
-    private final TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
+    private final CloudActionSavingsCalculator actionSavingsCalculator = mock(CloudActionSavingsCalculator.class);
     // We mock the interpreting of move action. We are only interested in the explanation.
     private final Move interpretedMoveAction = ActionDTO.Move.newBuilder().setTarget(ActionEntity.newBuilder()
         .setId(500L).setType(EntityType.VIRTUAL_MACHINE_VALUE)).build();
@@ -157,6 +159,8 @@ public class InterpretCloudExplanationTest {
             TopologyEntityDTO.newBuilder().setOid(VM1_OID).setEntityType(10).addCommoditySoldList(
                 CommoditySoldDTO.newBuilder().setCommodityType(VMEM).setCapacity(4000))).build());
 
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
+
         IdentityGenerator.initPrefix(5L);
     }
 
@@ -209,7 +213,7 @@ public class InterpretCloudExplanationTest {
                 .putCouponsCoveredByRi(1L, 0.002)
                 .setEntityCouponCapacity(16).build());
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         verify(ai, times(0))
             .interpretMoveAction(any(), any(), any());
@@ -226,7 +230,7 @@ public class InterpretCloudExplanationTest {
                 .putCouponsCoveredByRi(1L, 0.02)
                 .setEntityCouponCapacity(16).build());
 
-        actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertEquals(1, actions.size());
         assertTrue(actions.get(0).getInfo().hasAllocate());
@@ -247,15 +251,11 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(congestedCommodities);
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
 
-        // Savings
-        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
-
         // RI Coverage increase
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, projectedCoverage);
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         assertTrue(!actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0)
@@ -274,15 +274,11 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
 
-        // Savings
-        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
-
         // RI Coverage increases
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(projectedCoverage);
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
@@ -302,10 +298,6 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
 
-        // Savings
-        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
-
         // RI Coverage increases
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
         when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
@@ -313,7 +305,7 @@ public class InterpretCloudExplanationTest {
                 .putCouponsCoveredByRi(1L, 0.00001)
                 .setEntityCouponCapacity(16).build()).get());
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
@@ -331,9 +323,6 @@ public class InterpretCloudExplanationTest {
         Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup);
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
-        // Savings
-        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
 
         // No RI Coverage
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
@@ -364,7 +353,7 @@ public class InterpretCloudExplanationTest {
             cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker,
             riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null));
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
-        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
 
         assertFalse(actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
@@ -409,7 +398,7 @@ public class InterpretCloudExplanationTest {
             Suppliers.memoize(() -> commodityIndex), null));
 
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
-        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
         assertThat(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency()
                 .getUnderUtilizedCommoditiesList().size(), is(1));
         assertThat(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency()
@@ -456,7 +445,7 @@ public class InterpretCloudExplanationTest {
         MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
 
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(csgMoveTO, projectedTopologyMap, originalCloudTopology);
-        List<Action> actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
         // assert that we have an efficiency explanation since we dont know this is a cloud entity
         assertTrue(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).hasEfficiency());
         // repopulate the originalTopologyMap with EnvironmentType
@@ -464,7 +453,7 @@ public class InterpretCloudExplanationTest {
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
         originalTopologyMap.put(VM1_OID, clonedEntityDTO);
         // repopulate actions
-        actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
         // assert that we have an compliance explanation for cloud entity
         assertTrue(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getCompliance().getIsCsgCompliance());
     }
@@ -481,14 +470,15 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
 
         // Savings
-        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(10.0))
+                .build());
 
         // RI Coverage remains same
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, initialCoverage.get());
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
@@ -510,17 +500,12 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID))
                 .thenReturn(Collections.emptySet());
 
-        // Zero savings
-        doReturn(new CalculatedSavings(trax(0))).when(ai)
-                .calculateActionSavings(move, originalCloudTopology, projectedCosts,
-                        topologyCostCalculator);
-
         // RI Coverage remains same
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, initialCoverage.get());
 
         final List<Action> actions = ai.interpretAction(move, projectedTopology,
-                originalCloudTopology, projectedCosts, topologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
 
         assertEquals(1, actions.size());
         final ChangeProviderExplanation explanation = actions.get(0).getExplanation().getMove()
@@ -547,15 +532,11 @@ public class InterpretCloudExplanationTest {
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
 
-        // Savings
-        doReturn(new CalculatedSavings(trax(-10))).when(ai).calculateActionSavings(move, originalCloudTopology,
-            projectedCosts, topologyCostCalculator);
-
         // RI Coverage remains same
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
         projectedRiCoverage.put(VM1_OID, initialCoverage.get());
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();

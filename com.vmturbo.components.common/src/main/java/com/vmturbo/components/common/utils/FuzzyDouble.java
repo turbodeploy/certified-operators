@@ -44,6 +44,10 @@ public class FuzzyDouble {
         return DoubleMath.fuzzyCompare(value, targetValue, tolerance) < 0;
     }
 
+    public boolean isZero() {
+        return DoubleMath.fuzzyEquals(value, 0.0, tolerance);
+    }
+
     /**
      * Checks whether the wrapped value is less than or equal to {@code targetValue}, using the configured
      * tolerance.

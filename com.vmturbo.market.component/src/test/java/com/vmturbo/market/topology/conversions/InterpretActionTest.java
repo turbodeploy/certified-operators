@@ -79,6 +79,8 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandlerTest;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
@@ -106,6 +108,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.trax.Trax;
 
 /**
  * Test various actions.
@@ -133,6 +136,8 @@ public class InterpretActionTest {
             mock(ConsistentScalingHelperFactory.class);
     private ReversibilitySettingFetcher reversibilitySettingFetcher =
             mock(ReversibilitySettingFetcher.class);
+    private CloudActionSavingsCalculator actionSavingsCalculator =
+            mock(CloudActionSavingsCalculator.class);
 
     @Before
     public void setup() {
@@ -164,6 +169,8 @@ public class InterpretActionTest {
         when(consistentScalingHelper.getScalingGroupUsage(any())).thenReturn(Optional.empty());
         when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
             .thenReturn(consistentScalingHelper);
+
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.NO_SAVINGS_USD);
     }
 
     @Test
@@ -238,8 +245,8 @@ public class InterpretActionTest {
                 .setIsNotExecutable(true)
                 .build();
 
-        assertTrue(converter.interpretAction(executableActionTO, projectedTopology, null, null, null).get(0).getExecutable());
-        assertFalse(converter.interpretAction(notExecutableActionTO, projectedTopology, null, null, null).get(0).getExecutable());
+        assertTrue(converter.interpretAction(executableActionTO, projectedTopology, null, actionSavingsCalculator).get(0).getExecutable());
+        assertFalse(converter.interpretAction(notExecutableActionTO, projectedTopology, null, actionSavingsCalculator).get(0).getExecutable());
     }
 
     private ProjectedTopologyEntity entity(final long id, final int type, final EnvironmentType envType) {
@@ -309,7 +316,7 @@ public class InterpretActionTest {
                         .setSource(srcId)
                         .setDestination(destId)
                         .setMoveExplanation(MoveExplanation.getDefaultInstance())))
-                .build(), projectedTopology, null, null, null).get(0).getInfo();
+                .build(), projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
         ActionInfo actionInfoWithOutSource = converter.interpretAction(
                 ActionTO.newBuilder()
                         .setImportance(0.1)
@@ -321,7 +328,7 @@ public class InterpretActionTest {
                                         .setMoveExplanation(MoveExplanation.newBuilder()
                                                 .setInitialPlacement(InitialPlacement
                                                         .getDefaultInstance()))))
-                        .build(), projectedTopology, null, null, null)
+                        .build(), projectedTopology, null, actionSavingsCalculator)
                 .get(0).getInfo();
         // Created a MoveTO whose source is in Maintenance state and has InitialPlacement explanation.
         // This ActionTO will be interpreted to an Action with Evacuation explanation and \
@@ -335,7 +342,7 @@ public class InterpretActionTest {
                     .setDestination(destId)
                     .setMoveExplanation(MoveExplanation.newBuilder().setInitialPlacement(
                         InitialPlacement.getDefaultInstance())).build()).build(),
-            projectedTopology, null, null, null).get(0);
+            projectedTopology, null, actionSavingsCalculator).get(0);
         List<ChangeProviderExplanation> explanations =
             actionWithMaintenanceSource.getExplanation().getMove().getChangeProviderExplanationList();
         ActionInfo actionInfoWithMaintenanceSource = actionWithMaintenanceSource.getInfo();
@@ -371,7 +378,7 @@ public class InterpretActionTest {
                     .setShoppingListToMove(shoppingList1.getOid())
                     .setDestination(destId)
                     .setMoveExplanation(MoveExplanation.getDefaultInstance())).build(),
-            projectedTopology, null, null, null).get(0);
+            projectedTopology, null, actionSavingsCalculator).get(0);
 
     }
 
@@ -483,8 +490,6 @@ public class InterpretActionTest {
         when(mockCommodityConverter.commodityIdToCommodityTypeAndSlot(eq(congestedCommodityMarketId)))
             .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
         CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
-        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
-        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
 
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
@@ -516,8 +521,7 @@ public class InterpretActionTest {
             .build();
 
         final List<Action> actions = interpreter.interpretAction(actionTO, projectedTopology,
-            originalCloudTopology, projectedCosts,
-            mockTopologyCostCalculator);
+            originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         final Action action = actions.get(0);
@@ -557,7 +561,6 @@ public class InterpretActionTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         CloudTopology cloudTopology = mock(CloudTopology.class);
-        TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
         when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
@@ -610,7 +613,7 @@ public class InterpretActionTest {
                                 .setPerformance(Performance.getDefaultInstance())))
                 .build();
         final List<Action> actionList = topologyConverter.interpretAction(actionTO, projectedTopology,
-                originalCloudTopology, Collections.emptyMap(), topologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
         assertEquals(1, actionList.size());
         Action action = actionList.get(0);
         assertNotNull(action);
@@ -658,8 +661,6 @@ public class InterpretActionTest {
         when(mockCommodityConverter.commodityIdToCommodityTypeAndSlot(eq(congestedCommodityMarketId)))
                 .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
         CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
-        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
-        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
 
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
@@ -686,8 +687,7 @@ public class InterpretActionTest {
                 .build();
 
         final List<Action> actionList = interpreter.interpretAction(actionTO, projectedTopology,
-                null, projectedCosts,
-                mockTopologyCostCalculator);
+                null, actionSavingsCalculator);
 
         assertTrue(actionList != null);
         assertEquals(actionList.size(), 1);
@@ -731,7 +731,7 @@ public class InterpretActionTest {
                 .setReconfigure(ReconfigureTO.newBuilder().setConsumer(ReconfigureConsumerTO.newBuilder()
                     .setShoppingListToReconfigure(shoppingList.getOid())
                     .setSource(reconfigureSourceId).build()))
-                .build(), projectedTopology, null, null, null).get(0).getInfo();
+                .build(), projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RECONFIGURE));
         assertThat(actionInfo.getReconfigure().getSource().getId(), is(reconfigureSourceId));
@@ -768,7 +768,7 @@ public class InterpretActionTest {
                 .setIsNotExecutable(false)
                 .setReconfigure(ReconfigureTO.newBuilder().setConsumer(ReconfigureConsumerTO.newBuilder()
                     .setShoppingListToReconfigure(shoppingList.getOid())).build())
-                .build(), projectedTopology, null, null, null).get(0).getInfo();
+                .build(), projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RECONFIGURE));
         assertThat(actionInfo.getReconfigure().getTarget().getId(), is(entityDto.getOid()));
@@ -803,7 +803,7 @@ public class InterpretActionTest {
                         .setModelSeller(modelSeller)
                         .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
                                 .setType(0 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).setBaseType(cs.getBaseType()).build()))
-                    .build(), projectedTopology, null, null, null).get(0).getInfo();
+                    .build(), projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.PROVISION));
         assertThat(actionInfo.getProvision().getProvisionedSeller(), is(-1L));
@@ -841,7 +841,7 @@ public class InterpretActionTest {
                     .setSpecification(economyCommodity1))
                 .build();
         final ActionInfo actionInfo =
-                converter.interpretAction(resizeAction, projectedTopology, null, null, null).get(0).getInfo();
+                converter.interpretAction(resizeAction, projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RESIZE));
         assertThat(actionInfo.getResize().getTarget().getId(), is(entityToResize));
@@ -887,7 +887,7 @@ public class InterpretActionTest {
                             .addRelatedCommodities(economyCommodity1.getBaseType())))
                 .build();
         final ActionInfo actionInfo =
-                converter.interpretAction(resizeAction, projectedTopology, null, null, null).get(0).getInfo();
+                converter.interpretAction(resizeAction, projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RESIZE));
         assertThat(actionInfo.getResize().getTarget().getId(), is(entityToResize));
@@ -933,7 +933,7 @@ public class InterpretActionTest {
                             .addRelatedCommodities(economyCommodity2.getBaseType())))
                 .build();
         final List<Action> actions =
-                converter.interpretAction(resizeAction, projectedTopology, null, null, null);
+                converter.interpretAction(resizeAction, projectedTopology, null, actionSavingsCalculator);
 
         assertTrue(actions.isEmpty());
     }
@@ -991,7 +991,7 @@ public class InterpretActionTest {
                     .addTriggeringBasket(economyCommodity)
                     .addTriggeringBasket(economyCommodity2))
                 .build();
-        final Action action = converter.interpretAction(activateAction, projectedTopology, null, null, null).get(0);
+        final Action action = converter.interpretAction(activateAction, projectedTopology, null, actionSavingsCalculator).get(0);
         final ActionInfo actionInfo = action.getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.ACTIVATE));
@@ -1034,7 +1034,7 @@ public class InterpretActionTest {
                         .build())
                 .build();
         final ActionInfo actionInfo =
-                converter.interpretAction(deactivateAction, projectedTopology, null, null, null).get(0).getInfo();
+                converter.interpretAction(deactivateAction, projectedTopology, null, actionSavingsCalculator).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.DEACTIVATE));
         assertThat(actionInfo.getDeactivate().getTarget().getId(), is(entityToDeactivate));
@@ -1105,27 +1105,6 @@ public class InterpretActionTest {
         ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
                         null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
-        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
-        CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
-        // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(0d));
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
-        // Total Source cost = 20
-        when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
-        when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
-
-        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
-        CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
-        // Destination compute cost = 9 + 1 + 2 + 5 = 17
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(9d));
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(1d));
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(2d));
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(5d));
-        // Total destination cost = 15
-        when(projectedCostJournal.getTotalHourlyCost()).thenReturn(trax(15d));
-        projectedCosts.put(vm.getOid(), projectedCostJournal);
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
@@ -1154,9 +1133,14 @@ public class InterpretActionTest {
                 new TopologyEntityCloudTopologyFactory
                         .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
                         .newCloudTopology(originalTopology.values().stream());
+
+        // setup savings calculator
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(1.0))
+                .build());
+
         List<Action> actions = interpreter.interpretAction(actionTO, projectedTopology,
-                                                              originalCloudTopology, projectedCosts,
-                                                              mockTopologyCostCalculator);
+                                                              originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
         Action action = actions.get(0);
@@ -1174,15 +1158,6 @@ public class InterpretActionTest {
         assertThat(action.getInfo().getScale().getTarget().getType(), is(vm.getEntityType()));
         assertThat(action.getInfo().getScale().getTarget().getEnvironmentType(), is(vm.getEnvironmentType()));
 
-        //cloud savings details
-        assertEquals(16, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
-        assertEquals(11, action.getInfo().getScale().getCloudSavingsDetails().getProjectedTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
-        assertEquals(17, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandCost().getAmount(), 0.0001);
-        assertEquals(13, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getOnDemandRate().getAmount(), 0.0001);
-        assertEquals(6, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getCapacity().getCoupons(), 0.0001);
-        assertEquals(4, action.getInfo().getScale().getCloudSavingsDetails().getSourceTierCostDetails().getCloudCommitmentCoverage().getUsed().getCoupons(), 0.0001);
-
-        verify(sourceCostJournal, never()).getHourlyCostFilterEntries(eq(CostCategory.STORAGE), any());
     }
 
     /**
@@ -1229,19 +1204,6 @@ public class InterpretActionTest {
 
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
 
-        // We need cost journal of the VM in the original topology
-        CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
-        // Source compute cost = 10 + 2 + 3 + 4 = 19 (compute + ip + license + reserved license)
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
-        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
-
-        when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm)))
-                                        .thenReturn(Optional.of(sourceCostJournal));
-
-        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
-
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
@@ -1249,6 +1211,11 @@ public class InterpretActionTest {
                 .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))
                 .when(mockedCommodityConverter).marketToTopologyCommodity(eq(economyCommodity2));
+
+        // setup savings calculator
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(17.0))
+                .build());
 
         // We don't create projected topology entries for the "fake" traders (1 and 2), since
         // those are completely internal to the market.
@@ -1296,8 +1263,7 @@ public class InterpretActionTest {
                         .newCloudTopology(originalTopology.values().stream());
 
         List<Action> actions = interpreter.interpretAction(deactivateActionTO, projectedTopology,
-                originalCloudTopology, projectedCosts,
-                mockTopologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
 
@@ -1347,18 +1313,6 @@ public class InterpretActionTest {
         ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
                 null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
-
-        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
-        // We need cost journal of the VM in the projected topology
-        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
-        CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
-        // Destination compute cost = 9 + 1 + 2 + 5 = 19
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE),
-                eq(CostJournal.CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER))).thenReturn(trax(10d));
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
-        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
-
-        projectedCosts.put(vm.getOid(), projectedCostJournal);
 
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
@@ -1418,9 +1372,13 @@ public class InterpretActionTest {
                         .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
                         .newCloudTopology(originalTopology.values().stream());
 
+        // setup savings calculator
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(-17.0))
+                .build());
+
         List<Action> actions = interpreter.interpretAction(provisionBySupplyActionTO, projectedTopology,
-                originalCloudTopology, projectedCosts,
-                mockTopologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
 
@@ -1536,19 +1494,13 @@ public class InterpretActionTest {
                         .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
                         .newCloudTopology(originalTopology.values().stream());
 
-        CostJournal<TopologyEntityDTO> entityCostJournal = mock(CostJournal.class);
-        // Destination compute cost = 9 + 1 + 2 + 5 = 19
-        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), any())).thenReturn(trax(10d));
-        when(entityCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
-        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(3d));
-        when(entityCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(4d));
-
-        when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm)))
-                .thenReturn(Optional.of(entityCostJournal));
+        // setup savings calculator
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(-17.0))
+                .build());
 
         List<Action> actions = interpreter.interpretAction(provisionBySupplyActionTO, projectedTopology,
-                originalCloudTopology, projectedCosts,
-                mockTopologyCostCalculator);
+                originalCloudTopology, actionSavingsCalculator);
 
         assertTrue(!actions.isEmpty());
 

@@ -37,6 +37,7 @@ import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -220,7 +221,7 @@ public class MarketExceptionsTest {
         converter.convertToMarket(Collections.emptyMap());
         Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopo = converter.convertFromMarket(
             traderTOs, origTopoMap, PriceIndexMessage.getDefaultInstance(), reservedCapacityResults, wastedFilesAnalysisMock);
-        converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
+        converter.interpretAction(provByDemandTO, projectedTopo, null, mock(CloudActionSavingsCalculator.class));
     }
 
     /**

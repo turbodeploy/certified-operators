@@ -2,7 +2,6 @@ package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
-import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,9 +24,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
 
-import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -36,17 +34,16 @@ import com.google.protobuf.AbstractMessage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Immutable;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
-import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
-import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
-import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
@@ -77,7 +74,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -91,6 +87,8 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
+import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -115,7 +113,6 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxCollectors;
-import com.vmturbo.trax.TraxConfiguration.TraxContext;
 import com.vmturbo.trax.TraxNumber;
 
 /**
@@ -198,40 +195,37 @@ public class ActionInterpreter {
      * @param projectedTopology The projected topology entities, by id. The entities involved
      *                       in the action are expected to be in this map.
      * @param originalCloudTopology The original {@link CloudTopology}
-     * @param projectedCosts The original {@link CloudTopology}
-     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
      * @return The {@link Action} describing the recommendation in a topology-specific way.
      */
     @Nonnull
     List<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                  @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
                                  @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                 @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                 @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        List<Action> actionList = new ArrayList<>();
+                                 @Nonnull CloudActionSavingsCalculator actionSavingsCalculator) {
+        final List<ActionData> actionList = new ArrayList<>();
         try {
             final Action.Builder action;
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     final ActionType translatedActionType = findTranslatedActionType(actionTO, originalCloudTopology);
                     if (translatedActionType == ActionType.SCALE) {
                         action.getInfoBuilder().setScale(interpretScaleAction(actionTO.getMove(),
-                                projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator));
-                        actionList.add(action.build());
+                                projectedTopology, originalCloudTopology));
+                        actionList.add(ActionData.of(actionTO, action));
                         break;
                     } else if (translatedActionType == ActionType.ALLOCATE) {
-                        action.getInfoBuilder().setAllocate(interpretAllocateAction(actionTO.getMove(),
-                                projectedTopology,  originalCloudTopology, projectedCosts, topologyCostCalculator));
-                        actionList.add(action.build());
+                        action.getInfoBuilder().setAllocate(interpretAllocateAction(
+                                actionTO.getMove(),
+                                projectedTopology));
+                        actionList.add(ActionData.of(actionTO, action));
                         break;
                     } else if (translatedActionType == ActionType.MOVE) {
                         Optional<ActionDTO.Move> move = interpretMoveAction(actionTO.getMove(),
                                 projectedTopology, originalCloudTopology);
                         if (move.isPresent()) {
                             action.getInfoBuilder().setMove(move.get());
-                            actionList.add(action.build());
+                            actionList.add(ActionData.of(actionTO, action));
                         }
                         break;
                     }
@@ -239,61 +233,65 @@ public class ActionInterpreter {
                 case COMPOUND_MOVE:
                     if (isSplitCompoundMove(actionTO)) {
                         actionList.addAll(splitCompoundMove(actionTO, projectedTopology,
-                                originalCloudTopology, projectedCosts, topologyCostCalculator));
+                                originalCloudTopology));
                     } else {
-                        action = createAction(actionTO, projectedTopology,
-                                originalCloudTopology, projectedCosts, topologyCostCalculator);
+                        action = createAction(actionTO);
                         action.getInfoBuilder().setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
                                 projectedTopology, originalCloudTopology));
-                        actionList.add(action.build());
+                        actionList.add(ActionData.of(actionTO, action));
                     }
                     break;
                 case RECONFIGURE:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     action.getInfoBuilder().setReconfigure(interpretReconfigureAction(
                             actionTO.getReconfigure(), projectedTopology, originalCloudTopology));
-                    actionList.add(action.build());
+                    actionList.add(ActionData.of(actionTO, action));
                     break;
                 case PROVISION_BY_SUPPLY:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     action.getInfoBuilder().setProvision(interpretProvisionBySupply(
                             actionTO.getProvisionBySupply(), projectedTopology));
-                    actionList.add(action.build());
+                    actionList.add(ActionData.of(actionTO, action));
                     break;
                 case PROVISION_BY_DEMAND:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     action.getInfoBuilder().setProvision(interpretProvisionByDemand(
                             actionTO.getProvisionByDemand(), projectedTopology));
-                    actionList.add(action.build());
+                    actionList.add(ActionData.of(actionTO, action));
                     break;
                 case RESIZE:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     Optional<ActionDTO.Resize> resize = interpretResize(
                             actionTO.getResize(), projectedTopology);
                     if (resize.isPresent()) {
                         action.getInfoBuilder().setResize(resize.get());
-                        actionList.add(action.build());
+                        actionList.add(ActionData.of(actionTO, action));
                     }
                     break;
                 case ACTIVATE:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     action.getInfoBuilder().setActivate(interpretActivate(
                             actionTO.getActivate(), projectedTopology));
-                    actionList.add(action.build());
+                    actionList.add(ActionData.of(actionTO, action));
                     break;
                 case DEACTIVATE:
-                    action = createAction(actionTO, projectedTopology,
-                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    action = createAction(actionTO);
                     action.getInfoBuilder().setDeactivate(interpretDeactivate(
                             actionTO.getDeactivate(), projectedTopology));
-                    actionList.add(action.build());
+                    actionList.add(ActionData.of(actionTO, action));
                     break;
             }
+
+            // after creating the set of actions from the actionTO, add action savings and an explanation,
+            // which may be based on the action savings
+            return actionList.stream()
+                    .peek(actionData -> addSavingsAndExplanation(
+                            actionData, actionSavingsCalculator, projectedTopology))
+                    .map(ActionData::actionBuilder)
+                    .map(Action.Builder::build)
+                    .collect(ImmutableList.toImmutableList());
+
+
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 "interpretAction of actionTO " + actionTO, e.getMessage(), e);
@@ -322,8 +320,20 @@ public class ActionInterpreter {
                 default:
                     break;
             }
+
+            return Collections.EMPTY_LIST;
         }
-        return actionList;
+    }
+
+    private void addSavingsAndExplanation(@Nonnull ActionData actionData,
+                                          @Nonnull CloudActionSavingsCalculator actionSavingsCalculator,
+                                          @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+
+        final CalculatedSavings savings = actionSavingsCalculator.calculateSavings(actionData.actionBuilder());
+        savings.applyToActionBuilder(actionData.actionBuilder());
+
+        actionData.actionBuilder()
+                .setExplanation(interpretExplanation(actionData, savings, projectedTopology));
     }
 
     /**
@@ -344,361 +354,46 @@ public class ActionInterpreter {
      *
      * @param actionTO An {@link ActionTO} describing an action recommendation
      *                 generated by the market.
-     * @param projectedTopology The projected topology entities, by id. The entities involved
-     *                       in the action are expected to be in this map.
-     * @param originalCloudTopology The original {@link CloudTopology}
-     * @param projectedCosts The original {@link CloudTopology}
-     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
      * @return action builder
      */
-    Action.Builder createAction(@Nonnull final ActionTO actionTO,
-                                @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        final CalculatedSavings savings;
-        final Action.Builder action;
-        final ActionType translatedActionType = findTranslatedActionType(actionTO, originalCloudTopology);
-        try (TraxContext traxContext = Trax.track("SAVINGS", actionTO.getActionTypeCase().name())) {
-            savings = calculateActionSavings(actionTO,
-                    originalCloudTopology, projectedCosts, topologyCostCalculator);
+    Action.Builder createAction(@Nonnull final ActionTO actionTO) {
 
-            // The action importance should never be infinite, as setImportance() will fail.
-            action = Action.newBuilder()
-                    // Assign a unique ID to each generated action.
-                    .setId(IdentityGenerator.next())
-                    .setDeprecatedImportance(actionTO.getImportance())
-                    .setExplanation(interpretExplanation(actionTO, savings, projectedTopology, translatedActionType))
-                    .setExecutable(!actionTO.getIsNotExecutable());
-            savings.applySavingsToAction(action);
-
-            if (traxContext.on()) {
-                logger.info("{} calculation stack for {} action {}:\n{}",
-                        () -> savings.getClass().getSimpleName(),
-                        () -> actionTO.getActionTypeCase().name(),
-                        () -> Long.toString(action.getId()),
-                        savings.savingsAmount::calculationStack);
-
-            }
-        }
+        // The action importance should never be infinite, as setImportance() will fail.
+        final Action.Builder action = Action.newBuilder()
+                // Assign a unique ID to each generated action.
+                .setId(IdentityGenerator.next())
+                .setDeprecatedImportance(actionTO.getImportance())
+                .setExecutable(!actionTO.getIsNotExecutable());
 
         final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
         action.setInfo(infoBuilder);
         return action;
     }
 
-    private List<Action> splitCompoundMove(@Nonnull final ActionTO actionTO,
-                                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                           @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                           @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                           @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        List<Action> actionList = new ArrayList<>();
+    private List<ActionData> splitCompoundMove(@Nonnull final ActionTO actionTO,
+                                               @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                               @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
+        final List<ActionData> actionList = new ArrayList<>();
 
         List<MoveTO> moveActions = actionTO.getCompoundMove().getMovesList();
         for (MoveTO moveTO : moveActions) {
             // Create ActionTO from MoveTO.
-            ActionTO.Builder actionBuilder = ActionTO.newBuilder();
+            final ActionTO.Builder actionBuilder = ActionTO.newBuilder();
             actionBuilder.setIsNotExecutable(actionTO.getIsNotExecutable());
             actionBuilder.setMove(moveTO);
             actionBuilder.setImportance(actionTO.getImportance());
 
-            Action.Builder moveActionBuilder = createAction(actionBuilder.build(), projectedTopology,
-                    originalCloudTopology, projectedCosts, topologyCostCalculator);
+            final ActionTO moveActionTO = actionBuilder.build();
+
+            Action.Builder moveActionBuilder = createAction(moveActionTO);
             Optional<ActionDTO.Move> moveAction = interpretMoveAction(
                     actionBuilder.getMove(), projectedTopology, originalCloudTopology);
             if (moveAction.isPresent()) {
                 moveActionBuilder.getInfoBuilder().setMove(moveAction.get());
-                actionList.add(moveActionBuilder.build());
+                actionList.add(ActionData.of(moveActionTO, moveActionBuilder));
             }
         }
         return actionList;
-    }
-
-    /**
-     * Calculates savings per action. Savings is calculated as cost at source - the cost at
-     * destination. The cost is only the on demand costs. RI Compute is not considered.
-     *
-     * @param actionTO The actionTO for which savings is to be calculated
-     * @param originalCloudTopology the CloudTopology which came into Analysis
-     * @param projectedCosts a map of the id of the entity to its projected costJournal
-     * @param topologyCostCalculator the topology cost calculator used to calculate costs
-     * @return The calculated savings for the action. Returns {@link NoSavings} if no
-     *         savings could be calculated.
-     */
-    @Nonnull
-    CalculatedSavings calculateActionSavings(@Nonnull final ActionTO actionTO,
-            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        switch (actionTO.getActionTypeCase()) {
-            case MOVE:
-                final MoveTO move = actionTO.getMove();
-                final MarketTier destMarketTier = cloudTc.getMarketTier(move.getDestination());
-                final MarketTier sourceMarketTier = cloudTc.getMarketTier(move.getSource());
-                // Savings can be calculated if the destination is cloud
-                if (destMarketTier != null) {
-                    TopologyEntityDTO cloudEntityMoving = getTopologyEntityMoving(move);
-                    if (cloudEntityMoving != null) {
-                        final String entityTypeName = EntityType.forNumber(cloudEntityMoving.getEntityType()).name();
-                        try (TraxContext traxContext = Trax.track("SAVINGS", cloudEntityMoving.getDisplayName(),
-                            Long.toString(cloudEntityMoving.getOid()), entityTypeName,
-                            actionTO.getActionTypeCase().name())) {
-                            return calculateMoveSavings(originalCloudTopology,
-                                projectedCosts, topologyCostCalculator, destMarketTier,
-                                sourceMarketTier, cloudEntityMoving);
-                        }
-                    } else {
-                        return new NoSavings(trax(0, "no moving entity"));
-                    }
-                } else {
-                    return new NoSavings(trax(0, "no destination market tier for " + move.getDestination()));
-                }
-            case DEACTIVATE:
-                final DeactivateTO deactivateTO = actionTO.getDeactivate();
-                long deactivatedEntityOid = deactivateTO.getTraderToDeactivate();
-                TraderTO deactivatingEntityTO =  oidToProjectedTraderTOMap.get(deactivatedEntityOid);
-
-                // get the entity DTO from the original topology
-                TopologyEntityDTO deactivatingEntity =  originalTopology.get(deactivatedEntityOid);
-
-                if (deactivatingEntityTO == null || deactivatingEntity == null) {
-                    return new NoSavings(trax(0, "savings calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
-
-                // get the cost journal of the entity from the source topology
-                // since the entity in the projected topology is in suspended state
-                // and does not have cost associated with it
-                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
-                        topologyCostCalculator.calculateCostForEntity(
-                                originalCloudTopology, deactivatingEntity);
-
-                return calculateHorizontalScalingActionSavings(sourceCostJournal,
-                        deactivatingEntityTO, deactivatingEntity, true);
-
-            case PROVISION_BY_SUPPLY:
-                final ProvisionBySupplyTO provisionBySupply = actionTO.getProvisionBySupply();
-                long modelSellerEntityOid = provisionBySupply.getModelSeller();
-                TraderTO modelSellerEntityTO =  oidToProjectedTraderTOMap.get(modelSellerEntityOid);
-
-                // get the entity DTO from the original topology
-                TopologyEntityDTO modelSellerEntity =  originalTopology.get(modelSellerEntityOid);
-
-                if (modelSellerEntityTO == null || modelSellerEntity == null) {
-                    return new NoSavings(trax(0, "investment calculation for "
-                            + actionTO.getActionTypeCase().name()));
-                }
-                // get the cost journal of the model seller
-                // since the costs for the provisioned (cloned) entity is not computed
-                final CostJournal<TopologyEntityDTO> modelSellerProjectedCostJournal
-                                                 = projectedCosts.get(modelSellerEntityOid);
-
-                // If cost for the entity from the projected topology is not available
-                if (!hasOnDemandCostForMarketTier(modelSellerProjectedCostJournal)) {
-                    // OM-59809 - we are seeing suspend and provision actions
-                    // for the same VM in realtime and plan topologies.
-                    // A VM that was suspended in the projected topology gets provisioned
-                    // during the analysis cycle. But since the VM was suspended originally
-                    // the cost for this suspended VM is not computed and the calculated savings could be 0
-                    Optional<CostJournal<TopologyEntityDTO>> entityCostJournalFromRealTimeTopology =
-                            topologyCostCalculator.calculateCostForEntity(
-                                    originalCloudTopology, modelSellerEntity);
-
-                    CalculatedSavings entityCostsRealTimeTopology
-                            = calculateHorizontalScalingActionSavings(entityCostJournalFromRealTimeTopology,
-                            modelSellerEntityTO, modelSellerEntity, false);
-
-                    logger.debug("{}: cost for entity in projected topology is not found, computed cost for entity in real time topology {}",
-                            modelSellerEntity.getDisplayName(), entityCostsRealTimeTopology.savingsAmount);
-                    return entityCostsRealTimeTopology;
-                } else {
-                    CalculatedSavings entityCostsProjectedTopology
-                            = calculateHorizontalScalingActionSavings(
-                            Optional.ofNullable(modelSellerProjectedCostJournal),
-                            modelSellerEntityTO, modelSellerEntity, false);
-                    return entityCostsProjectedTopology;
-                }
-            default:
-                return new NoSavings(trax(0, "No savings calculation for "
-                    + actionTO.getActionTypeCase().name()));
-        }
-
-        // Do not have a return statement here. Ensure all cases in the switch return a value.
-    }
-
-    /**
-     * Helper method to check if the on-demand compute cost for an entity is available.
-     *
-     * @param journal cost journal of an entity
-     * @return Returns true if the on demand compute cost is available, else false
-     */
-    private boolean hasOnDemandCostForMarketTier(CostJournal<TopologyEntityDTO> journal) {
-        if (journal == null) {
-            return false;
-        }
-        TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_COMPUTE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
-
-        if (onDemandComputeCost.valueEquals(0.0)) {
-            return false;
-        }
-        return true;
-    }
-
-    @Nonnull
-    private CalculatedSavings calculateMoveSavings(@Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                                   @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                                   @Nonnull TopologyCostCalculator topologyCostCalculator,
-                                                   @Nonnull MarketTier destMarketTier,
-                                                   @Nullable MarketTier sourceMarketTier,
-                                                   @Nonnull TopologyEntityDTO cloudEntityMoving) {
-        final CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
-                .get(cloudEntityMoving.getOid());
-        if (destCostJournal != null) {
-            // Only the on demand costs are considered. RI Compute is not
-            // considered. RI component is considered as 0 cost. Inside the market
-            // also, RIs are considered as 0 cost. So it makes sense to be
-            // consistent. But it can also be viewed from another perspective.
-            // RI Compute has 2 components - upfront cost already paid to the
-            // CSP and an hourly cost which is not yet paid. So the true savings
-            // should consider the hourly cost and ignore the upfront cost.
-            // Currently, both of these are clubbed into RI compute and
-            // we cannot differentiate.
-            TraxNumber onDemandDestCost = getOnDemandCostForMarketTier(
-                    cloudEntityMoving, destMarketTier, destCostJournal);
-            // Now get the source cost. Assume on prem source cost 0.
-            final TraxNumber onDemandSourceCost;
-            if (sourceMarketTier != null) {
-                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
-                        topologyCostCalculator.calculateCostForEntity(
-                                originalCloudTopology, cloudEntityMoving);
-                if (!sourceCostJournal.isPresent()) {
-                    return new NoSavings(trax(0, "no source cost journal"));
-                }
-                onDemandSourceCost = getOnDemandCostForMarketTier(cloudEntityMoving,
-                        sourceMarketTier, sourceCostJournal.get());
-            } else {
-                onDemandSourceCost = trax(0, "source on-prem");
-            }
-
-            final String savingsDescription = String.format("Savings for %s \"%s\" (%d)",
-                    EntityType.forNumber(cloudEntityMoving.getEntityType()).name(),
-                    cloudEntityMoving.getDisplayName(), cloudEntityMoving.getOid());
-            final TraxNumber savings = onDemandSourceCost.minus(onDemandDestCost).compute(savingsDescription);
-            logger.debug("{} to move from {} to {} is {}", savingsDescription,
-                sourceMarketTier == null ? null : sourceMarketTier.getDisplayName(),
-                destMarketTier.getDisplayName(), savings);
-            return new CalculatedSavings(savings);
-        } else {
-            return new NoSavings(trax(0, "no destination cost journal"));
-        }
-    }
-
-    @Nonnull
-    private CalculatedSavings calculateHorizontalScalingActionSavings(
-                                    Optional<CostJournal<TopologyEntityDTO>> entityCostJournal,
-                                    TraderTO projectedEntityTO,
-                                    @Nonnull TopologyEntityDTO cloudEntityHzScaling,
-                                    boolean isSuspend) {
-        if (!entityCostJournal.isPresent()) {
-            return new NoSavings(trax(0, "no entity cost journal"));
-        }
-
-        CostJournal<TopologyEntityDTO> costJournal = entityCostJournal.get();
-        if (!hasOnDemandCostForMarketTier(costJournal)) {
-            logger.error("{} : on-demand cost not computed", cloudEntityHzScaling.getDisplayName());
-            return new NoSavings(trax(0, "no entity cost journal"));
-        }
-
-        // need suppliers to get the market tier
-        List<Long> suppliers = projectedEntityTO.getShoppingListsList()
-                                            .stream()
-                                            .map(sl -> sl.getSupplier())
-                                            .collect(Collectors.toList());
-
-        // get cost for the compute tier only
-        TraxNumber costs = suppliers.stream()
-                .map(cloudTc::getMarketTier)
-                .filter(Objects::nonNull)
-                .filter(marketTier -> marketTier.getTier() != null
-                        && TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType()))
-                .map(marketTier -> getOnDemandCostForMarketTier(cloudEntityHzScaling, marketTier, costJournal))
-                .collect(TraxCollectors.sum("horizontal-scale-vm-in-cloud"));
-
-        final String savingsDescription = String.format("%s for %s \"%s\" (%d)",
-                    isSuspend ? "Savings" : "Investment",
-                    EntityType.forNumber(cloudEntityHzScaling.getEntityType()).name(),
-                    cloudEntityHzScaling.getDisplayName(),
-                    cloudEntityHzScaling.getOid());
-
-        // accumulated cost
-        final TraxNumber savings = costs.times(isSuspend?1.0:-1.0).compute(savingsDescription);
-        return new CalculatedSavings(savings);
-    }
-
-    @Nullable
-    private TopologyEntityDTO getTopologyEntityMoving(MoveTO move) {
-        final ShoppingListInfo shoppingListInfo =
-                shoppingListOidToInfos.get(move.getShoppingListToMove());
-        long entityMovingId = Optional.ofNullable(shoppingListInfo.getActingId())
-                        .orElse(shoppingListInfo.getBuyerId());
-        return originalTopology.get(entityMovingId);
-    }
-
-    /**
-     * Gets the cost for the market tier. In case of a compute/database market tier, it returns the
-     * sum of compute + license + ip costs. In case of a storage market tier, it returns the
-     * storage cost.
-     *
-     * @param cloudEntityMoving the entity moving
-     * @param marketTier the market tier for which total cost is desired
-     * @param journal the cost journal
-     * @return the total cost of the market tier
-     */
-    @Nonnull
-    private TraxNumber getOnDemandCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
-                                                    MarketTier marketTier,
-                                                    CostJournal<TopologyEntityDTO> journal) {
-        final TraxNumber totalOnDemandCost;
-        if (TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType())) {
-
-            // In determining on-demand costs for SCALE actions, the savings from buy RI actions
-            // should be ignored. Therefore, we lookup the on-demand cost, ignoring savings
-            // from CostSource.BUY_RI_DISCOUNT
-            TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_COMPUTE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
-            TraxNumber licenseCost = journal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_LICENSE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
-            TraxNumber reservedLicenseCost = journal.getHourlyCostFilterEntries(
-                    CostCategory.RESERVED_LICENSE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
-            TraxNumber spotCost = journal.getHourlyCostForCategory(CostCategory.SPOT);
-            if (spotCost == null) {
-                spotCost = Trax.trax(0.0d);
-            }
-
-            // TODO Roop: remove this condition. OM-61424.
-            TraxNumber dbStorageCost = ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(cloudEntityMoving.getEntityType()) ?
-                    journal.getHourlyCostFilterEntries(
-                            CostCategory.STORAGE,
-                            CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER) : Trax.trax(0.0);
-
-            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, dbStorageCost, spotCost)
-                .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));
-            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}," +
-                    " reservedLicenseCost = {}, ipCost = {}",
-                    cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(),
-                    onDemandComputeCost, licenseCost, reservedLicenseCost);
-        } else {
-            totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE)
-                .named(marketTier.getTier().getDisplayName() + " total cost");
-            logger.debug("Costs for {} on {} are -> storage cost = {}",
-                    cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(), totalOnDemandCost);
-        }
-        return totalOnDemandCost;
     }
 
     @Nonnull
@@ -855,10 +550,7 @@ public class ActionInterpreter {
      * @return {@link ActionDTO.Allocate} representing the Allocate action
      */
     private ActionDTO.Allocate interpretAllocateAction(@Nonnull final MoveTO moveTO,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @Nonnull TopologyCostCalculator topologyCostCalculator) {
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         // Set action target entity.
@@ -874,10 +566,7 @@ public class ActionInterpreter {
                         "Market returned invalid source tier for Move: " + moveTO);
             }
         }
-        builder.setCloudSavingsDetails(buildCloudSavingsDetails(moveTO,
-                originalCloudTopology,
-                projectedCosts,
-                topologyCostCalculator));
+
         return builder.build();
     }
 
@@ -975,15 +664,11 @@ public class ActionInterpreter {
      * @param moveTO the input {@link MoveTO}
      * @param projectedTopology a map of entity id to the {@link ProjectedTopologyEntity}.
      * @param originalCloudTopology the original cloud topology
-     * @param projectedCosts The original {@link CloudTopology}
-     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
      * @return {@link ActionDTO.Scale} representing the Scale
      */
     public ActionDTO.Scale interpretScaleAction(@Nonnull final MoveTO moveTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @Nonnull TopologyCostCalculator topologyCostCalculator) {
+            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         if (shoppingListInfo == null) {
@@ -1013,117 +698,14 @@ public class ActionInterpreter {
         if (!CollectionUtils.isEmpty(resizeInfoList)) {
             builder.addAllCommodityResizes(resizeInfoList);
         }
+
         if (moveTO.hasScalingGroupId()) {
             builder.setScalingGroupId(moveTO.getScalingGroupId());
         }
-        builder.setCloudSavingsDetails(buildCloudSavingsDetails(moveTO,
-                originalCloudTopology,
-                projectedCosts,
-                topologyCostCalculator));
+
         return builder.build();
     }
 
-    /**
-     * Create the CloudSavingsDetails for the  {@link MoveTO} received from M2
-     * The action is for the compute shopping list of  Virtual Machine
-     *
-     * @param moveTO moveTO the input {@link MoveTO}
-     * @param originalCloudTopology  the original cloud topology
-     * @param projectedCosts The original {@link CloudTopology}
-     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
-     * @return {@link ActionDTO.CloudSavingsDetails} representing the CloudSavingsDetails
-     */
-    public CloudSavingsDetails.Builder buildCloudSavingsDetails (@Nonnull final MoveTO moveTO,
-            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        TopologyEntityDTO cloudEntityMoving = getTopologyEntityMoving(moveTO);
-        final MarketTier destMarketTier = cloudTc.getMarketTier(moveTO.getDestination());
-        final MarketTier sourceMarketTier = cloudTc.getMarketTier(moveTO.getSource());
-        CloudSavingsDetails.Builder cloudCostSavingsDetails = CloudSavingsDetails.newBuilder();
-        if (sourceMarketTier.getTier() != null && destMarketTier.getTier() != null) {
-            // TierCostDetails for destination/projected
-            final CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts.get(
-                    cloudEntityMoving.getOid());
-            EntityReservedInstanceCoverage projectedCoverage = projectedRICoverageCalculator.getProjectedRICoverageForEntity(
-                    cloudEntityMoving.getOid());
-            TierCostDetails projectedTierCostDetails = buildTierCostDetails(destCostJournal,
-                    cloudEntityMoving, destMarketTier,
-                    Optional.ofNullable(projectedCoverage));
-            cloudCostSavingsDetails.setProjectedTierCostDetails(projectedTierCostDetails);
-
-            // TierCostDetails for source
-            Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal = topologyCostCalculator.calculateCostForEntity(originalCloudTopology,
-                    cloudEntityMoving);
-            Optional<EntityReservedInstanceCoverage> originalCoverage
-                    = cloudTc.getRiCoverageForEntity(cloudEntityMoving.getOid());
-            if (sourceCostJournal != null && sourceCostJournal.isPresent()) {
-                TierCostDetails sourceTierCostDetails = buildTierCostDetails(sourceCostJournal.get(),
-                        cloudEntityMoving, sourceMarketTier, originalCoverage);
-                cloudCostSavingsDetails.setSourceTierCostDetails(sourceTierCostDetails);
-            }
-
-            //entity uptime of the cloudEntityMoving.
-            if (topologyCostCalculator.getCloudCostData() != null
-                    && sourceMarketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE
-                    && destMarketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-                EntityUptimeDTO entityUptime = topologyCostCalculator.getCloudCostData().getEntityUptime(cloudEntityMoving.getOid());
-                if (entityUptime != null) {
-                    cloudCostSavingsDetails.setEntityUptime(entityUptime);
-                }
-            }
-        }
-        return cloudCostSavingsDetails;
-    }
-    
-    /**
-     * Create the TierCostDetails for the projected and source marketTier
-     *
-     * @param costJournal the cost journal.
-     * @param cloudEntityMoving  the cloud entity moving. It is the id of the VM
-     * @param marketTier the market tier.
-     * @param reservedInstanceCoverage the reserved instance coverage of the cloudEntityMoving
-     *
-     * @return {@link ActionDTO.CloudSavingsDetails.TierCostDetails} representing the TierCostDetails
-     */
-    public TierCostDetails buildTierCostDetails (CostJournal<TopologyEntityDTO> costJournal,
-            TopologyEntityDTO cloudEntityMoving,
-            final MarketTier marketTier,
-            Optional<EntityReservedInstanceCoverage> reservedInstanceCoverage) {
-        if (costJournal == null) {
-            return TierCostDetails.getDefaultInstance();
-        }
-        final TraxNumber onDemandCost = getOnDemandCostForMarketTier(cloudEntityMoving,
-                marketTier, costJournal);
-        final TraxNumber onDemandRate;
-        if (marketTier.getTier().getEntityType() == EntityType.STORAGE_TIER_VALUE) {
-            onDemandRate = onDemandCost;
-        } else {
-            TraxNumber compute = costJournal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_COMPUTE, CostSourceFilter.ON_DEMAND_RATE);
-            TraxNumber license =  costJournal.getHourlyCostFilterEntries(
-                    CostCategory.ON_DEMAND_LICENSE, CostSourceFilter.ON_DEMAND_RATE);
-            onDemandRate = Stream.of(compute, license)
-                    .collect(TraxCollectors.sum(marketTier.getTier()
-                            .getDisplayName() + "On-demand Cost"));
-        }
-        TierCostDetails.Builder tierCostDetails = TierCostDetails.newBuilder();
-        if (reservedInstanceCoverage.isPresent()) {
-            CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
-                    CloudCommitmentCoverage.newBuilder();
-            double coverageUsed = getTotalRiCoverage(reservedInstanceCoverage.get());
-            cloudCommitmentCoverage
-                    .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(reservedInstanceCoverage.get().getEntityCouponCapacity()))
-                    .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(coverageUsed));
-            tierCostDetails.setCloudCommitmentCoverage(cloudCommitmentCoverage);
-        }
-
-        tierCostDetails.setOnDemandCost(CurrencyAmount.newBuilder()
-                        .setAmount(onDemandCost.getValue()))
-                .setOnDemandRate(CurrencyAmount.newBuilder()
-                        .setAmount(onDemandRate.getValue()));
-        return tierCostDetails.build();
-    }
     /**
      * Interpret a market generated reconfigure action.
      *
@@ -1533,17 +1115,19 @@ public class ActionInterpreter {
     }
 
     private Explanation interpretExplanation(
-            @Nonnull ActionTO actionTO, @Nonnull CalculatedSavings savings,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            final ActionType translatedActionType) {
+            @Nonnull ActionData actionData,
+            @Nonnull CalculatedSavings savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         Explanation.Builder expBuilder = Explanation.newBuilder();
+        final ActionTO actionTO = actionData.actionTO();
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
-                if (translatedActionType == ActionType.SCALE) {
-                    expBuilder.setScale(interpretScaleExplanation(actionTO, savings, projectedTopology));
-                } else if (translatedActionType == ActionType.ALLOCATE){
+                if (actionData.actionBuilder().getInfoBuilder().hasScale()) {
+                    expBuilder.setScale(interpretScaleExplanation(
+                            actionTO, savings, projectedTopology));
+                } else if (actionData.actionBuilder().getInfoBuilder().hasAllocate()){
                     expBuilder.setAllocate(interpretAllocateExplanation(actionTO));
-                } else if (translatedActionType == ActionType.MOVE){
+                } else if (actionData.actionBuilder().getInfoBuilder().hasMove()){
                     expBuilder.setMove(interpretMoveExplanation(actionTO, savings, projectedTopology));
                 }
                 break;
@@ -1828,7 +1412,7 @@ public class ActionInterpreter {
             boolean isPrimaryChangeExplanation = destinationTrader != null
                     && ActionDTOUtil.isPrimaryEntityType(destinationTrader.getType());
             ChangeProviderExplanation.Builder changeProviderExplanation =
-                changeExplanation(actionTO, moveTO, new NoSavings(trax(0)), projectedTopology,
+                changeExplanation(actionTO, moveTO, CalculatedSavings.NO_SAVINGS_USD, projectedTopology,
                     isPrimaryChangeExplanation);
             moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
         }
@@ -2055,7 +1639,7 @@ public class ActionInterpreter {
         // Check if this is a Cloud Move action with zero savings and no commodity changes
         if (cloudTc.isMarketTier(moveTO.getSource())
                 && cloudTc.isMarketTier(moveTO.getDestination())
-                && savings.savingsAmount.getValue() == 0
+                && savings.isZeroSavings()
                 && lowerProjectedCapacityComms.isEmpty()
                 && higherProjectedCapacityComms.isEmpty()) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
@@ -2068,7 +1652,7 @@ public class ActionInterpreter {
         CalculatedSavings savings, Set<CommodityType> higherProjectedCapacityComms) {
         // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
         // and there are some commodities which have higher projected capacities.
-        if (savings.savingsAmount.getValue() >= 0 && !higherProjectedCapacityComms.isEmpty()) {
+        if (savings.isSavings() && !higherProjectedCapacityComms.isEmpty()) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                 Efficiency.newBuilder().addAllScaleUpCommodity(higherProjectedCapacityComms)));
         }
@@ -2114,7 +1698,7 @@ public class ActionInterpreter {
             logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
                     actionTargetId, sellerId,
                 lowerProjectedCapacityComms.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
-            if (savings.savingsAmount.getValue() >= 0) {
+            if (savings.isSavings() || savings.isZeroSavings()) {
                 // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
                 // and there are some commodities which have higher projected capacities.
                 efficiencyBuilder
@@ -2265,7 +1849,7 @@ public class ActionInterpreter {
     private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(
         @Nonnull final CalculatedSavings savings,
         @Nonnull Set<CommodityType> higherProjectedCapacityComms) {
-        if (savings.savingsAmount.getValue() > 0) {
+        if (savings.isSavings()) {
             Efficiency.Builder efficiencyBuilder = Efficiency.newBuilder().setIsWastedCost(true)
                 .addAllScaleUpCommodity(higherProjectedCapacityComms);
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(efficiencyBuilder));
@@ -2487,81 +2071,16 @@ public class ActionInterpreter {
         return Optional.of(providerId);
     }
 
-
-    /**
-     * Class that wraps a savings amount to model a savings number that was actually
-     * calculated, as opposed to {@link com.vmturbo.market.topology.conversions.ActionInterpreter.NoSavings}
-     * which models when we could not calculate any savings for an entity.
-     */
+    @HiddenImmutableTupleImplementation
     @Immutable
-    static class CalculatedSavings {
-        public final TraxNumber savingsAmount;
+    interface ActionData {
 
-        CalculatedSavings(@Nonnull final TraxNumber savingsAmount) {
-            this.savingsAmount = savingsAmount;
-        }
+        ActionTO actionTO();
 
-        /**
-         * Apply the savings to an action by setting the action's savingsPerHour
-         * field.
-         *
-         * @param action The action to apply the savings to.
-         */
-        public void applySavingsToAction(@Nonnull final Action.Builder action) {
-            action.setSavingsPerHour(CurrencyAmount.newBuilder()
-                .setAmount(savingsAmount.getValue()));
-        }
+        Action.Builder actionBuilder();
 
-        /**
-         * Whether the calculated savings actually has any savings. Note that even zero savings,
-         * when it is calculated as opposed to unavailable due to being {@link NoSavings},
-         * will still return true here.
-         *
-         * @return Whether the calculated savings actually has any savings.
-         */
-        public boolean hasSavings() {
-            return true;
-        }
-    }
-
-    /**
-     * Models a situation where we could not actually calculate a savings amount.
-     */
-    @Immutable
-    static class NoSavings extends CalculatedSavings {
-        /**
-         * Create a new {@link NoSavings} object. Note that we cannot have a helper that
-         * creates the {@link TraxNumber} for the caller because then the call site in the logs
-         * for the {@link TraxNumber} creation would be our factory method, not the line calling
-         * the factory method.
-         *
-         * @param savingsAmount The amount saved. Should be zero.
-         */
-        NoSavings(@Nonnull final TraxNumber savingsAmount) {
-            super(savingsAmount);
-
-            Preconditions.checkArgument(savingsAmount.valueEquals(0),
-                "No Savings must have a zero savings amount");
-        }
-
-        /**
-         * Do not apply {@link NoSavings} to actions.
-         *
-         * @param action The action to apply the savings to.
-         */
-        @Override
-        public void applySavingsToAction(@Nonnull final Action.Builder action) {
-
-        }
-
-        /**
-         * {@link NoSavings} never has any savings.
-         *
-         * @return false
-         */
-        @Override
-        public boolean hasSavings() {
-            return false;
+        static ActionData of(@Nonnull ActionTO actionTO, Action.Builder actionBuilder) {
+            return ActionDataTuple.of(actionTO, actionBuilder);
         }
     }
 

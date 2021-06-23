@@ -72,6 +72,7 @@ import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.cloud.JournalActionSavingsCalculatorFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 
@@ -137,6 +138,9 @@ public class MarketRunnerTest {
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
             mock(ReversibilitySettingFetcherFactory.class);
 
+    private JournalActionSavingsCalculatorFactory actionSavingsCalculatorFactory =
+            mock(JournalActionSavingsCalculatorFactory.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
@@ -182,7 +186,7 @@ public class MarketRunnerTest {
                     mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
-                    new CommodityIdUpdater());
+                    new CommodityIdUpdater(), actionSavingsCalculatorFactory);
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 
