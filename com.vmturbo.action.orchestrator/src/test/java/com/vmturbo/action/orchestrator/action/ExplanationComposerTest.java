@@ -538,6 +538,29 @@ public class ExplanationComposerTest {
     }
 
     /**
+     * Test the explanation of provision by supply action for a daemon.
+     */
+    @Test
+    public void testDaemonProvisionBySupplyExplanation() {
+        ActionDTO.Action provision = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                    .setProvision(ProvisionExplanation.newBuilder()
+                            .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
+                                    .setMostExpensiveCommodityInfo(ReasonCommodity.newBuilder()
+                                            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                    .setType(21).build())
+                                            .build())
+                                    .build())
+                            .setReasonEntity(1)
+                        .build()))
+                .build();
+
+        assertEquals("Clone entity on cloned provider", ExplanationComposer.composeExplanation(provision));
+        assertEquals(Collections.singleton("Clone entity on cloned provider"), ExplanationComposer.composeRelatedRisks(provision));
+    }
+
+    /**
      * Test the explanation of provision by demand action.
      */
     @Test

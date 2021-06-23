@@ -239,7 +239,7 @@ public class ExplanationComposer {
             case ACTIVATE:
                 return Collections.singleton(buildActivateExplanation(action, keepItShort));
             case DEACTIVATE:
-                return Collections.singleton(buildDeactivateExplanation());
+                return Collections.singleton(buildDeactivateExplanation(action, topology));
             case RECONFIGURE:
                 return Collections.singleton(buildReconfigureExplanation(
                     action, settingPolicyIdToSettingPolicyName, topology, keepItShort));
@@ -901,10 +901,26 @@ public class ExplanationComposer {
      * Build deactivate explanation.
      * e.g. Improve infrastructure efficiency
      *
+     * When there are daemons,
+     * e.g. suspend daemon on suspended providerDisplayName.
+     *
+     * @param action the action to explain
+     * @param topology A minimal topology graph containing the relevant topology.
+     *                 May be empty if no relevant topology is available.
+     *
      * @return the explanation sentence
      */
-    private static String buildDeactivateExplanation() {
-        return DEACTIVATE_EXPLANATION;
+    private static String buildDeactivateExplanation(@Nonnull final ActionDTO.Action action,
+                                                     @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
+        final Explanation explanation = action.getExplanation();
+        final Explanation.DeactivateExplanation exp = explanation.getDeactivate();
+        if (exp.hasReasonEntity()) {
+            return String.format("Suspend %s on suspended %s",
+                    buildEntityNameOrReturnDefault(action.getInfo().getDeactivate().getTarget().getId(), "provider", topology),
+                    buildEntityNameOrReturnDefault(exp.getReasonEntity(), "provider", topology));
+        } else {
+            return DEACTIVATE_EXPLANATION;
+        }
     }
 
     /**
@@ -1025,7 +1041,8 @@ public class ExplanationComposer {
                             topology) + "'");
                 }
             case PROVISION_BY_SUPPLY_EXPLANATION:
-                return Collections.singleton(buildProvisionBySupplyExplanation(provisionExplanation, keepItShort));
+                Optional<ActionGraphEntity> entity = topology.flatMap(topo -> topo.getEntity(action.getInfo().getProvision().getEntityToClone().getId()));
+                return Collections.singleton(buildProvisionBySupplyExplanation(action, provisionExplanation, keepItShort, topology));
             default:
                 return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
         }
@@ -1052,14 +1069,24 @@ public class ExplanationComposer {
      * Build provision by supply explanation.
      * e.g. "Storage Latency Congestion"
      *
-     * @param provisionExplanation provision explanation
-     * @param keepItShort compose a short explanation if true
+     * @param action action to compose explanation for.
+     * @param provisionExplanation provision explanation.
+     * @param keepItShort compose a short explanation if true.
+     * @param topology containing all the traders.
      * @return the explanation sentence
      */
     private static String buildProvisionBySupplyExplanation(
-            @Nonnull final ProvisionExplanation provisionExplanation, final boolean keepItShort) {
-        return commodityDisplayName(provisionExplanation.getProvisionBySupplyExplanation()
-            .getMostExpensiveCommodityInfo().getCommodityType(), keepItShort) + CONGESTION_EXPLANATION;
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final ProvisionExplanation provisionExplanation, final boolean keepItShort,
+            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
+        if (provisionExplanation.hasReasonEntity()) {
+            return String.format("Clone %s on cloned %s",
+                    buildEntityNameOrReturnDefault(action.getInfo().getProvision().getEntityToClone().getId(), "entity", topology),
+                    buildEntityNameOrReturnDefault(provisionExplanation.getReasonEntity(), "provider", topology));
+        } else {
+            return commodityDisplayName(provisionExplanation.getProvisionBySupplyExplanation()
+                    .getMostExpensiveCommodityInfo().getCommodityType(), keepItShort) + CONGESTION_EXPLANATION;
+        }
     }
 
     /**
@@ -1140,6 +1167,25 @@ public class ExplanationComposer {
             .map(e -> ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
                 + " " + e.getDisplayName())
             .orElse(ActionDTOUtil.buildEntityTypeAndName(entity));
+    }
+
+    /**
+     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
+     * available in the topology, otherwise return the default value passed.
+     *
+     * @param entityOid OID of entity
+     * @param defaultName The default name to use if the entity is not available.
+     * @param topology A minimal topology graph containing the relevant topology.
+     *      *                 May be empty if no relevant topology is available.
+     * @return the translation
+     */
+    private static String buildEntityNameOrReturnDefault(final long entityOid,
+                                                         @Nonnull final String defaultName,
+                                                         @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
+        return topology
+                .flatMap(topo -> topo.getEntity(entityOid))
+                .map(BaseGraphEntity::getDisplayName)
+                .orElse(defaultName);
     }
 
     /**
