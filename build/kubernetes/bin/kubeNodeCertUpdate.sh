@@ -1,4 +1,5 @@
 #!/bin/bash
+
 #Script for updating Kubernetes certificates
 echo " "
 RED=`tput setaf 1`
@@ -28,19 +29,38 @@ fi
 
 echo "Starting to renew Kubernetes certificates..."
 cd /etc/kubernetes/;  ln -s ssl pki;
-/usr/local/bin/kubeadm alpha certs renew apiserver 2>/dev/null
-/usr/local/bin/kubeadm alpha certs renew apiserver-kubelet-client 2>/dev/null
-/usr/local/bin/kubeadm alpha certs renew front-proxy-client 2>/dev/null
-echo "Certificates renewed...please review above messages for any errors, but warnings are expected"
-echo " "
-echo "Updating Kubernetes configuration with new certificates..."
-cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
-echo "Kubernetes configuration update completed"
-echo " "
+# Check kubernetes version
+kubeVersion=$(kubectl version | awk '{print $4}' | head -1 | awk -F: '{print $2}' | sed 's/"//g' | sed 's/,//g')
+if [ $kubeVersion -ge 20 ]
+then
+  /usr/local/bin/kubeadm certs renew apiserver 2>/dev/null
+  /usr/local/bin/kubeadm certs renew apiserver-kubelet-client 2>/dev/null
+  /usr/local/bin/kubeadm certs renew front-proxy-client 2>/dev/null
+  echo "Certificates renewed...please review above messages for any errors, but warnings are expected"
+  echo " "
+  echo "Updating Kubernetes configuration with new certificates..."
+  cd /etc/kubernetes
+  /usr/local/bin/kubeadm init phase kubeconfig admin 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig controller-manager 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig kubelet 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig scheduler 2>/dev/null
+  echo "Kubernetes configuration update completed"
+  echo " "
+else
+  /usr/local/bin/kubeadm alpha certs renew apiserver 2>/dev/null
+  /usr/local/bin/kubeadm alpha certs renew apiserver-kubelet-client 2>/dev/null
+  /usr/local/bin/kubeadm alpha certs renew front-proxy-client 2>/dev/null
+  echo "Certificates renewed...please review above messages for any errors, but warnings are expected"
+  echo " "
+  echo "Updating Kubernetes configuration with new certificates..."
+  cd /etc/kubernetes
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
+  echo "Kubernetes configuration update completed"
+  echo " "
+fi
 
 echo "Restarting docker service..."
 systemctl restart docker
