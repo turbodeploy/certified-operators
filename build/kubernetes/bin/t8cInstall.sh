@@ -199,6 +199,8 @@ if [ ! -z "${hostName}" ]
 then
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
   sed -i "s/node1/${hostname}/g" /etc/kubernetes/kubeadm-config.yaml
+  sed -i "s/node1/${hostname}/g" /etc/kubernetes/kubelet.conf
+  sed -i "s/node1/${hostname}/g" /etc/kubernetes/kubelet.env
 else
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
 fi
@@ -209,15 +211,16 @@ sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 /usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
 
 cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
-if [ ! -z "${hostName}" ]
-then
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:${hostName} > kubelet.conf 2>/dev/null
-else
-  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
-fi
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
+# Replace 127.0.0.1 with the Server IP
+sed -i "s/127.0.0.1/${newIP}/g" /etc/kubernetes/admin.conf
+sed -i "s/127.0.0.1/${newIP}/g" /etc/kubernetes/controller-manager.conf
+sed -i "s/127.0.0.1/${newIP}/g" /etc/kubernetes/scheduler.conf
+sed -i "s/127.0.0.1/${newIP}/g" /etc/kubernetes/kubelet.conf
+
+/usr/local/bin/kubeadm init phase kubeconfig admin 2>/dev/null
+/usr/local/bin/kubeadm init phase kubeconfig controller-manager 2>/dev/null
+/usr/local/bin/kubeadm init phase kubeconfig kubelet 2>/dev/null
+/usr/local/bin/kubeadm init phase kubeconfig scheduler 2>/dev/null
 
 systemctl restart kubelet
 
@@ -478,7 +481,11 @@ if [ ! -z "${hostName}" ]
 then
   /usr/local/bin/kubectl delete node node1
   /usr/local/bin/kubectl label nodes ${hostName} kubernetes.io/role=master
+  /usr/local/bin/kubectl label nodes ${hostName} kubernetes.io/role=control-plane
 fi
+
+# Set turbo kube context
+su -c "kubectl config set-context $(kubectl config current-context) --namespace=turbonomic" -s /bin/sh turbo
 
 # Status
 echo ""

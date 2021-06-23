@@ -115,22 +115,41 @@ mv front-proxy-client.* expired/
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.env
 
-/usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml
-/usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml
+# Check kubernetes version
+kubeVersion=$(kubectl version | awk '{print $4}' | head -1 | awk -F: '{print $2}' | sed 's/"//g' | sed 's/,//g')
+if [ $kubeVersion -ge 20 ]
+then 
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/admin.conf
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/controller-manager.conf
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/scheduler.conf
+  sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.conf
+  /usr/local/bin/kubeadm init phase certs apiserver 2>/dev/null
+  /usr/local/bin/kubeadm init phase certs apiserver-kubelet-client 2>/dev/null
+  /usr/local/bin/kubeadm init phase certs front-proxy-client 2>/dev/null
+else
+  /usr/local/bin/kubeadm init phase certs apiserver --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+  /usr/local/bin/kubeadm init phase certs apiserver-kubelet-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+  /usr/local/bin/kubeadm init phase certs front-proxy-client --config=/etc/kubernetes/kubeadm-config.yaml 2>/dev/null
+fi
 
 cd /etc/kubernetes
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostName) > kubelet.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
-/usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
-
+if [ $kubeVersion -ge 20 ]
+then 
+  /usr/local/bin/kubeadm init phase kubeconfig admin 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig kubelet 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig controller-manager 2>/dev/null
+  /usr/local/bin/kubeadm init phase kubeconfig scheduler 2>/dev/null
+else
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > admin.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-controller-manager > controller-manager.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --org system:nodes --client-name system:node:$(hostname) > kubelet.conf 2>/dev/null
+  /usr/local/bin/kubeadm alpha kubeconfig user --client-name system:kube-scheduler > scheduler.conf 2>/dev/null
+fi
 systemctl restart kubelet
 
 # Add the ~/.kube/config file
 cp /etc/kubernetes/admin.conf /root/.kube/config
-/usr/local/bin/kubectl config set-context kubernetes-admin@kubernetes --namespace=turbonomic
+/usr/local/bin/kubectl config set-context kubernetes-admin@kubernetes --namespace=turbonomic 2>/dev/null
 cp /root/.kube/config /opt/turbonomic/.kube/config
 
 # Update calico
