@@ -785,6 +785,11 @@ public class ActionInterpreter {
             provisionActionTracker.computeIfAbsent(provisionBySupplyTO.getModelSeller(),
                 id -> new AtomicInteger());
 
+        ActionDTO.Provision.Builder provisionBuilder = ActionDTO.Provision.newBuilder()
+                .setEntityToClone(createActionEntity(
+                        provisionBySupplyTO.getModelSeller(), projectedTopology))
+                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement());
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                         provisionBySupplyTO.getModelSeller(), projectedTopology))
@@ -1732,10 +1737,15 @@ public class ActionInterpreter {
      * @return the explanation.
      */
     private DeactivateExplanation interpretDeactivateExplanation(DeactivateTO deactivateTO) {
+        DeactivateExplanation.Builder explanationBuilder = DeactivateExplanation.newBuilder();
         List<CommodityType> reconfigCommTypes = getReconfigurableCommodities(deactivateTO.getTraderToDeactivate(), true);
-        return reconfigCommTypes.isEmpty()
-            ? DeactivateExplanation.getDefaultInstance()
-            : DeactivateExplanation.newBuilder().addAllReconfigCommTypes(reconfigCommTypes).build();
+        if (!reconfigCommTypes.isEmpty()) {
+            explanationBuilder.addAllReconfigCommTypes(reconfigCommTypes);
+        }
+        if (deactivateTO.hasReasonEntity()) {
+            explanationBuilder.setReasonEntity(deactivateTO.getReasonEntity());
+        }
+        return explanationBuilder.build();
     }
 
     private ProvisionExplanation
@@ -1779,14 +1789,18 @@ public class ActionInterpreter {
                 provisionBySupply.getMostExpensiveCommodity()).orElseThrow(() -> new IllegalArgumentException(
             "Most expensive commodity in provision can't be converted to topology commodity format! "
                 + provisionBySupply.getMostExpensiveCommodity()));
-        return ProvisionExplanation.newBuilder()
-            .setProvisionBySupplyExplanation(
-                ProvisionBySupplyExplanation.newBuilder()
-                    .setMostExpensiveCommodityInfo(
-                        ReasonCommodity.newBuilder().setCommodityType(commType).build())
-                    .build())
-                .addAllReconfigCommTypes(getReconfigurableCommodities(provisionBySupply.getProvisionedSeller(), false))
-                .build();
+        ProvisionExplanation.Builder provisionExpBuilder = ProvisionExplanation.newBuilder()
+                .setProvisionBySupplyExplanation(
+                        ProvisionBySupplyExplanation.newBuilder()
+                                .setMostExpensiveCommodityInfo(
+                                        ReasonCommodity.newBuilder().setCommodityType(commType).build())
+                                .build())
+                .addAllReconfigCommTypes(getReconfigurableCommodities(provisionBySupply.getProvisionedSeller(), false));
+
+        if (provisionBySupply.hasReasonEntity()) {
+            provisionExpBuilder.setReasonEntity(provisionBySupply.getReasonEntity());
+        }
+        return provisionExpBuilder.build();
     }
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {

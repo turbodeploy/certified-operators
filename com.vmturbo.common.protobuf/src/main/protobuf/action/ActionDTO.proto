@@ -211,6 +211,9 @@ message Explanation {
     message DeactivateExplanation {
         // Reconfigurable commodities of entity that is Deactivated.
         repeated topology.CommodityType reconfig_comm_types = 1;
+
+        // Entity responsible for this suspend. This is the case for daemon suspensions.
+        optional int64 reason_entity = 3;
     }
 
     // Delete - right now used for wasted files only
@@ -244,6 +247,9 @@ message Explanation {
 
         // Reconfigurable commodities of entity that is Provisioned.
         repeated topology.CommodityType reconfig_comm_types = 3;
+
+        // Entity responsible for this clone. This is the case for daemon clones.
+        optional int64 reason_entity = 4;
 
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
