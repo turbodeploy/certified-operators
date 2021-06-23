@@ -105,6 +105,7 @@ public class Suspension {
         for (Trader seller : economy.getTraders()) {
             try {
                 if (seller.getSettings().isSuspendable() && seller.getState().isActive()
+                        && !seller.getSettings().isDaemon()
                         && !sellerHasNonDaemonCustomers(seller)
                         // Check whether the seller is not a seller to any non-daemons in any market.
                         // If the seller is only selling to daemons, it can suspend.
@@ -152,9 +153,11 @@ public class Suspension {
                         if (economy.getForceStop()) {
                             return allActions;
                         }
-                        // skip markets that don't have suspendable active sellers. We consider only
-                        // activeSellersAvailableForPlacement as entities should not move out of the ones
-                        // not available for placement
+                        // Skip markets that don't have suspendable active sellers. We consider only
+                        // activeSellersAvailableForPlacement as entities should not move out of the ones not available
+                        // for placement.
+                        // We would skip markets where all nodes have canAcceptNewCustomers false and host only daemons.
+                        // We wont suspend the nodes in such a market. TODO: handle this above case.
                         if (market.getActiveSellersAvailableForPlacement().isEmpty() ||
                                 market.getActiveSellersAvailableForPlacement().stream().noneMatch(
                                                 t -> t.getSettings().isSuspendable())) {
@@ -166,13 +169,14 @@ public class Suspension {
                         for (Trader seller : suspensionCandidates) {
                             // suspension candidates can be only activeSellers that canAcceptNewCustomers
                             // that are suspendable
-                            if (!seller.getSettings().isSuspendable()) {
+                            if (!seller.getSettings().isSuspendable() || seller.getSettings().isDaemon()) {
                                 continue;
                             }
                             boolean isDebugTrader = seller.isDebugEnabled();
                             String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
                             // Check for suspendable here because we might set co-sellers to be non suspendable.
-                            if (!sellerHasNonDaemonCustomers(seller)) {
+                            // Do not suspend daemons here.
+                            if (!seller.getSettings().isDaemon() && !sellerHasNonDaemonCustomers(seller)) {
                                 if (logger.isTraceEnabled() || isDebugTrader) {
                                     logger.info("Suspending " + sellerDebugInfo
                                         + " as there are no customers.");
@@ -414,13 +418,15 @@ public class Suspension {
     List<Action> suspendOrphanedCustomers(final Economy economy,
                                                   final Deactivate drivingDeactivate) {
         List<Action> actions = new ArrayList<>();
-        suspendOrphanedCustomersHelper(economy, drivingDeactivate.getActionTarget(), actions);
+        suspendOrphanedCustomersHelper(economy, drivingDeactivate.getActionTarget()
+                , drivingDeactivate.getActionTarget(), actions);
         drivingDeactivate.getSubsequentActions().addAll(actions);
         return actions;
     }
 
     private void suspendOrphanedCustomersHelper(final Economy economy,
                                                 final Trader trader,
+                                                final Trader reasonTrader,
                                                 final List<Action> actions) {
         for (ShoppingList sl : trader.getCustomers()) {
             Trader customer = sl.getBuyer();
@@ -444,10 +450,11 @@ public class Suspension {
                                                   : markets.get(0).getBasket();
                 Deactivate deactivateAction = new Deactivate(economy, customer, basket);
                 deactivateAction.setExecutable(false);
+                deactivateAction.setReasonTrader(reasonTrader);
                 actions.add(deactivateAction.take());
             }
             // Call this function again to deactivate this customer's customers as well.
-            suspendOrphanedCustomersHelper(economy, customer, actions);
+            suspendOrphanedCustomersHelper(economy, customer, reasonTrader, actions);
         }
     }
 

@@ -1,15 +1,18 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -343,6 +346,57 @@ public class ProvisionTest {
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
+    }
+
+    /**
+     * Test provision behavior of traders with daemon congestion.
+     */
+    @Test
+    public void testDoNotProvisionDaemonsProviders() {
+        Economy economy = new Economy();
+        // Add a VM
+        Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, TestCommon.VM_BASKET);
+        vm.getCommoditiesSold().stream().forEach(cs -> cs.setCapacity(100));
+        vm.setDebugInfoNeverUseInCode("VM").getSettings()
+                .setCloneable(true)
+                .setCanAcceptNewCustomers(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        vm.getSettings().setDaemon(true);
+
+        Trader daemon = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
+        daemon.setDebugInfoNeverUseInCode("DAEMON").getSettings().setDaemon(true);
+        // Place the daemon consuming 70% onto the VM
+        TestUtils.createAndPlaceShoppingList(economy,
+                TestCommon.VM_BASKET.stream().collect(Collectors.toList()),
+                daemon, new double[]{70, 70, 70}, vm).setMovable(false);
+
+        Trader pod1 = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
+        pod1.setDebugInfoNeverUseInCode("POD1");
+        // Place the pod consuming 10% onto the VM
+        TestUtils.createAndPlaceShoppingList(economy,
+                TestCommon.VM_BASKET.stream().collect(Collectors.toList()),
+                pod1, new double[]{10, 10, 10}, vm).setMovable(true);
+        vm.getCommoditiesSold().stream().map(cs -> cs.setNumConsumers(2));
+
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Assert.assertNotNull(economy);
+        Ledger ledger = new Ledger(economy);
+        Provision provision = new Provision();
+
+        List<Action> acns = provision.provisionDecisions(economy, ledger);
+        assertEquals(0, provision.provisionDecisions(economy, ledger).size());  // node doesnt provision.
+
+        // Place the pod consuming 10% onto the VM
+        Trader pod2 = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
+        TestUtils.createAndPlaceShoppingList(economy,
+                TestCommon.VM_BASKET.stream().collect(Collectors.toList()),
+                pod2, new double[]{10, 10, 10}, vm).setMovable(true);
+        pod2.setDebugInfoNeverUseInCode("POD2");
+
+        vm.getCommoditiesSold().stream().forEach(cs -> cs.setNumConsumers(3));
+        assertEquals(4, provision.provisionDecisions(economy, new Ledger(economy)).size());  // node provisions.
+
     }
 
     /**

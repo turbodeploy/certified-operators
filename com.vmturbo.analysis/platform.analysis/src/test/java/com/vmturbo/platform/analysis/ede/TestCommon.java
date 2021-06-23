@@ -9,8 +9,6 @@ import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Lists;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -22,6 +20,7 @@ import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class TestCommon {
@@ -59,6 +58,16 @@ public class TestCommon {
     static final CommoditySpecification VCPU = new CommoditySpecification(COMMODITY_TYPE_VCPU);
     static final CommoditySpecification VMEM = new CommoditySpecification(COMMODITY_TYPE_VMEM);
     static final Basket VMtoApp = new Basket(VCPU, VMEM);
+
+    // CLOUD NATIVE BASKETS
+    public static final Basket APPLICATION_BASKET =
+            new Basket(TestUtils.RESPONSE_TIME, TestUtils.TRANSACTION);
+    public static final Basket CONTAINER_BASKET =
+            new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
+    public static final Basket POD_BASKET =
+            new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
+    public static final Basket VM_BASKET =
+            new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
 
     private @NonNull Economy first;
     private @NonNull Economy cloned;

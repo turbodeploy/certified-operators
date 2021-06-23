@@ -315,8 +315,8 @@ public final class Utility {
         // Find provider of seller to increase capacities of commodities of seller trader that are
         // highly utilized and therefore giving the buyer shopping list an infinite quote.
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
-            // shopping list suppliers can be null if for example the entity is in maintenenace/uknown/failover/not_monitored state.
-            // This is because such entites are not sent to the market.
+            // shopping list suppliers can be null if for example the entity is in maintenance/unknown/failover/not_monitored state.
+            // This is because such entities are not sent to the market.
             if (shoppingList.getSupplier() == null || !shoppingList.getSupplier().getSettings().isCloneable()) {
                 continue;
             }
@@ -472,4 +472,32 @@ public final class Utility {
         return m.getActiveSellers().stream().anyMatch(trader -> trader.getReconfigurableCommodityCount() > 0)
             || m.getInactiveSellers().stream().anyMatch(trader -> trader.getReconfigurableCommodityCount() > 0);
     }
+
+    /**
+     * Clone all daemons on the modelSeller.
+     *
+     * @param economy that the modelSeller is a part of.
+     * @param modelSeller whose daemons to clone.
+     * @param provisionedSeller is the entity that was provisioned.
+     * @param actionsList list of actions to add to.
+     * @param action is the provision action on the modelSeller.
+     *
+     */
+    public static void provisionDaemons(Economy economy, Trader modelSeller, Trader provisionedSeller,
+                                        List<Action> actionsList, ProvisionBase action) {
+        List<Trader> daemonCustomers = modelSeller.getCustomers().stream().map(sl -> sl.getBuyer())
+            .distinct()
+            .filter(customer -> customer.getSettings().isDaemon()).collect(Collectors.toList());
+            // provision every daemon and place on the provisionedSeller
+            for (Trader customer : daemonCustomers) {
+                // provision daemon.
+                ProvisionBySupply daemonProvision = (ProvisionBySupply) (new ProvisionBySupply(economy, customer, action.getReason())).take();
+                daemonProvision.setReasonTrader(modelSeller);
+                actionsList.add(daemonProvision);
+                // place every leg of the cloned daemon on provisionedSeller.
+                economy.getMarketsAsBuyer(daemonProvision.getProvisionedSeller()).keySet()
+                        .forEach(sl -> actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
+            }
+    }
+
 } // end Utility class

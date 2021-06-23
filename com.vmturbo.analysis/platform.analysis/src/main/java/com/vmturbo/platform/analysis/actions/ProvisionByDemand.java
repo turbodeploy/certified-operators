@@ -138,14 +138,15 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         getProvisionedSeller().setCloneOf(getModelSeller());
         // traders cloned through provisionByDemand are marked non-cloneable by default
         TraderSettings copySettings = getProvisionedSeller().getSettings();
+        TraderSettings modelSellerSettings = getModelSeller().getSettings();
         copySettings.setSuspendable(true);
-        copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
-        copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
-        copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
-        copySettings.setReconfigurable(getModelSeller().getSettings().isReconfigurable());
-        copySettings.setMinReplicas(getModelSeller().getSettings().getMinReplicas());
-        copySettings.setMaxReplicas(getModelSeller().getSettings().getMaxReplicas());
+        copySettings.setMinDesiredUtil(modelSellerSettings.getMinDesiredUtil());
+        copySettings.setMaxDesiredUtil(modelSellerSettings.getMaxDesiredUtil());
+        copySettings.setGuaranteedBuyer(modelSellerSettings.isGuaranteedBuyer());
+        copySettings.setProviderMustClone(modelSellerSettings.isProviderMustClone());
+        copySettings.setReconfigurable(modelSellerSettings.isReconfigurable());
+        copySettings.setMinReplicas(modelSellerSettings.getMinReplicas());
+        copySettings.setMaxReplicas(modelSellerSettings.getMaxReplicas());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         // TODO: we don't have a case for provisionByDemand a trader with mandatory seller as supplier
@@ -254,6 +255,10 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         }
 
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
+
+        // Provision daemons
+        Utility.provisionDaemons(getEconomy(), getModelSeller(), getProvisionedSeller(), getSubsequentActions(), this);
+
         // if the trader being cloned is a provider for a guaranteedBuyer, then the clone should
         // be a provider for that guaranteedBuyer as well
         if (guaranteedBuyerSlsOnModelSeller.size() != 0) {
