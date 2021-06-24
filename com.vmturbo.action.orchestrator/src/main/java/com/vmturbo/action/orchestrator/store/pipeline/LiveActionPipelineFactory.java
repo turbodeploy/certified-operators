@@ -43,7 +43,6 @@ import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetIn
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetOrCreateLiveActionStoreStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.MarketActionsSegment;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.MarketReRecommendedActionsStage;
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateActionStoreStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateLiveActionsSegment;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PrepareAggregatedActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.ProcessLiveBuyRIActionsStage;
@@ -96,11 +95,6 @@ public class LiveActionPipelineFactory {
     private final ActionAuditSender actionAuditSender;
 
     /**
-     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232.
-     */
-    private boolean useNewPipeline;
-
-    /**
      * Create a new {@link LiveActionPipelineFactory}.
      *
      * @param actionStorehouse The {@link ActionStorehouse}.
@@ -121,8 +115,6 @@ public class LiveActionPipelineFactory {
      * @param actionTranslator the {@link ActionTranslator}.
      * @param actionsStatistician the {@link LiveActionsStatistician}.
      * @param actionAuditSender the {@link ActionAuditSender}.
-     * @param useNewPipeline Whether to use the new multi-stage action pipeline for live actions
-     *                       or the old single-stage pipeline.
      */
     public LiveActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse,
                                      @Nonnull final ActionAutomationManager automationManager,
@@ -138,8 +130,7 @@ public class LiveActionPipelineFactory {
                                      @Nonnull final ActionTargetSelector actionTargetSelector,
                                      @Nonnull final ActionTranslator actionTranslator,
                                      @Nonnull final LiveActionsStatistician actionsStatistician,
-                                     @Nonnull final ActionAuditSender actionAuditSender,
-                                     final boolean useNewPipeline) {
+                                     @Nonnull final ActionAuditSender actionAuditSender) {
         Preconditions.checkArgument(liveActionsLockMaxWaitTimeMinutes > 0,
             "Illegal value %s for liveActionsLockMaxWaitTimeMinutes", liveActionsLockMaxWaitTimeMinutes);
         Preconditions.checkArgument(queryTimeWindowForLastExecutedActionsMins > 0,
@@ -160,30 +151,6 @@ public class LiveActionPipelineFactory {
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
-        this.useNewPipeline = useNewPipeline;
-    }
-
-    /**
-     * Set whether or not to use the new live action pipeline. If false, will use the old pipeline for live actions.
-     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-     *
-     * @param useNewPipeline whether or not to use the new pipeline.
-     * @return Returns the value set.
-     */
-    public boolean setUseNewPipeline(final boolean useNewPipeline) {
-        this.useNewPipeline = useNewPipeline;
-        return getUseNewPipeline();
-    }
-
-    /**
-     * Get whether or not the factory will use the new multi-stage action pipeline for live actions.
-     * If false, will use the single-stage pipeline.
-     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-     *
-     * @return Whether the factory is using the new pipelien.
-     */
-    public boolean getUseNewPipeline() {
-        return useNewPipeline;
     }
 
     /**
@@ -216,9 +183,8 @@ public class LiveActionPipelineFactory {
      *         the pipeline. For an action pipeline accepting BuyRI action plans {@see #buyRiActionsPipeline}.
      */
     private ActionPipeline<ActionPlan, ActionProcessingInfo> marketActionsPipeline(@Nonnull final ActionPlan actionPlan) {
-        final ActionPipeline<ActionPlan, ActionProcessingInfo> processingPipeline = useNewPipeline
-            ? buildLiveMarketActionsPipeline(actionPlan)
-            : buildLegacyMarketActionsPipeline(actionPlan);
+        final ActionPipeline<ActionPlan, ActionProcessingInfo> processingPipeline =
+            buildLiveMarketActionsPipeline(actionPlan);
 
         if (marketActionPlanCount == 1) {
             logger.info("\n" + processingPipeline.tabularDescription("Live Market Action Pipeline"));
@@ -240,31 +206,6 @@ public class LiveActionPipelineFactory {
             logger.info("\n" + processingPipeline.tabularDescription("Live BuyRI Action Pipeline"));
         }
         return processingPipeline;
-    }
-
-    /**
-     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232.
-     *
-     * @param actionPlan The action plan.
-     * @return The legacy market actions pipeline.
-     */
-    private ActionPipeline<ActionPlan, ActionProcessingInfo> buildLegacyMarketActionsPipeline(@Nonnull final ActionPlan actionPlan) {
-        marketActionPlanCount++;
-        final ActionCounts newActionCounts = new ActionCounts(ACTION_COUNTS_TITLE, actionPlan.getActionList().stream());
-        logger.info("\n" + newActionCounts.difference(previousActionPlanCounts));
-        previousActionPlanCounts = newActionCounts;
-
-        final ActionPipelineContext pipelineContext = new ActionPipelineContext(
-            actionPlan.getId(),
-            TopologyType.REALTIME,
-            actionPlan.getInfo());
-
-        return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
-            .addStage(new PopulateActionStoreStage(actionStorehouse))
-            .addStage(new UpdateAutomationStage(automationManager))
-            .addStage(new UpdateSeverityCacheStage())
-            .finalStage(new ActionProcessingInfoStage())
-        );
     }
 
     private ActionPipeline<ActionPlan, ActionProcessingInfo> buildLiveMarketActionsPipeline(@Nonnull final ActionPlan actionPlan) {

@@ -5,18 +5,6 @@ option java_package = "com.vmturbo.common.protobuf.action";
 
 import "action/ActionDTO.proto";
 
-// TODO: Delete this. Added just to make it easy to swap on the fly without having to restart AO.
-// TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-message NewPipelineEnabled {
-    optional bool enabled = 1;
-}
-
-// TODO: Delete this. Added just to make it easy to swap on the fly without having to restart AO.
-// TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-message GetPipelineEnabledRequest {
-
-}
-
 // Services for debugging actions.
 // These services should only be available in development and testing environments, never
 // in production.
@@ -29,12 +17,4 @@ service ActionsDebugService {
     // not callable. When enabled and the action plan is processed successfully, returns the same response
     // as GetActionCounts after the new action plan has been processed.
     rpc OverrideActionPlan (ActionPlan) returns (GetActionCountsResponse);
-
-    // TODO: Delete this. Added just to make it easy to swap on the fly without having to restart AO.
-    // TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-    rpc SetNewPipelineEnabled(NewPipelineEnabled) returns (NewPipelineEnabled);
-
-    // TODO: Delete this. Added just to make it easy to swap on the fly without having to restart AO.
-    // TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-    rpc GetNewPipelineEnabled(GetPipelineEnabledRequest) returns (NewPipelineEnabled);
 }

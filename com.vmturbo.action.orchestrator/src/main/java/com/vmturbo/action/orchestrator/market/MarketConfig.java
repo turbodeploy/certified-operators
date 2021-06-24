@@ -78,15 +78,6 @@ public class MarketConfig {
     @Value("${liveActionsLockMaxWaitTimeMinutes:60}")
     private long liveActionsLockMaxWaitTimeMinutes;
 
-    /**
-     * Controls whether to use the new action pipeline (where logic is broken out into multiple stages)
-     * or the old pipeline which does everything in one massive function
-     * (LiveActionStore#populateRecommendedActions).
-     * TODO: Remove https://vmturbo.atlassian.net/browse/OM-71232
-     */
-    @Value("${useNewActionPipeline:true}")
-    private boolean useNewActionPipeline;
-
     @Bean
     public ActionPlanAssessor actionPlanAssessor() {
         return new ActionPlanAssessor(Clock.systemUTC(),
@@ -103,7 +94,7 @@ public class MarketConfig {
             actionStoreConfig.queryTimeWindowForLastExecutedActionsMins(),
             actionStoreConfig.actionIdentityService(), actionExecutionConfig.actionTargetSelector(),
             actionTranslationConfig.actionTranslator(), actionStatsConfig.actionsStatistician(),
-            auditCommunicationConfig.actionAuditSender(), useNewActionPipeline);
+            auditCommunicationConfig.actionAuditSender());
     }
 
     /**

@@ -23,13 +23,17 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.pipeline.ActionPipeline;
 import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsDebugServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsDebugServiceGrpc.ActionsDebugServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -46,6 +50,12 @@ public class ActionsDebugRpcTest {
     private final ActionPlan actionPlan = ActionPlan.newBuilder()
         .setId(999)
         .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1))
+        .setInfo(ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                .setSourceTopologyInfo(TopologyInfo.newBuilder().setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                    .build())
+                .build())
+            .build())
         .build();
 
     private final LiveActionPipelineFactory liveActionPipelineFactory = Mockito.mock(LiveActionPipelineFactory.class);
@@ -69,7 +79,8 @@ public class ActionsDebugRpcTest {
 
     @Test
     public void testOverwriteActions() throws Exception {
-        when(actionStorehouse.storeActions(eq(actionPlan))).thenReturn(actionStore);
+        when(liveActionPipelineFactory.actionPipeline(eq(actionPlan))).thenReturn(Mockito.mock(ActionPipeline.class));
+        when(actionStorehouse.getStore(eq(TOPOLOGY_CONTEXT_ID))).thenReturn(Optional.of(actionStore));
         final ActionView actionView =
                 new Action(actionPlan.getActionList().get(0), actionPlan.getId(),
                         actionModeCalculator, 1L);
@@ -84,7 +95,7 @@ public class ActionsDebugRpcTest {
 
     @Test
     public void testOverwriteActionsWithException() throws Exception {
-        when(actionStorehouse.storeActions(eq(actionPlan)))
+        when(liveActionPipelineFactory.actionPipeline(eq(actionPlan)))
             .thenThrow(new IllegalArgumentException("Failed!"));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
