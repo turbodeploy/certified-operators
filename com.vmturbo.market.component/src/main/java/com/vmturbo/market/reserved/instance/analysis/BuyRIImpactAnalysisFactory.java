@@ -107,7 +107,8 @@ public interface BuyRIImpactAnalysisFactory {
                     coverageTopology,
                     riCoverageByEntityOid,
                     allocatorConcurrentProcessing,
-                    validateCoverages);
+                    validateCoverages,
+                    cloudTopology);
         }
 
         private Set<CloudCommitmentAggregate> resolveCommitmentAggregates(

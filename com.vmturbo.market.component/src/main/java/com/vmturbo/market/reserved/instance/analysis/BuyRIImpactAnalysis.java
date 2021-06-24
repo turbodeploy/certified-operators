@@ -1,7 +1,10 @@
 package com.vmturbo.market.reserved.instance.analysis;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,8 +19,17 @@ import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
@@ -219,6 +231,8 @@ public class BuyRIImpactAnalysis {
 
     private final boolean validateCoverages;
 
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
+
     /**
      * Construct an instance of {@link BuyRIImpactAnalysis}.
      * @param allocatorFactory A {@link CoverageAllocatorFactory} instance
@@ -229,6 +243,7 @@ public class BuyRIImpactAnalysis {
      *                                      should use concurrent processing
      * @param validateCoverages Whether the {@link ReservedInstanceCoverageAllocator} should validate
      *                          coverage after analysis
+     * @param cloudTopology The target {@link CloudTopology} of the analysis
      */
     public BuyRIImpactAnalysis(
             @Nonnull CoverageAllocatorFactory allocatorFactory,
@@ -236,7 +251,8 @@ public class BuyRIImpactAnalysis {
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityOid,
             boolean allocatorConcurrentProcessing,
-            boolean validateCoverages) {
+            boolean validateCoverages,
+            CloudTopology<TopologyEntityDTO> cloudTopology) {
 
         this.allocatorFactory = Objects.requireNonNull(allocatorFactory);
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
@@ -244,6 +260,7 @@ public class BuyRIImpactAnalysis {
         this.riCoverageByEntityOid = ImmutableMap.copyOf(Objects.requireNonNull(riCoverageByEntityOid));
         this.allocatorConcurrentProcessing = allocatorConcurrentProcessing;
         this.validateCoverages = validateCoverages;
+        this.cloudTopology = cloudTopology;
     }
 
     /**
@@ -356,5 +373,72 @@ public class BuyRIImpactAnalysis {
                 .collect(ImmutableMap.toImmutableMap(
                         EntityReservedInstanceCoverage::getEntityId,
                         Function.identity()));
+    }
+
+    /**
+     * For each of the VM that got covered by a Buy RI during the buyRIImpact analysis
+     * we generate and allocate action.
+     * @param ids A List of vm id that got covered by the newly bought ri's.
+     * @return A list of allocate actions. one for each VM.
+     */
+    public List<Action.Builder> generateBuyRIAllocateActions(Set<Long> ids) {
+        List<Action.Builder> allocateActions = new ArrayList<>();
+        for (Long id : ids) {
+            Optional<Action.Builder> action = createAllocateAction(id);
+            if (action.isPresent()) {
+                allocateActions.add(action.get());
+            }
+        }
+        return allocateActions;
+    }
+
+    /**
+     * create an allocate action for the VM with the given id.
+     *
+     * @param id the vm oid for which we are creating an allocate action.
+     * @return the allocate action for the vm of interest.
+     */
+    private Optional<Action.Builder> createAllocateAction(long id) {
+        final Optional<TopologyEntityDTO> targetEntityO =  cloudTopology.getEntity(id);
+        final Optional<TopologyEntityDTO> projectedEntityO = cloudTopology.getComputeTier(id);
+
+        if (!targetEntityO.isPresent() || !projectedEntityO.isPresent()) {
+            return Optional.empty();
+        }
+
+        TopologyEntityDTO projectedEntity = projectedEntityO.get();
+        Explanation.Builder expBuilder = Explanation.newBuilder();
+        AllocateExplanation explanation = AllocateExplanation.newBuilder()
+                .setInstanceSizeFamily(projectedEntity.getTypeSpecificInfo()
+                        .getComputeTier().getFamily())
+                .build();
+        expBuilder.setAllocate(explanation);
+        final Action.Builder action;
+        final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
+        action = Action.newBuilder()
+                // Assign a unique ID to each generated action.
+                .setId(IdentityGenerator.next())
+                .setDeprecatedImportance(0d)
+                .setExplanation(expBuilder)
+                .setExecutable(false);
+        action.setInfo(infoBuilder);
+
+        TopologyEntityDTO targetEntity = targetEntityO.get();
+        ActionEntity targetActionEntity = ActionEntity.newBuilder()
+                .setId(targetEntity.getOid())
+                .setType(targetEntity.getEntityType())
+                .setEnvironmentType(targetEntity.getEnvironmentType())
+                .build();
+        ActionEntity projectedActionEntity = ActionEntity.newBuilder()
+                .setId(projectedEntity.getOid())
+                .setType(projectedEntity.getEntityType())
+                .setEnvironmentType(projectedEntity.getEnvironmentType())
+                .build();
+
+        ActionDTO.Allocate.Builder allocateAction = ActionDTO.Allocate.newBuilder()
+                .setTarget(targetActionEntity)
+                .setWorkloadTier(projectedActionEntity);
+        action.getInfoBuilder().setAllocate(allocateAction);
+        return Optional.of(action);
     }
 }

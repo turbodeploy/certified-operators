@@ -7,26 +7,38 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory.DefaultBuyRIImpactAnalysisFactory;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
@@ -68,7 +80,7 @@ public class BuyRIImpactAnalysisTest {
      */
     @Test
     public void testCreateCoverageRecordsFromSupplementalAllocation() {
-
+        IdentityGenerator.initPrefix(0);
         // setup RI coverage input
         final Map<Long, EntityReservedInstanceCoverage> entityRICoverageInput = ImmutableMap.of(
                 1L, EntityReservedInstanceCoverage.newBuilder()
@@ -177,6 +189,28 @@ public class BuyRIImpactAnalysisTest {
          */
         assertThat(entityRICoverageOutput.size(), equalTo(2));
         assertThat(entityRICoverageOutput, equalTo(expectedEntityRICoverage));
+
+
+        final Set<Long> vmIds = Collections.singleton(1L);
+
+        TopologyEntityDTO targetEntity = TopologyEntityDTO.newBuilder().setOid(1L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        TopologyEntityDTO projectedEntity = TopologyEntityDTO.newBuilder().setOid(20L)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                        ComputeTierInfo.newBuilder().setFamily("Family1"))).build();
+        when(cloudTopology.getEntity(1L)).thenReturn(Optional.of(targetEntity));
+        when(cloudTopology.getComputeTier(1L)).thenReturn(Optional.of(projectedEntity));
+        List<Action.Builder> allocateActions = coverageAnalysis.generateBuyRIAllocateActions(vmIds);
+        assertThat(allocateActions.size(), equalTo(1));
+        Assert.assertEquals(1L, allocateActions.get(0).getInfoBuilder().getAllocate().getTarget().getId());
+        Assert.assertEquals(20L, allocateActions.get(0).getInfoBuilder().getAllocate().getWorkloadTier().getId());
+        Assert.assertEquals("Family1", allocateActions.get(0).getExplanation().getAllocate().getInstanceSizeFamily());
+
+
 
     }
 }
