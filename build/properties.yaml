@@ -77,6 +77,8 @@ defaultProperties:
         # ConditionalSubmitter prevents executing the actions with the same condition at the same time.
         # true, if to use ConditionalSubmitter, else use ThreadPoolExecutor
         actionExecution.isConditionalSubmitter: false
+        # Delay between the conditional actions
+        actionExecution.isConditionalSubmitter.delaySecs: 30
     api:
         identityGeneratorPrefix: 5
         multipartConfigMaxFileSizeKb: 50
