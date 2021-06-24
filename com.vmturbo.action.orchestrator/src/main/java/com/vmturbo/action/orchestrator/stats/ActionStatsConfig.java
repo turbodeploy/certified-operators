@@ -156,7 +156,7 @@ public class ActionStatsConfig {
      * <p/>This is true by default (rollup export is controlled by the reporting feature flags),
      * but can be set to false in case of emergency to disable the feature.
      */
-    @Value("${enableRollupExport:true}")
+    @Value("${enableRollupExport:false}")
     private boolean enableRollupExport;
 
     @Bean
