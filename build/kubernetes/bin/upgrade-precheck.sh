@@ -60,7 +60,7 @@ if [ "${MSTATUS}" = "active" ]; then
     echo "MariaDB service is running"
     echo "${GREEN}Checking MariaDB version${WHITE}"
     systemctl list-units --all -t service --full --no-legend "mariadb.service"
-    echo "If the version of MariaDB is below version 10.5.6 you will also need to upgrade it post Turbonomic upgrade following the steps in the install guide"
+    echo "If the version of MariaDB is below version 10.5.9 you will also need to upgrade it post Turbonomic upgrade following the steps in the install guide"
 elif [ "${MSTATUS}" = "unknown" ]; then
     echo "MariaDB service is not installed, precheck skipped"
 else 
