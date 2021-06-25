@@ -49,7 +49,7 @@ public class PercentileSettingSpecs {
             .put(EntityType.DATABASE_SERVER, new EntityTypePercentileSettings(
                 EntitySettingSpecs.MaxObservationPeriodDatabaseServer,
                 EntitySettingSpecs.PercentileAggressivenessDatabaseServer,
-                null
+                EntitySettingSpecs.MinObservationPeriodDatabaseServer
             ))
             .build();
 

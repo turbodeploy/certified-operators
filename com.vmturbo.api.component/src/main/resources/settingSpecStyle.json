@@ -224,6 +224,27 @@
           ]
         }
       },
+      "minObservationPeriodDatabaseServer": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "More Elastic",
+            "",
+            "",
+            "Less Elastic",
+            "None",
+            "1 day",
+            "3 days",
+            "7 days"
+          ],
+          "customStepValues": [
+            0,
+            1,
+            3,
+            7
+          ]
+        }
+      },
       "maxObservationPeriodBusinessUser": {
         "range": {
           "step": 1,
