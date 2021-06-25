@@ -2190,6 +2190,20 @@ message ResendAuditedActionsResponse {
     optional int32 audited_actions_count = 1;
 }
 
+message GetInstanceIdsForRecommendationIdsRequest {
+    // The topology context the action belongs to.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+    // The stable (recommendation) id for the action
+    repeated int64 recommendation_id = 2;
+}
+
+message GetInstanceIdsForRecommendationIdsResponse {
+    // The map from stable (recommendation) id to action id
+    map<int64, int64> recommendation_id_to_instance_id = 2;
+}
+
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts an action, queueing it for execution.
@@ -2264,4 +2278,7 @@ service ActionsService {
     // This call don't affect the data in audit bookkeeping cache and it works only for
     // orchestration targets using internal bookkeeping mechanism (02/10/2021 only ActionStreamKafka)
     rpc ResendAuditEvents (ResendAuditedActionsRequest) returns (ResendAuditedActionsResponse);
+
+    // The the instance ID provided stable ID of the actions
+    rpc GetInstanceIdsForRecommendationIds (GetInstanceIdsForRecommendationIdsRequest) returns (GetInstanceIdsForRecommendationIdsResponse);
 }

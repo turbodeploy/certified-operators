@@ -517,13 +517,11 @@ public class ActionSpecMapper {
             throws UnsupportedActionException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
-        if (useStableActionIdAsUuid && topologyContextId == realtimeTopologyContextId) {
-            actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendationId()));
-            actionApiDTO.setActionID(actionSpec.getRecommendationId());
-        } else {
-            actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendation().getId()));
-            actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
-        }
+        final long actionId = getActionId(actionSpec.getRecommendation().getId(), actionSpec.getRecommendationId(),
+                topologyContextId);
+        actionApiDTO.setUuid(Long.toString(actionId));
+        actionApiDTO.setActionID(actionId);
+
         // Populate the action OID
         actionApiDTO.setActionImpactID(actionSpec.getRecommendationId());
         // set ID of topology/market for which the action is generated
@@ -669,6 +667,26 @@ public class ActionSpecMapper {
         }
 
         return actionApiDTO;
+    }
+
+    /**
+     * Gets the ID that we show at the API level based an feature flag.
+     *
+     * <p>The recommendation (stable) id will be only used for real-time market and plan market always uses
+     * the action instance id.</p>
+     *
+     * @param instanceId The instance id for the action.
+     * @param recommendationId The recommendation (stable) id for the action.
+     * @param topologyContextId the topology context the action in.
+     *
+     * @return the id we use in API.
+     */
+    private long getActionId(long instanceId, long recommendationId, long topologyContextId) {
+        if (useStableActionIdAsUuid && topologyContextId == realtimeTopologyContextId) {
+            return recommendationId;
+        } else {
+            return instanceId;
+        }
     }
 
     /**
@@ -1984,7 +2002,8 @@ public class ActionSpecMapper {
             final ActionDTO.ActionOrchestratorAction action, Long topologyContextId) {
 
         Map<String, ActionDetailsApiDTO> dtoMap = createActionDetailsApiDTO(Collections.singleton(action), topologyContextId);
-        return dtoMap.get(Long.toString(action.getActionId()));
+        return dtoMap.get(Long.toString(getActionId(action.getActionId(),
+                action.getActionSpec().getRecommendationId(), topologyContextId)));
     }
 
 
@@ -2007,8 +2026,10 @@ public class ActionSpecMapper {
 
         for (ActionOrchestratorAction action: actions) {
             @Nonnull final ActionSpec actionSpec = action.getActionSpec();
+            final String actionIdString = Long.toString(getActionId(action.getActionId(),
+                    action.getActionSpec().getRecommendationId(), topologyContextId));
             if (!actionSpec.hasRecommendation()) {
-                response.put(Long.toString(action.getActionId()), new NoDetailsApiDTO());
+                response.put(actionIdString, new NoDetailsApiDTO());
                 continue;
             }
             // Get the recommended action
@@ -2021,7 +2042,7 @@ public class ActionSpecMapper {
                 logger.warn("Cannot create action details due to unsupported action type", e);
                 continue;
             }
-            final String actionIdString = Long.toString(action.getActionId());
+
             final long entityUuid = entity.getId();
             final int entityType = entity.getType();
             @Nonnull final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);

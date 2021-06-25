@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
@@ -56,23 +57,21 @@ import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -87,6 +86,11 @@ public class ActionsRpcServiceTest {
     private static final long CONTEXT_ID = 777777L;
     private static final long ACTION_LEGACY_INSTANCE_ID = 8822L;
     private static final long ACTION_STABLE_IMPACT_ID = 2244L;
+    private static final long ACTION_ID_1 = 100L;
+    private static final long RECOMMENDATION_ID_1 = 200L;
+    private static final long RECOMMENDATION_ID_2 = 201L;
+    private static final long ACTION_ID_3 = 102L;
+    private static final long RECOMMENDATION_ID_3 = 202L;
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final ActionDTO.SingleActionRequest request = ActionDTO.SingleActionRequest.newBuilder()
         .setActionId(ACTION_LEGACY_INSTANCE_ID)
@@ -143,7 +147,6 @@ public class ActionsRpcServiceTest {
                 auditedActionsManager,
                 actionAuditSender,
                 10,
-                false,
                 777777L);
         actionsByImpactOidRpcService = new ActionsRpcService(
             null,
@@ -159,7 +162,6 @@ public class ActionsRpcServiceTest {
                 auditedActionsManager,
                 actionAuditSender,
                 10,
-                true,
                 777777L);
         when(actionStorehouse.getStore(CONTEXT_ID)).thenReturn(Optional.of(actionStore));
     }
@@ -227,7 +229,7 @@ public class ActionsRpcServiceTest {
      */
     @Test
     public void testAcceptAction() throws ExecutionInitiationException {
-        // ARANGE
+        // ARRANGE
         Action action = executableActivateAction(ACTION_LEGACY_INSTANCE_ID, ACTION_STABLE_IMPACT_ID, 13L);
         when(actionStore.getAction(ACTION_LEGACY_INSTANCE_ID)).thenReturn(Optional.of(action));
 
@@ -270,100 +272,6 @@ public class ActionsRpcServiceTest {
         verify(observer).onError(argumentCaptor.capture());
         assertThat(argumentCaptor.getValue().getMessage(), containsString("does not have a next "
             + "occurrence."));
-    }
-
-    /**
-     * Accepting action by recommendation ID should only be done when it is enabled.
-     *
-     * @throws Exception should not be thrown.
-     */
-    @Test
-    public void testAcceptActionByRecommendationIdOnlyWhenEnabled() throws Exception {
-        final long matchingId = ACTION_STABLE_IMPACT_ID;
-        final long notMatchingId = ACTION_LEGACY_INSTANCE_ID;
-
-        final Action actionByStableId = executableActivateAction(
-            notMatchingId, matchingId, 13L);
-        Mockito.when(actionStore.getAction(notMatchingId))
-            .thenReturn(Optional.of(actionByStableId));
-        Mockito.when(actionStore.getActionByRecommendationId(matchingId))
-            .thenReturn(Optional.of(actionByStableId));
-
-        final Action actionByLegacyId = executableActivateAction(
-            matchingId, notMatchingId, 13L);
-        Mockito.when(actionStore.getAction(matchingId))
-            .thenReturn(Optional.of(actionByLegacyId));
-        Mockito.when(actionStore.getActionByRecommendationId(notMatchingId))
-            .thenReturn(Optional.of(actionByLegacyId));
-
-        ArgumentCaptor<Action> actionArgumentCaptor = ArgumentCaptor.forClass(Action.class);
-        Mockito.when(actionApprovalManager.attemptAndExecute(eq(actionStore), any(), actionArgumentCaptor.capture()))
-            .thenReturn(AcceptActionResponse.newBuilder()
-                .buildPartial());
-
-        final StreamObserver<ActionDTO.AcceptActionResponse> observer = mock(StreamObserver.class);
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(matchingId)
-            .setTopologyContextId(CONTEXT_ID)
-            .build();
-
-        actionsByImpactOidRpcService.acceptAction(acceptActionRequest, observer);
-        // actionByStableId should be sent to approval manager for execution
-        assertEquals(actionByStableId, actionArgumentCaptor.getValue());
-
-        actionsRpcService.acceptAction(acceptActionRequest, observer);
-        // actionByStableId should be sent to approval manager for execution
-        assertEquals(actionByLegacyId, actionArgumentCaptor.getValue());
-    }
-
-    /**
-     * Getting an action by recommendation ID should only be done when it is enabled and on a live
-     * topology.
-     *
-     * @throws Exception should not be thrown.
-     */
-    @Test
-    public void testGetActionByRecommendationIdOnlyWhenEnabledAndLiveTopology() throws Exception {
-        final long matchingId = ACTION_STABLE_IMPACT_ID;
-        final long notMatchingId = ACTION_LEGACY_INSTANCE_ID;
-
-        final Action actionByStableId = executableActivateAction(
-            notMatchingId, matchingId, 13L);
-        Mockito.when(actionStore.getActionView(notMatchingId))
-            .thenReturn(Optional.of(actionByStableId));
-        Mockito.when(actionStore.getActionViewByRecommendationId(matchingId))
-            .thenReturn(Optional.of(actionByStableId));
-
-        final Action actionByLegacyId = executableActivateAction(
-            matchingId, notMatchingId, 13L);
-        Mockito.when(actionStore.getActionView(matchingId))
-            .thenReturn(Optional.of(actionByLegacyId));
-        Mockito.when(actionStore.getActionViewByRecommendationId(notMatchingId))
-            .thenReturn(Optional.of(actionByLegacyId));
-
-        ArgumentCaptor<Action> actionArgumentCaptor = ArgumentCaptor.forClass(Action.class);
-        Mockito.when(actionTranslator.translateToSpec(actionArgumentCaptor.capture()))
-            .thenReturn(ActionSpec.newBuilder().buildPartial());
-
-        final StreamObserver<ActionDTO.ActionOrchestratorAction> observer = mock(StreamObserver.class);
-        final SingleActionRequest getActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(matchingId)
-            .setTopologyContextId(CONTEXT_ID)
-            .build();
-
-        actionsByImpactOidRpcService.getAction(getActionRequest, observer);
-        // actionByLegacyId should be returned because it's a plan topology
-        assertEquals(actionByLegacyId, actionArgumentCaptor.getValue());
-
-        Mockito.when(actionStore.getStoreTypeName())
-            .thenReturn(LiveActionStore.STORE_TYPE_NAME);
-        actionsByImpactOidRpcService.getAction(getActionRequest, observer);
-        // actionByLegacyId should be returned because it's the live topology and stable id is enabled
-        assertEquals(actionByStableId, actionArgumentCaptor.getValue());
-
-        actionsRpcService.getAction(getActionRequest, observer);
-        // actionByStableId should be sent to approval manager for execution
-        assertEquals(actionByLegacyId, actionArgumentCaptor.getValue());
     }
 
     /**
@@ -436,6 +344,102 @@ public class ActionsRpcServiceTest {
         Mockito.verify(observer).onError(exceptionCaptor.capture());
         Assert.assertThat(exceptionCaptor.getValue().getMessage(),
                 CoreMatchers.containsString("Missing required parameter 'workflowId"));
+        Mockito.verify(observer, Mockito.never()).onNext(Mockito.any());
+        Mockito.verify(observer, Mockito.never()).onCompleted();
+    }
+
+    /**
+     * Test getting the instance id of actions based on the recommendation id.
+     */
+    @Test
+    public void testGetInstanceIdsForRecommendationIds() {
+        // ARRANGE
+        final Action action1 = mock(Action.class);
+        when(action1.getRecommendationOid()).thenReturn(RECOMMENDATION_ID_1);
+        when(action1.getId()).thenReturn(ACTION_ID_1);
+        when(actionStore.getActionByRecommendationId(RECOMMENDATION_ID_1))
+                .thenReturn(Optional.of(action1));
+        when(actionStore.getActionByRecommendationId(RECOMMENDATION_ID_2))
+                .thenReturn(Optional.empty());
+        final Action action3 = mock(Action.class);
+        when(action3.getRecommendationOid()).thenReturn(RECOMMENDATION_ID_3);
+        when(action3.getId()).thenReturn(ACTION_ID_3);
+        when(actionStore.getActionByRecommendationId(RECOMMENDATION_ID_3))
+                .thenReturn(Optional.of(action3));
+
+
+        final StreamObserver<GetInstanceIdsForRecommendationIdsResponse> observer =
+                Mockito.mock(StreamObserver.class);
+        ArgumentCaptor<GetInstanceIdsForRecommendationIdsResponse> argumentCaptor =
+                ArgumentCaptor.forClass(GetInstanceIdsForRecommendationIdsResponse.class);
+
+
+        // ACT
+        actionsRpcService.getInstanceIdsForRecommendationIds(GetInstanceIdsForRecommendationIdsRequest
+                .newBuilder()
+                .setTopologyContextId(CONTEXT_ID)
+                .addRecommendationId(RECOMMENDATION_ID_1)
+                .addRecommendationId(RECOMMENDATION_ID_2)
+                .addRecommendationId(RECOMMENDATION_ID_3)
+                .build(), observer);
+
+        // ASSERT
+        verify(observer).onNext(argumentCaptor.capture());
+        verify(observer, Mockito.never()).onError(Mockito.any());
+        verify(observer).onCompleted();
+
+        Map<Long, Long> resultMap = argumentCaptor.getValue().getRecommendationIdToInstanceIdMap();
+        assertThat(resultMap.size(), equalTo(2));
+        assertThat(resultMap.get(RECOMMENDATION_ID_1), equalTo(ACTION_ID_1));
+        assertThat(resultMap.get(RECOMMENDATION_ID_3), equalTo(ACTION_ID_3));
+    }
+
+    /**
+     * Test getting the instance id of actions when topology context is not set.
+     */
+    @Test
+    public void testGetInstanceIdsForRecommendationIdsTopologyNotSet() {
+        // ARRANGE
+        final StreamObserver<GetInstanceIdsForRecommendationIdsResponse> observer =
+                Mockito.mock(StreamObserver.class);
+        final ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
+
+        // ACT
+        actionsRpcService.getInstanceIdsForRecommendationIds(GetInstanceIdsForRecommendationIdsRequest
+                .newBuilder()
+                .addRecommendationId(RECOMMENDATION_ID_1)
+                .build(), observer);
+
+        //ASSERT
+        Mockito.verify(observer).onError(exceptionCaptor.capture());
+        Assert.assertThat(exceptionCaptor.getValue().getMessage(),
+                CoreMatchers.containsString("Missing required parameter topologyContextId."));
+        Mockito.verify(observer, Mockito.never()).onNext(Mockito.any());
+        Mockito.verify(observer, Mockito.never()).onCompleted();
+    }
+
+    /**
+     * Tests getting the instance id of actions when store for the context does not exist
+     */
+    @Test
+    public void testGetInstanceIdsForRecommendationIdsStoreDoesNotExist() {
+        // ARRANGE
+        final StreamObserver<GetInstanceIdsForRecommendationIdsResponse> observer =
+                Mockito.mock(StreamObserver.class);
+        final ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
+        when(actionStorehouse.getStore(11L)).thenReturn(Optional.empty());
+
+        // ACT
+        actionsRpcService.getInstanceIdsForRecommendationIds(GetInstanceIdsForRecommendationIdsRequest
+                .newBuilder()
+                .setTopologyContextId(11L)
+                .addRecommendationId(RECOMMENDATION_ID_1)
+                .build(), observer);
+
+        //ASSERT
+        Mockito.verify(observer).onError(exceptionCaptor.capture());
+        Assert.assertThat(exceptionCaptor.getValue().getMessage(),
+                CoreMatchers.containsString("Action store for context 11 not found"));
         Mockito.verify(observer, Mockito.never()).onNext(Mockito.any());
         Mockito.verify(observer, Mockito.never()).onCompleted();
     }

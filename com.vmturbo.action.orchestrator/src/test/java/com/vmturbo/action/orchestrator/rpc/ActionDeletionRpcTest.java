@@ -88,7 +88,6 @@ public class ActionDeletionRpcTest {
             auditedActionsManager,
             actionAuditSender,
             500,
-            false,
             777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();

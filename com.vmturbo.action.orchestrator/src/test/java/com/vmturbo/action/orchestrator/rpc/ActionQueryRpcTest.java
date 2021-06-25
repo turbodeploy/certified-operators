@@ -174,7 +174,6 @@ public class ActionQueryRpcTest {
                     auditedActionsManager,
                     actionAuditSender,
                     500,
-                    false,
                     777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
@@ -193,7 +192,6 @@ public class ActionQueryRpcTest {
                 auditedActionsManager,
                 actionAuditSender,
                 500,
-                false,
                 777777L);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

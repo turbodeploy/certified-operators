@@ -200,7 +200,6 @@ public class ActionExecutionRpcTest {
             auditedActionsManager,
             actionAuditSender,
             500,
-            false,
             777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
                 supplyChainServiceMole, repositoryServiceMole);
@@ -585,7 +584,6 @@ public class ActionExecutionRpcTest {
                     auditedActionsManager,
                     actionAuditSender,
                     500,
-                    false,
                     777777L);
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);

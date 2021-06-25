@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -65,6 +66,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -104,6 +106,12 @@ public class ActionsService implements IActionsService {
     // Pagination request to be used for lists of actions that are returned as an inner list of a scope.
     private ActionPaginationRequest nestedDefaultPaginationRequest;
 
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    private final boolean useStableActionIdAsUuid;
+
     public ActionsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final RepositoryApi repositoryApi,
@@ -114,7 +122,7 @@ public class ActionsService implements IActionsService {
                           @Nonnull final ActionSearchUtil actionSearchUtil,
                           @Nonnull final MarketsService marketsService,
                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                          final int apiPaginationMaxLimit) {
+                          final int apiPaginationMaxLimit, boolean useStableActionIdAsUuid) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -125,6 +133,7 @@ public class ActionsService implements IActionsService {
         this.actionSearchUtil = actionSearchUtil;
         this.marketsService = marketsService;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
 
         try {
             // Default to 500 actions per entity scope which is the default max limit for pagination request.
@@ -159,12 +168,18 @@ public class ActionsService implements IActionsService {
     public ActionApiDTO getActionByUuid(@NonNull final String uuid, @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
         log.debug("Fetching actions for: {}", uuid);
-        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
+
+        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+            logger.error("Cannot lookup action as one with ID {} cannot be found.", uuid);
+            return new UnknownObjectException("Cannot find action with ID " + uuid);
+        });
+
+        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(id));
         if (!action.hasActionSpec()) {
-            throw new UnknownObjectException("Action with given action uuid: " + uuid + " not found");
+            throw new UnknownObjectException("Action with given action uuid: " + id + " not found");
         }
 
-        log.debug("Mapping actions for: {}", uuid);
+        log.debug("Mapping actions for: {}", id);
         final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
                 realtimeTopologyContextId, detailLevel);
         log.trace("Result: {}", answer::toString);
@@ -178,13 +193,16 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
+        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+           logger.error("Cannot execute action as one with ID {} cannot be found.", uuid);
+           return new UnknownObjectException("Cannot find action with ID " + uuid);
+        });
 
-        //TODO The forMaintenanceWindow flag will be used once RightTimeSizing has been implemented for XL
         if (accept) {
             // accept the action
             try {
-                log.info("Accepting action with id: {}", uuid);
-                actionOrchestratorRpc.acceptAction(actionRequest(uuid));
+                log.info("Accepting action with id: {}", id);
+                actionOrchestratorRpc.acceptAction(actionRequest(id));
                 return true;
             } catch (StatusRuntimeException e) {
                 log.error("Execute action error: {}", e.getMessage(), e);
@@ -192,9 +210,39 @@ public class ActionsService implements IActionsService {
             }
         } else {
             // reject the action
-            log.info("Rejecting action with id: {}", uuid);
+            log.info("Rejecting action with id: {}", id);
             throw new NotImplementedException("!!!!!! Reject Action not implemented");
         }
+    }
+
+    @Nonnull
+    private Optional<Long> getActionInstanceId(@Nonnull String uuid) {
+        if (useStableActionIdAsUuid) {
+            // look up the instance id based on the recommendation id
+            final Map<Long, Long> recommendationIdToId = getInstanceIdForRecommendationIds(Collections.singleton(uuid));
+            if (recommendationIdToId.isEmpty()) {
+                return Optional.empty();
+            } else {
+                return Optional.of(recommendationIdToId.values().iterator().next());
+            }
+        } else {
+            return Optional.of(Long.parseLong(uuid));
+        }
+    }
+
+    @Nonnull
+    private Map<Long, Long> getInstanceIdForRecommendationIds(@Nonnull Collection<String> actionIds) {
+        if (actionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return actionOrchestratorRpc.getInstanceIdsForRecommendationIds(
+                GetInstanceIdsForRecommendationIdsRequest
+                        .newBuilder()
+                        .setTopologyContextId(realtimeTopologyContextId)
+                        .addAllRecommendationId(actionIds.stream().map(Long::parseLong).collect(Collectors.toList()))
+                        .build())
+                .getRecommendationIdToInstanceIdMap();
     }
 
     private static Exception convertToApiException(StatusRuntimeException e) {
@@ -212,10 +260,10 @@ public class ActionsService implements IActionsService {
         }
     }
 
-    private SingleActionRequest actionRequest(String actionId) {
+    private SingleActionRequest actionRequest(long actionId) {
         return SingleActionRequest.newBuilder()
             .setTopologyContextId(realtimeTopologyContextId)
-            .setActionId(Long.valueOf(actionId))
+            .setActionId(actionId)
             .build();
     }
 
@@ -473,8 +521,13 @@ public class ActionsService implements IActionsService {
      * @return Action details DTO.
      */
     @Override
-    public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) {
-        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
+    public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws UnknownObjectException {
+        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+            logger.error("Cannot execute action as one with ID {} cannot be found.", uuid);
+            return new UnknownObjectException("Cannot find action with ID " + uuid);
+        });
+
+        ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(id));
         return getActionDetails(action, realtimeTopologyContextId);
     }
 
@@ -523,16 +576,29 @@ public class ActionsService implements IActionsService {
     @Override
     public Map<String, ActionDetailsApiDTO> getActionDetailsByUuids(ScopeUuidsApiInputDTO inputDto)
             throws OperationFailedException, IllegalArgumentException {
-        if (inputDto.getUuids().isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<Long> actionIds = inputDto.getUuids().stream()
-                .map(Long::valueOf)
-                .collect(Collectors.toList());
         // Use marketId field if it is set, otherwise use old deprecated topologyContextId
         final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId())
                 ? inputDto.getTopologyContextId()
                 : Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
+
+        final List<Long> actionIds;
+        if (useStableActionIdAsUuid
+              && (inputDtoTopologyContextId == null
+              || Long.parseLong(inputDtoTopologyContextId) == realtimeTopologyContextId)) {
+            actionIds = getInstanceIdForRecommendationIds(inputDto.getUuids())
+                    .values()
+                    .stream()
+                    .collect(Collectors.toList());
+        } else {
+            actionIds = inputDto.getUuids().stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toList());
+        }
+
+        if (actionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
                 multiActionRequest(actionIds, inputDtoTopologyContextId));
         Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
