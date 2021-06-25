@@ -52,6 +52,7 @@ public class PlanProjectExecutor {
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      * @param taskScheduler a taskScheduler used for scheduled plan executions
      * @param reservationManager the reservation manager.
+     * @param considerReservedVMsInClusterHeadroomPlan consider reserved VMs in cluster headroom plan or not
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final PlanProjectDao planProjectDao,
@@ -67,12 +68,14 @@ public class PlanProjectExecutor {
                         @Nonnull final TopologyProcessor topologyProcessor,
                         @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
                         @Nonnull final ThreadPoolTaskScheduler taskScheduler,
-                        @Nonnull final ReservationManager reservationManager) {
+                        @Nonnull final ReservationManager reservationManager,
+                        final boolean considerReservedVMsInClusterHeadroomPlan) {
 
         headroomExecutor = new ClusterHeadroomPlanProjectExecutor(planDao, groupChannel,
                 planRpcService, projectPlanPostProcessorRegistry, repositoryChannel, templatesDao, historyChannel,
                 headroomCalculationForAllClusters, headroomPlanRerunDelayInSecond,
-                topologyProcessor, cpuCapacityEstimator, taskScheduler, reservationManager);
+                topologyProcessor, cpuCapacityEstimator, taskScheduler, reservationManager,
+                considerReservedVMsInClusterHeadroomPlan);
 
         cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, projectPlanPostProcessorRegistry, projectNotifier);

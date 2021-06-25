@@ -46,6 +46,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
@@ -151,6 +154,11 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private final ReservationManager reservationManager;
 
+    private final boolean considerReservedVMsInClusterHeadroomPlan;
+
+    // providerOid -> commodityType -> usage map.
+    private Map<Long, Map<Integer, Double>> providerOidToCommodityUsageOfReservationVMs = Collections.emptyMap();
+
     /**
      * A constant holding a big number of days when exhaustion days is infinite.
      */
@@ -193,16 +201,18 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param templatesDao Access to templates.
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      * @param reservationManager the reservation manager.
+     * @param considerReservedVMsInClusterHeadroomPlan consider reserved VMs in cluster headroom plan or not
      */
-    public ClusterHeadroomPlanPostProcessor(final long planId,
-                                            @Nonnull final Set<Long> clusterIds,
-                                            @Nonnull final Channel repositoryChannel,
-                                            @Nonnull final Channel historyChannel,
-                                            @Nonnull final PlanDao planDao,
-                                            @Nonnull final Channel groupChannel,
-                                            @Nonnull final TemplatesDao templatesDao,
-                                            @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
-                                            @Nonnull final ReservationManager reservationManager) {
+    ClusterHeadroomPlanPostProcessor(final long planId,
+                                     @Nonnull final Set<Long> clusterIds,
+                                     @Nonnull final Channel repositoryChannel,
+                                     @Nonnull final Channel historyChannel,
+                                     @Nonnull final PlanDao planDao,
+                                     @Nonnull final Channel groupChannel,
+                                     @Nonnull final TemplatesDao templatesDao,
+                                     @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
+                                     @Nonnull final ReservationManager reservationManager,
+                                     final boolean considerReservedVMsInClusterHeadroomPlan) {
         this.planId = planId;
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
@@ -221,6 +231,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             .build())
             .forEachRemaining(this.clusters::add);
         this.reservationManager = reservationManager;
+        this.considerReservedVMsInClusterHeadroomPlan = considerReservedVMsInClusterHeadroomPlan;
     }
 
     @Override
@@ -249,9 +260,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 logger.info("Cluster headroom plan for cluster {} was stopped!", displayName);
             } else {
                 logger.info("Cluster headroom plan for cluster {} completed!", displayName);
-                // Once the cluster headroom is successful we have to fetch the providers
-                // of reservations which was updated by the market.
-                reservationManager.getProvidersOfExistingReservations();
             }
 
             try {
@@ -294,6 +302,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // Get vmDailyGrowth of each cluster.
         final Map<Long, Float> clusterIdToVMDailyGrowth =
             getVMDailyGrowth(entityOidsByClusterAndType.keySet());
+
+        // Update reservations.
+        reservationManager.getProvidersOfExistingReservations();
+
+        if (considerReservedVMsInClusterHeadroomPlan) {
+            calculateReservedVMsUsage();
+        }
 
         final List<ClusterHeadroomInfo> clusterHeadroomInfos = new ArrayList<>(clusters.size());
 
@@ -497,6 +512,33 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
+     * Calculate usage of reserved VMs that needs to be added to provider.
+     */
+    @VisibleForTesting
+    void calculateReservedVMsUsage() {
+        providerOidToCommodityUsageOfReservationVMs = new HashMap<>();
+        reservationManager.getReservationDao().getAllReservations().stream()
+            .filter(Reservation::hasStatus)
+            .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED)
+            .filter(Reservation::hasReservationTemplateCollection)
+            .map(Reservation::getReservationTemplateCollection)
+            .flatMap(reservationCollection -> reservationCollection.getReservationTemplateList().stream())
+            .flatMap(reservationTemplate -> reservationTemplate.getReservationInstanceList().stream())
+            .flatMap(reservationInstance -> reservationInstance.getPlacementInfoList().stream())
+            .filter(PlacementInfo::hasProviderId)
+            .forEach(placementInfo ->
+                placementInfo.getCommodityBoughtList().stream()
+                    .filter(commBought -> HEADROOM_COMMODITIES.contains(commBought.getCommodityType().getType()))
+                    .forEach(commBought -> {
+                        final Map<Integer, Double> commodityUsage = providerOidToCommodityUsageOfReservationVMs
+                            .computeIfAbsent(placementInfo.getProviderId(), key -> new HashMap<>());
+                        commodityUsage.put(commBought.getCommodityType().getType(),
+                            commodityUsage.getOrDefault(commBought.getCommodityType().getType(), 0d) + commBought.getUsed());
+                    })
+            );
+    }
+
+    /**
      * Calculate headroom for each cluster.
      *
      * @param cluster calculate headroom for this cluster
@@ -677,6 +719,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 double capacity = comm.getScalingFactor()
                     * ((comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity());
                 double used = comm.getScalingFactor() * comm.getUsed();
+                if (considerReservedVMsInClusterHeadroomPlan) {
+                    used += providerOidToCommodityUsageOfReservationVMs
+                        .getOrDefault(entity.getOid(), Collections.emptyMap()).getOrDefault(commType, 0d);
+                }
                 double availableAmount =  capacity - used;
 
                 if (logger.isTraceEnabled()) {
@@ -859,6 +905,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     void setOnFailureHandler(final Runnable onFailureHandler) {
         this.onFailureHandler = onFailureHandler;
+    }
+
+    /**
+     * Get providerOid -> commodityType -> usage map.
+     *
+     * @return providerOid -> commodityType -> usage map.
+     */
+    Map<Long, Map<Integer, Double>> getProviderOidToCommodityUsageOfReservationVMs() {
+        return providerOidToCommodityUsageOfReservationVMs;
     }
 
     /**

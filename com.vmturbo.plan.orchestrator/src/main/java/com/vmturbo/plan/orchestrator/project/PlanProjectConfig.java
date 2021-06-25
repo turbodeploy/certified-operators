@@ -82,6 +82,9 @@ public class PlanProjectConfig {
     @Value("${headroomPlanRerunDelayInSecond:3600}")
     private long headroomPlanRerunDelayInSecond;
 
+    @Value("${considerReservedVMsInClusterHeadroomPlan:false}")
+    private boolean considerReservedVMsInClusterHeadroomPlan;
+
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
 
@@ -162,7 +165,8 @@ public class PlanProjectConfig {
                 globalConfig.tpNotificationClient(),
                 cpuCapacityConfig.cpuCapacityEstimator(),
                 taskScheduler(),
-                reservationConfig.reservationManager());
+                reservationConfig.reservationManager(),
+                considerReservedVMsInClusterHeadroomPlan);
     }
 
     /**
