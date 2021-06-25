@@ -108,6 +108,9 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <configuration>
                     <skip>${skipTests}</skip>
+                    <environmentVariables>
+                        <DOCKER_HOST>unix:///var/run/docker.sock</DOCKER_HOST>
+                    </environmentVariables>
                 </configuration>
                 <executions>
                     <execution>
