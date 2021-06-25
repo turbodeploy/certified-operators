@@ -99,13 +99,6 @@ public class RpcConfig {
     private boolean grpcDebugServicesEnabled;
 
     /**
-     * Flag that enables all action uuids to come from the stable oid instead of the
-     * unstable action instance id.
-     */
-    @Value("${useStableActionIdAsUuid:false}")
-    private boolean useStableActionIdAsUuid;
-
-    /**
      * Returns the the object that implements protobuf ActionsService.
      *
      * @return the the object that implements protobuf ActionsService.
@@ -126,7 +119,6 @@ public class RpcConfig {
             auditCommunicationConfig.auditedActionsManager(),
             auditCommunicationConfig.actionAuditSender(),
             actionPaginationMaxLimit,
-            useStableActionIdAsUuid,
             topologyProcessorConfig.realtimeTopologyContextId());
     }
 

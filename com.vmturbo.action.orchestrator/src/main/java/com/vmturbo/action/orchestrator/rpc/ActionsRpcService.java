@@ -54,7 +54,6 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
-import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -94,6 +93,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsResponse;
@@ -157,12 +158,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final int actionPaginationMaxLimit;
 
-    /**
-     * Flag that enables all action uuids come from the stable recommendation oid instead of the
-     * unstable action instance id.
-     */
-    private final boolean useStableActionIdAsUuid;
-
     private final long realtimeTopologyContextId;
 
     /**
@@ -181,9 +176,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param auditedActionsManager object responsible for maintaining the book keeping
      * @param actionAuditSender receives and sends action events for audit
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
-     * @param useStableActionIdAsUuid flag that enables all action uuids come from the stable
-     *                                   recommendation oid instead of the unstable action instance
-     *                                   id.
      * @param realtimeTopologyContextId the ID of the topology context for realtime market analysis
      */
     public ActionsRpcService(@Nonnull final Clock clock,
@@ -198,7 +190,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final RejectedActionsDAO rejectedActionsStore,
             @Nonnull final AuditedActionsManager auditedActionsManager,
             @Nonnull final ActionAuditSender actionAuditSender, final int actionPaginationMaxLimit,
-            final boolean useStableActionIdAsUuid,
             long realtimeTopologyContextId) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
@@ -213,7 +204,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
-        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -241,13 +231,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
+        final Optional<Action> actionOpt = store.getAction(request.getActionId());
 
-        final Optional<Action> actionOpt;
-        if (useStableActionIdAsUuid) {
-            actionOpt = store.getActionByRecommendationId(request.getActionId());
-        } else {
-            actionOpt = store.getAction(request.getActionId());
-        }
         if (!actionOpt.isPresent()) {
             responseObserver.onError(Status.NOT_FOUND.withDescription(
                 "Action " + request.getActionId() + " doesn't exist.").asException());
@@ -297,22 +282,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
         final Optional<ActionStore> storeOpt = actionStorehouse.getStore(request.getTopologyContextId());
         if (storeOpt.isPresent()) {
-            ActionStore store = storeOpt.get();
-
-
-            final Optional<ActionView> optionalView;
-            if (useStableActionIdAsUuid && LiveActionStore.STORE_TYPE_NAME.equals(store.getStoreTypeName())) {
-                optionalView = store.getActionViewByRecommendationId(request.getActionId());
-            } else {
-                optionalView = store.getActionView(request.getActionId());
-            }
-
-
-            final Optional<ActionSpec> optionalSpec = optionalView.map(actionTranslator::translateToSpec);
+            final Optional<ActionSpec> optionalSpec = storeOpt.get()
+                    .getActionView(request.getActionId())
+                    .map(actionTranslator::translateToSpec);
             responseObserver.onNext(aoAction(request.getActionId(), optionalSpec));
             responseObserver.onCompleted();
         } else {
-            contextNotFoundError(responseObserver, request.getTopologyContextId());
+            actionStoreForContextNotFoundError(responseObserver, request.getTopologyContextId());
         }
     }
 
@@ -381,7 +357,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     });
                     responseObserver.onCompleted();
                 } else {
-                    contextNotFoundError(responseObserver, request.getTopologyContextId());
+                    actionStoreForContextNotFoundError(responseObserver, request.getTopologyContextId());
                 }
             } else {
                 responseObserver.onError(Status.INVALID_ARGUMENT
@@ -457,7 +433,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     contextStore.get());
             observeActionCounts(translatedActionViews, response);
         } else {
-            contextNotFoundError(response, request.getTopologyContextId());
+            actionStoreForContextNotFoundError(response, request.getTopologyContextId());
         }
     }
 
@@ -480,7 +456,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                     .atStartOfDay(), clock))); // Group by start of the Day
             observeActionCountsByDate(actionsByDate, response);
         } else {
-            contextNotFoundError(response, request.getTopologyContextId());
+            actionStoreForContextNotFoundError(response, request.getTopologyContextId());
         }
     }
 
@@ -530,7 +506,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             }
             observeActionCountsByEntity(actionsByEntity, response);
         } else {
-            contextNotFoundError(response, request.getTopologyContextId());
+            actionStoreForContextNotFoundError(response, request.getTopologyContextId());
         }
     }
 
@@ -559,7 +535,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         .build());
                 responseObserver.onCompleted();
             } else {
-                contextNotFoundError(responseObserver, contextId);
+                actionStoreForContextNotFoundError(responseObserver, contextId);
             }
         } catch (IllegalStateException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
@@ -763,6 +739,34 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
+    @Override
+    public void getInstanceIdsForRecommendationIds(GetInstanceIdsForRecommendationIdsRequest request,
+                               StreamObserver<GetInstanceIdsForRecommendationIdsResponse> responseObserver) {
+        if (!request.hasTopologyContextId()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing required parameter topologyContextId.")
+                    .asException());
+            return;
+        }
+
+        final Optional<ActionStore> storeOpt = actionStorehouse.getStore(request.getTopologyContextId());
+        if (storeOpt.isPresent()) {
+            final ActionStore store = storeOpt.get();
+            GetInstanceIdsForRecommendationIdsResponse.Builder builder =
+                    GetInstanceIdsForRecommendationIdsResponse.newBuilder();
+            request.getRecommendationIdList()
+                    .stream()
+                    .map(store::getActionByRecommendationId)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(a -> builder.putRecommendationIdToInstanceId(a.getRecommendationOid(), a.getId()));
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } else {
+            actionStoreForContextNotFoundError(responseObserver, request.getTopologyContextId());
+        }
+    }
+
     static void observeActionCounts(@Nonnull final Stream<ActionView> actionViewStream,
                                     @Nonnull final StreamObserver<GetActionCountsResponse> responseObserver) {
         final Map<ActionType, Long> actionsByType = getActionsByType(actionViewStream);
@@ -884,10 +888,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
 
-    private static void contextNotFoundError(@Nonnull final StreamObserver<?> responseObserver,
+    private static void actionStoreForContextNotFoundError(@Nonnull final StreamObserver<?> responseObserver,
                                              final long topologyContextId) {
         responseObserver.onError(Status.NOT_FOUND
-                .withDescription("Context: " + topologyContextId + " not found.")
+                .withDescription("Action store for context " + topologyContextId + " not found.")
                 .asException());
     }
 

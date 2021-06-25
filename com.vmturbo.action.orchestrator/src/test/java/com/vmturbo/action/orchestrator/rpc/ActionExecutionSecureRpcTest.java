@@ -192,7 +192,6 @@ public class ActionExecutionSecureRpcTest {
         auditedActionsManager,
         actionAuditSender,
         500,
-        false,
         777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;

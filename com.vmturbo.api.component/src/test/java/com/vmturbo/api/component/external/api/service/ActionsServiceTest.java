@@ -1,15 +1,19 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,15 +66,18 @@ import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -87,6 +94,12 @@ public class ActionsServiceTest {
     public static final String[] ALL_ACTION_MODES = {
             "RECOMMEND", "DISABLED", "MANUAL", "AUTOMATIC", "EXTERNAL_APPROVAL"
     };
+
+    private static final long FIRST_ACTION_ID = 10L;
+    private static final long SECOND_ACTION_ID = 20L;
+    private static final long FIRST_ACTION_RECOMMENDATION_ID = 101L;
+    private static final long SECOND_ACTION_RECOMMENDATION_ID = 201L;
+
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
@@ -94,6 +107,8 @@ public class ActionsServiceTest {
             Mockito.spy(new ActionsServiceMole());
 
     private ActionsService actionsServiceUnderTest;
+
+    private ActionsService actionsServiceUsingStableId;
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
@@ -119,6 +134,10 @@ public class ActionsServiceTest {
 
     private final int maxInnerPagination = 500;
 
+    private ArgumentCaptor<MultiActionRequest> multiActionRequestCaptor;
+    private ArgumentCaptor<Collection> orchestratorActionCaptor;
+    private ArgumentCaptor<GetInstanceIdsForRecommendationIdsRequest> instanceIdRequest;
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
 
@@ -138,7 +157,16 @@ public class ActionsServiceTest {
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID,
             actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination);
+            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination, false);
+
+        actionsServiceUsingStableId = new ActionsService(actionsRpcService, actionSpecMapper,
+                repositoryApi, REALTIME_TOPOLOGY_ID,
+                actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
+                actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination, true);
+
+        multiActionRequestCaptor = ArgumentCaptor.forClass(MultiActionRequest.class);
+        orchestratorActionCaptor = ArgumentCaptor.forClass(Collection.class);
+        instanceIdRequest = ArgumentCaptor.forClass(GetInstanceIdsForRecommendationIdsRequest.class);
     }
 
     /**
@@ -157,7 +185,6 @@ public class ActionsServiceTest {
         List<String> modes = actionsServiceUnderTest.getAvailActionModes(actionType, seType);
         // Assert
         assertThat(modes, containsInAnyOrder(ALL_ACTION_MODES));
-
     }
 
     /**
@@ -186,18 +213,12 @@ public class ActionsServiceTest {
         actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
         actionScopesApiInputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
-        final ActionStatsQuery expectedQuery = ImmutableActionStatsQuery.builder()
-                .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .actionInput(actionApiInputDTO)
-                .addScopes(scope1)
-                .addScopes(scope2)
-                .currentTimeStamp(DateTimeUtil.toString(Clock.systemUTC().millis()))
-                .build();
-
         final List<StatSnapshotApiDTO> scope1Snapshots = Arrays.asList(new StatSnapshotApiDTO());
         final List<StatSnapshotApiDTO> scope2Snapshots = Arrays.asList(new StatSnapshotApiDTO(), new StatSnapshotApiDTO());
 
-        when(actionStatsQueryExecutor.retrieveActionStats(any()))
+        final ArgumentCaptor<ActionStatsQuery> queryArgumentCaptor = ArgumentCaptor.forClass(ActionStatsQuery.class);
+
+        when(actionStatsQueryExecutor.retrieveActionStats(queryArgumentCaptor.capture()))
             .thenReturn(ImmutableMap.of(scope1, scope1Snapshots, scope2, scope2Snapshots));
 
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(MinimalEntity.newBuilder()
@@ -213,7 +234,9 @@ public class ActionsServiceTest {
             actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO).stream()
                 .collect(Collectors.toMap(EntityStatsApiDTO::getUuid, Function.identity()));
 
-        verify(actionStatsQueryExecutor).retrieveActionStats(expectedQuery);
+        assertThat(queryArgumentCaptor.getValue().entityType().get(), equalTo(EntityType.PHYSICAL_MACHINE_VALUE));
+        assertThat(queryArgumentCaptor.getValue().actionInput(), equalTo(actionApiInputDTO));
+        assertThat(queryArgumentCaptor.getValue().scopes(), containsInAnyOrder(scope1, scope2));
 
         assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
         assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));
@@ -237,56 +260,59 @@ public class ActionsServiceTest {
     }
 
     /**
+     * Tests getting action details for an empty collection of uuids when the api uses action recommendation
+     * (stable) id.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsEmptyUuidsStableIdsActive()
+            throws OperationFailedException, IllegalArgumentException {
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.emptyList());
+
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUsingStableId.getActionDetailsByUuids(inputDTO);
+        assertEquals(0, actionDetails.size());
+    }
+
+    /**
      * Tests getting action details for actions with/without spec, order of details the same as in request.
      * Verifies that when input DTO contains no topologyContextId, the default realtime one is used.
      */
     @Test
     public void testGetActionDetailsByUuids()
             throws OperationFailedException, IllegalArgumentException {
-        long actionIdWithSpec = 10;
-        long actionIdNoSpec = 20;
+        // ARRANGE
+        setupGetActionDetailsByUuids(false);
+
         ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
-        inputDTO.setUuids(Arrays.asList(Long.toString(actionIdWithSpec), Long.toString(actionIdNoSpec)));
-        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
-        dtoMap.put("10", new CloudResizeActionDetailsApiDTO());
-        dtoMap.put("20", new NoDetailsApiDTO());
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_ID), Long.toString(SECOND_ACTION_ID)));
 
-        List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
-                ActionOrchestratorAction.newBuilder()
-                        .setActionId(actionIdNoSpec)
-                        .build(),
-                ActionOrchestratorAction.newBuilder()
-                        .setActionId(actionIdWithSpec)
-                        .setActionSpec(ActionSpec.newBuilder()
-                                .build())
-                        .build()
-        );
-        ArgumentCaptor<MultiActionRequest> multiActionRequestCaptor =
-                ArgumentCaptor.forClass(MultiActionRequest.class);
-        when(actionsServiceBackend.getActions(multiActionRequestCaptor.capture()))
-                .thenReturn(orchestratorActions);
-
-        ArgumentCaptor<Collection> orchestratorActionCaptor =
-                ArgumentCaptor.forClass(Collection.class);
-        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture(), anyLong()))
-                .thenReturn(dtoMap);
-
+        // ACT
         Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
 
-        assertEquals(2, actionDetails.size());
-        assertEquals(CloudResizeActionDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdWithSpec)).getClass());
-        assertEquals(NoDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdNoSpec)).getClass());
+        // ASSERT
+        verify(actionsServiceBackend, never()).getInstanceIdsForRecommendationIds(any());
+        verifyCallsAndResults(actionDetails, false, REALTIME_TOPOLOGY_ID);
+    }
 
-        List<MultiActionRequest> actualRequests = multiActionRequestCaptor.getAllValues();
-        assertEquals(1, actualRequests.size());
-        MultiActionRequest multiActionRequest = actualRequests.get(0);
-        assertEquals(actionIdWithSpec, multiActionRequest.getActionIds(0));
-        assertEquals(actionIdNoSpec, multiActionRequest.getActionIds(1));
-        assertEquals(REALTIME_TOPOLOGY_ID, multiActionRequest.getTopologyContextId());
 
-        Collection<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getValue();
-        assertEquals(2, actualOrchestratorActions.size());
-        assertEquals(actionIdNoSpec, actualOrchestratorActions.iterator().next().getActionId());
+    /**
+     * Tests getting action details for actions when stable action id is set.
+     */
+    @Test
+    public void testGetActionDetailsByStableUuids()
+            throws OperationFailedException, IllegalArgumentException {
+        // ARRANGE
+        setupGetActionDetailsByUuids(true);
+
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_RECOMMENDATION_ID),
+                Long.toString(SECOND_ACTION_RECOMMENDATION_ID)));
+
+        // ACT
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUsingStableId.getActionDetailsByUuids(inputDTO);
+
+        // ASSERT
+        verifyCallsAndResults(actionDetails, true, REALTIME_TOPOLOGY_ID);
     }
 
     /**
@@ -295,33 +321,102 @@ public class ActionsServiceTest {
     @Test
     public void testGetActionDetailsByUuidsInTopologyContext()
             throws OperationFailedException, IllegalArgumentException {
-        final long actionId = 10;
+        // ARRANGE
         final long topologyContextId = 20;
+
+        setupGetActionDetailsByUuids(false);
+
         final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
-        inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_ID), Long.toString(SECOND_ACTION_ID)));
         inputDTO.setMarketId(Long.toString(topologyContextId));
 
-        final List<ActionOrchestratorAction> mockActions = Collections.singletonList(
-                ActionOrchestratorAction.getDefaultInstance());
-        final ArgumentCaptor<MultiActionRequest> requestCaptor = ArgumentCaptor.forClass(
-                MultiActionRequest.class);
-        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
-        dtoMap.put("1", mock(ActionDetailsApiDTO.class));
-
         ApiTestUtils.mockEntityId("20", uuidMapper);
-        when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
 
-        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong())).thenReturn(dtoMap);
-
+        // ACT
         Map<String, ActionDetailsApiDTO> resultDetailMap = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
 
-        assertEquals(1, resultDetailMap.size());
-        final List<MultiActionRequest> requests = requestCaptor.getAllValues();
-        assertEquals(1, requests.size());
-        final MultiActionRequest multiActionRequest = requests.get(0);
-        assertEquals(topologyContextId, multiActionRequest.getTopologyContextId());
-        assertEquals(1, multiActionRequest.getActionIdsCount());
-        assertEquals(actionId, multiActionRequest.getActionIds(0));
+        // ASSERT
+        verifyCallsAndResults(resultDetailMap, false, topologyContextId);
+    }
+
+    /**
+     * Tests getting action details for actions in a specific topology context.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsInTopologyContextStableIdEnabled()
+            throws OperationFailedException, IllegalArgumentException {
+        // ARRANGE
+        final long topologyContextId = 20;
+
+        setupGetActionDetailsByUuids(false);
+
+        final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(FIRST_ACTION_ID), Long.toString(SECOND_ACTION_ID)));
+        inputDTO.setMarketId(Long.toString(topologyContextId));
+
+        ApiTestUtils.mockEntityId("20", uuidMapper);
+
+        // ACT
+        Map<String, ActionDetailsApiDTO> resultDetailMap = actionsServiceUsingStableId.getActionDetailsByUuids(inputDTO);
+
+        // ASSERT
+        verify(actionsServiceBackend, never()).getInstanceIdsForRecommendationIds(any());
+        verifyCallsAndResults(resultDetailMap, false, topologyContextId);
+    }
+
+
+    private void setupGetActionDetailsByUuids(boolean conversionReturnRecommendationId) {
+        List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(SECOND_ACTION_ID)
+                        .build(),
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(FIRST_ACTION_ID)
+                        .setActionSpec(ActionSpec.newBuilder()
+                                .build())
+                        .build()
+        );
+
+        when(actionsServiceBackend.getActions(multiActionRequestCaptor.capture()))
+                .thenReturn(orchestratorActions);
+
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put(Long.toString(conversionReturnRecommendationId ? FIRST_ACTION_RECOMMENDATION_ID : FIRST_ACTION_ID),
+                new CloudResizeActionDetailsApiDTO());
+        dtoMap.put(Long.toString(conversionReturnRecommendationId ? SECOND_ACTION_RECOMMENDATION_ID : SECOND_ACTION_ID),
+                new NoDetailsApiDTO());
+
+        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture(), anyLong()))
+                .thenReturn(dtoMap);
+
+        when(actionsServiceBackend.getInstanceIdsForRecommendationIds(instanceIdRequest.capture()))
+                .thenReturn(GetInstanceIdsForRecommendationIdsResponse
+                        .newBuilder()
+                        .putRecommendationIdToInstanceId(FIRST_ACTION_RECOMMENDATION_ID, FIRST_ACTION_ID)
+                        .putRecommendationIdToInstanceId(SECOND_ACTION_RECOMMENDATION_ID, SECOND_ACTION_ID)
+                        .build()
+                );
+    }
+
+    private void verifyCallsAndResults(Map<String, ActionDetailsApiDTO> actionDetails,
+                                       boolean conversionReturnRecommendationId,
+                                       long contextId) {
+        assertEquals(2, actionDetails.size());
+        long firstIdToExpect = conversionReturnRecommendationId ? FIRST_ACTION_RECOMMENDATION_ID : FIRST_ACTION_ID;
+        long secondIdToExpect = conversionReturnRecommendationId ? SECOND_ACTION_RECOMMENDATION_ID : SECOND_ACTION_ID;
+        assertEquals(CloudResizeActionDetailsApiDTO.class, actionDetails.get(Long.toString(firstIdToExpect)).getClass());
+        assertEquals(NoDetailsApiDTO.class, actionDetails.get(Long.toString(secondIdToExpect)).getClass());
+
+        List<MultiActionRequest> actualRequests = multiActionRequestCaptor.getAllValues();
+        assertEquals(1, actualRequests.size());
+        MultiActionRequest multiActionRequest = actualRequests.get(0);
+        assertEquals(FIRST_ACTION_ID, multiActionRequest.getActionIds(0));
+        assertEquals(SECOND_ACTION_ID, multiActionRequest.getActionIds(1));
+        assertEquals(contextId, multiActionRequest.getTopologyContextId());
+
+        Collection<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getValue();
+        assertEquals(2, actualOrchestratorActions.size());
+        assertEquals(SECOND_ACTION_ID, actualOrchestratorActions.iterator().next().getActionId());
     }
 
     /**
@@ -429,6 +524,8 @@ public class ActionsServiceTest {
             .sum());
     }
 
+
+
     /**
      * Test validating action input api dto for invalid description query.
      *
@@ -466,5 +563,105 @@ public class ActionsServiceTest {
         final RangeInputApiDTO savingsAmountRange = new RangeInputApiDTO();
         actionApiInputDTO.setSavingsAmountRange(savingsAmountRange);
         actionsServiceUnderTest.validateInput(actionApiInputDTO, null);
+    }
+
+    /**
+     * Tests the case that we are getting action by id when stable id is enabled.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetActionByUuidUsingStableId() throws Exception {
+        // ARRANGE
+        when(actionsServiceBackend.getInstanceIdsForRecommendationIds(instanceIdRequest.capture()))
+                .thenReturn(GetInstanceIdsForRecommendationIdsResponse
+                        .newBuilder()
+                        .putRecommendationIdToInstanceId(FIRST_ACTION_RECOMMENDATION_ID, FIRST_ACTION_ID)
+                        .build()
+                );
+
+        ActionSpec actionSpec = ActionSpec.newBuilder()
+                .setRecommendationId(FIRST_ACTION_RECOMMENDATION_ID)
+                .build();
+
+        ActionOrchestratorAction action = ActionOrchestratorAction.newBuilder()
+                .setActionId(FIRST_ACTION_ID)
+                .setActionSpec(actionSpec)
+                .build();
+
+        ArgumentCaptor<SingleActionRequest> requestCaptor = ArgumentCaptor.forClass(SingleActionRequest.class);
+        when(actionsServiceBackend.getAction(requestCaptor.capture()))
+                .thenReturn(action);
+
+        ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
+
+        when(actionSpecMapper.mapActionSpecToActionApiDTO(actionSpec, REALTIME_TOPOLOGY_ID, ActionDetailLevel.STANDARD))
+                .thenReturn(actionApiDTO);
+
+        // ACT
+        ActionApiDTO returnedAction = actionsServiceUsingStableId
+                .getActionByUuid(Long.toString(FIRST_ACTION_RECOMMENDATION_ID), ActionDetailLevel.STANDARD);
+
+        // ASSERT
+        assertThat(returnedAction, sameInstance(actionApiDTO));
+        assertThat(requestCaptor.getValue().getActionId(), equalTo(FIRST_ACTION_ID));
+        assertThat(requestCaptor.getValue().getTopologyContextId(), equalTo(REALTIME_TOPOLOGY_ID));
+    }
+
+
+    /**
+     * Tests the case that we are getting action by id when stable id is enabled and the action does not exist.
+     *
+     * @throws Exception if something goes wrong that is expected.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testGetActionByUuidActionNotFoundUsingStableId() throws Exception {
+        // ARRANGE
+        when(actionsServiceBackend.getInstanceIdsForRecommendationIds(instanceIdRequest.capture()))
+                .thenReturn(GetInstanceIdsForRecommendationIdsResponse.getDefaultInstance());
+
+        // ACT
+        actionsServiceUsingStableId
+                .getActionByUuid(Long.toString(FIRST_ACTION_RECOMMENDATION_ID), ActionDetailLevel.STANDARD);
+    }
+
+    /**
+     * Accept an action using stable id.
+     */
+    @Test
+    public void testExecuteActionUsingStableId() throws Exception {
+        // ARRANGE
+        when(actionsServiceBackend.getInstanceIdsForRecommendationIds(instanceIdRequest.capture()))
+                .thenReturn(GetInstanceIdsForRecommendationIdsResponse
+                        .newBuilder()
+                        .putRecommendationIdToInstanceId(FIRST_ACTION_RECOMMENDATION_ID, FIRST_ACTION_ID)
+                        .build()
+                );
+
+        // ACT
+        boolean successful = actionsServiceUsingStableId
+                .executeAction(Long.toString(FIRST_ACTION_RECOMMENDATION_ID), true, false);
+
+        // ASSERT
+        assertTrue(successful);
+        ArgumentCaptor<SingleActionRequest> requestCaptor = ArgumentCaptor.forClass(SingleActionRequest.class);
+        verify(actionsServiceBackend).acceptAction(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getActionId(), equalTo(FIRST_ACTION_ID));
+        assertThat(requestCaptor.getValue().getTopologyContextId(), equalTo(REALTIME_TOPOLOGY_ID));
+    }
+
+    /**
+     * Tests the case that we are executing action by id when stable id is enabled and the action does not exist.
+     *
+     * @throws Exception if something goes wrong that is expected.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testExecuteNonExistentActionUsingStableId() throws Exception {
+        // ARRANGE
+        when(actionsServiceBackend.getInstanceIdsForRecommendationIds(instanceIdRequest.capture()))
+                .thenReturn(GetInstanceIdsForRecommendationIdsResponse.getDefaultInstance());
+
+        // ACT
+        actionsServiceUsingStableId.executeAction(Long.toString(FIRST_ACTION_RECOMMENDATION_ID), true, false);
     }
 }
