@@ -118,6 +118,7 @@ message GetHistoricalCommitmentCoverageStatsRequest {
         ACCOUNT = 1;
         REGION = 2;
         SERVICE_PROVIDER = 3;
+        CLOUD_SERVICE = 4;
     }
 }
 
