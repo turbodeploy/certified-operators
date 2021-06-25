@@ -91,7 +91,7 @@ public class ActionSearchUtilTest {
 
         actionSearchUtil = new ActionSearchUtil(actionOrchestratorRpc, actionSpecMapper,
                 paginationMapper, supplyChainFetcherFactory, groupExpander,
-                serviceProviderExpander, TOPOLOGY_ID);
+                serviceProviderExpander, TOPOLOGY_ID, true);
 
         Mockito.doReturn(Collections.singletonList(FilteredActionResponse.newBuilder().build()))
                 .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));

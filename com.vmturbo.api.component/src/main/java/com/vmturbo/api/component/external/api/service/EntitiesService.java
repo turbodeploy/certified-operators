@@ -406,7 +406,11 @@ public class EntitiesService implements IEntitiesService {
                                               @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
         getEntityOidFromString(uuid);
-        long oid = uuidMapper.fromUuid(actionUuid).oid();
+        long oid = actionSearchUtil.getActionInstanceId(actionUuid, null).orElseThrow(() -> {
+            logger.error("Cannot lookup action as one with ID {} cannot be found.", uuid);
+            return new UnknownObjectException("Cannot find action with ID " + uuid);
+        });
+
         final ActionApiDTO result;
         try {
             // get the action object from the action orchestrator

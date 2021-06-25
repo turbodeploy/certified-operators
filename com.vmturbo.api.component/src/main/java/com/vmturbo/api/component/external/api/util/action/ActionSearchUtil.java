@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.action;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +35,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -60,6 +62,12 @@ public class ActionSearchUtil {
     private final GroupExpander groupExpander;
     private final ServiceProviderExpander serviceProviderExpander;
 
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    private final boolean useStableActionIdAsUuid;
+
     public ActionSearchUtil(
             @Nonnull ActionsServiceBlockingStub actionOrchestratorRpc,
             @Nonnull ActionSpecMapper actionSpecMapper,
@@ -67,7 +75,8 @@ public class ActionSearchUtil {
             @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
             @Nonnull GroupExpander groupExpander,
             @Nonnull ServiceProviderExpander serviceProviderExpander,
-            long realtimeTopologyContextId) {
+            long realtimeTopologyContextId,
+            boolean useStableActionIdAsUuid) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
@@ -75,6 +84,7 @@ public class ActionSearchUtil {
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
     }
 
     /**
@@ -355,5 +365,65 @@ public class ActionSearchUtil {
             }
         }
         return results;
+    }
+
+    /**
+     * Gets the instace id to use for the action based on the context and use stable id flag.
+     *
+     * @param uuid the uuid of the action.
+     * @param contextId the topology context id.
+     * @return the id of action if present.
+     */
+    @Nonnull
+    public Optional<Long> getActionInstanceId(@Nonnull String uuid, @Nullable String contextId) {
+        if (shouldUseRecommendationId(contextId)) {
+            // look up the instance id based on the recommendation id
+            return getInstanceIdForRecommendationIds(Collections.singleton(uuid), null)
+                    .stream()
+                    .findAny();
+        } else {
+            return Optional.of(Long.parseLong(uuid));
+        }
+    }
+
+    /**
+     * Gets the instance id to use for the actions based on the context and use stable id flag.
+     *
+     * @param uuids the uuids of the action.
+     * @param contextId the topology context id.
+     * @return the ids of action if present.
+     */
+    @Nonnull
+    public List<Long> getInstanceIdForRecommendationIds(@Nonnull Collection<String> uuids,
+                                                             @Nullable String contextId) {
+        if (uuids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final List<Long> actionIds;
+        if (shouldUseRecommendationId(contextId)) {
+            actionIds = actionOrchestratorRpc.getInstanceIdsForRecommendationIds(
+                    ActionDTO.GetInstanceIdsForRecommendationIdsRequest
+                            .newBuilder()
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .addAllRecommendationId(uuids.stream().map(Long::parseLong).collect(Collectors.toList()))
+                            .build())
+                    .getRecommendationIdToInstanceIdMap()
+                    .values()
+                    .stream()
+                    .collect(Collectors.toList());
+        } else {
+            actionIds = uuids.stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toList());
+        }
+
+        return actionIds;
+    }
+
+    private boolean shouldUseRecommendationId(String contextId) {
+        return useStableActionIdAsUuid
+                && (contextId == null
+                || Long.parseLong(contextId) == realtimeTopologyContextId);
     }
 }

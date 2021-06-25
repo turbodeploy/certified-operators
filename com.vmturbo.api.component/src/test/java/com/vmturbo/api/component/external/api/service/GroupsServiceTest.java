@@ -274,7 +274,7 @@ public class GroupsServiceTest {
                                 actionOrchestratorRpcService, actionSpecMapper,
                                 paginationMapperMock, supplyChainFetcherFactory, groupExpanderMock,
                                 serviceProviderExpander,
-                                CONTEXT_ID);
+                                CONTEXT_ID, true);
         this.businessAccountRetriever = Mockito.mock(BusinessAccountRetriever.class);
         groupsService =
             new GroupsService(

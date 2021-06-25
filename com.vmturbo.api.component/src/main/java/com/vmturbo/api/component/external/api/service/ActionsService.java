@@ -106,12 +106,6 @@ public class ActionsService implements IActionsService {
     // Pagination request to be used for lists of actions that are returned as an inner list of a scope.
     private ActionPaginationRequest nestedDefaultPaginationRequest;
 
-    /**
-     * Flag that enables all action uuids come from the stable recommendation oid instead of the
-     * unstable action instance id.
-     */
-    private final boolean useStableActionIdAsUuid;
-
     public ActionsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final RepositoryApi repositoryApi,
@@ -122,7 +116,7 @@ public class ActionsService implements IActionsService {
                           @Nonnull final ActionSearchUtil actionSearchUtil,
                           @Nonnull final MarketsService marketsService,
                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                          final int apiPaginationMaxLimit, boolean useStableActionIdAsUuid) {
+                          final int apiPaginationMaxLimit) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -133,7 +127,6 @@ public class ActionsService implements IActionsService {
         this.actionSearchUtil = actionSearchUtil;
         this.marketsService = marketsService;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
-        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
 
         try {
             // Default to 500 actions per entity scope which is the default max limit for pagination request.
@@ -169,7 +162,7 @@ public class ActionsService implements IActionsService {
             throws Exception {
         log.debug("Fetching actions for: {}", uuid);
 
-        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+        final long id = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() -> {
             logger.error("Cannot lookup action as one with ID {} cannot be found.", uuid);
             return new UnknownObjectException("Cannot find action with ID " + uuid);
         });
@@ -193,7 +186,7 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
-        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+        final long id = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() -> {
            logger.error("Cannot execute action as one with ID {} cannot be found.", uuid);
            return new UnknownObjectException("Cannot find action with ID " + uuid);
         });
@@ -213,36 +206,6 @@ public class ActionsService implements IActionsService {
             log.info("Rejecting action with id: {}", id);
             throw new NotImplementedException("!!!!!! Reject Action not implemented");
         }
-    }
-
-    @Nonnull
-    private Optional<Long> getActionInstanceId(@Nonnull String uuid) {
-        if (useStableActionIdAsUuid) {
-            // look up the instance id based on the recommendation id
-            final Map<Long, Long> recommendationIdToId = getInstanceIdForRecommendationIds(Collections.singleton(uuid));
-            if (recommendationIdToId.isEmpty()) {
-                return Optional.empty();
-            } else {
-                return Optional.of(recommendationIdToId.values().iterator().next());
-            }
-        } else {
-            return Optional.of(Long.parseLong(uuid));
-        }
-    }
-
-    @Nonnull
-    private Map<Long, Long> getInstanceIdForRecommendationIds(@Nonnull Collection<String> actionIds) {
-        if (actionIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        return actionOrchestratorRpc.getInstanceIdsForRecommendationIds(
-                GetInstanceIdsForRecommendationIdsRequest
-                        .newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .addAllRecommendationId(actionIds.stream().map(Long::parseLong).collect(Collectors.toList()))
-                        .build())
-                .getRecommendationIdToInstanceIdMap();
     }
 
     private static Exception convertToApiException(StatusRuntimeException e) {
@@ -522,7 +485,7 @@ public class ActionsService implements IActionsService {
      */
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws UnknownObjectException {
-        final long id = getActionInstanceId(uuid).orElseThrow(() -> {
+        final long id = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() -> {
             logger.error("Cannot execute action as one with ID {} cannot be found.", uuid);
             return new UnknownObjectException("Cannot find action with ID " + uuid);
         });
@@ -581,19 +544,8 @@ public class ActionsService implements IActionsService {
                 ? inputDto.getTopologyContextId()
                 : Long.toString(uuidMapper.fromUuid(inputDto.getMarketId()).oid());
 
-        final List<Long> actionIds;
-        if (useStableActionIdAsUuid
-              && (inputDtoTopologyContextId == null
-              || Long.parseLong(inputDtoTopologyContextId) == realtimeTopologyContextId)) {
-            actionIds = getInstanceIdForRecommendationIds(inputDto.getUuids())
-                    .values()
-                    .stream()
-                    .collect(Collectors.toList());
-        } else {
-            actionIds = inputDto.getUuids().stream()
-                    .map(Long::valueOf)
-                    .collect(Collectors.toList());
-        }
+        final List<Long> actionIds = actionSearchUtil.getInstanceIdForRecommendationIds(inputDto.getUuids(),
+                inputDtoTopologyContextId);
 
         if (actionIds.isEmpty()) {
             return Collections.emptyMap();
