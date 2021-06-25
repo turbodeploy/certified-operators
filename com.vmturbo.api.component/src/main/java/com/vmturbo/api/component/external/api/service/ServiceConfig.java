@@ -268,8 +268,7 @@ public class ServiceConfig {
                                   actionSearchUtil(),
                                   marketsService(),
                                   communicationConfig.supplyChainFetcher(),
-                                  apiPaginationMaxLimit,
-                                  useStableActionIdAsUuid);
+                                  apiPaginationMaxLimit);
     }
 
     @Bean
@@ -1046,7 +1045,8 @@ public class ServiceConfig {
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
             communicationConfig.serviceProviderExpander(),
-            communicationConfig.getRealtimeTopologyContextId());
+            communicationConfig.getRealtimeTopologyContextId(),
+            useStableActionIdAsUuid);
     }
 
     @Bean

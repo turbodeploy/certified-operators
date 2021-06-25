@@ -1674,10 +1674,14 @@ public class MarketsService implements IMarketsService {
      * @param actionUuid uuid of the action.
      * @return the action request.
      */
-    private static SingleActionRequest actionRequest(String marketUuid, String actionUuid) {
+    private SingleActionRequest actionRequest(String marketUuid, String actionUuid) throws UnknownObjectException {
+        long actionId = actionSearchUtil.getActionInstanceId(actionUuid, marketUuid).orElseThrow(() -> {
+            logger.error("Cannot lookup action as one with ID {} cannot be found.", actionUuid);
+            return new UnknownObjectException("Cannot find action with ID " + actionUuid);
+        });
         return SingleActionRequest.newBuilder()
                 .setTopologyContextId(Long.valueOf(marketUuid))
-                .setActionId(Long.valueOf(actionUuid))
+                .setActionId(actionId)
                 .build();
     }
 

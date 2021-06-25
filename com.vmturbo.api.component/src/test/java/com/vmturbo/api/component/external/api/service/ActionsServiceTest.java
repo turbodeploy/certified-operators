@@ -12,13 +12,14 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,14 +48,15 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.QueryInputApiDTO;
 import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -104,7 +106,7 @@ public class ActionsServiceTest {
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
     private final ActionsServiceMole actionsServiceBackend =
-            Mockito.spy(new ActionsServiceMole());
+            spy(new ActionsServiceMole());
 
     private ActionsService actionsServiceUnderTest;
 
@@ -123,6 +125,10 @@ public class ActionsServiceTest {
     private ActionSpecMapper actionSpecMapper;
 
     private ActionSearchUtil actionSearchUtil;
+
+    private ActionSearchUtil actionSearchUtilWithStableIdEnabled;
+
+    private ActionSearchUtil actionSearchUtilSpy;
 
     private MarketsService marketsService;
 
@@ -148,21 +154,30 @@ public class ActionsServiceTest {
     public void setup() throws IOException {
         // set up a mock Actions RPC server
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
-        actionSearchUtil = Mockito.mock(ActionSearchUtil.class);
         marketsService = Mockito.mock(MarketsService.class);
         supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        actionSearchUtil = new ActionSearchUtil(actionsRpcService, actionSpecMapper, mock(PaginationMapper.class),
+                supplyChainFetcherFactory, mock(GroupExpander.class), mock(ServiceProviderExpander.class),
+                REALTIME_TOPOLOGY_ID, false);
+
+        actionSearchUtilWithStableIdEnabled = new ActionSearchUtil(actionsRpcService, actionSpecMapper,
+                mock(PaginationMapper.class), supplyChainFetcherFactory, mock(GroupExpander.class),
+                mock(ServiceProviderExpander.class), REALTIME_TOPOLOGY_ID, true);
+
+        actionSearchUtilSpy = spy(actionSearchUtil);
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID,
             actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination, false);
+                actionSearchUtilSpy, marketsService, supplyChainFetcherFactory, maxInnerPagination);
 
         actionsServiceUsingStableId = new ActionsService(actionsRpcService, actionSpecMapper,
                 repositoryApi, REALTIME_TOPOLOGY_ID,
                 actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-                actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination, true);
+                actionSearchUtilWithStableIdEnabled, marketsService, supplyChainFetcherFactory, maxInnerPagination);
 
         multiActionRequestCaptor = ArgumentCaptor.forClass(MultiActionRequest.class);
         orchestratorActionCaptor = ArgumentCaptor.forClass(Collection.class);
@@ -490,9 +505,8 @@ public class ActionsServiceTest {
         final ApiId scope3 = ApiTestUtils.mockEntityId(uuid3, uuidMapper);
         when(scope3.getTopologyContextId()).thenReturn(987L);
         when(scope3.getDisplayName()).thenReturn("cde");
-        when(actionSearchUtil.getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L)))
-            .thenReturn(ImmutableMap.of(345L,
-                ImmutableList.of(mock(ActionApiDTO.class), mock(ActionApiDTO.class))));
+        doReturn(ImmutableMap.of(345L, ImmutableList.of(mock(ActionApiDTO.class), mock(ActionApiDTO.class))))
+                .when(actionSearchUtilSpy).getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L));
 
         // discard scope for which there are no actions
         final String uuid4 = "456";
@@ -514,8 +528,8 @@ public class ActionsServiceTest {
         verify(marketsService).getActionsByMarketUuid(eq(uuid2), any(), any());
 
         // usable scopes are used to query actions service
-        verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L));
-        verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope4)), any(), eq(876L));
+        verify(actionSearchUtilSpy).getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L));
+        verify(actionSearchUtilSpy).getActionsByScopes(eq(Collections.singleton(scope4)), any(), eq(876L));
 
         assertEquals(3, result.getRawResults().size());
         assertEquals(2, result.getRawResults().stream()

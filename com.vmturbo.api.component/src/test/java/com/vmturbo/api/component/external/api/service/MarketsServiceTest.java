@@ -326,7 +326,7 @@ public class MarketsServiceTest {
                                  Mockito.mock(SupplyChainFetcherFactory.class),
                                  Mockito.mock(GroupExpander.class),
                                  serviceProviderExpander,
-                                 REALTIME_CONTEXT_ID),
+                                 REALTIME_CONTEXT_ID, true),
             entitySettingQueryExecutor,
             licenseCheckClient,
             entityAspectMapper,

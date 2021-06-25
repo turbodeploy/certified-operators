@@ -1812,7 +1812,7 @@ public class TargetsServiceTest {
                 Mockito.mock(SupplyChainFetcherFactory.class),
                 Mockito.mock(GroupExpander.class),
                 Mockito.mock(ServiceProviderExpander.class),
-                REALTIME_CONTEXT_ID);
+                REALTIME_CONTEXT_ID, true);
         }
 
         @Bean

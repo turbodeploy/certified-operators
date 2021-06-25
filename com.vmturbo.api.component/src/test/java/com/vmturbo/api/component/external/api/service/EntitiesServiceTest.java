@@ -61,6 +61,7 @@ import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -235,7 +236,7 @@ public class EntitiesServiceTest {
                 actionOrchestratorRpcService, actionSpecMapper,
                 paginationMapper, supplyChainFetcherFactory, groupExpander,
                     serviceProviderExpander,
-                    CONTEXT_ID);
+                    CONTEXT_ID, true);
 
         when(groupExpander.expandOids(any()))
             .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
@@ -547,9 +548,20 @@ public class EntitiesServiceTest {
             ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build();
         final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
         final ServiceEntityApiDTO entity = new ServiceEntityApiDTO();
+        final long dummy = 0L;
         entity.setUuid(Long.toString(VM_ID));
         when(actionApiDTO.getCurrentEntity()).thenReturn(entity);
         when(actionsService.getAction(any())).thenReturn(dummyActionOrchestratorResponse);
+        when(actionsService.getInstanceIdsForRecommendationIds(ActionDTO.GetInstanceIdsForRecommendationIdsRequest
+                  .newBuilder()
+                  .setTopologyContextId(CONTEXT_ID)
+                  .addRecommendationId(dummy)
+                  .build()))
+                .thenReturn(ActionDTO.GetInstanceIdsForRecommendationIdsResponse
+                        .newBuilder()
+                        .putRecommendationIdToInstanceId(dummy, dummy)
+                        .build()
+                );
         when(actionSpecMapper.mapActionSpecToActionApiDTO(
                 Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID), Matchers.eq(ActionDetailLevel.STANDARD)))
             .thenReturn(actionApiDTO);
@@ -557,13 +569,12 @@ public class EntitiesServiceTest {
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
         when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
 
-        final long dummy = 0L;
+
 
         ApiId apiId = mock(ApiId.class);
         when(apiId.oid()).thenReturn(dummy);
         when(apiId.isEntity()).thenReturn(true);
         when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
-        when(uuidMapper.fromUuid(Long.toString(dummy))).thenReturn(apiId);
 
         // call the service
         final ActionApiDTO result =
