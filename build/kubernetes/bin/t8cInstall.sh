@@ -24,6 +24,7 @@ read -e -p "Have you run the ipsetup script to setup netowkring yet? [y/n] " ipA
 
 if [ "$ipAnswer" != "${ipAnswer#[Nn]}" ]
 then
+  export avoidMessaging="true"
   /opt/local/bin/ipsetup
 fi
 
@@ -34,8 +35,6 @@ do
         h) hostName=${OPTARG};;
     esac
 done
-oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
-newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
 newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 serviceAccountFile="/opt/turbonomic/kubernetes/operator/deploy/service_account.yaml"
@@ -493,7 +492,8 @@ echo ""
 echo "############################"
 echo "Start the deployment rollout"
 echo "############################"
-echo "This will take some time. If this is not completed in 20 minutes, the script will exit with instructions"
+echo "The installation process is complete, waiting for all the components to start up."
+echo "** The script will wait for as long as 30 minutes. **"
 echo ""
 # Wait for the api pod to become healthy
 support=0
@@ -502,11 +502,15 @@ do
   support=$(($support+1))
   sleep 120
   echo "Waiting for Deployment to be ready."
-  if [ "${support}" -ge "10" ]
+  if [ "${support}" -ge "15" ]
   then
-    echo "============================================"
-    echo "Something went wrong, please contact Support"
-    echo "============================================"
+    echo "==========================================================================="
+    echo "One or more of your deployments has not started up yet."
+    echo "** Please give your environment another 30 minutes to stablize. **"
+    echo "To check the status of your components, execute the following command:"
+    echo "kubectl get pods"
+    echo "If some components are still not ready, contact your support representative"
+    echo "==========================================================================="
     exit
   fi
 done
@@ -515,13 +519,36 @@ done
 support=0
 while [ "$(kubectl get pods -l=app.kubernetes.io/name='topology-processor' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
 do
+  sleep 120 
+  echo "Waiting for Deployment to be ready."
+  if [ "${support}" -ge "5" ]
+  then
+    echo "==========================================================================="
+    echo "One or more of your deployments has not started up yet."
+    echo "** Please give your environment another 30 minutes to stablize. **"
+    echo "To check the status of your components, execute the following command:"
+    echo "kubectl get pods"
+    echo "If some components are still not ready, contact your support representative"
+    echo "==========================================================================="
+    exit
+  fi
+done
+
+# Wait for the cost pod to become healthy
+support=0
+while [ "$(kubectl get pods -l=app.kubernetes.io/name='cost' -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]
+do
   sleep 60
   echo "Waiting for Deployment to be ready."
   if [ "${support}" -ge "5" ]
   then
-    echo "============================================"
-    echo "Something went wrong, please contact Support"
-    echo "============================================"
+    echo "==========================================================================="
+    echo "One or more of your deployments has not started up yet."
+    echo "** Please give your environment another 30 minutes to stablize. **"
+    echo "To check the status of your components, execute the following command:"
+    echo "kubectl get pods"
+    echo "If some components are still not ready, contact your support representative"
+    echo "==========================================================================="
     exit
   fi
 done
@@ -534,9 +561,13 @@ do
   echo "Waiting for Deployment to be ready."
   if [ "${support}" -ge "5" ]
   then
-    echo "============================================"
-    echo "Something went wrong, please contact Support"
-    echo "============================================"
+    echo "==========================================================================="
+    echo "One or more of your deployments has not started up yet."
+    echo "** Please give your environment another 30 minutes to stablize. **"
+    echo "To check the status of your components, execute the following command:"
+    echo "kubectl get pods"
+    echo "If some components are still not ready, contact your support representative"
+    echo "==========================================================================="
     exit
   fi
 done
