@@ -123,7 +123,7 @@ then
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/controller-manager.conf
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/scheduler.conf
   sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubelet.conf
-  /usr/local/bin/kubeadm init phase certs apiserver 2>/dev/null
+  /usr/local/bin/kubeadm init phase certs apiserver --apiserver-cert-extra-sans 10.233.0.1,127.0.0.1,localhost,lb-apiserver.kubernetes.local,$(hostname).cluster.local 2>/dev/null
   /usr/local/bin/kubeadm init phase certs apiserver-kubelet-client 2>/dev/null
   /usr/local/bin/kubeadm init phase certs front-proxy-client 2>/dev/null
 else
@@ -182,12 +182,12 @@ printf '\nFinished! kubectl apply commands will follow\n'
 /usr/local/bin/kubectl get cm -n kube-system kube-proxy -o yaml > /etc/kubernetes/kube-proxy.yaml
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kubeadm-config.yaml
 sed -i "s/${oldIP}/${newIP}/g" /etc/kubernetes/kube-proxy.yaml
-/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml
+/usr/local/bin/kubectl apply -f /etc/kubernetes/kubeadm-config.yaml -n kube-system
 /usr/local/bin/kubectl apply -f /etc/kubernetes/kube-proxy.yaml -n kube-system
 
 # Apply the ip change to the instance
 sed -i "s/${oldIP}/${newIP}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+/usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
 
 # Update other files, jic
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
@@ -195,9 +195,16 @@ sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/kubespray/inventory/turbocluster/hosts.yml
 sed -i "s/${oldIP}/${newIP}/g" /opt/local/etc/turbo.conf
 
+# Set turbo kube context
+su -c "kubectl config set-context $(kubectl config current-context) --namespace=turbonomic" -s /bin/sh turbo
+
 # Reboot the instance:
+echo "#############################################"
+echo "Change Completed, please login through the UI"
+echo "https://${newIP}"
+echo "#############################################"
 echo ""
 echo ""
-echo "################################################"
-echo "Please reboot the server to pick up the changes"
-echo "################################################"
+echo "############################################################"
+echo "Please reboot the server to pick up the changes, if required"
+echo "############################################################"

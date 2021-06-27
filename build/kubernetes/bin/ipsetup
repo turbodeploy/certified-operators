@@ -319,7 +319,7 @@ then
     echo "------------------------------------------------------------------------"
     echo "  kubeNodeIPChange"
     echo "  to change the kubernetes networking and certificates"
-    echo "  example: $ /opt/local/bin/kubeNodeIPChange.sh"
+    echo "  example: $ sudo /opt/local/bin/kubeNodeIPChange.sh"
     echo ""
   fi
 else
