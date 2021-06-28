@@ -266,8 +266,6 @@ ucsdirector:
   enabled: false
 udt:
   enabled: false
-vcd:
-  enabled: false
 vcenter:
   enabled: false
 vmax:

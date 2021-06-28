@@ -474,7 +474,6 @@
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
@@ -737,13 +736,6 @@
             <id>mediation-oneview</id>
             <modules>
                 <module>../com.vmturbo.mediation.oneview.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-vcd</id>
-            <modules>
-                <module>../com.vmturbo.mediation.vcd.component</module>
             </modules>
         </profile>
 
@@ -1366,7 +1358,6 @@
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
-                <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>

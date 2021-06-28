@@ -115,8 +115,6 @@ spec:
     enabled: false
   ucsdirector:
     enabled: false
-  vcd:
-    enabled: false
   vcenter:
     enabled: false
   vmax:
@@ -336,10 +334,6 @@ spec:
       limits:
         memory: 1Gi
   mediation-ucsdirector:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-vcd:
     resources:
       limits:
         memory: 512Mi

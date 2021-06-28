@@ -401,10 +401,6 @@ dependencies:
     repository: file://../probes/mediation-vcenterbrowsing
     version: 0.1.0
     condition: vcenter.enabled
-  - name: mediation-vcd
-    repository: file://../probes/mediation-vcd
-    version: 0.1.0
-    condition: vcd.enabled
   - name: mediation-vmax
     repository: file://../probes/mediation-vmax
     version: 0.1.0
