@@ -25,6 +25,8 @@ public class ActionImpactedEntity extends ActionEntity {
 
     private EntitySettings settings;
 
+    private ActionImpactedCosts affectedCosts;
+
     @Nullable
     public Map<String, ImpactedMetric> getAffectedMetrics() {
         return affectedMetrics;
@@ -40,6 +42,14 @@ public class ActionImpactedEntity extends ActionEntity {
 
     public void setSettings(EntitySettings settings) {
         this.settings = settings;
+    }
+
+    public ActionImpactedCosts getAffectedCosts() {
+        return affectedCosts;
+    }
+
+    public void setAffectedCosts(ActionImpactedCosts affectedCosts) {
+        this.affectedCosts = affectedCosts;
     }
 
     /**

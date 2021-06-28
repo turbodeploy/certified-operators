@@ -12,9 +12,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -37,6 +41,16 @@ public class CostProtoUtil {
     public static final int HOURS_IN_YEAR = HOURS_IN_DAY * DAYS_IN_YEAR;
 
     public static final int HOURS_IN_MONTH = HOURS_IN_YEAR / MONTHS_IN_YEAR;
+
+    public static Set<CostCategory> CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST = ImmutableSet.of(
+            CostCategory.ON_DEMAND_COMPUTE,
+            CostCategory.ON_DEMAND_LICENSE,
+            CostCategory.RESERVED_LICENSE
+    );
+
+    public static Set<CostSource> SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST = ImmutableSet.of(
+            CostSource.BUY_RI_DISCOUNT
+    );
 
     /**
      * Get the term of a reserved instance in some kind of time unit.

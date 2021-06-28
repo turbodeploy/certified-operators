@@ -7,11 +7,14 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -38,6 +41,8 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.Stat
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudCostStatsAvailable;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -75,6 +80,7 @@ public class EntityCostListenerTest {
     private List<Record> entityCostRecordsCapture;
     private WriterConfig writerConfig = mock(WriterConfig.class);
     private final CostServiceMole costService = spy(CostServiceMole.class);
+    private static final long realtimeTopologyContextId = 77777;
 
     /**
      * Mock tests for gRPC services.
@@ -107,7 +113,7 @@ public class EntityCostListenerTest {
         this.entityCostRecordsCapture = captureSink(entityCostInserterSink, false);
         final DataPack<Long> oidPack = new LongDataPack();
         this.listener = spy(new EntityCostListener(dataProvider, endpoint,
-                Executors.newSingleThreadScheduledExecutor(), writerConfig, true));
+                Executors.newSingleThreadScheduledExecutor(), writerConfig, true, realtimeTopologyContextId));
         doReturn(entityCostInserterSink).when(listener).getEntityCostInserterSink();
         doReturn(bottomUpCostData).when(dataProvider).getBottomUpCostData();
     }
@@ -190,6 +196,32 @@ public class EntityCostListenerTest {
                 getRecord(snapshotTime, vm2.getOid(), CostCategory.TOTAL, CostSource.TOTAL, 2)
         ));
 
+    }
+
+    /**
+     * Test that plan cost notification is ignored.
+     */
+    @Test
+    public void testPlanNotificationIsIgnored() {
+        listener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setTopologyContextId(1234)
+                        .setType(StatusUpdateType.PLAN_ENTITY_COST_UPDATE))
+                .build());
+        verifyZeroInteractions(dataProvider);
+    }
+
+    /**
+     * Test that real time projected cost is processed.
+     */
+    @Test
+    public void testRealtimeProjectedCosts() {
+        listener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setTopologyContextId(realtimeTopologyContextId)
+                        .setType(StatusUpdateType.PROJECTED_COST_UPDATE))
+                .build());
+        verify(dataProvider).fetchProjectedBottomUpCostData(any());
     }
 
     private Record getRecord(final Timestamp time, final long oid,

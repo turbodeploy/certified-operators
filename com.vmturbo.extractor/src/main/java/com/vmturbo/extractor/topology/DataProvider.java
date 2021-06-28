@@ -36,6 +36,8 @@ import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
+import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory.RICoverageData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
@@ -65,10 +67,14 @@ public class DataProvider {
     private volatile List<EntityStats> clusterStats;
     private volatile TopDownCostData topDownCostData;
     private volatile BottomUpCostData bottomUpCostData;
+    private volatile BottomUpCostData projectedBottomUpCostData;
+    private volatile RICoverageData currentRiCoverageData;
+    private volatile RICoverageData projectedRiCoverageData;
 
     private final ClusterStatsFetcherFactory clusterStatsFetcherFactory;
     private final TopDownCostFetcherFactory topDownCostFetcherFactory;
     private final BottomUpCostFetcherFactory bottomUpCostFetcherFactory;
+    private final RICoverageFetcherFactory riCoverageFetcherFactory;
     private final ExtractorFeatureFlags extractorFeatureFlags;
     private final ThinTargetCache targetCache;
 
@@ -77,12 +83,14 @@ public class DataProvider {
             TopDownCostFetcherFactory topDownCostFetcherFactory,
             BottomUpCostFetcherFactory bottomUpCostFetcherFactory,
             ThinTargetCache targetCache,
+            RICoverageFetcherFactory riCoverageFetcherFactory,
             ExtractorFeatureFlags extractorFeatureFlags) {
         this.groupService = groupService;
         this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
         this.topDownCostFetcherFactory = topDownCostFetcherFactory;
         this.bottomUpCostFetcherFactory = bottomUpCostFetcherFactory;
         this.targetCache = targetCache;
+        this.riCoverageFetcherFactory = riCoverageFetcherFactory;
         this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
@@ -171,8 +179,6 @@ public class DataProvider {
             dataFetchers.add(clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats,
                     topologyCreationTime));
         }
-        // todo: add more fetchers for cost, etc
-
         // run all fetchers in parallel
         dataFetchers.parallelStream().forEach(DataFetcher::fetchAndConsume);
     }
@@ -182,12 +188,20 @@ public class DataProvider {
      *
      * @param snapshotTime snapshot time of topology whose cost data is needed
      * @param timer        timer to use
-     * @return {@link BottomUpCostData}
      */
-    public BottomUpCostData fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
-        bottomUpCostFetcherFactory.newFetcher(timer, snapshotTime, this::setBottomUpCostData)
+    public void fetchBottomUpCostData(long snapshotTime, @Nonnull MultiStageTimer timer) {
+        bottomUpCostFetcherFactory.newCurrentCostFetcher(timer, snapshotTime, this::setBottomUpCostData)
                 .fetchAndConsume();
-        return bottomUpCostData;
+    }
+
+    /**
+     * Fetch bottom-up cost data for the given snapshot, it is updated in 'bottomUpCostData'.
+     *
+     * @param timer        timer to use
+     */
+    public void fetchProjectedBottomUpCostData(@Nonnull MultiStageTimer timer) {
+        bottomUpCostFetcherFactory.newProjectedCostFetcher(timer, this::setProjectedBottomUpCostData)
+                .fetchAndConsume();
     }
 
     /**
@@ -199,6 +213,27 @@ public class DataProvider {
      */
     public void fetchTopDownCostData(@Nonnull MultiStageTimer timer) {
         topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData).fetchAndConsume();
+    }
+
+    /**
+     * Fetch current RI coverage data for all entities.
+     *
+     * @param timer timer to use
+     */
+    public void fetchCurrentRICoverageData(@Nonnull MultiStageTimer timer) {
+        riCoverageFetcherFactory.newCurrentRiCoverageFetcher(timer, this::setCurrentRiCoverageData)
+                .fetchAndConsume();
+    }
+
+    /**
+     * Fetch projected RI coverage data for the given topology context.
+     *
+     * @param timer timer to use
+     * @param topologyContextId id of the topology context, like real time or plan topology
+     */
+    public void fetchProjectedRICoverageData(@Nonnull MultiStageTimer timer, long topologyContextId) {
+        riCoverageFetcherFactory.newProjectedRiCoverageFetcher(timer,
+                this::setProjectedRiCoverageData, topologyContextId).fetchAndConsume();
     }
 
     /**
@@ -229,6 +264,18 @@ public class DataProvider {
 
     private void setBottomUpCostData(BottomUpCostData bottomUpCostData) {
         this.bottomUpCostData = bottomUpCostData;
+    }
+
+    private void setProjectedBottomUpCostData(BottomUpCostData projectedBottomUpCostData) {
+        this.projectedBottomUpCostData = projectedBottomUpCostData;
+    }
+
+    public void setCurrentRiCoverageData(RICoverageData currentRiCoverageData) {
+        this.currentRiCoverageData = currentRiCoverageData;
+    }
+
+    public void setProjectedRiCoverageData(RICoverageData projectedRiCoverageData) {
+        this.projectedRiCoverageData = projectedRiCoverageData;
     }
 
     /**
@@ -603,6 +650,18 @@ public class DataProvider {
     @Nullable
     public BottomUpCostData getBottomUpCostData() {
         return bottomUpCostData;
+    }
+
+    public BottomUpCostData getProjectedBottomUpCostData() {
+        return projectedBottomUpCostData;
+    }
+
+    public RICoverageData getCurrentRiCoverageData() {
+        return currentRiCoverageData;
+    }
+
+    public RICoverageData getProjectedRiCoverageData() {
+        return projectedRiCoverageData;
     }
 
     /**

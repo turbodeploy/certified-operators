@@ -92,7 +92,8 @@ public class ActionConfig {
      */
     @Bean
     public ActionAttributeExtractor actionAttributeExtractor() {
-        return new ActionAttributeExtractor(topologyListenerConfig.actionCommodityDataRetriever());
+        return new ActionAttributeExtractor(topologyListenerConfig.actionCommodityDataRetriever(),
+                topologyListenerConfig.dataProvider());
     }
 
     /**

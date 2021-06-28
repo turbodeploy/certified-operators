@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.cost.api.CostNotificationListener;
@@ -35,6 +37,7 @@ public class EntityCostListener implements CostNotificationListener {
     private final ExecutorService pool;
     private final WriterConfig config;
     private final boolean reportingEnabled;
+    private final long realtimeTopologyContextId;
 
     /**
      * Create a new instance.
@@ -44,22 +47,25 @@ public class EntityCostListener implements CostNotificationListener {
      * @param pool         thread pool
      * @param config       writer config
      * @param reportingEnabled whether reporting is enabled
+     * @param realtimeTopologyContextId id of real time topology context
      */
     public EntityCostListener(DataProvider dataProvider, final DbEndpoint dbEndpoint,
-            final ExecutorService pool, WriterConfig config, boolean reportingEnabled) {
+            final ExecutorService pool, WriterConfig config, boolean reportingEnabled,
+            long realtimeTopologyContextId) {
         this.dataProvider = dataProvider;
         this.dbEndpoint = dbEndpoint;
         this.pool = pool;
         this.config = config;
         this.reportingEnabled = reportingEnabled;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
     public void onCostNotificationReceived(@Nonnull final CostNotification costNotification) {
+        final MultiStageTimer timer = new MultiStageTimer(logger);
         if (costNotification.hasCloudCostStatsAvailable()) {
-            MultiStageTimer timer = new MultiStageTimer(logger);
             final long snapshotTime = costNotification.getCloudCostStatsAvailable().getSnapshotDate();
-            final BottomUpCostData costData = dataProvider.fetchBottomUpCostData(snapshotTime, timer);
+            dataProvider.fetchBottomUpCostData(snapshotTime, timer);
 
             // only write to postgres if reporting is enabled
             if (reportingEnabled) {
@@ -73,8 +79,19 @@ public class EntityCostListener implements CostNotificationListener {
                     logger.error("Interrupted while writing entity cost data");
                     Thread.currentThread().interrupt();
                 }
-            } else {
-                timer.info(String.format("Fetched costs for %d entities", costData.size()), Detail.STAGE_DETAIL);
+            }
+        } else if (costNotification.hasStatusUpdate()) {
+            // only process real time update, skip plan update
+            if (costNotification.getStatusUpdate().getTopologyContextId() == realtimeTopologyContextId) {
+                StatusUpdate statusUpdate = costNotification.getStatusUpdate();
+                if (statusUpdate.getType() == StatusUpdateType.PROJECTED_COST_UPDATE) {
+                    dataProvider.fetchProjectedBottomUpCostData(timer);
+                } else if (statusUpdate.getType() == StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE) {
+                    dataProvider.fetchCurrentRICoverageData(timer);
+                } else if (statusUpdate.getType() == StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE) {
+                    dataProvider.fetchProjectedRICoverageData(timer,
+                            costNotification.getStatusUpdate().getTopologyContextId());
+                }
             }
         }
     }

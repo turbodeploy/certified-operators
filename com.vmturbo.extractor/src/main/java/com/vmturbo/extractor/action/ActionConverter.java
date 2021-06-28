@@ -53,6 +53,7 @@ import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.export.CostAmount;
+import com.vmturbo.extractor.schema.json.export.Target;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -480,8 +481,10 @@ public class ActionConverter {
         actions.forEach(action -> {
             ActionImpactedEntity target = action.getTarget();
             if (target != null && targetsExtractor != null) {
-                target.setAttrs(Collections.singletonMap(ExportUtils.TARGETS_JSON_KEY_NAME,
-                        targetsExtractor.extractTargets(target.getOid())));
+                List<Target> targets = targetsExtractor.extractTargets(target.getOid());
+                if (targets != null) {
+                    target.setAttrs(Collections.singletonMap(ExportUtils.TARGETS_JSON_KEY_NAME, targets));
+                }
             }
         });
         return actions;
