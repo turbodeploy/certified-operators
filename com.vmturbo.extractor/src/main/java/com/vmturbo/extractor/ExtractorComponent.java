@@ -88,6 +88,8 @@ public class ExtractorComponent extends BaseVmtComponent {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
         // only set up postgres health monitor if reporting or searchApi is enabled
         if (extractorGlobalConfig.requireDatabase()) {
+
+
             try {
                 setupHealthMonitor();
                 // change retention policy if custom period is provided
@@ -102,6 +104,18 @@ public class ExtractorComponent extends BaseVmtComponent {
             } catch (UnsupportedDialectException | SQLException e) {
                 logger.error("Failed to create retention policy", e);
             }
+            Thread sizeMonitor = new Thread(() -> {
+                try {
+                    logger.info("Trying to start up DbSizeMonitor");
+                    extractorDbConfig.dbSizeMonitor().activate(
+                            extractorDbConfig.dbSizeMonitorFrequency,
+                            extractorDbConfig.dbSizeMonitorOffset);
+                } catch (Exception e) {
+                    logger.error("Failed to establish DbSizeMonitor: {}", e.toString());
+                }
+            });
+            sizeMonitor.setDaemon(true);
+            sizeMonitor.start();
         }
     }
 }

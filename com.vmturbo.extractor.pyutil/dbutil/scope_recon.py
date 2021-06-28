@@ -1,11 +1,11 @@
 import logging
-import psycopg2
-import queue
-import xxhash
-
 from datetime import datetime
 from multiprocessing import Process, Queue
 from time import perf_counter
+
+import psycopg2
+import xxhash
+
 
 class Scope:
 

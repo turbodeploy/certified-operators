@@ -1,0 +1,24 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+humanize = "*"
+psycopg2-binary = "*"
+dataset = "*"
+python-dateutil = "*"
+"ruamel.yaml" = "*"
+"ruamel.base" = "*"
+xxhash = "*"
+requests = "*"
+
+[dev-packages]
+pytest = "*"
+
+[requires]
+python_version = "3.6"
+
+[scripts]
+extend-data = "python dbutil/extend_data.py"
+schema-size-info = "python dbutil/schema_size_info.py"

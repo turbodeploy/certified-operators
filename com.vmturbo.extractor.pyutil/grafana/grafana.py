@@ -1,17 +1,11 @@
 import argparse
 import ctypes
-import dataset
 import json
 import logging
 import os
-import psycopg2
 import re
-import requests
-import ruamel.yaml
-import sqlalchemy
 import sys
 import time
-import xxhash
 from collections import OrderedDict
 from datetime import datetime
 from datetime import timedelta
@@ -20,6 +14,13 @@ from enum import Enum
 from fnmatch import fnmatch
 from math import log10, floor
 from pathlib import Path
+
+import dataset
+import psycopg2
+import requests
+import ruamel.yaml
+import sqlalchemy
+import xxhash
 from ruamel.yaml import YAML
 
 class Folder: pass
@@ -61,7 +62,7 @@ class Grafana:
         id = self.__require_folder_id(args.folder)
         p = Path(args.directory)
         if (not p.is_dir()):
-            raise Exception(f'Path "{path}" is not a directory')
+            raise Exception(f'Path "{p}" is not a directory')
 
         filext = f'.{args.disk_format.lower()}'
         for child in p.iterdir():
@@ -539,7 +540,7 @@ class Arg(Enum):
               {'dest': 'folder', 'help': 'name of Grafana folder; env: GRAFANA_FOLDER',
                'default': os.environ.get('GRAFANA_FOLDER'),
                'required': 'GRAFANA_FOLDER' not in os.environ})
-    disk_directory = (['-d', '--directory', '--disk-directory; env: GRAFANA_DIR'],
+    disk_directory = (['-d', '--directory', '--disk-directory; env: GRAnaFANA_DIR'],
                       {'dest': 'directory', 'help': 'on-disk dashboard directory',
                        'default': os.environ.get('GRAFANA_DIR'),
                        'required': 'GRAFANA_DIR' not in os.environ})
