@@ -155,7 +155,7 @@ public class PlanProjectExecutorTest {
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, grpcServer.getChannel(), templatesDao, grpcServer.getChannel(),
                 projectNotificationSender, true, 10, topologyProcessor,
-                cpuCapacityEstimator, mock(ThreadPoolTaskScheduler.class), mock(ReservationManager.class));
+                cpuCapacityEstimator, mock(ThreadPoolTaskScheduler.class), mock(ReservationManager.class), false);
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()

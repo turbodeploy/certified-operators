@@ -1,6 +1,8 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -37,6 +39,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -61,7 +69,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -73,9 +83,11 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -140,7 +152,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, false));
     }
 
     /**
@@ -158,6 +170,59 @@ public class ClusterHeadroomPostProcessorTest {
         // VmGrowth = 0 (because we don't have data in the past)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
             .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
+                // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
+                // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+                // CPU headroom calculation :
+                // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+                .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                    .setHeadroom(20)
+                    .setCapacity(40)
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))).build());
+    }
+
+    /**
+     * Headroom results considering reserved VMs.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testProjectedTopologyWithHeadroomValuesReservedVMs() throws Exception {
+        prepareForHeadroomCalculation(true);
+        RemoteIterator<ProjectedTopologyEntity> topologyIt = getProjectedTopology(true);
+
+        final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
+            grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, true));
+        final ReservationDao reservationDao = mock(ReservationDaoImpl.class);
+        when(reservationManager.getReservationDao()).thenReturn(reservationDao);
+        when(reservationDao.getAllReservations()).thenReturn(buildReservations(8L, 9L, 10L));
+        processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
+
+        // VmGrowth = 0 (because we don't have data in the past)
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(ClusterHeadroomInfo.newBuilder()
+                .setClusterId(CLUSTER_ID)
+                // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
+                // PM MEM value : used = 40 + 40 (reserved VMs), capacity = 200
+                // MEM headroom calculation :
+                // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 3
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+                .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
+                    .setCapacity(5)
+                    .setHeadroom(3)
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
+                // Storage value : used = 100 + 160 (reserved VMs), capacity = 600
+                // Storage headroom calculation :
+                // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 1
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+                .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
+                    .setCapacity(3)
+                    .setHeadroom(1)
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
+                .setHeadroom(1)
                 // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
                 // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
                 // CPU headroom calculation :
@@ -435,14 +500,14 @@ public class ClusterHeadroomPostProcessorTest {
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setActive(true)
                     .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.CPU_VALUE))
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE))
                     .setScalingFactor(2)
                     .setCapacity(100)
                     .setUsed(50))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setActive(true)
                     .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.MEM_VALUE))
+                        .setType(CommodityDTO.CommodityType.MEM_VALUE))
                     .setCapacity(200)
                     .setUsed(40))
                 .build(),
@@ -453,7 +518,7 @@ public class ClusterHeadroomPostProcessorTest {
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setActive(true)
                     .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityType.STORAGE_AMOUNT_VALUE))
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
                     .setCapacity(600)
                     .setUsed(100))
                 .build());
@@ -484,7 +549,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, false));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -508,7 +573,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, false));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -531,7 +596,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, false));
 
         long mostRecentHistoricalDate = System.currentTimeMillis();
         Map<Long, Long> vmsByDate = getVMsByDate(getVMCountData(10, 5), mostRecentHistoricalDate);
@@ -557,6 +622,92 @@ public class ClusterHeadroomPostProcessorTest {
         when(historyServiceMole.getClusterStatsForHeadroomPlan(any())).thenReturn(getStatsSnapshots(vmsByDate));
         growthPerCluster = processor.getVMDailyGrowth(entityOidsByClusterAndType);
         assertEquals(growthPerCluster.get(1L), 0, delta);
+    }
+
+    /**
+     * Test {@link ClusterHeadroomPlanPostProcessor#calculateReservedVMsUsage()}.
+     */
+    @Test
+    public void testCalculateReservedVMsUsage() {
+        final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
+            grpcTestServer.getChannel(), grpcTestServer.getChannel(),
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager, true));
+        final ReservationDao reservationDao = mock(ReservationDaoImpl.class);
+        when(reservationManager.getReservationDao()).thenReturn(reservationDao);
+        final long pm1 = 1L;
+        final long storage1 = 2L;
+        final long pm2 = 10L;
+        when(reservationDao.getAllReservations()).thenReturn(buildReservations(pm1, storage1, pm2));
+
+        processor.calculateReservedVMsUsage();
+        final Map<Long, Map<Integer, Double>> map = processor.getProviderOidToCommodityUsageOfReservationVMs();
+
+        assertThat(map.size(), is(3));
+        assertThat(map.get(pm1).size(), is(2));
+        assertThat(map.get(pm1).get(CommodityDTO.CommodityType.MEM_VALUE), is(40d));
+        assertThat(map.get(pm1).get(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE), is(60d));
+        assertThat(map.get(storage1).size(), is(2));
+        assertThat(map.get(storage1).get(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE), is(160d));
+        assertThat(map.get(storage1).get(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE), is(200d));
+        assertThat(map.get(pm2).size(), is(2));
+        assertThat(map.get(pm2).get(CommodityDTO.CommodityType.MEM_VALUE), is(4d));
+        assertThat(map.get(pm2).get(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE), is(6d));
+    }
+
+    /**
+     * Build a set of {@link Reservation}s.
+     * @param pm1 pm1 oid
+     * @param storage1 storage1 oid
+     * @param pm2 pm1 oid
+     * @return a set of {@link Reservation}s
+     */
+    private Set<Reservation> buildReservations(long pm1, long storage1, long pm2) {
+        return ImmutableSet.of(
+            buildReservation(ReservationStatus.RESERVED, pm1, storage1, 10, 20, 50, 60, 30, 40, 70, 80),
+            buildReservation(ReservationStatus.RESERVED, pm2, storage1, 1, 2, 10, 20, 3, 4, 30, 40),
+            buildReservation(ReservationStatus.FUTURE, pm1, storage1, 1, 2, 10, 20, 3, 4, 30, 40),
+            buildReservation(ReservationStatus.INVALID, pm2, storage1, 1, 2, 10, 20, 3, 4, 30, 40));
+    }
+
+    /**
+     * Build {@link Reservation}.
+     *
+     * @param status reservation status
+     * @param pm pm provider oid
+     * @param storage storage provider oid
+     * @param used an array of used values
+     * @return {@link Reservation}
+     */
+    private Reservation buildReservation(ReservationStatus status, long pm, long storage, int... used) {
+        return Reservation.newBuilder().setStatus(status)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                .addReservationTemplate(ReservationTemplate.newBuilder()
+                    .addReservationInstance(ReservationInstance.newBuilder().addPlacementInfo(PlacementInfo.newBuilder()
+                        .setProviderId(pm)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[0])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_VALUE)))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[1])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)))))
+                    .addReservationInstance(ReservationInstance.newBuilder().addPlacementInfo(PlacementInfo.newBuilder()
+                        .setProviderId(storage)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[2])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[3])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE))))))
+                .addReservationTemplate(ReservationTemplate.newBuilder()
+                    .addReservationInstance(ReservationInstance.newBuilder().addPlacementInfo(PlacementInfo.newBuilder()
+                        .setProviderId(pm)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[4])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.MEM_VALUE)))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[5])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)))))
+                    .addReservationInstance(ReservationInstance.newBuilder().addPlacementInfo(PlacementInfo.newBuilder()
+                        .setProviderId(storage)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[6])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(used[7])
+                            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)))))))
+            .build();
     }
 
     /**

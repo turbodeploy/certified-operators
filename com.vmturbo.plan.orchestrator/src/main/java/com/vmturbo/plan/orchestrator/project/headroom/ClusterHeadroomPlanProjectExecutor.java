@@ -126,6 +126,8 @@ public class ClusterHeadroomPlanProjectExecutor {
 
     private final ReservationManager reservationManager;
 
+    private final boolean considerReservedVMsInClusterHeadroomPlan;
+
     // Number of days for which system load was considered in history.
     private static final int LOOP_BACK_DAYS = 10;
 
@@ -145,6 +147,7 @@ public class ClusterHeadroomPlanProjectExecutor {
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      * @param taskScheduler a taskScheduler used for scheduled plan executions
      * @param reservationManager the reservation manager.
+     * @param considerReservedVMsInClusterHeadroomPlan consider reserved VMs in cluster headroom plan or not
      */
     public ClusterHeadroomPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                               @Nonnull final Channel groupChannel,
@@ -158,7 +161,8 @@ public class ClusterHeadroomPlanProjectExecutor {
                                               @Nonnull final TopologyProcessor topologyProcessor,
                                               @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
                                               @Nonnull final ThreadPoolTaskScheduler taskScheduler,
-                                              @Nonnull final ReservationManager reservationManager) {
+                                              @Nonnull final ReservationManager reservationManager,
+                                              final boolean considerReservedVMsInClusterHeadroomPlan) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(processorRegistry);
@@ -177,6 +181,7 @@ public class ClusterHeadroomPlanProjectExecutor {
         this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
         this.taskScheduler = taskScheduler;
         this.reservationManager = reservationManager;
+        this.considerReservedVMsInClusterHeadroomPlan = considerReservedVMsInClusterHeadroomPlan;
     }
 
     /**
@@ -281,7 +286,7 @@ public class ClusterHeadroomPlanProjectExecutor {
                 new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
                     clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
                     repositoryChannel, historyChannel, planDao, groupChannel, templatesDao,
-                    cpuCapacityEstimator, reservationManager);
+                    cpuCapacityEstimator, reservationManager, considerReservedVMsInClusterHeadroomPlan);
             headroomPlanPostProcessor.setOnFailureHandler(handleFailure ? () ->
                 taskScheduler.schedule(() -> this.executePlanProject(planProject, false),
                     new Date(System.currentTimeMillis() + 1000 * headroomPlanRerunDelayInSecond))
