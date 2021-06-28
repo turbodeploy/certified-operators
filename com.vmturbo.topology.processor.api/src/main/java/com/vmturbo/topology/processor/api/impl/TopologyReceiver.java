@@ -81,7 +81,7 @@ public class TopologyReceiver {
     private Collection<Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>>>
     createEntityConsumers(@Nonnull final TopologyInfo topologyInfo,
                           @Nonnull final SpanContext tracingContext) {
-        logger.info("TopologyInfo : " + topologyInfo);
+        logger.info("TopologyInfo : " + topologyInfo.getAllFields());
         return listeners.stream().map(listener -> {
             final Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>> consumer =
                 iterator -> listener.onTopologyNotification(topologyInfo, iterator, tracingContext);
