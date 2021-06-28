@@ -161,7 +161,7 @@ public class ConstraintsEditor {
                 .filter(IgnoreConstraint::hasGlobalIgnoreEntityType)
                 .map(IgnoreConstraint::getGlobalIgnoreEntityType)
                 .map(GlobalIgnoreEntityType::getEntityType)
-                .map(entityType -> graph.entitiesOfType(entityType))
+                .map(graph::entitiesOfType)
                 .flatMap(Function.identity())
                 .forEach(entity -> {
                     entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
@@ -213,8 +213,15 @@ public class ConstraintsEditor {
                             commoditiesOfGroup.remove(ConstraintType.GlobalIgnoreConstraint.name());
                             commoditiesOfGroup.add(ALL_COMMODITIES);
                         }
-                        groupMembersOids.forEach(entityId ->
-                            entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
+                        groupMembersOids.forEach(entityId -> {
+                            graph.getEntity(entityId).ifPresent(entity -> {
+                                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                            .setShopTogether(true);
+                                }
+                            });
+                            entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup);
+                        });
                     } catch (GroupResolutionException e) {
                         logger.warn("Cannot resolve member for group {}", group);
                     }
@@ -232,7 +239,7 @@ public class ConstraintsEditor {
     private Set<Long> updateCommoditiesSoldForHostAndGetVMCustomers(Set<Long> groupMembersOids,
                     TopologyGraph<TopologyEntity> graph) {
         return groupMembersOids.stream()
-            .map(oid -> graph.getEntity(oid))
+            .map(graph::getEntity)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .flatMap(entity -> {
@@ -255,7 +262,6 @@ public class ConstraintsEditor {
             .forEach(commSoldBldr -> commSoldBldr.setActive(false));
     }
 
-    @Nonnull
     private void deactivateCommodities(@Nonnull TopologyGraph<TopologyEntity> graph,
             @Nonnull Multimap<Long, String> entitiesToIgnoredCommodities) {
         for (Long entityId : entitiesToIgnoredCommodities.keySet()) {
