@@ -1,19 +1,28 @@
 package com.vmturbo.extractor;
 
+import java.time.Duration;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.extractor.flyway.ResetChecksumsForTimescaleDB201Migrations;
+import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.DbSizeMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
@@ -32,6 +41,61 @@ public class ExtractorDbConfig {
 
     @Autowired
     private SQLDatabaseConfig2 dbConfig;
+
+    /**
+     * How often we report database sizes, default is once per day. See {@link
+     * Duration#parse(CharSequence)} for formatting requirements.
+     */
+    @Value("${dbSizeMonitorFrequency:P1D}")
+    String dbSizeMonitorFrequency;
+
+    /**
+     * How long to wait after the start of each reporting interval (based on frequency setting)
+     * before initiating a new report. Default is 1 hour, so with default frequency reports will be
+     * triggered at 1am each day.
+     *
+     * <p>See {@link Duration#parse(CharSequence)} for formatting requirements.</p>
+     */
+    @Value("${dbSizeMonitorOffset:PT1H}")
+    String dbSizeMonitorOffset;
+
+    /** Comma-separated regexes for tables to be included in report, null means all tables. */
+    @Value("${dbSizeMonitorIncludes:#{null}}")
+    private String dbSizeMonitorIncludes;
+
+    /**
+     * Comma-separated regexes for tables to be excluded from report, null means no tables.
+     *
+     * <p>A table will be in the report if it matches and inclusion and does no match any
+     * exclusion.</p>
+     */
+    @Value("${dbSizeMonitorExcludes:#{null}}")
+    private String dbSizeMonitorExcludes;
+
+    /** Granularity of DB size reports. */
+    @Value("${dbSizeMonitorGranularity:PARTITION}")
+    private DbSizeMonitor.Granularity dbSizeMonitorGranularity;
+
+    /**
+     * Create a new {@link DbSizeMonitor} to be activated after component startup.
+     *
+     * @return the dize monitor instance
+     */
+    public DbSizeMonitor dbSizeMonitor() {
+        return new DbSizeMonitor(queryEndpoint(), Extractor.EXTRACTOR,
+                dbSizeMonitorIncludes, dbSizeMonitorExcludes, dbSizeMonitorGranularity,
+                dbMonitorExecutorService());
+    }
+
+    /**
+     * Create a {@link ScheduledExecutorService} to execute {@link DbSizeMonitor} invocations.
+     *
+     * @return executor service
+     */
+    private ScheduledExecutorService dbMonitorExecutorService() {
+        return Executors.newSingleThreadScheduledExecutor(
+                new ThreadFactoryBuilder().setNameFormat("db-size-monitor").build());
+    }
 
     /**
      * DB endpoint to use for topology ingestion.
