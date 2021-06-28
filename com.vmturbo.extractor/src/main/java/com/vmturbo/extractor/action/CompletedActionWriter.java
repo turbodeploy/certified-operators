@@ -34,11 +34,9 @@ import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.topology.DataProvider;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Responsible for writing executed actions to the database as they are reported by the action
@@ -226,12 +224,6 @@ public class CompletedActionWriter implements ActionsListener {
             return;
         }
 
-        final TopologyGraph<SupplyChainEntity> graph = dataProvider.getTopologyGraph();
-        if (graph == null) {
-            logger.error("No topology graph available when processing action success for action {} (id: {}).",
-                actionSuccess.getActionSpec().getDescription(), actionSuccess.getActionId());
-        }
-
         final ExecutedAction action = new ExecutedAction(actionSuccess.getActionId(), actionSuccess.getActionSpec(), actionSuccess.getSuccessDescription());
         queueAction(action);
     }
@@ -245,12 +237,6 @@ public class CompletedActionWriter implements ActionsListener {
         if (!actionFailure.hasActionSpec()) {
             // Log and exit
             return;
-        }
-
-        final TopologyGraph<SupplyChainEntity> graph = dataProvider.getTopologyGraph();
-        if (graph == null) {
-            logger.error("No topology graph available when processing action failure for action {} (id: {}).",
-                    actionFailure.getActionSpec().getDescription(), actionFailure.getActionId());
         }
 
         final ExecutedAction action = new ExecutedAction(actionFailure.getActionId(), actionFailure.getActionSpec(), actionFailure.getErrorDescription());
