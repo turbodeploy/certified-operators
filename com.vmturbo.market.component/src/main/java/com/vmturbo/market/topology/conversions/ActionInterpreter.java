@@ -32,6 +32,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.AbstractMessage;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
@@ -967,10 +968,11 @@ public class ActionInterpreter {
             List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(target,
                 Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
                 originalTopology);
-            if (!connectedEntities.isEmpty())
+            if (!connectedEntities.isEmpty()) {
                 sourceAzOrRegion = connectedEntities.get(0);
-            else
+            } else {
                 logger.error("{} is not connected to any AZ or Region", target.getDisplayName());
+            }
             Optional<Long> sourceTierId = cloudTc.getSourceOrDestinationTierFromMoveTo(move, target.getOid(), true);
             if (sourceTierId.isPresent()) {
                 sourceTier = originalTopology.get(sourceTierId.get());
@@ -997,7 +999,8 @@ public class ActionInterpreter {
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMarketTier != null && destMarketTier != null) {
             // Cloud to cloud move
-            if (destinationRegion != sourceRegion) {
+            if (ObjectUtils.allNotNull(destinationRegion, sourceRegion, destAzOrRegion, sourceAzOrRegion)
+                    && destinationRegion != sourceRegion) {
                 // AZ or Region change provider. We create an AZ or Region change provider
                 // because the target is connected to AZ or Region.
                 changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),
