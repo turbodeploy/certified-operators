@@ -688,17 +688,6 @@ services:
       instance_id: mediation-oneview-1
     restart: always
 
-  mediation-vcd-prod:
-    extends:
-      file: common-services.yml
-      service: prod-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vcd.component
-    environment:
-      consul_host: consul
-      component_type: mediation-vcd
-      instance_id: mediation-vcd-1
-    restart: always
-
   mediation-mssql-prod:
     extends:
       file: common-services.yml

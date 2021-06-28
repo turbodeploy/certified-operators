@@ -343,10 +343,6 @@ spec:
     resources:
       limits:
         memory: 32Gi
-  mediation-vcd:
-    resources:
-      limits:
-        memory: 32Gi
   mediation-vcenter:
     resources:
       limits:
