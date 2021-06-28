@@ -7,16 +7,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
@@ -82,7 +85,7 @@ public class ConstraintsEditorTest {
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
     }
 
-    private static Grouping buildGroup(long id, List<Long> entities) {
+    private static Grouping buildGroup(long id, Collection<Long> entities) {
         final GroupDefinition groupInfo =
                         GroupDefinition.newBuilder()
                         .setType(GroupType.REGULAR)
@@ -97,13 +100,15 @@ public class ConstraintsEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type) {
         return TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                    CommodityBoughtDTO.newBuilder().setCommodityType(
-                        CommodityType.newBuilder().setType(type).setKey("").build()
-                    ).setActive(true)
-                )
-            ));
+                TopologyEntityDTO.newBuilder().setOid(oid)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(
+                                CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder().setCommodityType(
+                                                CommodityType.newBuilder().setType(type).setKey("").build()
+                                        ).setActive(true)
+                                )
+                        ));
     }
 
     @Nonnull
@@ -129,7 +134,8 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testIgnoreConstraint() throws IOException, ConstraintsEditorException {
-        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
+        Set<Long> groupMembers = ImmutableSet.of(1L, 2L);
+        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, groupMembers));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
@@ -151,9 +157,15 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(1, getActiveCommodities(graph).count());
-        // Ignore all sets shop together to true, otherwise false.
-        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).noneMatch(
-                vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
+        // Ignoring any constraint for a VM sets shop together to true.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
+                .map(vm -> vm.getTopologyEntityDtoBuilder())
+                .filter(vm -> groupMembers.contains(vm.getOid()))
+                .allMatch(vm -> vm.getAnalysisSettingsBuilder().getShopTogether()));
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
+                .map(vm -> vm.getTopologyEntityDtoBuilder())
+                .filter(vm -> !groupMembers.contains(vm.getOid()))
+                .noneMatch(vm -> vm.getAnalysisSettingsBuilder().getShopTogether()));
     }
 
     @Test
@@ -179,8 +191,8 @@ public class ConstraintsEditorTest {
         Assert.assertEquals(4, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(0, getActiveCommodities(graph).count());
-        // Ignore all sets shop together to true, otherwise false.
-        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).noneMatch(
+        // Ignoring any constraints for a VM will set ShopTogether to true.
+        Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
                 vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
 
@@ -211,7 +223,7 @@ public class ConstraintsEditorTest {
         // As 2 out of the 3 commodities has a key, we should have only 2 commodities whose
         // active flag is set to false and 1 is set to true
         Assert.assertEquals(1, getActiveCommodities(graph).count());
-        // Ignore all sets shop together to true, otherwise false.
+        // Ignoring any constraints for a VM will set ShopTogether to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
                 vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
@@ -249,7 +261,7 @@ public class ConstraintsEditorTest {
         // commodities in the entire graph which have active set to false. The
         // remaining 3 entitues should have commoditbought as active.
         Assert.assertEquals(3, getActiveCommodities(graph).count());
-        // Ignore all sets shop together to true, otherwise false.
+        // Ignoring any constraint for a VM sets shop together to true.
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
                 vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
