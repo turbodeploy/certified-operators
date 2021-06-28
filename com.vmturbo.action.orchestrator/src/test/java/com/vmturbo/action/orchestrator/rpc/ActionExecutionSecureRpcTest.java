@@ -72,7 +72,9 @@ import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -133,7 +135,6 @@ public class ActionExecutionSecureRpcTest {
     private static final long ACTION_ID_1 = 9999;
     private static final long ACTION_ID_2 = 8888;
 
-
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
@@ -177,6 +178,8 @@ public class ActionExecutionSecureRpcTest {
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander =
         mock(InvolvedEntitiesExpander.class);
+
+    private LiveActionPipelineFactory pipelineFactory;
 
     private final ActionsRpcService actionsRpcService = new ActionsRpcService(
         clock,
@@ -290,14 +293,20 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                actionTargetSelector, entitySettingsCache, actionHistoryDao,
+            actionTranslator, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore));
+            entitySeverityCache, workflowStore));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
+
+        pipelineFactory = new LiveActionPipelineFactory(actionStorehouse, mock(ActionAutomationManager.class),
+            atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
+            actionHistoryDao, actionFactory, clock, 10,
+            actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
+            actionAuditSender);
     }
 
     @After
@@ -326,7 +335,7 @@ public class ActionExecutionSecureRpcTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
             .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
                 .getCompactRepresentation()))
@@ -361,7 +370,7 @@ public class ActionExecutionSecureRpcTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
         AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
             .acceptAction(acceptActionRequest);
 
@@ -393,7 +402,7 @@ public class ActionExecutionSecureRpcTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNAUTHENTICATED)
             .descriptionContains("JWT strings must contain exactly 2 period characters"));
         actionOrchestratorServiceClient
@@ -420,7 +429,7 @@ public class ActionExecutionSecureRpcTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
             .acceptAction(acceptActionRequest); // don't pass JWT token
 
@@ -463,7 +472,7 @@ public class ActionExecutionSecureRpcTest {
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
         AcceptActionResponse response = actionOrchestratorServiceTestClient
             .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
                 .getCompactRepresentation()))
@@ -496,7 +505,7 @@ public class ActionExecutionSecureRpcTest {
                 snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation1);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation2);
-        actionStorehouse.storeActions(plan);
+        pipelineFactory.actionPipeline(plan).run(plan);
 
         when(userSessionContext.isUserScoped()).thenReturn(true);
 

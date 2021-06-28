@@ -75,30 +75,13 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, true);
+            actionAuditSender);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
         factory.actionPipeline(actionPlan);
     }
 
-
-    /**
-     * Ensure that live actions pipeline context members are set up properly for the old pipeline.
-     */
-    @Test
-    public void testLegacyLiveActionsPipeline() {
-        final LiveActionPipelineFactory factory = new LiveActionPipelineFactory(storehouse,
-            automationManager, atomicActionFactory, entitiesAndSettingsSnapshotFactory,
-            maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
-            actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
-            actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, false);
-
-        // If there is an issue with pipeline context members, attempting to create a pipeline
-        // will result in an exception and fail the test.
-        factory.actionPipeline(actionPlan);
-    }
 
     /**
      * Ensure that live actions pipeline context members are set up properly for buy RI.
@@ -110,7 +93,7 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, true);
+            actionAuditSender);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.

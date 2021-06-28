@@ -10,12 +10,7 @@ import org.jooq.DSLContext;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
-import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
-import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
-import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -45,8 +40,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
-    private final ProbeCapabilityCache probeCapabilityCache;
-
     /**
      * Context type for PLAN action plans.
      */
@@ -57,11 +50,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
      */
     public static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
-    private final LiveActionsStatistician actionsStatistician;
-
     private final ActionTranslator actionTranslator;
-
-    private final AtomicActionFactory atomicActionFactory;
 
     private final Clock clock;
 
@@ -75,13 +64,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final RejectedActionsDAO rejectedActionsStore;
 
     private final IdentityService<ActionInfo> actionIdentityService;
-    private final ActionAuditSender externalAuditEventSender;
-    private final ActionTopologyStore actionTopologyStore;
 
     private final EntitySeverityCache entitySeverityCache;
 
     private final boolean riskPropagationEnabled;
-    private final int queryTimeWindowForLastExecutedActionsMins;
     private final WorkflowStore workflowStore;
 
     /**
@@ -94,13 +80,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.realtimeTopologyContextId = builder.realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(builder.databaseDslContext);
         this.actionHistoryDao = builder.actionHistoryDao;
-        actionTopologyStore = builder.actionTopologyStore;
         this.actionTargetSelector = builder.actionTargetSelector;
         this.entitySettingsCache = Objects.requireNonNull(builder.entitySettingsCache);
-        this.actionsStatistician = Objects.requireNonNull(builder.actionsStatistician);
-        this.probeCapabilityCache = Objects.requireNonNull(builder.probeCapabilityCache);
         this.actionTranslator = Objects.requireNonNull(builder.actionTranslator);
-        this.atomicActionFactory = Objects.requireNonNull(builder.atomicActionFactory);
         this.clock = Objects.requireNonNull(builder.clock);
         this.userSessionContext = Objects.requireNonNull(builder.userSessionContext);
         this.licenseCheckClient = Objects.requireNonNull(builder.licenseCheckClient);
@@ -109,10 +91,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
         this.entitySeverityCache = Objects.requireNonNull(builder.entitySeverityCache);
-        this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
         this.workflowStore =  Objects.requireNonNull(builder.workflowStore);
         this.riskPropagationEnabled =  builder.riskPropagationEnabled;
-        this.queryTimeWindowForLastExecutedActionsMins = builder.queryTimeWindowForLastExecutedActionsMins;
     }
 
     /**
@@ -125,12 +105,12 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
             return new LiveActionStore(actionFactory, topologyContextId,
-                    actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                    actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
-                    clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
+                    actionTargetSelector, entitySettingsCache,
+                    actionHistoryDao, actionTranslator,
+                clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
                     rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                    externalAuditEventSender, entitySeverityCache,
-                    queryTimeWindowForLastExecutedActionsMins, workflowStore);
+                entitySeverityCache,
+                workflowStore);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
@@ -176,23 +156,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private ActionHistoryDao actionHistoryDao;
         private ActionTargetSelector actionTargetSelector;
         private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
-        private ProbeCapabilityCache probeCapabilityCache;
-        private LiveActionsStatistician actionsStatistician;
         private ActionTranslator actionTranslator;
-        private AtomicActionFactory atomicActionFactory;
         private Clock clock;
         private UserSessionContext userSessionContext;
-        private ActionTopologyStore actionTopologyStore;
         private LicenseCheckClient licenseCheckClient;
         private AcceptedActionsDAO acceptedActionsDAO;
         private RejectedActionsDAO rejectedActionsDAO;
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
-        private ActionAuditSender actionAuditSender;
         private EntitySeverityCache entitySeverityCache;
         private WorkflowStore workflowStore;
         private boolean riskPropagationEnabled;
-        private int queryTimeWindowForLastExecutedActionsMins = -1;
 
         private Builder() {
         }
@@ -205,17 +179,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withActionFactory(@Nonnull IActionFactory actionFactory) {
             this.actionFactory = actionFactory;
-            return this;
-        }
-
-        /**
-         * Set the {@link ActionTopologyStore}.
-         *
-         * @param actionTopologyStore The {@link ActionTopologyStore}.
-         * @return The builder for method chaining.
-         */
-        public Builder withTopologyStore(@Nonnull ActionTopologyStore actionTopologyStore) {
-            this.actionTopologyStore = actionTopologyStore;
             return this;
         }
 
@@ -286,28 +249,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
         }
 
         /**
-         * Sets the probeCapabilityCache on this builder.
-         *
-         * @param probeCapabilityCache the probeCapabilityCache.
-         * @return the same builder with the probeCapabilityCache set.
-         */
-        public Builder withProbeCapabilityCache(@Nonnull ProbeCapabilityCache probeCapabilityCache) {
-            this.probeCapabilityCache = probeCapabilityCache;
-            return this;
-        }
-
-        /**
-         * Sets the actionsStatistician on this builder.
-         *
-         * @param actionsStatistician the actionsStatistician.
-         * @return the same builder with the actionsStatistician set.
-         */
-        public Builder withActionsStatistician(@Nonnull LiveActionsStatistician actionsStatistician) {
-            this.actionsStatistician = actionsStatistician;
-            return this;
-        }
-
-        /**
          * Sets the actionTranslator on this builder.
          *
          * @param actionTranslator the actionTranslator.
@@ -315,17 +256,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withActionTranslator(@Nonnull ActionTranslator actionTranslator) {
             this.actionTranslator = actionTranslator;
-            return this;
-        }
-
-        /**
-         * Sets the atomicActionFactory on this builder.
-         *
-         * @param atomicActionFactory the atomicActionFactory
-         * @return the same builder with the atomicActionFactory set.
-         */
-        public Builder withAtomicActionFactory(@Nonnull AtomicActionFactory atomicActionFactory) {
-            this.atomicActionFactory = atomicActionFactory;
             return this;
         }
 
@@ -408,37 +338,12 @@ public class ActionStoreFactory implements IActionStoreFactory {
         }
 
         /**
-         * Sets action audit sender.
-         *
-         * @param actionAuditSender action audit sender to sent actions' on-generation events
-         * @return the builder for chained calls
-         */
-        public Builder withActionAuditSender(@Nonnull ActionAuditSender actionAuditSender) {
-            this.actionAuditSender = actionAuditSender;
-            return this;
-        }
-
-        /**
          * Sets risk propagation feature flag.
          * @param riskPropagationEnabled risk propagation feature flag
          * @return the builder for chained calls
          */
         public Builder withRiskPropagationEnabledFlag(boolean riskPropagationEnabled) {
             this.riskPropagationEnabled = riskPropagationEnabled;
-            return this;
-        }
-
-        /**
-         * Sets time frame to look for succeeded actions in the history. If an action is found
-         * within this timeframe, it will not be populated into action store.
-         *
-         * @param queryTimeWindowForLastExecutedActionsMins time frame in minutes
-         * @return the builder for chained calls
-         */
-        public Builder withQueryTimeWindowForLastExecutedActionsMins(
-                int queryTimeWindowForLastExecutedActionsMins) {
-            this.queryTimeWindowForLastExecutedActionsMins =
-                    queryTimeWindowForLastExecutedActionsMins;
             return this;
         }
 

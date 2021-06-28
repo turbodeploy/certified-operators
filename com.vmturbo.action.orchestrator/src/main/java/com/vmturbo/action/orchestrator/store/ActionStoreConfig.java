@@ -339,17 +339,13 @@ public class ActionStoreConfig {
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return ActionStoreFactory.newBuilder()
-            .withTopologyStore(tpConfig.actionTopologyStore())
             .withActionFactory(actionFactory())
             .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
             .withDatabaseDslContext(databaseConfig.dsl())
             .withActionHistoryDao(actionHistory())
             .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
-            .withProbeCapabilityCache(actionExecutionConfig.targetCapabilityCache())
             .withEntitySettingsCache(entitySettingsCache())
-            .withActionsStatistician(actionStatsConfig.actionsStatistician())
             .withActionTranslator(actionTranslationConfig.actionTranslator())
-            .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSeverityCache(entitySeverityCache())
@@ -358,9 +354,7 @@ public class ActionStoreConfig {
             .withRejectedActionsStore(rejectedActionsStore())
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
-            .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
             .withRiskPropagationEnabledFlag(riskPropagationEnabled)
-            .withQueryTimeWindowForLastExecutedActionsMins(queryTimeWindowForLastExecutedActionsMins)
             .withWorkflowStore(workflowConfig.workflowStore())
             .build();
     }

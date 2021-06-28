@@ -84,7 +84,6 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -228,7 +227,6 @@ public class LiveActionPipelineIntegrationTest {
     private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = mock(RejectedActionsDAO.class);
 
-    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
     private EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
     private WorkflowStore workflowStore = mock(WorkflowStore.class);
 
@@ -257,11 +255,11 @@ public class LiveActionPipelineIntegrationTest {
                 ActionInfoModel::getActionHexHash, Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
             targetSelector,
-            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, atomicActionFactory, clock, userSessionContext,
+            entitySettingsCache, actionHistoryDao,
+            actionTranslator, clock, userSessionContext,
             licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
-            actionIdentityService, involvedEntitiesExpander, actionAuditSender,
-            entitySeverityCache, 60, workflowStore);
+            actionIdentityService, involvedEntitiesExpander,
+            entitySeverityCache, workflowStore);
 
         final ActionStorehouse storehouse = mock(ActionStorehouse.class);
         when(storehouse.measurePlanAndGetOrCreateStore(any(ActionPlan.class)))
@@ -270,7 +268,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, spyActionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, true);
+            actionAuditSender);
 
         when(targetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -488,11 +486,11 @@ public class LiveActionPipelineIntegrationTest {
         final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         final ActionStore actionStore =
             new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                targetSelector, entitySettingsCache, actionHistoryDao,
+                actionTranslator, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore,
                 rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore);
+                entitySeverityCache, workflowStore);
         final ActionStorehouse storehouse = mock(ActionStorehouse.class);
         when(storehouse.measurePlanAndGetOrCreateStore(any(ActionPlan.class)))
             .thenReturn(actionStore);
@@ -500,7 +498,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, true);
+            actionAuditSender);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -549,11 +547,11 @@ public class LiveActionPipelineIntegrationTest {
         final ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         final ActionStore actionStore =
             new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                targetSelector, entitySettingsCache, actionHistoryDao,
+                actionTranslator, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore,
                 rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                listener, entitySeverityCache, 60, workflowStore);
+                entitySeverityCache, workflowStore);
         final ActionStorehouse storehouse = mock(ActionStorehouse.class);
         when(storehouse.measurePlanAndGetOrCreateStore(any(ActionPlan.class)))
             .thenReturn(actionStore);
@@ -561,7 +559,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            listener, true);
+            listener);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
