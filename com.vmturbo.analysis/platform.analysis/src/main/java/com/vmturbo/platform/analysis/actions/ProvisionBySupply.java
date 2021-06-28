@@ -298,11 +298,13 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         GuaranteedBuyerHelper.removeSlAndAdjustRemainingSls(getEconomy(),
                 getProvisionedSeller());
         getEconomy().removeTrader(getProvisionedSeller());
-        getSubsequentActions().forEach(a -> {
-            if (a instanceof ProvisionBase) {
-                getEconomy().removeTrader(((ProvisionBase)a).getProvisionedSeller());
-            } else if (a instanceof Resize && a.isExtractAction()) {
-                a.rollback();
+        getSubsequentActions().forEach(action -> {
+            if (action instanceof ProvisionBase) {
+                GuaranteedBuyerHelper.removeSlAndAdjustRemainingSls(getEconomy(),
+                    ((ProvisionBase)action).getProvisionedSeller());
+                getEconomy().removeTrader(((ProvisionBase)action).getProvisionedSeller());
+            } else if (action instanceof Resize && action.isExtractAction()) {
+                action.rollback();
             }
         });
         commSoldToReplaceMap_.clear();

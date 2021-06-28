@@ -450,7 +450,7 @@ public class ProvisionBySupplyTest {
                         new double[]{200}, true, false);
         Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                Arrays.asList(TestUtils.TRANSACTION),
-               new double[]{150}, true, false);
+               new double[]{150}, true, true);
         app1.getSettings().setProviderMustClone(true);
         ShoppingList sl1 = e.addBasketBought(app1, b1);
         TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70});
@@ -474,7 +474,12 @@ public class ProvisionBySupplyTest {
         ProvisionBySupply provision1 = (ProvisionBySupply) new ProvisionBySupply(e, app1, CPU).take();
 
         assertTrue(e.getTraders().size() == 7);
-        assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 3);
+        // number of SLs changes after taking provision action because of guaranteed buyers
+        assertEquals(3, e.getMarketsAsBuyer(vapp).size());
+        assertEquals(2, e.getMarketsAsBuyer(app1).size());
+        assertEquals(1, e.getMarketsAsBuyer(app2).size());
+        assertTrue(e.getMarketsAsBuyer(c1).isEmpty());
+        assertTrue(e.getMarketsAsBuyer(c2).isEmpty());
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                   .count() == 3);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
@@ -486,7 +491,12 @@ public class ProvisionBySupplyTest {
 
         provision1.rollback();
         assertTrue(e.getTraders().size() == 5);
-        assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 2);
+        // number of SLs should not change after rollback
+        assertEquals(2, e.getMarketsAsBuyer(vapp).size());
+        assertEquals(1, e.getMarketsAsBuyer(app1).size());
+        assertEquals(1, e.getMarketsAsBuyer(app2).size());
+        assertTrue(e.getMarketsAsBuyer(c1).isEmpty());
+        assertTrue(e.getMarketsAsBuyer(c2).isEmpty());
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                   .count() == 2);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
