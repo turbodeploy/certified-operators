@@ -43,6 +43,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
@@ -50,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
@@ -58,6 +62,7 @@ import com.vmturbo.extractor.action.commodity.ActionCommodityData;
 import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedCosts;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ActionCommodity;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
@@ -67,7 +72,10 @@ import com.vmturbo.extractor.schema.json.common.DeleteInfo;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
+import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomUpCostData;
+import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory.RICoverageData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -279,8 +287,10 @@ public class ActionAttributeExtractorTest {
 
     private ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
 
+    private DataProvider dataProvider = mock(DataProvider.class);
+
     private ActionAttributeExtractor actionAttributeExtractor = new ActionAttributeExtractor(
-            actionCommodityDataRetriever);
+            actionCommodityDataRetriever, dataProvider);
 
     /**
      * Common setup code before each test.
@@ -378,7 +388,7 @@ public class ActionAttributeExtractorTest {
      * Test that for completed actions we don't populate impact.
      */
     @Test
-    public void testNotPopulatingImpactForCompletedAction() {
+    public void testNotPopulatingMetricImpactForCompletedAction() {
         // ARRANGE
         final ActionSpec scaleAction = createAction(SCALE_ACTION_INFO, ActionState.SUCCEEDED);
         final Action exportedAction = new Action();
@@ -392,13 +402,59 @@ public class ActionAttributeExtractorTest {
         List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
                 Collections.singletonList(scaleAction), topologyGraph, actions);
 
-
         // ASSERT
         Assert.assertEquals(1, exportedActions.size());
         final MoveChange scaleInfo = exportedActions.get(0).getScaleInfo();
         Assert.assertNull(exportedActions.get(0).getTarget().getAffectedMetrics());
         Assert.assertNull(scaleInfo.getFrom().getAffectedMetrics());
         Assert.assertNull(scaleInfo.getTo().getAffectedMetrics());
+    }
+
+    /**
+     * Test that for completed actions we populate cost impact.
+     */
+    @Test
+    public void testPopulatingCostImpactForCompletedAction() {
+        // ARRANGE
+        ActionInfo.Builder scaleWithCloudSavingDetails = SCALE_ACTION_INFO.toBuilder();
+        scaleWithCloudSavingDetails.getScaleBuilder()
+                .setCloudSavingsDetails(CloudSavingsDetails.newBuilder()
+                        .setSourceTierCostDetails(TierCostDetails.newBuilder()
+                                .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(4))
+                                .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(6))
+                                .setCloudCommitmentCoverage(CloudCommitmentCoverage.newBuilder()
+                                        .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(5))
+                                        .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(10))))
+                        .setProjectedTierCostDetails(TierCostDetails.newBuilder()
+                                .setOnDemandRate(CurrencyAmount.newBuilder().setAmount(3))
+                                .setOnDemandCost(CurrencyAmount.newBuilder().setAmount(5))
+                                .setCloudCommitmentCoverage(CloudCommitmentCoverage.newBuilder()
+                                        .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(4))
+                                        .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(10)))));
+
+        final ActionSpec scaleAction = createAction(scaleWithCloudSavingDetails.build(), ActionState.SUCCEEDED);
+
+        final Action exportedAction = new Action();
+        final long actionId = scaleAction.getRecommendation().getId();
+        exportedAction.setOid(actionId);
+
+        final Long2ObjectMap<Action> actions = new Long2ObjectOpenHashMap<>();
+        actions.put(actionId, exportedAction);
+
+        // ACT
+        List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
+                Collections.singletonList(scaleAction), topologyGraph, actions);
+
+        // ASSERT
+        Assert.assertEquals(1, exportedActions.size());
+        ActionImpactedCosts affectedCosts = exportedActions.get(0).getTarget().getAffectedCosts();
+        Assert.assertNotNull(affectedCosts);
+        assertThat(affectedCosts.getBeforeActions().getOnDemandRate(), is(4F));
+        assertThat(affectedCosts.getBeforeActions().getOnDemandCost(), is(6F));
+        assertThat(affectedCosts.getBeforeActions().getRiCoveragePercentage(), is(50F));
+        assertThat(affectedCosts.getAfterActions().getOnDemandRate(), is(3F));
+        assertThat(affectedCosts.getAfterActions().getOnDemandCost(), is(5F));
+        assertThat(affectedCosts.getAfterActions().getRiCoveragePercentage(), is(40F));
     }
 
     /**
@@ -453,10 +509,27 @@ public class ActionAttributeExtractorTest {
         when(actionCommodityData.getEntityImpact(host1)).thenReturn(sourceHostImpact);
         when(actionCommodityData.getEntityImpact(host2)).thenReturn(destinationHostImpact);
 
+        // mock cost
+        final BottomUpCostData currentCostData = mock(BottomUpCostData.class);
+        final BottomUpCostData projectedCostData = mock(BottomUpCostData.class);
+        final RICoverageData currentRiCoverageData = mock(RICoverageData.class);
+        final RICoverageData projectedRiCoverageData = mock(RICoverageData.class);
+
+        when(currentCostData.getOnDemandCost(vm1, EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Optional.of(5F));
+        when(currentCostData.getOnDemandRate(vm1, EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Optional.of(3F));
+        when(projectedCostData.getOnDemandCost(vm1, EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Optional.of(4F));
+        when(projectedCostData.getOnDemandRate(vm1, EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(Optional.of(2F));
+        when(currentCostData.getOnDemandCost(host1, EntityType.PHYSICAL_MACHINE_VALUE)).thenReturn(Optional.empty());
+        when(currentCostData.getOnDemandCost(host2, EntityType.PHYSICAL_MACHINE_VALUE)).thenReturn(Optional.empty());
+
+        when(dataProvider.getBottomUpCostData()).thenReturn(currentCostData);
+        when(dataProvider.getProjectedBottomUpCostData()).thenReturn(projectedCostData);
+        when(dataProvider.getCurrentRiCoverageData()).thenReturn(currentRiCoverageData);
+        when(dataProvider.getProjectedRiCoverageData()).thenReturn(projectedRiCoverageData);
+
         // ACT
         List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
                 Collections.singletonList(scaleAction), topologyGraph, actions);
-
 
         // ASSERT
         Assert.assertEquals(1, exportedActions.size());
@@ -489,6 +562,13 @@ public class ActionAttributeExtractorTest {
                 scaleInfo.getTo().getAffectedMetrics().get(CommodityDTO.CommodityType.CPU.name()),
                 destHostCpuUsedBefore, destHostCpuCapacity, destHostCpuUsedAfter,
                 destHostCpuCapacity);
+
+        ActionImpactedCosts affectedCosts = exportedActions.get(0).getTarget().getAffectedCosts();
+
+        assertThat(affectedCosts.getBeforeActions().getOnDemandCost(), is(5F));
+        assertThat(affectedCosts.getBeforeActions().getOnDemandRate(), is(3F));
+        assertThat(affectedCosts.getAfterActions().getOnDemandCost(), is(4F));
+        assertThat(affectedCosts.getAfterActions().getOnDemandRate(), is(2F));
     }
 
     /**
@@ -546,6 +626,7 @@ public class ActionAttributeExtractorTest {
         assertThat(deleteInfo.getFileSize(), is(2.0));
         assertThat(deleteInfo.getUnit(), is("MB"));
         assertThat(deleteInfo.getLastModifiedTimestamp(), is(NOW.toString()));
+        //todo
     }
 
     /**

@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -31,6 +32,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -43,6 +47,8 @@ import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedCosts;
+import com.vmturbo.extractor.schema.json.common.ActionImpactedCosts.ActionImpactedCost;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedEntity.ImpactedMetric;
 import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
@@ -52,7 +58,10 @@ import com.vmturbo.extractor.schema.json.common.EntitySettings;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
+import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory.BottomUpCostData;
+import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory.RICoverageData;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -66,14 +75,17 @@ public class ActionAttributeExtractor {
     /**
      * Set of action types for which the impacted metrics for target entity will be populated.
      */
-    public static final Set<ActionType> ACTION_TYPES_TO_POPULATE_TARGET_IMPACT = ImmutableSet.of(
+    public static final Set<ActionType> ACTION_TYPES_TO_POPULATE_TARGET_METRIC_IMPACT = ImmutableSet.of(
             ActionType.START, ActionType.ACTIVATE, ActionType.SCALE, ActionType.PROVISION,
-            ActionType.DELETE);
+            ActionType.DELETE, ActionType.ALLOCATE);
 
     private final ActionCommodityDataRetriever actionCommodityDataRetriever;
+    private final DataProvider dataProvider;
 
-    ActionAttributeExtractor(@Nonnull final ActionCommodityDataRetriever actionCommodityDataRetriever) {
+    ActionAttributeExtractor(@Nonnull final ActionCommodityDataRetriever actionCommodityDataRetriever,
+            @Nonnull final DataProvider dataProvider) {
         this.actionCommodityDataRetriever = actionCommodityDataRetriever;
+        this.dataProvider = dataProvider;
     }
 
     /**
@@ -159,17 +171,19 @@ public class ActionAttributeExtractor {
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
         final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
 
-        // We only populate impact for pending actions.
-        // Impact doesn't really make sense in the context of completed actions.
-        final boolean populateImpact = actionSpec.getActionState() == ActionState.READY;
+        // We only populate metric impact for pending actions.
+        // Metric impact doesn't really make sense in the context of completed actions.
+        final boolean populateMetricImpact = actionSpec.getActionState() == ActionState.READY;
 
         // set target and related
         try {
             ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
-            final boolean populateTargetImpact = populateImpact
-                    && ACTION_TYPES_TO_POPULATE_TARGET_IMPACT.contains(actionType);
+            final boolean populateTargetMetricImpact = populateMetricImpact
+                    && ACTION_TYPES_TO_POPULATE_TARGET_METRIC_IMPACT.contains(actionType);
+            // we populate before/after costs for both pending and completed actions
             ActionImpactedEntity targetEntity = buildImpactedEntity(primaryEntity,
-                    populateTargetImpact, topologyGraph, actionCommodityData);
+                    populateTargetMetricImpact, true, getCloudSavingsDetails(actionType, actionInfo),
+                    topologyGraph, actionCommodityData);
             actionOrAttributes.setTarget(targetEntity);
         } catch (UnsupportedActionException e) {
             // this should not happen
@@ -178,10 +192,10 @@ public class ActionAttributeExtractor {
         switch (actionType) {
             case MOVE:
                 return processMoveChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
+                        getMoveChanges(recommendation, populateMetricImpact, topologyGraph, actionCommodityData));
             case SCALE:
                 return processScaleChanges.apply(actionOrAttributes,
-                        getMoveChanges(recommendation, populateImpact, topologyGraph, actionCommodityData));
+                        getMoveChanges(recommendation, populateMetricImpact, topologyGraph, actionCommodityData));
             case RESIZE:
                 final List<CommodityChange> resizeChanges;
                 if (actionInfo.hasAtomicResize()) {
@@ -205,6 +219,23 @@ public class ActionAttributeExtractor {
         }
     }
 
+    private Optional<CloudSavingsDetails> getCloudSavingsDetails(ActionType actionType,
+            ActionDTO.ActionInfo actionInfo) {
+        switch (actionType) {
+            case SCALE:
+                if (actionInfo.getScale().hasCloudSavingsDetails()) {
+                    return Optional.of(actionInfo.getScale().getCloudSavingsDetails());
+                }
+                break;
+            case ALLOCATE:
+                if (actionInfo.getAllocate().hasCloudSavingsDetails()) {
+                    return Optional.of(actionInfo.getAllocate().getCloudSavingsDetails());
+                }
+                break;
+        }
+        return Optional.empty();
+    }
+
     /**
      * Create a {@link ActionEntity} instance based on given {@link ActionDTO.ActionEntity} with
      * type field set.
@@ -222,7 +253,9 @@ public class ActionAttributeExtractor {
     }
 
     private ActionImpactedEntity buildImpactedEntity(ActionDTO.ActionEntity actionEntity,
-            final boolean populateImpact,
+            final boolean populateMetricImpact,
+            final boolean populateCostImpact,
+            Optional<CloudSavingsDetails> cloudSavingsDetails,
             TopologyGraph<SupplyChainEntity> topologyGraph,
             ActionCommodityData actionCommodityData) {
         ActionImpactedEntity entity = new ActionImpactedEntity();
@@ -233,7 +266,7 @@ public class ActionAttributeExtractor {
             topologyGraph.getEntity(actionEntity.getId())
                     .ifPresent(e -> entity.setName(e.getDisplayName()));
         }
-        if (populateImpact) {
+        if (populateMetricImpact) {
             final Map<String, ImpactedMetric> entityImpact = actionCommodityData.getEntityImpact(actionEntity.getId());
             entity.setAffectedMetrics(entityImpact);
             // add percentile settings to the target entity level if any of the affected metrics has percentile data
@@ -249,7 +282,105 @@ public class ActionAttributeExtractor {
                         });
             }
         }
+        if (populateCostImpact) {
+            entity.setAffectedCosts(getAffectedCosts(actionEntity.getId(), actionEntity.getType(),
+                    cloudSavingsDetails));
+        }
         return entity;
+    }
+
+    @Nullable
+    private ActionImpactedCosts getAffectedCosts(long entityId, int entityType,
+            Optional<CloudSavingsDetails> optCloudSavingsDetails) {
+        // if cloudSavingsDetails is available on action dto, then get before/after costs from
+        // it directly, otherwise get from the projected costs fetched from cost component
+        if (optCloudSavingsDetails.isPresent()) {
+            final CloudSavingsDetails cloudSavingsDetails = optCloudSavingsDetails.get();
+
+            final TierCostDetails sourceTierCostDetails = cloudSavingsDetails.getSourceTierCostDetails();
+            final ActionImpactedCost beforeCost = new ActionImpactedCost();
+            if (sourceTierCostDetails.getOnDemandCost().hasAmount()) {
+                beforeCost.setOnDemandCost((float)sourceTierCostDetails.getOnDemandCost().getAmount());
+            }
+            if (sourceTierCostDetails.getOnDemandRate().hasAmount()) {
+                beforeCost.setOnDemandRate((float)sourceTierCostDetails.getOnDemandRate().getAmount());
+            }
+            if (sourceTierCostDetails.hasCloudCommitmentCoverage()) {
+                CloudCommitmentCoverage coverage = sourceTierCostDetails.getCloudCommitmentCoverage();
+                beforeCost.setRiCoveragePercentage(ExportUtils.toPercentage(
+                        coverage.getUsed().getCoupons(), coverage.getCapacity().getCoupons()));
+            }
+
+            final TierCostDetails projectedTierCostDetails = cloudSavingsDetails.getProjectedTierCostDetails();
+            final ActionImpactedCost afterCost = new ActionImpactedCost();
+            if (projectedTierCostDetails.getOnDemandCost().hasAmount()) {
+                afterCost.setOnDemandCost((float)projectedTierCostDetails.getOnDemandCost().getAmount());
+            }
+            if (projectedTierCostDetails.getOnDemandRate().hasAmount()) {
+                afterCost.setOnDemandRate((float)projectedTierCostDetails.getOnDemandRate().getAmount());
+            }
+            if (projectedTierCostDetails.hasCloudCommitmentCoverage()) {
+                CloudCommitmentCoverage coverage = projectedTierCostDetails.getCloudCommitmentCoverage();
+                afterCost.setRiCoveragePercentage(ExportUtils.toPercentage(
+                        coverage.getUsed().getCoupons(), coverage.getCapacity().getCoupons()));
+            }
+
+            ActionImpactedCosts actionImpactedCosts = new ActionImpactedCosts();
+            actionImpactedCosts.setBeforeActions(beforeCost);
+            actionImpactedCosts.setAfterActions(afterCost);
+            return actionImpactedCosts;
+        }
+
+        final BottomUpCostData currentCostData = dataProvider.getBottomUpCostData();
+        final BottomUpCostData projectedCostData = dataProvider.getProjectedBottomUpCostData();
+        final RICoverageData currentRiCoverageData = dataProvider.getCurrentRiCoverageData();
+        final RICoverageData projectedRiCoverageData = dataProvider.getProjectedRiCoverageData();
+
+        if (currentCostData == null || projectedCostData == null
+                || currentRiCoverageData == null || projectedRiCoverageData == null) {
+            logger.info("Cost data is not available yet");
+            return null;
+        }
+
+        final ActionImpactedCost beforeCost = new ActionImpactedCost();
+        final ActionImpactedCost afterCost = new ActionImpactedCost();
+
+        // on demand cost
+        Optional<Float> currentOnDemandCost = currentCostData.getOnDemandCost(entityId, entityType);
+        if (!currentOnDemandCost.isPresent()) {
+            // it's expected that onprem entity doesn't have cost
+            logger.debug("No on demand cost data for entity {}", entityId);
+            return null;
+        }
+        // on demand rate
+        Optional<Float> currentOnDemandRate = currentCostData.getOnDemandRate(entityId, entityType);
+        if (!currentOnDemandRate.isPresent() ) {
+            logger.debug("No on demand rate data for entity {}", entityId);
+            return null;
+        }
+
+        // projected cost may not exist for some entities like delete volume action, in this case
+        // we use 0 as the projected cost.
+        final float projectedOnDemandCost = projectedCostData.getOnDemandCost(entityId, entityType).orElse(0f);
+        final float projectedOnDemandRate = projectedCostData.getOnDemandRate(entityId, entityType).orElse(0f);
+
+        beforeCost.setOnDemandRate(currentOnDemandRate.get());
+        afterCost.setOnDemandRate(projectedOnDemandRate);
+        beforeCost.setOnDemandCost(currentOnDemandCost.get());
+        afterCost.setOnDemandCost(projectedOnDemandCost);
+
+        // ri coverage
+        float riCoveragePercentageBefore = currentRiCoverageData.getRiCoveragePercentage(entityId);
+        float riCoveragePercentageAfter = projectedRiCoverageData.getRiCoveragePercentage(entityId);
+        if (riCoveragePercentageBefore != -1 && riCoveragePercentageAfter != -1) {
+            beforeCost.setRiCoveragePercentage(riCoveragePercentageBefore);
+            afterCost.setRiCoveragePercentage(riCoveragePercentageAfter);
+        }
+
+        ActionImpactedCosts actionImpactedCosts = new ActionImpactedCosts();
+        actionImpactedCosts.setBeforeActions(beforeCost);
+        actionImpactedCosts.setAfterActions(afterCost);
+        return actionImpactedCosts;
     }
 
     /**
@@ -257,20 +388,23 @@ public class ActionAttributeExtractor {
      * move change, but it may return multiple for compound moves.
      *
      * @param recommendation action from AO
-     * @param populateImpact If before/after metrics for involved entities should be set.
+     * @param populateMetricImpact If before/after metrics for involved entities should be set.
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
      * @param actionCommodityData Used to look up commodity information.
      * @return map of move change by entity type
      */
     private List<MoveChange> getMoveChanges(ActionDTO.Action recommendation,
-            final boolean populateImpact,
+            final boolean populateMetricImpact,
             TopologyGraph<SupplyChainEntity> topologyGraph,
             ActionCommodityData actionCommodityData) {
         final List<MoveChange> moveInfo = new ArrayList<>();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(recommendation)) {
             final MoveChange moveChange = new MoveChange();
-            moveChange.setFrom(buildImpactedEntity(change.getSource(), populateImpact, topologyGraph, actionCommodityData));
-            moveChange.setTo(buildImpactedEntity(change.getDestination(), populateImpact, topologyGraph, actionCommodityData));
+            // no need to populate cost for provider in scale action like ComputeTier
+            moveChange.setFrom(buildImpactedEntity(change.getSource(), populateMetricImpact,
+                    false, Optional.empty(), topologyGraph, actionCommodityData));
+            moveChange.setTo(buildImpactedEntity(change.getDestination(), populateMetricImpact,
+                    false, Optional.empty(), topologyGraph, actionCommodityData));
             // resource (like volume of a VM)
             if (!change.getResourceList().isEmpty()) {
                 moveChange.setResource(change.getResourceList().stream()
@@ -512,6 +646,11 @@ public class ActionAttributeExtractor {
      * @return list of flattened actions
      */
     private List<Action> flattenScaleAction(Action action, List<MoveChange> scaleChanges) {
+        // scale changes may be empty for some actions like "Scale up IOPS for Volume vol1 on
+        // Managed Ultra SSD from 613 IOPS to 876 IOPS", we should still return them
+        if (scaleChanges.isEmpty()) {
+            return Collections.singletonList(action);
+        }
         return scaleChanges.stream()
                 .map(scaleChange -> {
                     Action actionCopy = shallowCopyWithoutAttrs(action);

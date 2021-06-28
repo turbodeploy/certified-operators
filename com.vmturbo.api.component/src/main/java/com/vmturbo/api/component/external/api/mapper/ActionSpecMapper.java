@@ -1,5 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.CostProtoUtil.CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST;
+import static com.vmturbo.common.protobuf.CostProtoUtil.SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
@@ -125,7 +128,6 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
-import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
@@ -2532,12 +2534,10 @@ public class ActionSpecMapper {
                 // potential savings from Buy RI actions
                 .setCostSourceFilter(CostSourceFilter.newBuilder()
                         .setExclusionFilter(true)
-                        .addCostSources(CostSource.BUY_RI_DISCOUNT))
+                        .addAllCostSources(SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST))
                 .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                         .setExclusionFilter(false)
-                        .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
-                        .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .addCostCategory(CostCategory.RESERVED_LICENSE)
+                        .addAllCostCategory(CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST)
                         .build());
         if (Objects.nonNull(topologyContextId)) {
             cloudCostStatsQueryBuilder.setTopologyContextId(topologyContextId);

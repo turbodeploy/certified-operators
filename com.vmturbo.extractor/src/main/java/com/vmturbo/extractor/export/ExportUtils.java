@@ -172,4 +172,15 @@ public class ExportUtils {
         });
         return keyValueConcat;
     }
+
+    /**
+     * Convert to percent, and round to two decimals, like "0.10324" to "10.32".
+     *
+     * @param used divisor
+     * @param capacity dividend
+     * @return percentage of the division operation on inputs
+     */
+    public static float toPercentage(double used, double capacity) {
+        return capacity == 0 ? 0 : (float)(Math.round(used / capacity * 10000) / 100.0);
+    }
 }

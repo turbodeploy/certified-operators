@@ -32,6 +32,8 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -58,6 +60,7 @@ import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
 import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -146,6 +149,9 @@ public class TopologyListenerConfig {
     @Value("${kafkaTimeoutSeconds:300}")
     private int kafkaTimeoutSeconds;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     /**
      * Create an instance of our topology listener.
      *
@@ -170,7 +176,7 @@ public class TopologyListenerConfig {
         if (extractorFeatureFlags.isReportingEnabled() || extractorFeatureFlags.isExtractionEnabled()) {
             final EntityCostListener entityCostListener = new EntityCostListener(
                     dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig(),
-                    extractorFeatureFlags.isReportingEnabled());
+                    extractorFeatureFlags.isReportingEnabled(), realtimeTopologyContextId);
             costNotificationProcessor().addCostNotificationListener(entityCostListener);
             return entityCostListener;
         } else {
@@ -429,6 +435,16 @@ public class TopologyListenerConfig {
     }
 
     /**
+     * Factory for creating fetchers for RI coverage.
+     *
+     * @return the {@link RICoverageFetcherFactory}
+     */
+    @Bean
+    public RICoverageFetcherFactory riCoverageFetcherFactory() {
+        return new RICoverageFetcherFactory(riCoverageService());
+    }
+
+    /**
      * The data provider which contains latest topology, supply chain, etc.
      *
      * @return {@link DataProvider}
@@ -440,6 +456,7 @@ public class TopologyListenerConfig {
                 topDownCostFetcherFactory(),
                 bottomUpCostFetcherFactory(),
                 targetCache(),
+                riCoverageFetcherFactory(),
                 extractorGlobalConfig.featureFlags());
     }
 
@@ -482,6 +499,16 @@ public class TopologyListenerConfig {
     @Bean
     public CostServiceBlockingStub costService() {
         return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Grpc endpoint for fetching ri coverage utilization.
+     *
+     * @return service endpoint
+     */
+    @Bean
+    public ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService() {
+        return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
 }

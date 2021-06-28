@@ -1,11 +1,15 @@
 package com.vmturbo.extractor.topology.fetcher;
 
+import static com.vmturbo.common.protobuf.CostProtoUtil.CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST;
+import static com.vmturbo.common.protobuf.CostProtoUtil.SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
@@ -19,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.CostCategory;
 import com.vmturbo.extractor.schema.enums.CostSource;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Factory class for the {@link BottomUpCostFetcher}.
@@ -50,8 +55,21 @@ public class BottomUpCostFetcherFactory {
      * @return The {@link BottomUpCostFetcher}.
      */
     @Nonnull
-    public BottomUpCostFetcher newFetcher(MultiStageTimer timer, final long snapshotTime, Consumer<BottomUpCostData> consumer) {
-        return new BottomUpCostFetcher(timer, snapshotTime, consumer, costService, this);
+    public BottomUpCostFetcher newCurrentCostFetcher(MultiStageTimer timer, final long snapshotTime, Consumer<BottomUpCostData> consumer) {
+        return new BottomUpCostFetcher(timer, snapshotTime, consumer, costService, false);
+    }
+
+    /**
+     * Create a new fetcher for projected cost. The fetcher itself just passes through to the
+     * factory, in order to utilize the cached {@link BottomUpCostData}, updating it if necessary.
+     *
+     * @param timer        Timer. See {@link DataFetcher}
+     * @param consumer     Consumer for the resulting {@link BottomUpCostData}. See {@link
+     *                     DataFetcher}.
+     * @return The {@link BottomUpCostFetcher}.
+     */
+    public BottomUpCostFetcher newProjectedCostFetcher(MultiStageTimer timer, Consumer<BottomUpCostData> consumer) {
+        return new BottomUpCostFetcher(timer, 0, consumer, costService, true);
     }
 
     /**
@@ -59,7 +77,7 @@ public class BottomUpCostFetcherFactory {
      */
     public static class BottomUpCostData {
         private final Long2ObjectMap<List<StatRecord>> entityCosts = new Long2ObjectOpenHashMap<>();
-        private final long snapshotTime;
+        private long snapshotTime;
 
         /**
          * Create a new instance.
@@ -76,6 +94,10 @@ public class BottomUpCostFetcherFactory {
 
         public long getSnapshotTime() {
             return snapshotTime;
+        }
+
+        public void setSnapshotTime(long snapshotTime) {
+            this.snapshotTime = snapshotTime;
         }
 
         public LongStream getEntityOids() {
@@ -150,6 +172,55 @@ public class BottomUpCostFetcherFactory {
                 results.add(new BottomUpCostDataPoint(CostCategory.TOTAL, CostSource.TOTAL, total));
             }
             return results;
+        }
+
+        /**
+         * Get the on demand cost for a given entity. See ActionSpecMapper.getOnDemandCosts for
+         * more details.
+         *
+         * @param entityId id of the entity
+         * @param entityType type of the entity
+         * @return optional on demand cost
+         */
+        public Optional<Float> getOnDemandCost(long entityId, int entityType) {
+            final Predicate<StatRecord> statRecordFilter;
+            if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
+                // special handling for volume, only include storage
+                statRecordFilter = record -> record.getCategory() == Cost.CostCategory.STORAGE;
+            } else {
+                // only include specific categories and excluded some sources
+                statRecordFilter = record -> CATEGORIES_TO_INCLUDE_FOR_ON_DEMAND_COST.contains(record.getCategory())
+                        && !SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST.contains(record.getCostSource());
+            }
+            return getEntityCosts(entityId).map(records ->
+                    (float)records.stream()
+                            .filter(statRecordFilter)
+                            .map(StatRecord::getValues)
+                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .sum());
+        }
+
+        /**
+         * Get the on demand rate for a given entity. See ActionSpecMapper.getOnDemandRates for
+         * more details.
+         *
+         * @param entityId id of the entity
+         * @param entityType type of the entity
+         * @return optional on demand rate
+         */
+        public Optional<Float> getOnDemandRate(long entityId, int entityType) {
+            if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
+                // for volume, it's the same as on demand cost
+                return getOnDemandCost(entityId, entityType);
+            }
+            return getEntityCosts(entityId).map(records ->
+                    (float)records.stream()
+                            .filter(record -> record.getCostSource() == Cost.CostSource.ON_DEMAND_RATE)
+                            .filter(record -> record.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE
+                                    || record.getCategory() == Cost.CostCategory.ON_DEMAND_LICENSE)
+                            .map(StatRecord::getValues)
+                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .sum());
         }
 
         /**

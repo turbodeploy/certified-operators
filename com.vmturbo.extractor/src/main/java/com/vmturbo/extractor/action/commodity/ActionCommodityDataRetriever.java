@@ -1,6 +1,6 @@
 package com.vmturbo.extractor.action.commodity;
 
-import static com.vmturbo.extractor.action.ActionAttributeExtractor.ACTION_TYPES_TO_POPULATE_TARGET_IMPACT;
+import static com.vmturbo.extractor.action.ActionAttributeExtractor.ACTION_TYPES_TO_POPULATE_TARGET_METRIC_IMPACT;
 
 import java.util.HashMap;
 import java.util.List;
@@ -315,7 +315,7 @@ public class ActionCommodityDataRetriever implements ITopologyWriter  {
                     commodityVisitor.visit(changeProvider.getSource());
                 }
             });
-        } else if (ACTION_TYPES_TO_POPULATE_TARGET_IMPACT.contains(actionType)) {
+        } else if (ACTION_TYPES_TO_POPULATE_TARGET_METRIC_IMPACT.contains(actionType)) {
             try {
                 commodityVisitor.visit(ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()));
             } catch (UnsupportedActionException e) {
