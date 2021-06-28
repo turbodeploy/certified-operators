@@ -18,13 +18,13 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag;
@@ -298,7 +298,8 @@ public class SdkToTopologyEntityConverter {
         }
 
         result.setAnalysisSettings(buildAnalysisSettings(entity));
-        result.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, result.getMutableEntityPropertyMap()));
+        result.setTypeSpecificInfo(
+                mapToTypeSpecificInfo(entity, dto, result.getMutableEntityPropertyMap()));
 
         final StitchingErrors combinedStitchingErrors = entity.combinedEntityErrors();
         if (!combinedStitchingErrors.isNone()) {
@@ -480,17 +481,20 @@ public class SdkToTopologyEntityConverter {
      * Map the entity-specific data contained in an {@link EntityDTO} to a
      * {@link TypeSpecificInfo} object that can be embedded into a {@link TopologyEntityDTO}.
      *
+     * @param entity probe entity DTO.
      * @param sdkEntity The {@link EntityDTO} containing the entity-specific data.o
      * @param entityPropertyMap Entity properties (mutable) that can be passed to the individual sub-mappers.
      * @return The {@link TypeSpecificInfo} contained in the input {@link EntityDTO}.
      */
     @Nonnull
     private static TypeSpecificInfo mapToTypeSpecificInfo(
+            @Nonnull final TopologyStitchingEntity entity,
             @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity,
             @Nonnull final Map<String, String> entityPropertyMap) {
         Objects.requireNonNull(sdkEntity, "sdkEntity parameter must not be null");
         return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityType()))
-                .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity, entityPropertyMap))
+                .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(entity, sdkEntity,
+                        entityPropertyMap))
                 .orElseGet(TypeSpecificInfo::getDefaultInstance);
     }
 

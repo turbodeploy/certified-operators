@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -25,11 +26,14 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser.OsDetails;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.common.dto.CommonDTO.VStoragePartitionData;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * Populate the {@link TypeSpecificInfo} unique to a VirtualMachine - i.e. {@link VirtualMachineInfo}
@@ -41,7 +45,15 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
     private static final Map<String, OS> OS_BY_NAME = Collections.synchronizedMap(new HashMap<>());
 
     @Override
-    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nonnull final EntityDTOOrBuilder sdkEntity,
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(EntityDTOOrBuilder sdkEntity,
+            Map<String, String> entityPropertyMap) {
+        return mapEntityDtoToTypeSpecificInfo(null, sdkEntity, entityPropertyMap);
+    }
+
+    @Override
+    @Nonnull
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nullable TopologyStitchingEntity entity,
+            @Nonnull final EntityDTOOrBuilder sdkEntity,
             @Nonnull final Map<String, String> entityPropertyMap) {
         if (!sdkEntity.hasVirtualMachineData()) {
             return TypeSpecificInfo.getDefaultInstance();
@@ -130,7 +142,27 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
         if (StringUtils.isNotBlank(locks)) {
             vmInfo.setLocks(locks);
         }
+        vmInfo.putAllPartitions(parsePartitions(entity));
         return TypeSpecificInfo.newBuilder().setVirtualMachine(vmInfo.build()).build();
+    }
+
+    @Nonnull
+    private static Map<String, String> parsePartitions(@Nullable TopologyStitchingEntity entity) {
+        Map<String, String> result = new HashMap<>();
+
+        if (entity == null) {
+            return result;
+        }
+
+        entity.getCommoditiesSold().filter(c -> c.getCommodityType() == CommodityType.VSTORAGE)
+                .forEach(comm -> {
+                    if (comm.hasVstoragePartitionData()) {
+                        VStoragePartitionData data = comm.getVstoragePartitionData();
+                        result.put(comm.getKey(), data.getPartition());
+                    }
+                });
+
+        return result;
     }
 
     @Nonnull

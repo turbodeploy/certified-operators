@@ -94,6 +94,9 @@ message TypeSpecificInfo {
             // Does the VM have driver for NVMe? It is an AWS specific driver.
             optional bool hasNvmeDriver = 2;
         }
+
+        // Maps vStorage key to partition
+        map<string,string> partitions = 13;
     }
 
     // Properties unique to a PhysicalMachine in the model

@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -16,6 +17,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * Abstract class for individual mappers from {@link EntityDTO} information to type-specific
@@ -46,9 +48,28 @@ public abstract class TypeSpecificInfoMapper {
      * @return a new {@link TypeSpecificInfo} with the 'oneof' field corresponding to the type
      * of the given 'sdkEntity'
      */
+    @Nonnull
     public abstract TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
             @Nonnull EntityDTOOrBuilder sdkEntity,
             @Nonnull Map<String, String> entityPropertyMap);
+
+    /**
+     * Create a {@link TypeSpecificInfo} with the 'oneof' field corresponding to the type
+     * of the given {@link EntityDTO}.
+     *
+     * @param entity probe entity DTO.
+     * @param sdkEntity the SDK {@link EntityDTO} for which we will build the {@link TypeSpecificInfo}
+     * @param  entityPropertyMap the mapping from property name to property value, which comes from
+     * the {@link EntityDTO#entityProperties_}. For most cases, the type specific info is set in
+     * {@link EntityDTO#entityData_}, but some are only set inside {@link EntityDTO#entityProperties_}
+     * @return a new {@link TypeSpecificInfo} with the 'oneof' field corresponding to the type
+     * of the given 'sdkEntity'
+     */
+    @Nonnull
+    public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nullable TopologyStitchingEntity entity,
+            @Nonnull EntityDTOOrBuilder sdkEntity, @Nonnull Map<String, String> entityPropertyMap) {
+        return mapEntityDtoToTypeSpecificInfo(sdkEntity, entityPropertyMap);
+    }
 
     /**
      * Convert a string representation of the Database Edition to the corresponding
