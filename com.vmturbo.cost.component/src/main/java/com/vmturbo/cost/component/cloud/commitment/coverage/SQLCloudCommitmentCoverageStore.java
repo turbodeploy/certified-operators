@@ -28,6 +28,7 @@ import org.jooq.SelectFieldOrAsterisk;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentUtils;
+import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentCoverageType;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
@@ -63,12 +64,17 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
     private final DSLContext dslContext;
 
+    private final CloudGranularityCalculator granularityCalculator;
+
     /**
      * Constructs a new {@link SQLCloudCommitmentCoverageStore} instance.
      * @param dslContext The {@link DSLContext}.
+     * @param granularityCalculator The granularity calculator.
      */
-    public SQLCloudCommitmentCoverageStore(@Nonnull DSLContext dslContext) {
+    public SQLCloudCommitmentCoverageStore(@Nonnull DSLContext dslContext,
+                                           @Nonnull CloudGranularityCalculator granularityCalculator) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.granularityCalculator = Objects.requireNonNull(granularityCalculator);
     }
 
     @Override
@@ -98,7 +104,7 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         Preconditions.checkNotNull(filter, "Account coverage filter cannot be null");
 
-        final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(filter.granularity());
+        final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(determineGranularity(filter));
 
         final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
                 dslContext.selectFrom(tableWrapper.coverageTable())
@@ -125,7 +131,7 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         Preconditions.checkNotNull(coverageFilter, "Account coverage stats filter cannot be null");
 
-        final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(coverageFilter.granularity());
+        final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(determineGranularity(coverageFilter));
 
         logger.debug("Streaming {} coverage stats filtered by {}", tableWrapper::granularity, coverageFilter::toString);
 
@@ -330,6 +336,17 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
         }
 
         return statRecord.build();
+    }
+
+    private CloudStatGranularity determineGranularity(@Nonnull AccountCoverageFilter filter) {
+        return filter.granularity()
+                .orElseGet(() -> filter.startTime()
+                        // If an explicit granularity was not provided, we determine the granularity
+                        // base on the start time and retention periods.
+                        .map(startTime -> granularityCalculator.startTimeToGranularity(startTime))
+                        // If neither a granularity nor start time have been specified, we default
+                        // to returning hourly data.
+                        .orElse(CloudStatGranularity.HOURLY));
     }
 
     private AccountCoverageTable<?, ?> createAccountCoverageTable(@Nonnull CloudStatGranularity granularity) {
