@@ -31,6 +31,7 @@ import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapperTest;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -209,7 +210,8 @@ public class WorkflowsServiceTest {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(targetId);
         targetApiDTO.setType(SDKProbeType.ACTIONSCRIPT.name());
-        doReturn(targetApiDTO).when(targetsService).getTarget(targetId);
+        doReturn(targetApiDTO).when(targetsService)
+                .getTarget(targetId, TargetDetailLevel.BASIC);
 
         // Act
         final WorkflowApiDTO workflowResult = workflowsService.getWorkflowByUuid(requestedWorkflowId);
@@ -245,7 +247,8 @@ public class WorkflowsServiceTest {
         doReturn(workflowResponse).when(workflowServiceMole).fetchWorkflow(fetchWorkflowRequest);
 
         // Simulate a target not being found
-        doThrow(new UnknownObjectException("Target not found.")).when(targetsService).getTarget(targetId);
+        doThrow(new UnknownObjectException("Target not found.")).when(targetsService)
+                .getTarget(targetId, TargetDetailLevel.BASIC);
 
         // Act
         thrown.expect(UnknownObjectException.class);

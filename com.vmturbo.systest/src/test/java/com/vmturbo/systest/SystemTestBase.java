@@ -86,7 +86,7 @@ public class SystemTestBase {
 
         Duration elapsed = Duration.ZERO;
         while (elapsed.compareTo(timeout) < 0) {
-            TargetApiDTO target = targetsApi.getTarget(targetId);
+            TargetApiDTO target = targetsApi.getTarget(targetId, "BASIC");
             if (target.getStatus().equals("Validated")) {
                 return;
             }
