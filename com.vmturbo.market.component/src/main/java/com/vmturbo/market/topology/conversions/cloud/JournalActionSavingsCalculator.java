@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
@@ -155,6 +156,10 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         final TopologyEntityDTO deactivatingEntity =  sourceTopologyMap.get(deactivatedEntityOid);
 
         if (ObjectUtils.allNotNull(deactivatingEntity, deactivatedEntity)) {
+            if (!isCloudEntity(deactivatingEntity)) {
+                return Optional.empty();
+            }
+
             // get the cost journal of the entity from the source topology
             // since the entity in the projected topology is in suspended state
             // and does not have cost associated with it
@@ -181,6 +186,10 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         TopologyEntityDTO modelSellerEntity = sourceTopologyMap.get(modelSellerEntityOid);
 
         if (modelSellerEntity != null) {
+            if (!isCloudEntity(modelSellerEntity)) {
+                return Optional.empty();
+            }
+
             // get the cost journal of the model seller
             // since the costs for the provisioned (cloned) entity is not computed
             final CostJournal<TopologyEntityDTO> modelSellerProjectedCostJournal
@@ -220,6 +229,10 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         return Optional.empty();
     }
 
+    private boolean isCloudEntity(@Nonnull final TopologyEntityDTO entity) {
+        return entity.getEnvironmentType() == EnvironmentType.CLOUD;
+    }
+
     private TraxNumber calculateHorizontalScalingActionSavings(
             @Nonnull TopologyEntityDTO cloudEntityHzScaling,
             @Nonnull Optional<CostJournal<TopologyEntityDTO>> entityCostJournal,
@@ -231,8 +244,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
 
         CostJournal<TopologyEntityDTO> costJournal = entityCostJournal.get();
         if (!hasOnDemandCostForMarketTier(costJournal)) {
-            logger.error("{} : on-demand cost not computed", cloudEntityHzScaling.getDisplayName());
-            return trax(0, "no entity cost journal");
+            return trax(0, "on-demand cost not computed");
         }
 
         // get cost for the compute tier only
