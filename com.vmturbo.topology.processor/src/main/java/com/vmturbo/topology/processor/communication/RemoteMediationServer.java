@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.kvstore.KeyValueStoreOperationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
@@ -121,6 +122,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                         .map(ProbeInfo::getProbeType)
                         .collect(Collectors.toList()));
         containerChooser.parseContainerInfoWithTransport(containerInfo, serverEndpoint);
+
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
                 probeStore.registerNewProbe(probeInfo, serverEndpoint);
@@ -128,6 +130,14 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
             } catch (ProbeException e) {
                 logger.error("Probe " + probeInfo.getProbeType() + " from " + serverEndpoint
                                 + " failed to register", e);
+            } catch (KeyValueStoreOperationException e) {
+                // we've encountered a runtime exception accessing consul.
+                // Clean up before returning.
+                logger.error("Error while attempting to register probes for transport {}."
+                        + " Closing transport.", serverEndpoint);
+                serverEndpoint.close();
+                processContainerClose(serverEndpoint);
+                throw e;
             }
         }
 
