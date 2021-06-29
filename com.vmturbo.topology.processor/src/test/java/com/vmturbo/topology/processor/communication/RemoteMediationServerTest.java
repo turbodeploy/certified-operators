@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.communication;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -20,6 +21,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.ITransport.EventHandler;
+import com.vmturbo.kvstore.KeyValueStoreOperationException;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -154,6 +156,36 @@ public class RemoteMediationServerTest {
         assertTrue(newProbeId.isPresent());
         expectedException.expect(ProbeException.class);
         probeStore.getTransport(newProbeId.get());
+    }
+
+    /**
+     * Test that transport gets closed when an unexpected exception happens while registering a
+     * probe.  This can happen, for example, if Consul is not up while a probe tries to register
+     * with TP.
+     *
+     * @throws ProbeException when there is a problem with the ProbeInfo.
+     */
+    @Test
+    public void testProbeStoreThrowsUncheckedException() throws ProbeException {
+        final ProbeStore mockProbeStore = mock(ProbeStore.class);
+
+        final RemoteMediationServer remoteMediationServer = Mockito.spy(
+                new RemoteMediationServer(mockProbeStore,
+                        Mockito.mock(ProbePropertyStore.class),
+                        new ProbeContainerChooserImpl(mockProbeStore)));
+        // Simulate an unchecked exception when we try to register the probe with the probeStore
+        final String errorMessage = "Test Exception";
+        final RuntimeException exception = new RuntimeException();
+        doThrow(new KeyValueStoreOperationException(errorMessage, exception)).when(mockProbeStore)
+                .registerNewProbe(any(), any());
+        try {
+            remoteMediationServer.registerTransport(containerInfo, transportToClose);
+            fail();
+        } catch (KeyValueStoreOperationException e) {
+            assertEquals(errorMessage, e.getMessage());
+            // verify that transport is closed on unchecked exception
+            verify(transportToClose).close();
+        }
     }
 
     @Test
