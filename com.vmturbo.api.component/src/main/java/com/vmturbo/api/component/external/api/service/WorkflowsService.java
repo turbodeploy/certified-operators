@@ -19,6 +19,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
@@ -110,7 +111,8 @@ public class WorkflowsService implements IWorkflowsService {
         final WorkflowDTO.Workflow workflow = getWorkflowById(Long.parseLong(workflowUuid));
         // fetch the corresponding target
         String workflowTargetOid = Long.toString(workflow.getWorkflowInfo().getTargetId());
-        TargetApiDTO targetApiDTO = targetsService.getTarget(workflowTargetOid);
+        TargetApiDTO targetApiDTO = targetsService.getTarget(
+                workflowTargetOid, TargetDetailLevel.BASIC);
         // map the workflow and the target to {@link WorkflowApiDTO} and return it
         return workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
     }

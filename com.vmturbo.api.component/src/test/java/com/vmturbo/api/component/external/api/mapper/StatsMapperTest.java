@@ -12,6 +12,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -49,6 +50,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -387,7 +389,8 @@ public class StatsMapperTest {
         targetApiDTO.setUuid("11111");
         targetApiDTO.setType("AWS Billing");
         targetApiDTO.setDisplayName("engineering.aws.com");
-        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+        when(targetsService.getTarget(anyString(), eq(TargetDetailLevel.BASIC)))
+                .thenReturn(targetApiDTO);
     }
 
     @Test

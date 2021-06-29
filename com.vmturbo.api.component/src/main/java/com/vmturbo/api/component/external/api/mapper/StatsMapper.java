@@ -42,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -267,7 +268,8 @@ public class StatsMapper {
         }
         // handle hidden targets, e.g. AWS billing
         try {
-            final TargetApiDTO targetApiDTO = targetsService.getTarget(String.valueOf(associatedEntityId));
+            final TargetApiDTO targetApiDTO = targetsService.getTarget(
+                    String.valueOf(associatedEntityId), TargetDetailLevel.BASIC);
             uuidToTargetApiDtoMap.putIfAbsent(associatedEntityId, targetApiDTO);
             return true;
         } catch (UnknownObjectException e) {

@@ -57,6 +57,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -215,7 +216,9 @@ public class TargetsService implements ITargetsService {
          @Nullable final EnvironmentType environmentType,
          @Nullable final String query,
          @Nullable final String targetCategory,
+         @Nullable final TargetDetailLevel targetDetailLevel,
          @Nonnull final TargetPaginationRequest paginationRequest) {
+        // TODO(OM-72234): Implement targetDetailLevel
         try {
             final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
 
@@ -422,12 +425,17 @@ public class TargetsService implements ITargetsService {
      * Topology-Processor.
      *
      * @param uuid the unique ID for the target
+     * @param targetDetailLevel how much detail about the target should be returned.
+     *        Null targetDetailLevel means assume TargetDetailLevel.BASIC.
      * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
      *         related probe.
      */
     @Override
     @Nonnull
-    public TargetApiDTO getTarget(@PathVariable("uuid") String uuid) throws UnknownObjectException {
+    public TargetApiDTO getTarget(
+            @Nonnull final String uuid,
+            @Nullable final TargetDetailLevel targetDetailLevel) throws UnknownObjectException {
+        // TODO(OM-72234): Implement targetDetailLevel
         logger.debug("Get target {}", uuid);
         // assumes target uuid's are long's in XL
         long targetId = Long.valueOf(uuid);
@@ -1208,7 +1216,7 @@ public class TargetsService implements ITargetsService {
      */
     private void checkLicenseByTargetUuid(String uuid) throws LicenseFeaturesRequiredException {
         try {
-            final TargetApiDTO target = getTarget(uuid);
+            final TargetApiDTO target = getTarget(uuid, TargetDetailLevel.BASIC);
             checkLicenseByProbeType(target.getType());
         } catch (UnknownObjectException e) {
             logger.error("Failed to check license for target " + uuid, e);
