@@ -185,6 +185,7 @@
         "percentileAggressivenessDatabaseServer",
         "minObservationPeriodVirtualMachine",
         "minObservationPeriodVirtualVolume",
+        "minObservationPeriodDatabaseServer",
         "minObservationPeriodContainerSpec",
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodContainerSpec",

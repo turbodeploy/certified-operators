@@ -389,6 +389,16 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
             numeric(0.0f, 7.0f, 0.0f), true),
 
+
+    /**
+     * Min observation period for DB Server.
+     */
+    MinObservationPeriodDatabaseServer("minObservationPeriodDatabaseServer",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(0.0f, 7.0f, 0.0f), true),
+
     /**
      * Max observation period for business user.
      */
