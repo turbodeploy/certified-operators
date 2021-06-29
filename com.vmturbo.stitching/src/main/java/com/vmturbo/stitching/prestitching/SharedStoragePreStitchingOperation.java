@@ -2,10 +2,12 @@ package com.vmturbo.stitching.prestitching;
 
 import static com.vmturbo.stitching.utilities.MergeEntities.mergeEntity;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -191,10 +193,22 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
     private OptionalDouble calculateStorageProvisionedUsed(@Nonnull final StitchingEntity mostUpToDate,
                                                    @Nonnull final List<StitchingEntity> storageInstances) {
-        final double overProvisioned = storageInstances.stream()
-            .mapToDouble(this::calculateOverProvisioned)
-            .sum();
+        double totalOverProvisionedAmountForStorages = 0;
+        final Set<Long> entitiesWithoutStorageAmount = new HashSet<>();
+        for (StitchingEntity stitchingEntity : storageInstances) {
+            try {
+                totalOverProvisionedAmountForStorages += calculateOverProvisioned(stitchingEntity);
+            } catch (MissingStorageAmount missingStorageAmount) {
+                logger.debug(missingStorageAmount);
+                entitiesWithoutStorageAmount.add(stitchingEntity.getOid());
+            }
+        }
 
+        if (entitiesWithoutStorageAmount.size() > 0) {
+            logger.error("Storage provisioned is specified for the following entities, but storage amount is not. "
+                    + "As a result these storages might have missing information, however this is not going to impact actions:"
+                    + entitiesWithoutStorageAmount.stream().map(String::valueOf).collect(Collectors.joining(", ")));
+        }
         // The total amount provisioned is the sum of the overprovisioned from each discovered instance
         // plus the most up-to-date value of the storage amount.
         double latestStorageAmount = mostUpToDate.getCommoditiesSold()
@@ -203,7 +217,7 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
             .map(CommodityDTO.Builder::getUsed)
             .orElse(0.0);
 
-        return OptionalDouble.of(latestStorageAmount + overProvisioned);
+        return OptionalDouble.of(latestStorageAmount + totalOverProvisionedAmountForStorages);
     }
 
     /**
@@ -283,8 +297,10 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
      *
      * @param stitchingEntity The entity whose overprovisioned value is to be calculated.
      * @return The amount the entity is overprovisioned.
+     * @throws MissingStorageAmount if a storage provisioned used value is present but NOT a storage amount one
      */
-    private double calculateOverProvisioned(@Nonnull final StitchingEntity stitchingEntity) {
+    private double calculateOverProvisioned(@Nonnull final StitchingEntity stitchingEntity)
+            throws MissingStorageAmount {
         Optional<CommodityDTO.Builder> storageProvisioned = stitchingEntity.getCommoditiesSold()
             .filter(sold -> sold.getCommodityType() == CommodityType.STORAGE_PROVISIONED)
             .findFirst();
@@ -303,10 +319,26 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
                     return (provisionedUsed - amountUsed);
                 }
             } else {
-                logger.error("{}: Storage provisioned is specified but storage amount is not.", stitchingEntity);
+                throw new MissingStorageAmount(stitchingEntity);
             }
         }
 
         return 0;
+    }
+
+    /**
+     * An exception for missing data for Storage Amount.
+     */
+    private static class MissingStorageAmount extends IllegalArgumentException  {
+        final StitchingEntity stitchingEntity;
+
+        MissingStorageAmount(@Nonnull final StitchingEntity stitchingEntity) {
+            super("Storage provisioned is specified but storage amount is not for " + stitchingEntity);
+            this.stitchingEntity = stitchingEntity;
+        }
+
+        public StitchingEntity getStitchingEntity() {
+            return stitchingEntity;
+        }
     }
 }
