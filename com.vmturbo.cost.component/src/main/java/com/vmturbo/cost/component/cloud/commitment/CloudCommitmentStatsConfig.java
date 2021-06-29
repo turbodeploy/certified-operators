@@ -8,8 +8,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentStatsServiceController;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesREST.CloudCommitmentUploadServiceController;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.cloud.commitment.coverage.CloudCommitmentCoverageStore;
 import com.vmturbo.cost.component.cloud.commitment.coverage.SQLCloudCommitmentCoverageStore;
 import com.vmturbo.cost.component.cloud.commitment.utilization.CloudCommitmentUtilizationStore;
@@ -26,6 +28,10 @@ public class CloudCommitmentStatsConfig {
     @Autowired
     private DSLContext dslContext;
 
+    // Should be auto-wired from ReservedInstanceConfig
+    @Autowired
+    private TimeFrameCalculator timeFrameCalculator;
+
     @Value("${cloudCommitment.maxStatRecordsPerChunk:100}")
     private int maxStatRecordsPerChunk;
 
@@ -40,13 +46,22 @@ public class CloudCommitmentStatsConfig {
     }
 
     /**
+     * A bean for {@link CloudGranularityCalculator}.
+     * @return A bean for {@link CloudGranularityCalculator}.
+     */
+    @Bean
+    public CloudGranularityCalculator cloudGranularityCalculator() {
+        return new CloudGranularityCalculator(timeFrameCalculator);
+    }
+
+    /**
      * A bean for {@link CloudCommitmentCoverageStore}.
      * @return A bean for {@link CloudCommitmentCoverageStore}.
      */
     @Nonnull
     @Bean
     public CloudCommitmentCoverageStore cloudCommitmentCoverageStore() {
-        return new SQLCloudCommitmentCoverageStore(dslContext);
+        return new SQLCloudCommitmentCoverageStore(dslContext, cloudGranularityCalculator());
     }
 
     /**

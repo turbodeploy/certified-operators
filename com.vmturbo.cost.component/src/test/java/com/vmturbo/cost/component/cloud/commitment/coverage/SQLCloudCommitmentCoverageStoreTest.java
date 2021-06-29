@@ -24,7 +24,11 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.cloud.common.stat.CloudGranularityCalculator;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentData.CloudCommitmentDataBucket.CloudCommitmentDataPoint;
@@ -39,6 +43,7 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
+@RunWith(MockitoJUnitRunner.class)
 public class SQLCloudCommitmentCoverageStoreTest {
 
     private static final CloudCommitmentDataPoint dataPoint1A = CloudCommitmentDataPoint.newBuilder()
@@ -136,11 +141,14 @@ public class SQLCloudCommitmentCoverageStoreTest {
 
     private final DSLContext dsl = dbConfig.getDslContext();
 
+    @Mock
+    private CloudGranularityCalculator granularityCalculator;
+
     private SQLCloudCommitmentCoverageStore coverageStore;
 
     @Before
     public void setup() {
-        coverageStore = new SQLCloudCommitmentCoverageStore(dsl);
+        coverageStore = new SQLCloudCommitmentCoverageStore(dsl, granularityCalculator);
     }
 
     /**
