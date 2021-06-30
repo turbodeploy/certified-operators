@@ -9,6 +9,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -141,6 +142,8 @@ public class InterpretCloudExplanationTest {
         // move action, but we want to test the explanation.
         when(commodityIndex.getCommSold(VM1_OID, VMEM)).thenReturn(
             Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(VMEM).setCapacity(100).build()));
+        when(commodityIndex.getCommSold(VM1_OID, VCPU)).thenReturn(
+                Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(VCPU).setCapacity(100).build()));
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopology, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
             Suppliers.memoize(() -> commodityIndex), null));
@@ -153,7 +156,7 @@ public class InterpretCloudExplanationTest {
             .putCouponsCoveredByRi(1L, 8)
             .putCouponsCoveredByRi(2L, 8)
             .setEntityCouponCapacity(16).build();
-        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopology, originalCloudTopology);
+        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(eq(move.getMove()), any(), eq(originalCloudTopology));
         when(cloudTc.isMarketTier(any())).thenReturn(true);
         projectedTopology.put(VM1_OID, ProjectedTopologyEntity.newBuilder().setEntity(
             TopologyEntityDTO.newBuilder().setOid(VM1_OID).setEntityType(10).addCommoditySoldList(
@@ -410,7 +413,7 @@ public class InterpretCloudExplanationTest {
      * action is interpreted on a cloud entity, the action is explained as compliance.
      */
     @Test
-    public void testInterpretCSgCompliance() {
+    public void testInterpretCsgCompliance() {
         Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup, VCPUWithLookup);
         when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
         when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
@@ -485,6 +488,62 @@ public class InterpretCloudExplanationTest {
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertTrue(efficiency.getIsWastedCost());
+    }
+
+    /**
+     * Test free scale up.
+     */
+    @Test
+    public void testFreeScaleUp() {
+        // Under utilized Vmem, free scale up for VCPU. Under utilized commodity takes precedence over wasted cost.
+        interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, 10, 80, 120, 1, 1, false);
+        // Free scale up for VCPU and VMEM, wasted cost.
+        interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, 10, 120, 120, 2, 0, true);
+
+        // Same scenarios for database servers should not result in scale up commodities
+        interpretFreeScaleUpAction(EntityType.DATABASE_SERVER_VALUE, 10, 80, 120, 0, 1, false);
+        interpretFreeScaleUpAction(EntityType.DATABASE_SERVER_VALUE, 10, 120, 120, 0, 0, true);
+    }
+
+    private void interpretFreeScaleUpAction(int entityType, double savings, double newVmemCapacity, double newVcpuCapacity,
+                                 int expectedFreeScaleUpCommodityCount, int expectedUnderUtilizedCommodityCount, boolean isWastedCost) {
+        Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup, VCPUWithLookup);
+        // Congested / Under-utilized commodities
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+
+        // Savings
+        when(actionSavingsCalculator.calculateSavings(any())).thenReturn(CalculatedSavings.builder()
+                .savingsPerHour(Trax.trax(savings))
+                .build());
+
+        // No RI Coverage
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
+        projectedRiCoverage.put(VM1_OID, null);
+
+        // Setup projected entity with new vcpu and vmem capacity
+        Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder().setCommodityType(VMEM);
+        Builder vcpuSoldCommodity = CommoditySoldDTO.newBuilder().setCommodityType(VCPU);
+        Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(entityType)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(newVmemCapacity))
+                .addCommoditySoldList(vcpuSoldCommodity.setCapacity(newVcpuCapacity))
+                .build();
+        ProjectedTopologyEntity projectedTopology = ProjectedTopologyEntity.newBuilder()
+                .setEntity(topologyEntityDTO)
+                .build();
+        projectedTopologyMap.put(VM1_OID, projectedTopology);
+
+        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
+
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertEquals(expectedUnderUtilizedCommodityCount, efficiency.getUnderUtilizedCommoditiesCount());
+        assertFalse(efficiency.getIsRiCoverageIncreased());
+        assertEquals(isWastedCost, efficiency.getIsWastedCost());
+        assertEquals(expectedFreeScaleUpCommodityCount, efficiency.getScaleUpCommodityCount());
     }
 
     /**
