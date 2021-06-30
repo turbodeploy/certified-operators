@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -53,6 +55,9 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -213,6 +218,7 @@ public class StatsQueryExecutor {
         final Comparator<Entry<StatTimeAndEpoch, Map<String, StatApiDTO>>> ascendingByTime =
             Comparator.comparingLong(entry -> entry.getKey().getTime());
         final String scopeDisplayName = scope.getDisplayName();
+        final Map<String, String> partitions = getPartitions(apiId);
         final List<StatSnapshotApiDTO> stats = statsByDateAndId.rowMap().entrySet().stream()
             .sorted(ascendingByTime)
             .map(entry -> {
@@ -220,7 +226,10 @@ public class StatsQueryExecutor {
                 statSnapshotApiDTO.setDisplayName(scopeDisplayName);
                 statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey().getTime()));
                 statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
-                statSnapshotApiDTO.setStatistics(new ArrayList<>(entry.getValue().values()));
+                    statSnapshotApiDTO
+                            .setStatistics(
+                                    convertVstorageNames(partitions, entry.getValue().values()));
+
                 return statSnapshotApiDTO;
             })
             .collect(Collectors.toList());
@@ -245,6 +254,78 @@ public class StatsQueryExecutor {
 
         return StatsUtils.filterStats(stats,
             allowCoolingPowerCommodities(scope, context) ? null : Collections.emptyList());
+    }
+
+    @Nonnull
+    private Map<String, String> getPartitions(@Nonnull ApiId apiId) {
+        if (!apiId.isEntity()) {
+            return Collections.emptyMap();
+        }
+
+        Optional<TopologyEntityDTO> entityDTO = repositoryApi.entityRequest(apiId.oid())
+                .getFullEntity();
+
+        if (!entityDTO.isPresent()) {
+            return Collections.emptyMap();
+        }
+
+        if (!entityDTO.get().hasTypeSpecificInfo()) {
+            return Collections.emptyMap();
+        }
+
+        TypeSpecificInfo info = entityDTO.get().getTypeSpecificInfo();
+
+        if (!info.hasVirtualMachine()) {
+            return Collections.emptyMap();
+        }
+
+        VirtualMachineInfo vmInfo = info.getVirtualMachine();
+
+        if (vmInfo.getPartitionsCount() < 1) {
+            return Collections.emptyMap();
+        }
+
+        return vmInfo.getPartitionsMap();
+    }
+
+    /**
+     * Modify stats. Convert vStorage display names from keys to partition
+     * names, e.g. 'VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6' ->
+     * '/var/lib/mysql'.
+     *
+     * @param partitions VM partitions
+     * @param stats commodity statistics
+     * @return new stats with converted names
+     */
+    @Nonnull
+    private static List<StatApiDTO> convertVstorageNames(@Nonnull Map<String, String> partitions,
+            @Nonnull Collection<StatApiDTO> stats) {
+        List<StatApiDTO> result = new ArrayList<>();
+
+        if (partitions.isEmpty()) {
+            result.addAll(stats);
+            return result;
+        }
+
+        for (StatApiDTO stat : stats) {
+            String displayName = stat.getDisplayName();
+
+            if (UICommodityType.VSTORAGE.apiStr().equals(stat.getName())
+                    && Strings.isNotBlank(displayName)) {
+                String key = displayName.substring(
+                        com.vmturbo.api.component.external.api.util.StatsUtils.COMMODITY_KEY_PREFIX
+                                .length());
+                String partitionName = partitions.get(key);
+
+                if (partitionName != null) {
+                    stat.setDisplayName(partitionName);
+                }
+            }
+
+            result.add(stat);
+        }
+
+        return result;
     }
 
     List<StatSnapshotApiDTO> createRealtimeStatSnapshots(StatPeriodApiInputDTO inputDTO,
@@ -290,7 +371,7 @@ public class StatsQueryExecutor {
                     if (statsRequested.isEmpty() || statsRequested.contains(StringConstants.NUM_CORES)
                             && metric.equals(StringConstants.NUM_CORES)) {
                         StatApiDTO statApiDTO = new StatApiDTO();
-                        float capacityValue = (float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
+                        float capacityValue = topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
                                 .getNumCores();
                         final StatValueApiDTO capacity = new StatValueApiDTO();
                         capacity.setAvg(capacityValue);
