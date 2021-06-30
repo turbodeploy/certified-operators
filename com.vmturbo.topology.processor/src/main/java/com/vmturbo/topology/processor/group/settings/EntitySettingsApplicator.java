@@ -916,7 +916,8 @@ public class EntitySettingsApplicator {
                 CommodityType.Q5_VCPU_VALUE, CommodityType.Q6_VCPU_VALUE,
                 CommodityType.Q7_VCPU_VALUE, CommodityType.Q8_VCPU_VALUE,
                 CommodityType.Q16_VCPU_VALUE, CommodityType.Q32_VCPU_VALUE,
-                CommodityType.Q64_VCPU_VALUE, CommodityType.QN_VCPU_VALUE);
+                CommodityType.Q64_VCPU_VALUE, CommodityType.QN_VCPU_VALUE,
+                CommodityType.CPU_READY_VALUE);
 
         private ReadyQueueUtilizationThresholdApplicator() {
             super(EntitySettingSpecs.ReadyQueueUtilization);
