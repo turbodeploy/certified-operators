@@ -90,7 +90,7 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
         final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)table.field(SNAPSHOT_TIME);
         if (startDate != null) {
             final Timestamp startDateTimestamp = new Timestamp(startDate.toEpochMilli());
-            conditions.add(snapshotTimeField.greaterThan(startDateTimestamp));
+            conditions.add(snapshotTimeField.greaterOrEqual(startDateTimestamp));
         }
 
         if (endDate != null) {
