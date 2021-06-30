@@ -253,8 +253,6 @@ public enum UICommodityType {
     NUMBER_REPLICAS(CommodityType.NUMBER_REPLICAS, "Number Replicas"),
     /** The commodity VCPU_THROTTLING **/
     VCPU_THROTTLING(CommodityType.VCPU_THROTTLING, "VCPU Throttling"),
-    /** The commodity CPU_READY **/
-    CPU_READY(CommodityType.CPU_READY, "CPU READY"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

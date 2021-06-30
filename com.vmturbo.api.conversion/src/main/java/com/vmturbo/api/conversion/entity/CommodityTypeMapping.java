@@ -162,7 +162,6 @@ public class CommodityTypeMapping {
             .put(CommodityType.CONCURRENT_WORKER, CommodityInfo.of("ConcurrentWorker", "ConcurrentWorker", ""))
             .put(CommodityType.NUMBER_REPLICAS, CommodityInfo.of("NumberReplicas", "NumberReplicas", ""))
             .put(CommodityType.VCPU_THROTTLING, CommodityInfo.of("VCPUThrottling", "VCPUThrottling", "%"))
-            .put(CommodityType.CPU_READY, CommodityInfo.of("CPUReady", "CPUReady", "msec"))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 
