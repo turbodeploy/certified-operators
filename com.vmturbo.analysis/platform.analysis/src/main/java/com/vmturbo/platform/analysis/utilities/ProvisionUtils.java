@@ -58,7 +58,7 @@ public class ProvisionUtils {
                     }
                 }
                 if (overHead < 0) {
-                    logger.warn("overHead is less than 0 for seller "
+                    logger.debug("overHead is less than 0 for seller "
                             + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
                             + basketSold.get(soldIndex).getDebugInfoNeverUseInCode());
                     overHead = 0;
