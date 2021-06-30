@@ -18,6 +18,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -28,6 +31,8 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.io.Files;
+import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -47,7 +52,6 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
@@ -86,12 +90,14 @@ public class StatsQueryExecutorTest {
 
     final StatsQueryContext statsQueryContext = mock(StatsQueryContext.class);
 
+    TopologyEntityDTO vmDto;
+
     private static final long MILLIS = 1_000_000;
     private static final String COOLING = "Cooling";
     private static final double ERROR = 1e-7;
 
     @Before
-    public void setup() throws OperationFailedException {
+    public void setup() throws Exception {
         when(scopeExpander.expandScope(eq(scope), any())).thenReturn(expandedScope);
         when(contextFactory.newContext(eq(scope), any(), any())).thenReturn(statsQueryContext);
 
@@ -105,6 +111,7 @@ public class StatsQueryExecutorTest {
         Set<ApiEntityType> apiEntityTypeSet = new HashSet<>();
         apiEntityTypeSet.add(apiEntityType);
         when(scope.getScopeTypes()).thenReturn(Optional.of(apiEntityTypeSet));
+        vmDto = loadDtoFromJson("VmDTO.json");
     }
 
     @Test
@@ -132,6 +139,10 @@ public class StatsQueryExecutorTest {
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
         when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(false);
 
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
         final StatApiDTO stat = stat("foo");
         StatSnapshotApiDTO snapshot = snapshotWithStats(MILLIS, stat);
         when(statsSubQuery1.getAggregateStats(any(), any()))
@@ -149,6 +160,21 @@ public class StatsQueryExecutorTest {
         assertThat(resultSnapshot.getDate(), is(DateTimeUtil.toString(MILLIS)));
         assertThat(resultSnapshot.getStatistics(), containsInAnyOrder(stat));
         assertThat(resultSnapshot.getDisplayName(), is(scopeDisplayName));
+    }
+
+    /**
+     * Load the DTO from a JSON file.
+     * @param fileName file name
+     * @return DTO
+     * @throws IOException error reading the file
+     */
+    private TopologyEntityDTO loadDtoFromJson(String fileName) throws IOException {
+        String path = getClass().getClassLoader().getResource(fileName).getFile();
+        String str = Files.asCharSource(new File(path), Charset.defaultCharset()).read();
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
+        JsonFormat.parser().merge(str, builder);
+
+        return builder.build();
     }
 
     @Test
@@ -172,6 +198,10 @@ public class StatsQueryExecutorTest {
             .thenReturn(Collections.singletonList(snapshot1));
         when(statsSubQuery2.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot2));
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -217,6 +247,10 @@ public class StatsQueryExecutorTest {
             .thenReturn(Collections.singletonList(snapshot1));
         when(statsSubQuery2.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot2));
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -264,6 +298,10 @@ public class StatsQueryExecutorTest {
         when(statsSubQuery2.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot2));
 
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
@@ -300,6 +338,10 @@ public class StatsQueryExecutorTest {
         when(statsSubQuery2.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot2));
 
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
         assertThat(stats.size(), is(1));
@@ -330,6 +372,10 @@ public class StatsQueryExecutorTest {
             .thenReturn(Collections.singletonList(snapshot1));
         when(statsSubQuery2.getAggregateStats(any(), any()))
             .thenReturn(Collections.singletonList(snapshot2));
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -425,6 +471,10 @@ public class StatsQueryExecutorTest {
         /*
          * Scope is an entity
          */
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
         when(scope.isGroup()).thenReturn(false);
         when(scope.isEntity()).thenReturn(true);
         when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
@@ -494,6 +544,10 @@ public class StatsQueryExecutorTest {
         when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
                 ApiEntityType.CHASSIS)));
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
 
         // if targets is not hyperconverged or fabric, then don't show cooling and power.
         when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(2L));
@@ -640,6 +694,10 @@ public class StatsQueryExecutorTest {
             .thenReturn(Collections.singletonList(snapshot));
 
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
 
         // ACT
         List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);

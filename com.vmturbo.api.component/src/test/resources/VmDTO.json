@@ -1,0 +1,448 @@
+{
+  "entityType": 10,
+  "oid": "74024627346208",
+  "displayName": "astra-stress",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::13fbaaf23d54238104ebd70d205587e985c952f5"
+    },
+    "used": 76.546875,
+    "capacity": 30705.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 76.546875
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 26
+    },
+    "used": 9729.4,
+    "peak": 9884.0,
+    "capacity": 10400.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1800.0,
+    "scalingFactor": 2.6986987878738495,
+    "historicalUsed": {
+      "maxQuantity": 9770.4,
+      "histUtilization": 9741.576171875,
+      "percentile": 0.95
+    },
+    "historicalPeak": {
+      "histUtilization": 9924.0859375
+    },
+    "resizeTargetUtilization": 0.699999988079071,
+    "hotResizeInfo": {
+      "hotReplaceSupported": true,
+      "hotAddSupported": true,
+      "hotRemoveSupported": false
+    },
+    "displayName": "",
+    "thresholds": {
+      "min": 2600.0,
+      "max": 166400.0
+    }
+  }, {
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::127a3e53fcb3de994c37620f15cc15e00ae950be"
+    },
+    "used": 7667.08203125,
+    "capacity": 51175.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 7667.08203125
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 56,
+      "key": "74024627346208"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::ed9b5a5b3d6ea81d0c37e09fb174d905722f8731"
+    },
+    "used": 168.109375,
+    "capacity": 496.66015625,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 168.109375
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "used": 2021652.5333333334,
+    "peak": 2107636.0,
+    "capacity": 3145728.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 2108684.933333333,
+      "histUtilization": 2001837.25,
+      "percentile": 0.73
+    },
+    "historicalPeak": {
+      "histUtilization": 2057197.25
+    },
+    "resizeTargetUtilization": 0.8999999761581421,
+    "hotResizeInfo": {
+      "hotReplaceSupported": true,
+      "hotAddSupported": true
+    },
+    "displayName": "",
+    "thresholds": {
+      "min": 524288.0,
+      "max": 1.34217728E8
+    }
+  }, {
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6"
+    },
+    "used": 109.3046875,
+    "capacity": 392524.24609375,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 109.3046875
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::9738e3e84e3269c5084022f9c4561b99f2366256"
+    },
+    "used": 32.359375,
+    "capacity": 20470.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 1048576.0,
+    "historicalUsed": {
+      "maxQuantity": 32.359375
+    },
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "74024627343089",
+    "providerEntityType": 1,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 2,
+        "key": "VirtualDataCenter::a5ae45b345b118257969b2f956e189695700d369"
+      },
+      "used": 9729.4,
+      "peak": 9884.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 9741.576171875
+      },
+      "historicalPeak": {
+        "histUtilization": 9924.0859375
+      },
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 50,
+        "key": "VirtualDataCenter::a5ae45b345b118257969b2f956e189695700d369"
+      },
+      "used": 3145728.0,
+      "peak": 3145728.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 3145728.0
+      },
+      "historicalPeak": {
+        "histUtilization": 3145728.0
+      },
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "74024627343072",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 28
+      },
+      "used": 10400.0,
+      "active": true,
+      "scalingFactor": 2.6986987878738495,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 58
+      },
+      "used": 4375.366666666667,
+      "peak": 6671.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 4310.0810546875
+      },
+      "historicalPeak": {
+        "histUtilization": 6577.88916015625
+      },
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 0,
+        "key": "Cluster::99ef8409ee58b11ccd54c2d84153221b500a113b"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::a297f2809d4b95ecac65db848d6792e0dfb7d8d3"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 45
+      },
+      "used": 3145728.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::5ef20fc2-1771b778-c741-005056b86f8a"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 57,
+        "key": "Network::VM Network"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 40
+      },
+      "used": 9729.4,
+      "peak": 9884.0,
+      "active": true,
+      "scalingFactor": 2.6986987878738495,
+      "historicalUsed": {
+        "histUtilization": 9741.576171875
+      },
+      "historicalPeak": {
+        "histUtilization": 9924.0859375
+      },
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 21
+      },
+      "used": 3145728.0,
+      "peak": 3145728.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 3145728.0
+      },
+      "historicalPeak": {
+        "histUtilization": 3145728.0
+      },
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 33
+      },
+      "used": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 47
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": "",
+      "resizeTargetUtilization": 0.699999988079071
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": "",
+      "resizeTargetUtilization": 0.699999988079071
+    }, {
+      "commodityType": {
+        "type": 41
+      },
+      "used": 0.0,
+      "active": false,
+      "displayName": ""
+    }],
+    "movable": true
+  }, {
+    "providerId": "74024627343021",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 0.004329427145421505
+      },
+      "historicalPeak": {
+        "histUtilization": 1.921544075012207
+      },
+      "displayName": "",
+      "resizeTargetUtilization": 0.699999988079071
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 1.4666666666666666,
+      "peak": 7.0,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 1.4387331008911133
+      },
+      "historicalPeak": {
+        "histUtilization": 10.713459014892578
+      },
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "StorageCluster::d55caa56f40596abfa509653e92bd27e704615cc"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 517158.8349609375,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 27804.8349609375,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 51,
+        "key": "PhysicalMachine::Virtual_ESX_42387308-5f42-870a-bd51-6c17ca4b1fd7"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "numCpus": "4",
+    "VcTgtIdAndInternalName": "11844bc2ee6591e2e6d09d728e41dcb3bf430d45",
+    "instanceUuid": "503e34c3-2ac2-4f29-d425-dcc004205140",
+    "targetAddress": "vsphere-dc5.eng.vmturbo.com",
+    "vmHardwareCompatibilityVersion": "vmx-07",
+    "numVirtualDisks": "0"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "isEligibleForResizeDown": true,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true,
+    "rateOfResize": 2.0,
+    "reconfigurable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1624956753667",
+      "discoveredTargetData": {
+        "74015329557136": {
+          "vendorId": "vm-17015",
+          "origin": "DISCOVERED"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "74024627346929",
+    "connectedEntityType": 32,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "74024627343984",
+    "connectedEntityType": 60,
+    "connectionType": "NORMAL_CONNECTION"
+  }, {
+    "connectedEntityId": "74024627343952",
+    "connectedEntityType": 60,
+    "connectionType": "NORMAL_CONNECTION"
+  }],
+  "environmentType": "ON_PREM",
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "LINUX",
+        "guestOsName": "CentOS 7 (64-bit)"
+      },
+      "ipAddresses": [{
+        "ipAddress": "10.10.168.217",
+        "isElastic": false
+      }],
+      "numCpus": 4,
+      "billingType": "ONDEMAND",
+      "connectedNetworks": ["VM Network"],
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+      },
+      "partitions": {
+        "VirtualMachine::127a3e53fcb3de994c37620f15cc15e00ae950be": "/",
+        "VirtualMachine::9738e3e84e3269c5084022f9c4561b99f2366256": "/tmp",
+        "VirtualMachine::ed9b5a5b3d6ea81d0c37e09fb174d905722f8731": "/boot",
+        "VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6": "/var/lib/mysql",
+        "VirtualMachine::13fbaaf23d54238104ebd70d205587e985c952f5": "/var/log"
+      }
+    }
+  }
+}
