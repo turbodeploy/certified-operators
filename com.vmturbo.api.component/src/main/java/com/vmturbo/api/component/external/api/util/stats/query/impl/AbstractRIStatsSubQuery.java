@@ -226,6 +226,7 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         context.getTimeWindow().ifPresent(timeWindow -> {
             reqBuilder.setStartDate(timeWindow.startTime());
             reqBuilder.setEndDate(timeWindow.endTime());
+            reqBuilder.setIncludeProjectedStats(timeWindow.includeProjected());
         });
 
         final ApiId inputScope = context.getInputScope();
