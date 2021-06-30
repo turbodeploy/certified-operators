@@ -12,10 +12,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
+
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -56,6 +60,20 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     private final EntityUptimeStore entityUptimeStore;
 
+    /**
+     * Create a LocalCostDataProvider.
+     *
+     * @param priceTableStore for fetching price tables
+     * @param discountStore for fetching discounts
+     * @param riBoughtStore for fetching bought RIs
+     * @param businessAccountPriceTableKeyStore for fetching account price table keys
+     * @param riSpecStore for fetching RI specs
+     * @param entityRiMappingStore for mapping entities for RIs
+     * @param identityProvider for providing identities
+     * @param discountApplicatorFactory for applying discounts
+     * @param topologyEntityInfoExtractor for extracting topology info
+     * @param entityUptimeStore for fetching entity uptime
+     */
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
                  @Nonnull final DiscountStore discountStore,
                  @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
@@ -80,32 +98,47 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     @Nonnull
     @Override
-    public CloudCostData getCloudCostData(TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
-                TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
+    public CloudCostData getCloudCostData(@Nonnull final TopologyInfo topoInfo,
+                @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo,
+                @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
         final Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingIdByBusinessAccountOid
                 = localCostPricingResolver.getAccountPricingDataByBusinessAccount(cloudTopo);
         final Map<Long, ReservedInstanceBought> riBoughtById =
             riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder().build()).stream()
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
-        final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
+        final Map<Long, ReservedInstanceSpec> riSpecById =
+            riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
-        final Map<Long, EntityUptimeDTO> entityUptimeDTOByOid = new HashMap<>();
+        final Map<Long, EntityUptimeDTO> entityUptimeDTOByOid = getEntityUptime(topoInfo, cloudTopo);
+        final Optional<EntityUptimeDTO> defaultUptimeDTO =
+            entityUptimeStore.getDefaultUptime().map(EntityUptime::toProtobuf);
+
+        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(),
+            entityRiMappingStore.getEntityRiCoverage(), riBoughtById, riSpecById,
+            Collections.emptyMap(), accountPricingIdByBusinessAccountOid, entityUptimeDTOByOid,
+            defaultUptimeDTO);
+    }
+
+    private Map<Long, EntityUptimeDTO> getEntityUptime(@Nonnull final TopologyInfo topoInfo,
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo) {
+        final Map<Long, EntityUptimeDTO> result = new HashMap<>();
         Map<Long, EntityUptime> entityUptimeByOid = entityUptimeStore.getAllEntityUptime();
         if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType()) {
-            final Set<Long> vmOidsSet = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
-                    .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-            entityUptimeByOid = entityUptimeByOid.entrySet().stream()
+            final Set<Long> vmOidsSet =
+                cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                    .map(TopologyEntityDTO::getOid)
+                    .collect(Collectors.toSet());
+            if (PlanProjectType.CLOUD_MIGRATION == topoInfo.getPlanInfo().getPlanProjectType()) {
+                return Maps.asMap(vmOidsSet, (oid) -> CostProtoUtil.UNKNOWN_DEFAULT_ALWAYS_ON);
+            } else {
+                entityUptimeByOid = entityUptimeByOid.entrySet().stream()
                     .filter(entry -> vmOidsSet.contains(entry.getKey()))
                     .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            }
         }
-        entityUptimeByOid.entrySet().forEach(entry ->
-                entityUptimeDTOByOid.put(entry.getKey(), entry.getValue().toProtobuf()));
-        Optional<EntityUptime> defaultUptime = entityUptimeStore.getDefaultUptime();
-        final Optional<EntityUptimeDTO> defaultUptimeDTO = defaultUptime.map(EntityUptime::toProtobuf);
-        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), entityRiMappingStore.getEntityRiCoverage(),
-                riBoughtById, riSpecById, Collections.emptyMap(),
-                accountPricingIdByBusinessAccountOid, entityUptimeDTOByOid, defaultUptimeDTO);
+        entityUptimeByOid.forEach((key, value) -> result.put(key, value.toProtobuf()));
+        return result;
     }
 }
 

@@ -20,17 +20,6 @@ import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 public interface EntityUptime {
 
     /**
-     * Represents an unknown amount of uptime (indicated by zero {@link #totalTime()}), which may
-     * occur in cases where an entity is newly launched or in cases where there are no topology events
-     * for older VMs.
-     */
-    EntityUptime UNKNOWN_DEFAULT_TO_ALWAYS_ON = EntityUptime.builder()
-            .uptime(Duration.ZERO)
-            .totalTime(Duration.ZERO)
-            .uptimePercentage(100.0)
-            .build();
-
-    /**
      * The uptime duration.
      * @return The uptime duration.
      */
