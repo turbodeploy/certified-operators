@@ -21,7 +21,6 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
-import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -52,17 +51,6 @@ public class CostProtoUtil {
     public static Set<CostSource> SOURCES_TO_EXCLUDE_FOR_ON_DEMAND_COST = ImmutableSet.of(
             CostSource.BUY_RI_DISCOUNT
     );
-
-    /**
-     * Represents an unknown amount of uptime, which may occur in cases where an entity is newly
-     * launched or in cases where there are no topology events for older VMs. Also used in
-     * migrate-to-cloud plans to represent hypothetical full uptime.
-     */
-    public static final EntityUptimeDTO UNKNOWN_DEFAULT_ALWAYS_ON = EntityUptimeDTO.newBuilder()
-        .setUptimeDurationMs(0)
-        .setTotalDurationMs(0)
-        .setUptimePercentage(100.0)
-        .build();
 
     /**
      * Get the term of a reserved instance in some kind of time unit.
