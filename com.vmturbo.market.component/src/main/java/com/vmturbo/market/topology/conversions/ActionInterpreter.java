@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 
 import java.util.ArrayList;
@@ -20,7 +19,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,11 +62,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -80,8 +75,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.journal.CostJournal;
-import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.MarketTier;
@@ -110,11 +103,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.trax.Trax;
-import com.vmturbo.trax.TraxCollectors;
-import com.vmturbo.trax.TraxNumber;
 
 /**
  * This class has methods which interpret {@link ActionTO} to {@link Action}
@@ -135,6 +124,8 @@ public class ActionInterpreter {
             ImmutableSet.of(EntityType.STORAGE_TIER_VALUE,
                     EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                     EntityType.COMPUTE_TIER_VALUE);
+    private static final Set<Integer> FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES =
+            ImmutableSet.of(EntityType.DATABASE_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
 
@@ -545,9 +536,6 @@ public class ActionInterpreter {
      *
      * @param moveTO the input {@link MoveTO}
      * @param projectedTopology a map of entity id to the {@link ProjectedTopologyEntity}.
-     * @param originalCloudTopology the original cloud topology
-     * @param projectedCosts The original {@link CloudTopology}
-     * @param topologyCostCalculator The {@link TopologyCostCalculator} used to calculate costs
      * @return {@link ActionDTO.Allocate} representing the Allocate action
      */
     private ActionDTO.Allocate interpretAllocateAction(@Nonnull final MoveTO moveTO,
@@ -1567,6 +1555,8 @@ public class ActionInterpreter {
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
+        int actionTargetEntityType = projectedTopology.containsKey(actionTargetId) ?
+                projectedTopology.get(actionTargetId).getEntity().getEntityType() : -1;
         long sellerId = slInfo.getSellerId();
 
         // First, check if this entity has congested commodities pre-stored.
@@ -1595,14 +1585,14 @@ public class ActionInterpreter {
         // in the projected topology.
         Optional<ChangeProviderExplanation.Builder> underUtilizedExplanation =
             getUnderUtilizedExplanationFromTracker(actionTargetId, sellerId, lowerProjectedCapacityComms,
-                higherProjectedCapacityComms, savings);
+                higherProjectedCapacityComms, savings, actionTargetEntityType);
         if (underUtilizedExplanation.isPresent()) {
             return underUtilizedExplanation;
         }
 
         // Fourth, check if there is savings
         Optional<ChangeProviderExplanation.Builder> savingsExplanation =
-            getExplanationFromSaving(savings, higherProjectedCapacityComms);
+            getExplanationFromSaving(savings, higherProjectedCapacityComms, actionTargetEntityType);
         if (savingsExplanation.isPresent()) {
             return savingsExplanation;
         }
@@ -1614,14 +1604,7 @@ public class ActionInterpreter {
             return csgExplanation;
         }
 
-        // Sixth, check if we got a free scale up
-        Optional<ChangeProviderExplanation.Builder> freeScaleUpExplanation =
-            getFreeScaleUpExplanation(savings, higherProjectedCapacityComms);
-        if (freeScaleUpExplanation.isPresent()) {
-            return freeScaleUpExplanation;
-        }
-
-        // Seventh, check if we got an action with zero savings and the same projected capacities.
+        // Sixth, check if we got an action with zero savings and the same projected capacities.
         // E.g. it happens when AWS IO1 volume is scaled to IO2. Both IO1 and IO2 provide the same
         // capacities and costs but IO2 is newer and has better durability.
         final Optional<ChangeProviderExplanation.Builder> zeroSavingsExplanation =
@@ -1647,17 +1630,6 @@ public class ActionInterpreter {
                 && higherProjectedCapacityComms.isEmpty()) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     Efficiency.newBuilder()));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getFreeScaleUpExplanation(
-        CalculatedSavings savings, Set<CommodityType> higherProjectedCapacityComms) {
-        // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
-        // and there are some commodities which have higher projected capacities.
-        if (savings.isSavings() && !higherProjectedCapacityComms.isEmpty()) {
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                Efficiency.newBuilder().addAllScaleUpCommodity(higherProjectedCapacityComms)));
         }
         return Optional.empty();
     }
@@ -1694,14 +1666,16 @@ public class ActionInterpreter {
             long sellerId,
             @Nonnull Set<CommodityType> lowerProjectedCapacityComms,
             @Nonnull Set<CommodityType> higherProjectedCapacityComms,
-            CalculatedSavings savings) {
+            CalculatedSavings savings,
+            int actionTargetEntityType) {
         if (!lowerProjectedCapacityComms.isEmpty()) {
             Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
                     .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(lowerProjectedCapacityComms));
             logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
                     actionTargetId, sellerId,
                 lowerProjectedCapacityComms.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
-            if (savings.isSavings() || savings.isZeroSavings()) {
+            if ((savings.isSavings() || savings.isZeroSavings())
+                    && FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
                 // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
                 // and there are some commodities which have higher projected capacities.
                 efficiencyBuilder
@@ -1851,10 +1825,14 @@ public class ActionInterpreter {
 
     private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(
         @Nonnull final CalculatedSavings savings,
-        @Nonnull Set<CommodityType> higherProjectedCapacityComms) {
+        @Nonnull Set<CommodityType> higherProjectedCapacityComms,
+        @Nonnull int actionTargetEntityType) {
         if (savings.isSavings()) {
-            Efficiency.Builder efficiencyBuilder = Efficiency.newBuilder().setIsWastedCost(true)
-                .addAllScaleUpCommodity(higherProjectedCapacityComms);
+            Efficiency.Builder efficiencyBuilder = Efficiency.newBuilder().setIsWastedCost(true);
+            if (!higherProjectedCapacityComms.isEmpty() &&
+                    FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
+                efficiencyBuilder.addAllScaleUpCommodity(higherProjectedCapacityComms);
+            }
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(efficiencyBuilder));
         }
         return Optional.empty();
