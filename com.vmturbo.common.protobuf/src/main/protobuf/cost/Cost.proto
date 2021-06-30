@@ -911,6 +911,8 @@ message GetReservedInstanceCoverageStatsRequest {
 
     // get reserved instance coverage stats by topology context id
     optional uint64 topology_context_id = 8;
+
+    optional bool include_projected_stats = 9 [default = false];
 }
 
 // A response of reserved instance coverage stats.

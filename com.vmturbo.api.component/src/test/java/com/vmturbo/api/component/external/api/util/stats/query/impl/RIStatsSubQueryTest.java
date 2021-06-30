@@ -182,6 +182,7 @@ public class RIStatsSubQueryTest {
                         GetReservedInstanceCoverageStatsRequest.newBuilder()
                                 .setStartDate(TIME_WINDOW.startTime())
                                 .setEndDate(TIME_WINDOW.endTime())
+                                .setIncludeProjectedStats(TIME_WINDOW.includeProjected())
                                 .setRegionFilter(RegionFilter.newBuilder().addAllRegionId(SCOPE_ENTITIES))
                                 .setIncludeBuyRiCoverage(false)
                                 .build());

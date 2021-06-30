@@ -224,6 +224,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
                 GetReservedInstanceCoverageStatsRequest.newBuilder()
                         .setStartDate(now - msInDay)
                         .setEndDate(now + msInDay)
+                        .setIncludeProjectedStats(true)
                         .build();
         final GetReservedInstanceCoverageStatsResponse response =
                 client.getReservedInstanceCoverageStats(request);

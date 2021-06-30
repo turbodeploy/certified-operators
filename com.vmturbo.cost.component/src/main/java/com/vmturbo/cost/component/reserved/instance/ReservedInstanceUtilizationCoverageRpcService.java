@@ -196,7 +196,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 if (!CollectionUtils.isEmpty(statsRecords)) {
                     statRecords.add(statsRecords.get(0));
                 }
-            } else {
+            } else if (request.getIncludeProjectedStats()) {
                 // Add projected RI Coverage point
                 projectedRICoverageStore.getReservedInstanceCoverageStats(
                         filter, request.getIncludeBuyRiCoverage(), request.getEndDate())
