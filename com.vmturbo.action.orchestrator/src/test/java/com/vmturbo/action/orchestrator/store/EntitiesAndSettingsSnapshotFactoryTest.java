@@ -93,41 +93,12 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
             REALTIME_TOPOLOGY_CONTEXT_ID,
             acceptedActionsStore,
-            entitiesSnapshotFactory,
-            false);
+            entitiesSnapshotFactory);
 
         EntitiesSnapshot entitiesSnapshot = new EntitiesSnapshot(entitySnapshotEntities,
                 ownershipGraph, TopologyType.SOURCE);
-        when(entitiesSnapshotFactory.getEntitiesSnapshot(any(), any(), anyLong(), anyLong()))
+        when(entitiesSnapshotFactory.getEntitiesSnapshot(any(), anyLong()))
                 .thenReturn(entitiesSnapshot);
-    }
-
-    /**
-     * Test that setting the "strict topology id match" flag for settings affects the call
-     * out to the group component for per-entity settings.
-     */
-    @Test
-    public void testSnapshotStrictMatchEnabled() {
-        EntitiesAndSettingsSnapshotFactory newFact = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
-                REALTIME_TOPOLOGY_CONTEXT_ID,
-                acceptedActionsStore,
-                entitiesSnapshotFactory,
-                // The important change.
-                true);
-
-        newFact.newSnapshot(
-                Collections.singleton(ENTITY_ID), Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID,
-                TOPOLOGY_ID);
-
-        Mockito.verify(spServiceSpy).getEntitySettings(GetEntitySettingsRequest.newBuilder()
-                .setTopologySelection(TopologySelection.newBuilder()
-                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
-                        // Topology ID explicitly set.
-                        .setTopologyId(TOPOLOGY_ID))
-                .setSettingFilter(EntitySettingFilter.newBuilder()
-                        .addEntities(ENTITY_ID))
-                .setIncludeSettingPolicies(true)
-                .build());
     }
 
     /**
@@ -176,8 +147,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 .setDisplayName(SCHEDULE_DISPLAY_NAME).build()));
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            Collections.singleton(ENTITY_ID), Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID,
-                TOPOLOGY_ID);
+            Collections.singleton(ENTITY_ID), REALTIME_TOPOLOGY_CONTEXT_ID);
 
         final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         Assert.assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
@@ -209,7 +179,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                TOPOLOGY_CONTEXT_ID);
 
         Assert.assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
     }

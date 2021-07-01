@@ -730,6 +730,7 @@ public class Analysis {
                                 projectedCloudTopology =
                                     cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
                                         .filter(ProjectedTopologyEntity::hasEntity)
+                                        .filter(entity -> !entity.getDeleted())
                                         .map(ProjectedTopologyEntity::getEntity));
                             } else if (isBuyRIImpactAnalysis) { // OCP Plan Option 3 only
                                 final CloudCostData cloudCostData = topologyCostCalculator.getCloudCostData();
@@ -739,6 +740,7 @@ public class Analysis {
                                 projectedCloudTopology =
                                     cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
                                         .filter(ProjectedTopologyEntity::hasEntity)
+                                        .filter(entity -> !entity.getDeleted())
                                         .map(ProjectedTopologyEntity::getEntity));
                                 converter.getProjectedRICoverageCalculator()
                                     .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
@@ -1168,13 +1170,13 @@ public class Analysis {
                                         originalTopology)
                                 : projectedEntitiesFromOriginalTopo).stream(),
                         projectedEntitiesFromSkippedEntities)
-                // Exclude Volumes with Delete Volume action
-                .filter(entity -> !wastedStorageActionsVolumeIds.contains(entity.getOid()))
                 // Exclude entities that were removed due to plan configurations in source topology
                 .filter(entity -> !oidsRemoved.contains(entity.getOid()))
                 // Exclude entities that have already been added
                 .filter(entity -> !projectedEntities.containsKey(entity.getOid()))
-                .map(Analysis::toProjectedTopologyEntity)
+                // Volumes with delete volume actions go into the projected topology, but get
+                // marked as deleted.
+                .map(entity -> Analysis.toProjectedTopologyEntity(entity, wastedStorageActionsVolumeIds.contains(entity.getOid())))
                 .collect(Collectors.toSet());
 
         entitiesToAdd.forEach(projectedEntity -> {
@@ -1192,8 +1194,11 @@ public class Analysis {
     }
 
     private static ProjectedTopologyEntity toProjectedTopologyEntity(
-            @Nonnull final TopologyEntityDTO topologyEntityDTO) {
-        return ProjectedTopologyEntity.newBuilder().setEntity(topologyEntityDTO).build();
+            @Nonnull final TopologyEntityDTO topologyEntityDTO, final boolean deleted) {
+        return ProjectedTopologyEntity.newBuilder()
+                .setEntity(topologyEntityDTO)
+                .setDeleted(deleted)
+                .build();
     }
 
     private List<CommoditySpecification> createCommsToAdjustOverheadInClone() {
@@ -1471,8 +1476,8 @@ public class Analysis {
      * the projected topology, the action plan and the price index message were all computed.
      * @return the projected topology
      */
-    public Optional<Collection<ProjectedTopologyEntity>> getProjectedTopology() {
-        return completed ? Optional.ofNullable(projectedEntities).map(Map::values) : Optional.empty();
+    public Optional<Map<Long, ProjectedTopologyEntity>> getProjectedTopology() {
+        return completed ? Optional.ofNullable(projectedEntities) : Optional.empty();
     }
 
 

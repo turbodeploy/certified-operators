@@ -336,7 +336,7 @@ public class AnalysisTest {
     }
 
     /**
-     * Test that Virtual volume with a corresponding Delete action is not present in the
+     * Test that Virtual volume with a corresponding Delete action is marked appropriately in the
      * projected entities list.
      */
     @Test
@@ -370,11 +370,15 @@ public class AnalysisTest {
         // Assert that only 1 volume exists in the projected entities list, the one with no
         // corresponding Delete volume action
         Assert.assertTrue(analysis.getProjectedTopology().isPresent());
-        final Collection<ProjectedTopologyEntity> projectedEntities =
+        final Map<Long, ProjectedTopologyEntity> projectedEntities =
                 analysis.getProjectedTopology().get();
         Assert.assertFalse(projectedEntities.isEmpty());
-        Assert.assertEquals(1, projectedEntities.size());
-        Assert.assertEquals(noDeleteActionVolume, projectedEntities.iterator().next().getEntity());
+        Assert.assertEquals(2, projectedEntities.size());
+        Assert.assertEquals(noDeleteActionVolume, projectedEntities.get(noDeleteActionVolume.getOid()).getEntity());
+        Assert.assertFalse(projectedEntities.get(noDeleteActionVolume.getOid()).getDeleted());
+
+        Assert.assertEquals(deleteActionVolume, projectedEntities.get(deleteActionVolume.getOid()).getEntity());
+        Assert.assertTrue(projectedEntities.get(deleteActionVolume.getOid()).getDeleted());
     }
 
     /**
@@ -644,7 +648,7 @@ public class AnalysisTest {
         // Assert that only 1 VM exists in the projected entities list.
         Assert.assertTrue(analysis.getProjectedTopology().isPresent());
         final Collection<ProjectedTopologyEntity> projectedEntities =
-                analysis.getProjectedTopology().get();
+                analysis.getProjectedTopology().get().values();
         Assert.assertEquals(1, projectedEntities.size());
         Assert.assertEquals(vmInScope.getOid(), projectedEntities.iterator().next().getEntity().getOid());
     }

@@ -4716,9 +4716,9 @@ public class TopologyConverter {
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    static <T> double reverseScaleComm(final double valueToReverseScale,
-                    @Nonnull final Optional<T> commodity,
-                    @Nonnull Function<T, Double> scalingFactorExtractor) {
+    public static <T> double reverseScaleComm(final double valueToReverseScale,
+            @Nonnull final Optional<T> commodity,
+            @Nonnull Function<T, Double> scalingFactorExtractor) {
         return commodity.map(scalingFactorExtractor).filter(sf -> {
             // Scaling factor should be positive, and not an infinitely small value.
             return (sf - EPSILON) > 0;

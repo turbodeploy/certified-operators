@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -53,14 +54,14 @@ public class CostComponentProjectedEntityTopologyListener implements
     }
 
     @Override
-    public void onProjectedTopologyReceived(final long projectedTopologyId,
-                                            @Nonnull final TopologyInfo originalTopologyInfo,
+    public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                     projectedTopo,
                                             @Nonnull final SpanContext tracingContext) {
+        final long projectedTopologyId = metadata.getProjectedTopologyId();
         logger.info("Received projected entities for topologyId {}", projectedTopologyId);
         try {
-            onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
+            onProjectedTopologyReceivedInternal(projectedTopologyId, metadata.getSourceTopologyInfo(),
                     projectedTopo, tracingContext);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to process the projected topology that was received " +
@@ -164,7 +165,7 @@ public class CostComponentProjectedEntityTopologyListener implements
     }
 
     private boolean isProjectedCloudEntity(@Nonnull final ProjectedTopologyEntity projEntity) {
-        return projEntity.getEntity().getEnvironmentType() == EnvironmentType.CLOUD;
+        return projEntity.getEntity().getEnvironmentType() == EnvironmentType.CLOUD && !projEntity.getDeleted();
     }
 
     private boolean shouldSkipTopology(TopologyInfo originalTopologyInfo,

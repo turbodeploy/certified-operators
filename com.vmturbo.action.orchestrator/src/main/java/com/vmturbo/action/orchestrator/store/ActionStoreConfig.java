@@ -46,13 +46,10 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.components.common.utils.RteLoggingRunnable;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
@@ -64,7 +61,6 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
     ActionOrchestratorGlobalConfig.class,
     ActionExecutionConfig.class,
     GroupClientConfig.class,
-    RepositoryClientConfig.class,
     ActionStatsConfig.class,
     ActionTranslationConfig.class,
     PlanOrchestratorClientConfig.class,
@@ -86,9 +82,6 @@ public class ActionStoreConfig {
 
     @Autowired
     private TopologyProcessorConfig tpConfig;
-
-    @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
@@ -167,17 +160,6 @@ public class ActionStoreConfig {
     private boolean useStableActionIdAsUuid;
 
     /**
-     * If true, we will expect that the topology ID of the incoming live action plan strictly
-     * matches the topology ID of the per-entity setting breakdown that the topology processor
-     * uploads to the group component. This is slightly safer because we will know the market
-     * generated the actions using the same settings. However, we may end up getting no settings
-     * at all if the topology processor uploaded a newer version of the setting breakdown before the
-     * action plan gets to the action orchestrator.
-     */
-    @Value("${actionSettingsStrictTopologyIdMatch:false}")
-    private boolean actionSettingsStrictTopologyIdMatch;
-
-    /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
      */
     @Value("${enableCloudScaleEnhancement:true}")
@@ -225,18 +207,14 @@ public class ActionStoreConfig {
             groupClientConfig.groupChannel(),
             tpConfig.realtimeTopologyContextId(),
             acceptedActionsStore(),
-            entitiesSnapshotFactory(),
-            actionSettingsStrictTopologyIdMatch);
+            entitiesSnapshotFactory());
     }
 
     @Bean
     public EntitiesSnapshotFactory entitiesSnapshotFactory() {
-        return new EntitiesSnapshotFactory(tpConfig.actionTopologyStore(),
-                tpConfig.realtimeTopologyContextId(),
-                minsToWaitForTopology, TimeUnit.MINUTES,
-                repositoryClientConfig.repositoryChannel(),
-                repositoryClientConfig.topologyAvailabilityTracker(),
-                new SupplyChainCalculator());
+        return new EntitiesSnapshotFactory(tpConfig.actionTopologyStore(), tpConfig.realtimeTopologyContextId(),
+                minsToWaitForTopology, TimeUnit.MINUTES, new SupplyChainCalculator(),
+                actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 
     @Bean
@@ -385,8 +363,6 @@ public class ActionStoreConfig {
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
             tpConfig.realtimeTopologyContextId(),
-            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
-            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
             actionExecutionConfig.actionTargetSelector(),
             licenseCheckClientConfig.licenseCheckClient());
     }

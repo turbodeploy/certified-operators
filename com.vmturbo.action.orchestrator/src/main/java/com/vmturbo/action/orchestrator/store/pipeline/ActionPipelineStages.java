@@ -267,11 +267,8 @@ public class ActionPipelineStages {
         @Override
         public Status passthrough(ActionPlanAndStore input) throws PipelineStageException {
             final long topologyContextId = getContext().getTopologyContextId();
-            final long topologyId = getContext().getTopologyId().orElseThrow(() ->
-                new PipelineStageException("No TopologyId available"));
-
             entitiesAndSettingsSnapshot = snapshotFactory.newSnapshot(
-                involvedEntityIds.get(), Collections.emptySet(), topologyContextId, topologyId);
+                involvedEntityIds.get(), topologyContextId);
             return Status.success();
         }
 

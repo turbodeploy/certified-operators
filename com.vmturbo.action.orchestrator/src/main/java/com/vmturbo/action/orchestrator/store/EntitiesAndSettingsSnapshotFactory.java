@@ -71,20 +71,16 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private final long realtimeTopologyContextId;
 
-    private final boolean settingsStrictTopologyIdMatch;
-
     EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel,
             final long realtimeTopologyContextId,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
-            @Nonnull final EntitiesSnapshotFactory entitiesSnapshotFactory,
-            final boolean settingsStrictTopologyIdMatch) {
+            @Nonnull final EntitiesSnapshotFactory entitiesSnapshotFactory) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
         this.scheduleService = ScheduleServiceGrpc.newBlockingStub(groupChannel);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
         this.entitiesSnapshotFactory = Objects.requireNonNull(entitiesSnapshotFactory);
-        this.settingsStrictTopologyIdMatch = settingsStrictTopologyIdMatch;
     }
 
     /**
@@ -289,66 +285,25 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *
      * @param entities The new set of entities to get settings for. This set should contain
      *                 the IDs of all entities involved in all actions we expose to the user.
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
      * @param topologyContextId The topology context of the topology broadcast that
      *                          triggered the cache update.
-     * @param topologyId The topology id of the topology, the broadcast of which triggered the
-     *                   cache update. The topology id can be null as well in case we are trying to
-     *                   get a new snapshot for RI Buy Actions. Because RI Buy Algorithm is not
-     *                   triggered on topology broadcast.
      * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   @Nonnull final Set<Long> nonProjectedEntities,
-                                                   final long topologyContextId,
-                                                   final long topologyId) {
-        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, topologyId);
-    }
-
-    /**
-     * A version of {@link EntitiesAndSettingsSnapshotFactory#newSnapshot(Set, Set, long, long)}
-     * that waits for the latest topology in a particular context.
-     *
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
-     * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, Set, long, long)}
-     * @param topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, Set, long, long)}
-     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and
-     * entities.
-     */
-    @Nonnull
-    public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId) {
-        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, null);
-    }
-
-    /**
-     * internalNewSnapshot.
-     *
-     * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, Set, long, long)}
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
-     * @param topologyContextId topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, Set, long, long)}
-     * @param topologyId The topology Id.
-     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
-     */
-    @Nonnull
-    private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
-                                                            @Nonnull final Set<Long> nonProjectedEntities,
-                                                            final long topologyContextId,
-                                                            @Nullable final Long topologyId) {
         final Map<Long, Map<String, SettingAndPolicies>> settingAndPoliciesMapByEntityAndSpecName =
-                retrieveEntityToSettingAndPoliciesListMap(entities, topologyContextId, topologyId);
+                retrieveEntityToSettingAndPoliciesListMap(entities, topologyContextId);
         final Map<Long, Long> entityToResourceGroupMap =
-            retrieveResourceGroupsForEntities(entities);
+                retrieveResourceGroupsForEntities(entities);
 
         final EntitiesSnapshot entitiesSnapshot = entitiesSnapshotFactory.getEntitiesSnapshot(
-                entities, nonProjectedEntities, topologyContextId, topologyId);
+                entities, topologyContextId);
 
 
         final Map<Long, ScheduleProto.Schedule> oidToScheduleMap = new HashMap<>();
         scheduleService.getSchedules(
-            ScheduleProto.GetSchedulesRequest.newBuilder().build()).forEachRemaining(
+                ScheduleProto.GetSchedulesRequest.newBuilder().build()).forEachRemaining(
                 schedule -> oidToScheduleMap.put(schedule.getId(), schedule));
 
         // RecommendationId -> AcceptedBy
@@ -397,8 +352,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private Map<Long, Map<String, SettingAndPolicies>> retrieveEntityToSettingAndPoliciesListMap(final Set<Long> entities,
-                                                                    final long topologyContextId,
-                                                                    @Nullable final Long topologyId) {
+                                                                    final long topologyContextId) {
         // We don't currently upload action-relevant settings in plans,
         // so no point trying to get them.
         if (topologyContextId != realtimeTopologyContextId) {
@@ -408,13 +362,6 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         try {
             final Builder builder = TopologySelection.newBuilder()
                 .setTopologyContextId(topologyContextId);
-            // Only set the topology ID in the request if we want strict matching.
-            if (topologyId != null && settingsStrictTopologyIdMatch) {
-                // This should be used with caution - for the realtime case we may get an exception
-                // if settings for this topology ID have been overwritten by a newer upload
-                // from the topology processor.
-                builder.setTopologyId(topologyId);
-            }
             final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
                     .setTopologySelection(builder)
                     .setSettingFilter(EntitySettingFilter.newBuilder()

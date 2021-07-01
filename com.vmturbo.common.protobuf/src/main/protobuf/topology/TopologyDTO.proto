@@ -1253,6 +1253,11 @@ message ProjectedTopologyEntity {
     // projected topology.
     optional TopologyEntityDTO entity = 1;
 
+    // Whether or not the entity is removed from the projected topology.
+    // These are entities that are removed from the source topology by some action (e.g. a DELETE
+    // action on Virtual Volumes).
+    optional bool deleted = 2 [default = false];
+
     // The original price index of the entity. It is sent along with the projected topology
     // because we don't know the price index of an entity until the market analyzes a topology.
     // It is the consumer's responsibility to associate the price index with the TopologyEntityDTO
@@ -1276,16 +1281,25 @@ message ProjectedTopology {
     required int64 topology_id = 1;
 
     oneof segment {
-        Start start = 2;
+        Metadata metadata = 2;
         Data data = 3;
         End end = 4;
     }
 
-    // Marker message, declaring the start of topology broadcast
-    message Start {
+    // Marker message, declaring the start of the projected topology broadcast.
+    // Includes auxiliary information specific to the projected topology that helps clients
+    // process it properly.
+    message Metadata {
         // The basic information of the source topology
         optional TopologyInfo source_topology_info = 1;
-    };
+
+        optional int64 projected_topology_id = 3;
+
+        // The OIDs of entities in the projected topology that are involved in actions.
+        // This can be used by listeners to treat these entities differently from the rest.
+        repeated int64 entities_involved_in_actions = 10;
+    }
+
     // Message to hold real data of the topology - it is the chunk
     message Data {
         // The entities in the projected topology.

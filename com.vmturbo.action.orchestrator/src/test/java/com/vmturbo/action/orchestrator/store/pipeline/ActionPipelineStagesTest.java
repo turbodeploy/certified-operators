@@ -313,7 +313,7 @@ public class ActionPipelineStagesTest {
         final EntitiesAndSettingsSnapshotFactory factory = mock(EntitiesAndSettingsSnapshotFactory.class);
         final ActionPlanAndStore planAndStore = new ActionPlanAndStore(actionPlan, actionStore);
         final Set<Long> involvedEntityIds = ImmutableSet.of(1L, 2L, 3L);
-        when(factory.newSnapshot(eq(involvedEntityIds), eq(Collections.emptySet()), anyLong(), anyLong()))
+        when(factory.newSnapshot(eq(involvedEntityIds), anyLong()))
             .thenReturn(snapshot);
 
         provideContextMember(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS, involvedEntityIds);

@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -54,10 +54,10 @@ public class PlanProjectedTopologyListener implements ProjectedTopologyListener 
     }
 
     @Override
-    public void onProjectedTopologyReceived(final long projectedTopologyId,
-                                            @Nonnull final TopologyDTO.TopologyInfo sourceTopologyInfo,
+    public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity> topology,
                                             @Nonnull final SpanContext tracingContext) {
+        final TopologyInfo sourceTopologyInfo = metadata.getSourceTopologyInfo();
         final Set<ProjectedTopologyProcessor> appliesTo = registeredProcessors.stream()
             .filter(processor -> processor.appliesTo(sourceTopologyInfo))
             .collect(Collectors.toSet());
@@ -80,7 +80,7 @@ public class PlanProjectedTopologyListener implements ProjectedTopologyListener 
             }
             final ProjectedTopologyProcessor processor = appliesTo.iterator().next();
             try (TracingScope tracingScope = Tracing.trace("plan_handle_projected_topology", tracingContext)) {
-                processor.handleProjectedTopology(projectedTopologyId, sourceTopologyInfo, topology);
+                processor.handleProjectedTopology(metadata.getProjectedTopologyId(), sourceTopologyInfo, topology);
             } catch (RuntimeException e) {
                 logger.error("Projected topology processing by processor " +
                     processor.getClass().getSimpleName() + " failed!", e);

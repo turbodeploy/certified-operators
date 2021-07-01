@@ -28,6 +28,7 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -237,11 +238,11 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
     }
 
     @Override
-    public void onProjectedTopologyReceived(final long projectedTopologyId,
-                                            @Nonnull final TopologyInfo info,
+    public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                 topology,
                                             @Nonnull final SpanContext tracingContext) {
+        final TopologyInfo info = metadata.getSourceTopologyInfo();
         awaitStartup();
         try (TracingScope scope = Tracing.trace("history_on_projected_topology", tracingContext)) {
             final String topologyLabel = TopologyDTOUtil.getProjectedTopologyLabel(info);

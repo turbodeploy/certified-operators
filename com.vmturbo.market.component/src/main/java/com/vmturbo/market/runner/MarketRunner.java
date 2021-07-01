@@ -296,10 +296,10 @@ public class MarketRunner {
 
                     // log the projected entity with infinite quote reasons
                     logger.info("==== Start logging projected entity DTO with infinite quote ====");
-                    analysis.getProjectedTopology().get().forEach(p -> {
+                    analysis.getProjectedTopology().get().forEach((oid, p) -> {
                        if (!p.getEntity().getUnplacedReasonList().isEmpty()) {
                            logger.info("Entity oid {}, displayName {} has infinite quote due to : {}",
-                                   p.getEntity().getOid(), p.getEntity().getDisplayName(),
+                                   oid, p.getEntity().getDisplayName(),
                                    printReason(p.getEntity().getUnplacedReasonList()));
                            logger.info("Protobuf in failure is {}", p.getEntity().getUnplacedReasonList());
                        }
@@ -310,8 +310,8 @@ public class MarketRunner {
                     // want to minimize the risk of the projected topology being unavailable.
                     serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
                                                       analysis.getProjectedTopologyId().get(),
-                                                      analysis.getProjectedTopology().get(),
-                                                      analysis.getActionPlan().get().getId());
+                                                      analysis.getProjectedTopology().get().values(),
+                                                      analysis.getActionPlan().get());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
                     // A flag that shows if there is any cloud entity in the topology or not.

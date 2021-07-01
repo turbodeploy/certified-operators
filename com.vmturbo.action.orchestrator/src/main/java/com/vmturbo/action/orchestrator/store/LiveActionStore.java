@@ -236,7 +236,6 @@ public class LiveActionStore implements ActionStore {
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan)
             throws InterruptedException {
-
         logger.error("Do not call LiveActionsStore#populateRecommendedActions. "
             + "Instead prefer LiveActionsPipelineFactory#buildLiveMarketActionsPipeline.");
         return false;
@@ -302,8 +301,7 @@ public class LiveActionStore implements ActionStore {
         // topology. This is safe because we only need the names of the related regions and tiers,
         // which don't change between realtime and plan.
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                Collections.emptySet(), topologyContextId);
+            ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
 
         final Iterator<Long> recommendationOids;
         try {

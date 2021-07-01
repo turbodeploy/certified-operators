@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -188,8 +189,7 @@ public class AnalysisDebuggingTest {
     private Map<Long, EntityAnalysis> organizeByEntity(@Nonnull final Analysis analysis,
                                                Predicate<EntityAnalysis> analysisPredicate) {
         final Map<Long, TopologyEntityDTO> originalEntities = analysis.getTopology();
-        final Map<Long, ProjectedTopologyEntity> projectedEntities = analysis.getProjectedTopology().get().stream()
-            .collect(Collectors.toMap(entity -> entity.getEntity().getOid(), Function.identity()));
+        final Map<Long, ProjectedTopologyEntity> projectedEntities = analysis.getProjectedTopology().get();
         final Map<Long, Set<Action>> relatedActions = new HashMap<>();
         for (Action action : analysis.getActionPlan().get().getActionList()) {
             try {
@@ -249,9 +249,7 @@ public class AnalysisDebuggingTest {
     @Nonnull
     private Optional<ProjectedTopologyEntity> getProjectedEntity(final long oid, @Nonnull final Analysis analysis) {
         assertThat(analysis.getState(), is(AnalysisState.SUCCEEDED));
-        return analysis.getProjectedTopology().get().stream()
-                .filter(entity -> entity.getEntity().getOid() == oid)
-                .findAny();
+        return analysis.getProjectedTopology().map(pt -> pt.get(oid));
     }
 
     @Nonnull

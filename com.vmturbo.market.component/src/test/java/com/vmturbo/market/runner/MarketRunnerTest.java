@@ -217,8 +217,8 @@ public class MarketRunnerTest {
         // MockitoMatcher using anyLong to represent this parameter
         verify(serverApi, Mockito.times(1))
                 .notifyProjectedTopology(eq(topologyInfo), anyLong(),
-                        eq(analysis.getProjectedTopology().get()),
-                        analysis.getActionPlan().get().getId());
+                        eq(analysis.getProjectedTopology().get().values()),
+                        eq(analysis.getActionPlan().get()));
     }
 
     /**

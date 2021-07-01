@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCove
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Metadata;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
@@ -201,18 +201,17 @@ public class MarketComponentNotificationReceiver extends
                                           @Nonnull final SpanContext tracingContext) {
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
-            case START:
-                final Start start = topology.getStart();
-                projectedTopologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo(),
-                            tracingContext));
+            case METADATA:
+                final Metadata start = topology.getMetadata();
+                projectedTopologyChunkReceiver.startTopologyBroadcast(topologyId,
+                        createProjectedTopologyChunkConsumers(start, tracingContext));
                 break;
             case DATA:
-                projectedTopologyChunkReceiver.processData(topology.getTopologyId(),
+                projectedTopologyChunkReceiver.processData(topologyId,
                         topology.getData().getEntitiesList());
                 break;
             case END:
-                projectedTopologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
+                projectedTopologyChunkReceiver.finishTopologyBroadcast(topologyId,
                         topology.getEnd().getTotalCount());
                 commitCommand.run();
                 break;
@@ -294,11 +293,10 @@ public class MarketComponentNotificationReceiver extends
     }
 
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
-            final long topologyId, final TopologyInfo topologyInfo, final SpanContext tracingContext) {
+            final Metadata metadata, final SpanContext tracingContext) {
         return projectedTopologyListenersSet.stream().map(listener -> {
             final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
-                    iterator -> listener.onProjectedTopologyReceived(
-                            topologyId, topologyInfo, iterator, tracingContext);
+                    iterator -> listener.onProjectedTopologyReceived(metadata, iterator, tracingContext);
             return consumer;
         }).collect(Collectors.toList());
     }

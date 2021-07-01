@@ -7,14 +7,10 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
-@Import({RepositoryClientConfig.class, GroupClientConfig.class, TopologyProcessorConfig.class})
+@Import({GroupClientConfig.class, TopologyProcessorConfig.class})
 public class ActionTranslationConfig {
-
-    @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -24,7 +20,6 @@ public class ActionTranslationConfig {
 
     @Bean
     public ActionTranslator actionTranslator() {
-        return new ActionTranslator(repositoryClientConfig.repositoryChannel(),
-            groupClientConfig.groupChannel(), tpConfig.actionTopologyStore());
+        return new ActionTranslator(groupClientConfig.groupChannel(), tpConfig.actionTopologyStore());
     }
 }
