@@ -7,11 +7,9 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -37,6 +35,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis.BuyCommitmentImpactResult;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory.DefaultBuyRIImpactAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
@@ -129,7 +128,34 @@ public class BuyRIImpactAnalysisTest {
         final ReservedInstanceSpec riSpec2 = ReservedInstanceSpec.newBuilder()
                 .setId(3)
                 .build();
+
+        /*
+        Setup cloud topology
+         */
         final CloudTopology cloudTopology = mock(CloudTopology.class);
+        TopologyEntityDTO targetEntityA = TopologyEntityDTO.newBuilder().setOid(1L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        TopologyEntityDTO computeTierA = TopologyEntityDTO.newBuilder().setOid(20L)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                        ComputeTierInfo.newBuilder().setFamily("Family1"))).build();
+        TopologyEntityDTO targetEntityB = TopologyEntityDTO.newBuilder().setOid(3L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        TopologyEntityDTO computeTierB = TopologyEntityDTO.newBuilder().setOid(30L)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                        ComputeTierInfo.newBuilder().setFamily("Family2"))).build();
+
+        when(cloudTopology.getEntity(targetEntityA.getOid())).thenReturn(Optional.of(targetEntityA));
+        when(cloudTopology.getComputeTier(targetEntityA.getOid())).thenReturn(Optional.of(computeTierA));
+        when(cloudTopology.getEntity(targetEntityB.getOid())).thenReturn(Optional.of(targetEntityB));
+        when(cloudTopology.getComputeTier(targetEntityB.getOid())).thenReturn(Optional.of(computeTierB));
 
         /*
         Setup mocks for factory
@@ -172,7 +198,7 @@ public class BuyRIImpactAnalysisTest {
                 cloudTopology,
                 cloudCostData,
                 entityRICoverageInput);
-        final Table<Long, Long, Double> entityRICoverageOutput =
+        final BuyCommitmentImpactResult impactResult =
                 coverageAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
 
 
@@ -187,30 +213,27 @@ public class BuyRIImpactAnalysisTest {
         /*
         Assertions
          */
-        assertThat(entityRICoverageOutput.size(), equalTo(2));
-        assertThat(entityRICoverageOutput, equalTo(expectedEntityRICoverage));
+        final Table<Long, Long, Double> actualAllocatedCoverage = impactResult.buyCommitmentCoverage();
+        assertThat(actualAllocatedCoverage.size(), equalTo(2));
+        assertThat(actualAllocatedCoverage, equalTo(expectedEntityRICoverage));
 
 
-        final Set<Long> vmIds = Collections.singleton(1L);
+        /*
+        Assert generated allocate actions
+         */
+        final List<Action.Builder> allocateActions = impactResult.buyAllocationActions();
+        assertThat(allocateActions.size(), equalTo(2));
 
-        TopologyEntityDTO targetEntity = TopologyEntityDTO.newBuilder().setOid(1L)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .build();
-        TopologyEntityDTO projectedEntity = TopologyEntityDTO.newBuilder().setOid(20L)
-                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
-                        ComputeTierInfo.newBuilder().setFamily("Family1"))).build();
-        when(cloudTopology.getEntity(1L)).thenReturn(Optional.of(targetEntity));
-        when(cloudTopology.getComputeTier(1L)).thenReturn(Optional.of(projectedEntity));
-        List<Action.Builder> allocateActions = coverageAnalysis.generateBuyRIAllocateActions(vmIds);
-        assertThat(allocateActions.size(), equalTo(1));
-        Assert.assertEquals(1L, allocateActions.get(0).getInfoBuilder().getAllocate().getTarget().getId());
-        Assert.assertEquals(20L, allocateActions.get(0).getInfoBuilder().getAllocate().getWorkloadTier().getId());
-        Assert.assertEquals("Family1", allocateActions.get(0).getExplanation().getAllocate().getInstanceSizeFamily());
+        final Action.Builder allocatActionA = allocateActions.get(0);
+        Assert.assertEquals(targetEntityA.getOid(),
+                allocatActionA.getInfoBuilder().getAllocate().getTarget().getId());
+        Assert.assertEquals(computeTierA.getOid(), allocatActionA.getInfoBuilder().getAllocate().getWorkloadTier().getId());
+        Assert.assertEquals("Family1", allocatActionA.getExplanation().getAllocate().getInstanceSizeFamily());
 
-
-
+        final Action.Builder allocatActionB = allocateActions.get(1);
+        Assert.assertEquals(targetEntityB.getOid(),
+                allocatActionB.getInfoBuilder().getAllocate().getTarget().getId());
+        Assert.assertEquals(computeTierB.getOid(), allocatActionB.getInfoBuilder().getAllocate().getWorkloadTier().getId());
+        Assert.assertEquals("Family2", allocatActionB.getExplanation().getAllocate().getInstanceSizeFamily());
     }
 }

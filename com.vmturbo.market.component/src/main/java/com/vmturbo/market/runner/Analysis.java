@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
@@ -83,6 +84,7 @@ import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagn
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis.BuyCommitmentImpactResult;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -472,10 +474,6 @@ public class Analysis {
         final boolean isBuyRIImpactAnalysis = analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
         final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                 .equals(StringConstants.CLOUD_MIGRATION_PLAN));
-        // Optimize cloud BUY RI ONLY - OCP Type 3
-        final boolean isOptimizeCloudBuyRIOnlyPlan = topologyInfo.hasPlanInfo() &&
-                topologyInfo.getPlanInfo().hasPlanSubType() &&
-                topologyInfo.getPlanInfo().getPlanSubType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY);
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
         //SMA is not supported for Migrate to Cloud plan
         final boolean isSMAEnabled = config.isEnableSMA() && !isMigrateToCloud;
@@ -632,7 +630,7 @@ public class Analysis {
                 if (results != null) {
                     actionsList.addAll(results.getActionsList());
                 }
-                List<Action.Builder> buyRIAllocateActions = new ArrayList<>();
+                final List<Action.Builder> buyRIAllocateActions = new ArrayList<>();
                 try {
                     try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                         try (TracingScope tracingScope = Tracing.trace("convert_from_traders")) {
@@ -755,9 +753,8 @@ public class Analysis {
                             // Invoke buy RI impact analysis after projected entity creation, but prior to
                             // projected cost calculations
                             // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
-                            buyRIAllocateActions = runBuyRIImpactAnalysis(projectedCloudTopology,
-                                    topologyCostCalculator.getCloudCostData(),
-                                    isOptimizeCloudBuyRIOnlyPlan);
+                            buyRIAllocateActions.addAll(runBuyRIImpactAnalysis(projectedCloudTopology,
+                                    topologyCostCalculator.getCloudCostData()));
 
                             // Projected RI coverage has been calculated by convertFromMarket
                             // Get it from TopologyConverter and pass it along to use for calculation of
@@ -798,6 +795,13 @@ public class Analysis {
                         }
                     });
 
+                    // add Buy RI impact analysis actions
+                    buyRIAllocateActions.stream()
+                            .map(action -> actionSavingsCalculator.calculateSavings(action)
+                                    .applyToActionBuilder(action))
+                            .map(Action.Builder::build)
+                            .forEach(actionPlanBuilder::addAction);
+
                     actions.forEach(actionPlanBuilder::addAction);
                     //SMA is not supported for Migrate to Cloud plan
                     if (config.isSMAOnly() && isSMAEnabled) {
@@ -805,6 +809,7 @@ public class Analysis {
                          originalCloudTopology, actionSavingsCalculator);
                             actions.forEach(actionPlanBuilder::addAction);
                     }
+
                     if (!isMigrateToCloud) {
                         writeActionsToLog(actions, config, originalCloudTopology,
                                 projectedCloudTopology, converter, topologyCostCalculator.getCloudCostData());
@@ -1269,10 +1274,12 @@ public class Analysis {
      *          Non Empty only for OCP Plan Option 3.
 .    */
     private List<Action.Builder> runBuyRIImpactAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
-                                        @Nonnull CloudCostData cloudCostData,
-                                        boolean isBuyRIImpactAnalysis) {
-        List<Action.Builder> buyRIAllocateActions = new ArrayList<>();
-        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS) &&
+                                                        @Nonnull CloudCostData cloudCostData) {
+
+        final ImmutableList.Builder<Action.Builder> buyRIAllocateActions = ImmutableList.builder();
+
+        final List<AnalysisType> analysisTypeList = topologyInfo.getAnalysisTypeList();
+        if (analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS) &&
                 projectedCloudTopology.size() > 0) {
 
             try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
@@ -1282,21 +1289,26 @@ public class Analysis {
                                               projectedCloudTopology,
                                               cloudCostData,
                                               converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
-                final Table<Long, Long, Double> entityBuyRICoverage =
-                                    buyRIImpactAnalysis
-                                                    .allocateCoverageFromBuyRIImpactAnalysis();
-                if (isBuyRIImpactAnalysis) {
-                    buyRIAllocateActions = buyRIImpactAnalysis.generateBuyRIAllocateActions(
-                            entityBuyRICoverage.rowKeySet());
+                final BuyCommitmentImpactResult impactResult =
+                                    buyRIImpactAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
+
+                converter.getProjectedRICoverageCalculator().addBuyRICoverageToProjectedRICoverage(
+                        impactResult.buyCommitmentCoverage());
+
+                if (!analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS)) {
+
+                    logger.info("{}Generating {} buy RI allocation actions",
+                            logPrefix, impactResult.buyAllocationActions().size());
+
+                    buyRIAllocateActions.addAll(impactResult.buyAllocationActions());
                 }
-                converter.getProjectedRICoverageCalculator()
-                    .addBuyRICoverageToProjectedRICoverage(entityBuyRICoverage);
+
             } catch (Exception e) {
                 logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
                         topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
             }
         }
-        return buyRIAllocateActions;
+        return buyRIAllocateActions.build();
     }
 
     /**

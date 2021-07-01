@@ -1,16 +1,15 @@
 package com.vmturbo.market.reserved.instance.analysis;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
@@ -18,7 +17,9 @@ import com.google.common.collect.Table;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -50,8 +51,6 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  * (intended to be the natural demand).
  */
 public class BuyRIImpactAnalysis {
-
-    private static final Table<Long, Long, Double> EMPTY_COVERAGE_ALLOCATION = ImmutableTable.of();
 
     /**
      * A summary metric collecting the total runtime duration of coverage analysis.
@@ -277,7 +276,7 @@ public class BuyRIImpactAnalysis {
      * in constructing the analysis.
      */
     @Nonnull
-    public Table<Long, Long, Double> allocateCoverageFromBuyRIImpactAnalysis() {
+    public BuyCommitmentImpactResult allocateCoverageFromBuyRIImpactAnalysis() {
         try {
             logger.info("Running BuyRIImpactAnalysis (Topology Context ID={}, Topology ID={})",
                     topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
@@ -295,15 +294,23 @@ public class BuyRIImpactAnalysis {
             final ReservedInstanceCoverageAllocation coverageAllocation =
                     coverageAllocator.allocateCoverage();
 
+            final Table<Long, Long, Double> buyRIAllocatedCoverage =
+                    coverageAllocation.allocatorCoverageTable();
+            final List<Action.Builder> allocateActions = generateBuyRIAllocateActions(
+                    buyRIAllocatedCoverage.rowKeySet());
+
             logger.info("Finished BuyRIImpactAnalysis (Topology ID={}, RI Count={}, Allocation Count={})",
                     topologyInfo.getTopologyId(),
                     coverageTopology.getAllRIAggregates().size(),
-                    coverageAllocation.allocatorCoverageTable().size());
+                    buyRIAllocatedCoverage.size());
 
-            return coverageAllocation.allocatorCoverageTable();
+            return BuyCommitmentImpactResult.builder()
+                    .buyCommitmentCoverage(buyRIAllocatedCoverage)
+                    .addAllBuyAllocationActions(allocateActions)
+                    .build();
         } catch (Exception e) {
             logger.error("Error running buy RI analysis (TopologyInfo={})", topologyInfo, e);
-            return EMPTY_COVERAGE_ALLOCATION;
+            return BuyCommitmentImpactResult.EMPTY_RESULT;
         }
     }
 
@@ -357,24 +364,6 @@ public class BuyRIImpactAnalysis {
                 .build();
     }
 
-    @Nonnull
-    private Map<Long, EntityReservedInstanceCoverage> convertCoverageAllocationToEntityRICoverage(
-            @Nonnull ReservedInstanceCoverageAllocation coverageAllocation) {
-
-        return coverageAllocation.totalCoverageTable()
-                .rowMap()
-                .entrySet()
-                .stream()
-                .map(entityRICoverageEntry ->
-                        EntityReservedInstanceCoverage.newBuilder()
-                                .setEntityId(entityRICoverageEntry.getKey())
-                                .putAllCouponsCoveredByRi(entityRICoverageEntry.getValue())
-                                .build())
-                .collect(ImmutableMap.toImmutableMap(
-                        EntityReservedInstanceCoverage::getEntityId,
-                        Function.identity()));
-    }
-
     /**
      * For each of the VM that got covered by a Buy RI during the buyRIImpact analysis
      * we generate and allocate action.
@@ -382,14 +371,15 @@ public class BuyRIImpactAnalysis {
      * @return A list of allocate actions. one for each VM.
      */
     public List<Action.Builder> generateBuyRIAllocateActions(Set<Long> ids) {
-        List<Action.Builder> allocateActions = new ArrayList<>();
+
+        final ImmutableList.Builder<Action.Builder> allocateActions = ImmutableList.builder();
         for (Long id : ids) {
             Optional<Action.Builder> action = createAllocateAction(id);
             if (action.isPresent()) {
                 allocateActions.add(action.get());
             }
         }
-        return allocateActions;
+        return allocateActions.build();
     }
 
     /**
@@ -400,16 +390,16 @@ public class BuyRIImpactAnalysis {
      */
     private Optional<Action.Builder> createAllocateAction(long id) {
         final Optional<TopologyEntityDTO> targetEntityO =  cloudTopology.getEntity(id);
-        final Optional<TopologyEntityDTO> projectedEntityO = cloudTopology.getComputeTier(id);
+        final Optional<TopologyEntityDTO> computeTierO = cloudTopology.getComputeTier(id);
 
-        if (!targetEntityO.isPresent() || !projectedEntityO.isPresent()) {
+        if (!targetEntityO.isPresent() || !computeTierO.isPresent()) {
             return Optional.empty();
         }
 
-        TopologyEntityDTO projectedEntity = projectedEntityO.get();
+        TopologyEntityDTO computeTier = computeTierO.get();
         Explanation.Builder expBuilder = Explanation.newBuilder();
         AllocateExplanation explanation = AllocateExplanation.newBuilder()
-                .setInstanceSizeFamily(projectedEntity.getTypeSpecificInfo()
+                .setInstanceSizeFamily(computeTier.getTypeSpecificInfo()
                         .getComputeTier().getFamily())
                 .build();
         expBuilder.setAllocate(explanation);
@@ -429,16 +419,61 @@ public class BuyRIImpactAnalysis {
                 .setType(targetEntity.getEntityType())
                 .setEnvironmentType(targetEntity.getEnvironmentType())
                 .build();
-        ActionEntity projectedActionEntity = ActionEntity.newBuilder()
-                .setId(projectedEntity.getOid())
-                .setType(projectedEntity.getEntityType())
-                .setEnvironmentType(projectedEntity.getEnvironmentType())
+        ActionEntity computeTierActionEntity = ActionEntity.newBuilder()
+                .setId(computeTier.getOid())
+                .setType(computeTier.getEntityType())
+                .setEnvironmentType(computeTier.getEnvironmentType())
                 .build();
 
         ActionDTO.Allocate.Builder allocateAction = ActionDTO.Allocate.newBuilder()
+                .setIsBuyRecommendationCoverage(true)
                 .setTarget(targetActionEntity)
-                .setWorkloadTier(projectedActionEntity);
+                .setWorkloadTier(computeTierActionEntity);
         action.getInfoBuilder().setAllocate(allocateAction);
         return Optional.of(action);
+    }
+
+    /**
+     * The result of impact analysis for buy cloud commitment recommendations (Buy RI).
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    public interface BuyCommitmentImpactResult {
+
+        /**
+         * An empty result (no allocations or actions).
+         */
+        BuyCommitmentImpactResult EMPTY_RESULT = BuyCommitmentImpactResult.builder()
+                .buyCommitmentCoverage(ImmutableTable.of())
+                .build();
+
+        /**
+         * A table representing entity -> buy RI recommendation -> allocated coverage.
+         * @return An immutable table representing buy commitment coverage.
+         */
+        @Nonnull
+        Table<Long, Long, Double> buyCommitmentCoverage();
+
+        /**
+         * A list of allocate action builders, allocating the coverage from {@link #buyCommitmentCoverage()}.
+         * @return An immutable list of allocate action builders, allocating the coverage
+         * from {@link #buyCommitmentCoverage()}.
+         */
+        @Nonnull
+        List<Action.Builder> buyAllocationActions();
+
+        /**
+         * Constructs and returns a new {@link Builder} instance.
+         * @return The newly constructed {@link Builder} instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing {@link BuyCommitmentImpactResult} instances.
+         */
+        class Builder extends ImmutableBuyCommitmentImpactResult.Builder {}
     }
 }

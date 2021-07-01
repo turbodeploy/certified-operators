@@ -250,7 +250,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         // get cost for the compute tier only
         final TraxNumber costs = tierProviders.stream()
                 .filter(tier -> TopologyDTOUtil.isPrimaryTierEntityType(tier.getEntityType()))
-                .map(tier -> getOnDemandCostForMarketTier(cloudEntityHzScaling, tier, costJournal))
+                .map(tier -> getOnDemandCostForMarketTier(cloudEntityHzScaling, tier, costJournal, false))
                 .collect(TraxCollectors.sum("horizontal-scale-vm-in-cloud"));
 
         final String savingsDescription = String.format("%s for %s \"%s\" (%d)",
@@ -275,13 +275,13 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
             final TopologyEntityDTO sourceTier = sourceTopologyMap.get(tierChange.get().getSource().getId());
             final ProjectedTopologyEntity destinationTier = projectedTopologyMap.get(tierChange.get().getDestination().getId());
 
-            return createDetailsForTierChange(targetEntity, sourceTier, destinationTier.getEntity());
+            return createDetailsForTierChange(targetEntity, sourceTier, destinationTier.getEntity(), false);
         } else if (!scaleAction.getCommodityResizesList().isEmpty()) {
 
             final TopologyEntityDTO primaryProvider = sourceTopologyMap.get(scaleAction.getPrimaryProvider().getId());
 
             // A commodity change is treated as a tier change to the same tier.
-            return createDetailsForTierChange(targetEntity, primaryProvider, primaryProvider);
+            return createDetailsForTierChange(targetEntity, primaryProvider, primaryProvider, false);
         } else {
             return Optional.empty();
         }
@@ -293,12 +293,15 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         final TopologyEntityDTO sourceTier = sourceTopologyMap.get(allocateAction.getWorkloadTier().getId());
         final ProjectedTopologyEntity destinationTier = projectedTopologyMap.get(allocateAction.getWorkloadTier().getId());
 
-        return createDetailsForTierChange(entityMoving, sourceTier, destinationTier.getEntity());
+        return createDetailsForTierChange(
+                entityMoving, sourceTier, destinationTier.getEntity(),
+                allocateAction.getIsBuyRecommendationCoverage());
     }
 
     private Optional<TraxSavingsDetails> createDetailsForTierChange(@Nullable TopologyEntityDTO entityMoving,
-                                                                     @Nullable TopologyEntityDTO sourceTier,
-                                                                     @Nullable TopologyEntityDTO destinationTier) {
+                                                                    @Nullable TopologyEntityDTO sourceTier,
+                                                                    @Nullable TopologyEntityDTO destinationTier,
+                                                                    boolean includeBuyRICoverage) {
         if (ObjectUtils.allNotNull(entityMoving, destinationTier)) {
 
             final TraxSavingsDetails.Builder cloudCostSavingsDetails = TraxSavingsDetails.builder();
@@ -308,9 +311,12 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                     entityMoving.getOid());
             final EntityReservedInstanceCoverage projectedCoverage = projectedRICoverage.get(
                     entityMoving.getOid());
-            final TraxTierCostDetails projectedTierCostDetails = buildTierCostDetails(destCostJournal,
-                    entityMoving, destinationTier,
-                    Optional.ofNullable(projectedCoverage));
+            final TraxTierCostDetails projectedTierCostDetails = buildTierCostDetails(
+                    destCostJournal,
+                    entityMoving,
+                    destinationTier,
+                    Optional.ofNullable(projectedCoverage),
+                    includeBuyRICoverage);
             cloudCostSavingsDetails.projectedTierCostDetails(projectedTierCostDetails);
 
             // TierCostDetails for source
@@ -321,8 +327,12 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
                 final Optional<EntityReservedInstanceCoverage> originalCoverage = sourceCostCalculator.getCloudCostData()
                         .getFilteredRiCoverage(entityMoving.getOid());
                 if (sourceCostJournal != null && sourceCostJournal.isPresent()) {
-                    final TraxTierCostDetails sourceTierCostDetails = buildTierCostDetails(sourceCostJournal.get(),
-                            entityMoving, sourceTier, originalCoverage);
+                    final TraxTierCostDetails sourceTierCostDetails = buildTierCostDetails(
+                            sourceCostJournal.get(),
+                            entityMoving,
+                            sourceTier,
+                            originalCoverage,
+                            includeBuyRICoverage);
                     cloudCostSavingsDetails.sourceTierCostDetails(sourceTierCostDetails);
                 }
             }
@@ -357,18 +367,20 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
      * @param entityMoving The entity moving.
      * @param cloudTier A cloud tier related to the source or destination of {@code entityMoving}.
      * @param reservedInstanceCoverage the reserved instance coverage of the cloudEntityMoving
+     * @param includeBuyRICoverage Whether to include savings from buy RI recommendations.
      *
      * @return {@link TraxTierCostDetails} representing the TierCostDetails
      */
     private TraxTierCostDetails buildTierCostDetails(@Nullable CostJournal<TopologyEntityDTO> costJournal,
                                                      @Nonnull TopologyEntityDTO entityMoving,
                                                      @Nonnull TopologyEntityDTO cloudTier,
-                                                     Optional<EntityReservedInstanceCoverage> reservedInstanceCoverage) {
+                                                     @Nonnull Optional<EntityReservedInstanceCoverage> reservedInstanceCoverage,
+                                                     boolean includeBuyRICoverage) {
         if (costJournal == null) {
             return TraxTierCostDetails.EMPTY_DETAILS;
         }
-        final TraxNumber onDemandCost = getOnDemandCostForMarketTier(entityMoving,
-                cloudTier, costJournal);
+        final TraxNumber onDemandCost = getOnDemandCostForMarketTier(
+                entityMoving, cloudTier, costJournal, includeBuyRICoverage);
         final TraxNumber onDemandRate;
         if (cloudTier.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
             onDemandRate = onDemandCost;
@@ -388,7 +400,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         if (reservedInstanceCoverage.isPresent()) {
             final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
                     CloudCommitmentCoverage.newBuilder();
-            double coverageUsed = sumCoverage(reservedInstanceCoverage.get(), false);
+            double coverageUsed = sumCoverage(reservedInstanceCoverage.get(), includeBuyRICoverage);
             cloudCommitmentCoverage
                     .setCapacity(CloudCommitmentAmount.newBuilder().setCoupons(reservedInstanceCoverage.get().getEntityCouponCapacity()))
                     .setUsed(CloudCommitmentAmount.newBuilder().setCoupons(coverageUsed));
@@ -406,27 +418,33 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
      * @param cloudEntityMoving the entity moving.
      * @param cloudTier A cloud tier related to the source or destination of {@code cloudEntityMoving}.
      * @param journal the cost journal.
+     * @param includeBuyRIDiscount Whether to include discounts from buy RI recommendations.
      * @return the total cost of the market tier
      */
     @Nonnull
     private TraxNumber getOnDemandCostForMarketTier(@Nonnull TopologyEntityDTO cloudEntityMoving,
                                                     @Nonnull TopologyEntityDTO cloudTier,
-                                                    @Nonnull CostJournal<TopologyEntityDTO> journal) {
+                                                    @Nonnull CostJournal<TopologyEntityDTO> journal,
+                                                    boolean includeBuyRIDiscount) {
         final TraxNumber totalOnDemandCost;
         if (TopologyDTOUtil.isPrimaryTierEntityType(cloudTier.getEntityType())) {
+
+            final CostSourceFilter costSourceFilter = includeBuyRIDiscount
+                    ? CostSourceFilter.INCLUDE_ALL
+                    : CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER;
 
             // In determining on-demand costs for SCALE actions, the savings from buy RI actions
             // should be ignored. Therefore, we lookup the on-demand cost, ignoring savings
             // from CostSource.BUY_RI_DISCOUNT
             TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
                     CostCategory.ON_DEMAND_COMPUTE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+                    costSourceFilter);
             TraxNumber licenseCost = journal.getHourlyCostFilterEntries(
                     CostCategory.ON_DEMAND_LICENSE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+                    costSourceFilter);
             TraxNumber reservedLicenseCost = journal.getHourlyCostFilterEntries(
                     CostCategory.RESERVED_LICENSE,
-                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+                    costSourceFilter);
             TraxNumber spotCost = journal.getHourlyCostForCategory(CostCategory.SPOT);
             if (spotCost == null) {
                 spotCost = Trax.trax(0.0d);
@@ -435,8 +453,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
             // TODO Roop: remove this condition. OM-61424.
             TraxNumber dbStorageCost = ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(cloudEntityMoving.getEntityType())
                     ? journal.getHourlyCostFilterEntries(
-                            CostCategory.STORAGE,
-                            CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER)
+                            CostCategory.STORAGE, costSourceFilter)
                     : Trax.trax(0.0);
 
             totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, dbStorageCost, spotCost)
