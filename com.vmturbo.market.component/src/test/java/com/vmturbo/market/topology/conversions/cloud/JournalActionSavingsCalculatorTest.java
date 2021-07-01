@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -196,12 +197,12 @@ public class JournalActionSavingsCalculatorTest {
     }
 
     /**
-     * Test an allocation action savings.
+     * Test an allocation action savings for RI inventory.
      * @throws FileNotFoundException Thrown from {@link TopologyEntitiesHandlerTest#readCloudTopologyFromJsonFile()}.
      * @throws InvalidProtocolBufferException Thrown from {@link TopologyEntitiesHandlerTest#readCloudTopologyFromJsonFile()}.
      */
     @Test
-    public void testAllocateAction() throws FileNotFoundException, InvalidProtocolBufferException {
+    public void testAllocateNoRIBuyAction() throws FileNotFoundException, InvalidProtocolBufferException {
 
         /*
         Setup entities
@@ -246,6 +247,138 @@ public class JournalActionSavingsCalculatorTest {
          */
         final CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER)))
+                .thenReturn(trax(1));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
+                .thenReturn(trax(6));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0));
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(0d));
+        final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = ImmutableMap.of(
+                vm1.getOid(), projectedCostJournal);
+
+        /*
+        Setup source & projected topologies
+         */
+        final Map<Long, TopologyEntityDTO> sourceTopologyMap = ImmutableMap.of(
+                vm1.getOid(), vm1,
+                computeTier.getOid(), computeTier);
+        final Map<Long, ProjectedTopologyEntity> projectedTopologyMap = ImmutableMap.of(
+                computeTier.getOid(), ProjectedTopologyEntity.newBuilder()
+                        .setEntity(computeTier)
+                        .build());
+
+        /*
+        Setup RI coverage
+         */
+        final EntityReservedInstanceCoverage sourceCoverage = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(vm1.getOid())
+                .setEntityCouponCapacity(3.0)
+                .putCouponsCoveredByRi(123L, 1.0)
+                .build();
+        when(sourceCloudCostData.getFilteredRiCoverage(eq(vm1.getOid()))).thenReturn(Optional.of(sourceCoverage));
+        // no projected RI coverage
+        final Map<Long, EntityReservedInstanceCoverage> projectedCoverageMap = ImmutableMap.of(
+                vm1.getOid(), EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityId(vm1.getOid())
+                        .setEntityCouponCapacity(3.0)
+                        .putCouponsCoveredByRi(123L, 2.0)
+                        .putCouponsCoveredByBuyRi(456L, 1.0)
+                        .build());
+
+
+        /*
+        Create savings calculator
+         */
+        final JournalActionSavingsCalculator savingsCalculator = calculatorFactory.newCalculator(
+                sourceTopologyMap,
+                sourceCloudTopology,
+                costCalculator,
+                projectedTopologyMap,
+                projectedCosts,
+                projectedCoverageMap);
+
+        final CalculatedSavings actualSavings = savingsCalculator.calculateSavings(action);
+
+
+        /*
+        ASSERTS
+         */
+
+        // ASSERT savings per hour
+        assertTrue(actualSavings.savingsPerHour().isPresent());
+        assertThat(actualSavings.savingsPerHour().get().getValue(), closeTo(3.0, ERROR));
+
+        // ASSERT savings details
+        assertTrue(actualSavings.cloudSavingsDetails().isPresent());
+
+        final TraxSavingsDetails actualDetails = actualSavings.cloudSavingsDetails().get();
+        // on-demand rate should be 8 + 3 = 11
+        assertThat(actualDetails.sourceTierCostDetails().onDemandRate().getValue(), closeTo(6.0, ERROR));
+        assertTrue(actualDetails.sourceTierCostDetails().cloudCommitmentCoverage().isPresent());
+        // on-demand cost should be 4 + 3 + 4 (compute + on-demand license + reserved license)
+        assertThat(actualDetails.sourceTierCostDetails().onDemandCost().getValue(), closeTo(4.0, ERROR));
+
+        assertThat(actualDetails.projectedTierCostDetails().onDemandRate().getValue(), closeTo(6.0, ERROR));
+        assertThat(actualDetails.projectedTierCostDetails().onDemandCost().getValue(), closeTo(1.0, ERROR));
+
+        // check projected RI coverage
+        final Optional<CloudCommitmentCoverage> projectedCoverage =
+                actualDetails.projectedTierCostDetails().cloudCommitmentCoverage();
+        assertTrue(projectedCoverage.isPresent());
+        assertThat(projectedCoverage.get().getUsed().getCoupons(), closeTo(2.0, ERROR));
+    }
+
+    /**
+     * Test an allocation action savings for RI buy recommendation.
+     * @throws FileNotFoundException Thrown from {@link TopologyEntitiesHandlerTest#readCloudTopologyFromJsonFile()}.
+     * @throws InvalidProtocolBufferException Thrown from {@link TopologyEntitiesHandlerTest#readCloudTopologyFromJsonFile()}.
+     */
+    @Test
+    public void testRIBuyAllocateAction() throws FileNotFoundException, InvalidProtocolBufferException {
+
+        /*
+        Setup entities
+         */
+        final Set<Builder> topologyEntityDTOBuilders
+                = TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile();
+        final TopologyEntityDTO vm1 = topologyEntityDTOBuilders.stream()
+                .filter(builder -> builder.getDisplayName().equalsIgnoreCase("TestVM1"))
+                .findFirst().get().build();
+
+        final TopologyEntityDTO computeTier = topologyEntityDTOBuilders.stream()
+                .filter(builder -> builder.getDisplayName().equalsIgnoreCase("m1.large"))
+                .findFirst().get().build();
+
+        // setup Action
+        final Action.Builder action = Action.newBuilder()
+                .setInfo(ActionInfo.newBuilder()
+                        .setAllocate(Allocate.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(vm1.getOid())
+                                        .setType(vm1.getEntityType()))
+                                .setWorkloadTier(ActionEntity.newBuilder()
+                                        .setId(computeTier.getOid())
+                                        .setType(computeTier.getEntityType()))
+                                .setIsBuyRecommendationCoverage(true)));
+
+        /*
+        Setup source costs
+         */
+        final CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.INCLUDE_ALL)))
+                .thenReturn(trax(4));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
+                .thenReturn(trax(6));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_LICENSE), any())).thenReturn(trax(0d));
+        when(sourceCostJournal.getHourlyCostFilterEntries(eq(CostCategory.RESERVED_LICENSE), any())).thenReturn(trax(0d));
+        // Total Source cost = 20
+        when(sourceCostJournal.getTotalHourlyCost()).thenReturn(trax(20d));
+        when(costCalculator.calculateCostForEntity(any(), eq(vm1))).thenReturn(Optional.of(sourceCostJournal));
+
+        /*
+        Setup projected costs
+         */
+        final CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
+        when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.INCLUDE_ALL)))
                 .thenReturn(trax(0));
         when(projectedCostJournal.getHourlyCostFilterEntries(eq(CostCategory.ON_DEMAND_COMPUTE), eq(CostSourceFilter.ON_DEMAND_RATE)))
                 .thenReturn(trax(6));
@@ -279,7 +412,8 @@ public class JournalActionSavingsCalculatorTest {
                 vm1.getOid(), EntityReservedInstanceCoverage.newBuilder()
                         .setEntityId(vm1.getOid())
                         .setEntityCouponCapacity(3.0)
-                        .putCouponsCoveredByRi(123L, 3.0)
+                        .putCouponsCoveredByRi(123L, 2.0)
+                        .putCouponsCoveredByBuyRi(456L, 1.0)
                         .build());
 
 
@@ -317,6 +451,12 @@ public class JournalActionSavingsCalculatorTest {
 
         assertThat(actualDetails.projectedTierCostDetails().onDemandRate().getValue(), closeTo(6.0, ERROR));
         assertThat(actualDetails.projectedTierCostDetails().onDemandCost().getValue(), closeTo(0.0, ERROR));
+
+        // check projected RI coverage
+        final Optional<CloudCommitmentCoverage> projectedCoverage =
+                actualDetails.projectedTierCostDetails().cloudCommitmentCoverage();
+        assertTrue(projectedCoverage.isPresent());
+        assertThat(projectedCoverage.get().getUsed().getCoupons(), closeTo(3.0, ERROR));
     }
 
     /**

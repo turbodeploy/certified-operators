@@ -631,6 +631,8 @@ message Allocate {
 
     // Defines the cloud cost details
     optional CloudSavingsDetails cloud_savings_details = 3;
+
+    optional bool is_buy_recommendation_coverage = 4 [default = false];
 }
 
 // Contains the information describing the recommendation for what
