@@ -38,10 +38,12 @@ public class TemplatesUtils {
     private static final String CPU_SPEED = "cpuSpeed";
     private static final String IO_THROUGHPUT = "ioThroughput";
     private static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
+    private static final String IO_THROUGHPUT_CONSUMED = "ioThroughputConsumed";
     private static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
     private static final String NUM_OF_CORES = "numOfCores";
     private static final String NETWORK_THROUGHPUT = "networkThroughput";
     private static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
+    private static final String NETWORK_THROUGHPUT_CONSUMED = "networkThroughputConsumed";
     // storage
     public static final String DISK_SIZE = "diskSize";
     private static final String DISK_IOPS = "diskIops";
@@ -51,8 +53,8 @@ public class TemplatesUtils {
 
     public static Set<String> allowedComputeStats = Sets
         .newHashSet(NUM_OF_CPU, NUM_OF_CORES, CPU_SPEED, CPU_CONSUMED_FACTOR, MEMORY_SIZE,
-            MEMORY_CONSUMED_FACTOR, IO_THROUGHPUT, IO_THROUGHPUT_SIZE,
-            NETWORK_THROUGHPUT, NETWORK_THROUGHPUT_SIZE);
+            MEMORY_CONSUMED_FACTOR, IO_THROUGHPUT, IO_THROUGHPUT_SIZE, IO_THROUGHPUT_CONSUMED,
+            NETWORK_THROUGHPUT, NETWORK_THROUGHPUT_SIZE, NETWORK_THROUGHPUT_CONSUMED);
     public static Set<String> allowedStorageStats = Sets
         .newHashSet(DISK_SIZE, DISK_CONSUMED_FACTOR, DISK_IOPS, REDUNDANCY_METHOD, FAILURES_TO_TOLERATE);
     public static Set<String> allowedStorageTypes = Sets
