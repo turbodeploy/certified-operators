@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
@@ -21,6 +23,7 @@ import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
+import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.service.util.SearchServiceFilterResolver;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -83,8 +86,6 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.search.SearchDBConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Spring Configuration that initializes all the services.
@@ -704,6 +705,7 @@ public class ServiceConfig {
                 websocketConfig.websocketHandler(),
                 communicationConfig.targetsService(),
                 mapperConfig.paginationMapper(),
+                targetDetailsMapper(),
                 allowTargetManagement(),
                 apiPaginationDefaultLimit);
     }
@@ -1091,6 +1093,11 @@ public class ServiceConfig {
      */
     @Bean
     public HealthDataAggregator healthDataAggregator() {
-        return new HealthDataAggregator(communicationConfig.topologyProcessor());
+        return new HealthDataAggregator(communicationConfig.targetsService());
     }
+
+    @Bean
+    public TargetDetailsMapper targetDetailsMapper() {
+        return new TargetDetailsMapper();
+    };
 }

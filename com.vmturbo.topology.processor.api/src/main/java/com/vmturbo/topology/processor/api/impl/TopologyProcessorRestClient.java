@@ -19,7 +19,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -31,9 +30,7 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationRespons
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.GetAllProbes;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.AllTargetsHealthResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 
@@ -62,9 +59,6 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
     private final TargetRestClient remoteTargetsClient;
 
-    private final TargetHealthRestClient targetHealthClient;
-    private final NoExceptionsRestClient<AllTargetsHealthResponse> allTargetsHealthClient;
-
     private final OperationResultRestClient targetOperationClient;
 
     private final NoExceptionsRestClient<ValidateAllResponse> validateAllClient;
@@ -89,8 +83,6 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         remoteTargetsClient =
                 new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE,
                         HttpStatus.FORBIDDEN);
-        targetHealthClient = new TargetHealthRestClient(HttpStatus.NOT_FOUND);
-        allTargetsHealthClient = new NoExceptionsRestClient<>(AllTargetsHealthResponse.class);
         targetOperationClient = new OperationResultRestClient();
         validateAllClient = new NoExceptionsRestClient<>(ValidateAllResponse.class);
         discoverAllClient = new NoExceptionsRestClient<>(DiscoverAllResponse.class);
@@ -174,34 +166,6 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
                         RequestEntity.put(URI.create(targetUri + Long.toString(targetId)))
                                         .body(Objects.requireNonNull(newData));
         updateTargetsClient.execute(request);
-    }
-
-    /**
-     * Forms the request and gets info from topology-processor about the health of target.
-     * @param id of the target
-     * @return {@link TargetHealthInfo}
-     * @throws TopologyProcessorException
-     * @throws CommunicationException
-     */
-    @Nonnull
-    public ITargetHealthInfo getTargetHealth(final long id)
-                    throws TopologyProcessorException, CommunicationException  {
-        final RequestEntity<?> request = RequestEntity
-                        .get(URI.create(targetUri + Long.toString(id) + "/health"))
-                        .build();
-        return targetHealthClient.execute(request);
-    }
-
-    /**
-     * Forms the request and gets info from topology-processor about the health of all targets.
-     * @return a set of {@link ITargetHealthInfo} objects for all targets.
-     * @throws CommunicationException
-     */
-    @Nonnull
-    public Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException {
-        final RequestEntity<?> request = RequestEntity.get(URI.create(targetUri + "/health")).build();
-        final AllTargetsHealthResponse result = allTargetsHealthClient.execute(request);
-        return ImmutableSet.copyOf(result.getAllTargetsHealth());
     }
 
     @Nonnull
@@ -306,16 +270,5 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
             return new TopologyProcessorException(body.error);
         }
 
-    }
-
-    private class TargetHealthRestClient extends RestClient<TargetHealthInfo, TopologyProcessorException> {
-        TargetHealthRestClient(HttpStatus... apiStatusCodes) {
-            super(TargetHealthInfo.class, apiStatusCodes);
-        }
-
-        @Override
-        protected TopologyProcessorException createException(TargetHealthInfo body) {
-            return new TopologyProcessorException("Exception while getting target health info from topology-processor");
-        }
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -8,6 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
+import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
@@ -15,7 +17,11 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * A superclass for Validation and Discovery operations to store info about error type(s).
  */
 public abstract class TargetExplorationOperation extends Operation {
-    private List<ErrorDTO.ErrorType> errorTypes = new ArrayList<>(1);
+    private final List<ErrorDTO.ErrorType> errorTypes = new ArrayList<>(1);
+    /**
+     * The list of reports for discovery/validation stages.
+     */
+    private final List<ProbeStageDetails> stagesReports = new ArrayList<>();
 
     /**
      * Constructor, passes parameters from children to superior class.
@@ -54,5 +60,24 @@ public abstract class TargetExplorationOperation extends Operation {
     @Nonnull
     public List<ErrorDTO.ErrorType> getErrorTypes() {
         return Collections.unmodifiableList(errorTypes);
+    }
+
+    /**
+     * Adds stages reports of the probe operation.
+     *
+     * @param operationStagesReports stages reports
+     */
+    public void addStagesReports(@Nonnull Collection<ProbeStageDetails> operationStagesReports) {
+        stagesReports.addAll(operationStagesReports);
+    }
+
+    /**
+     * Gets the list of stage reports of the probe operation.
+     *
+     * @return stages reports
+     */
+    @Nonnull
+    public List<ProbeStageDetails> getStagesReports() {
+        return stagesReports;
     }
 }

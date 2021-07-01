@@ -34,7 +34,6 @@ import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsCo
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
-import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -113,7 +112,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     @Bean
     public OperationController operationController() {
         IOperationManager operationManager = operationConfig.operationManager();
-        operationManager.setFailedDiscoveryTracker(failedDiscoveryTracker());
+        operationManager.setTargetStatusTracker(targetConfig.targetStatusTracker());
         return new OperationController(
             operationManager,
             schedulerConfig.scheduler(),
@@ -141,7 +140,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
                 topologyConfig.topologyHandler(),
                 groupConfig.settingPolicyServiceClient(),
                 workflowRpcService(),
-                failedDiscoveryTracker()
+                targetConfig.targetStatusTracker()
         );
     }
 
@@ -206,14 +205,5 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
                 return super.handleTimeout(request, task);
             }
         };
-    }
-
-    /**
-     * Failed discovery tracker.
-     * @return The {@link FailedDiscoveryTracker}.
-     */
-    @Bean
-    public FailedDiscoveryTracker failedDiscoveryTracker() {
-        return new FailedDiscoveryTracker(probeConfig.probeStore());
     }
 }

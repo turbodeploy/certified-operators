@@ -45,8 +45,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
-import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -72,7 +70,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
-import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
@@ -117,6 +114,7 @@ import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
@@ -333,8 +331,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     @Override
-    public void setFailedDiscoveryTracker(@Nonnull FailedDiscoveryTracker failedDiscoveryTracker)   {
-        this.operationListeners.add(failedDiscoveryTracker);
+    public void setTargetStatusTracker(@Nonnull TargetStatusTracker targetStatusTracker) {
+        this.operationListeners.add(targetStatusTracker);
     }
 
     /**
@@ -1039,6 +1037,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         }
 
         logger.trace("Received validation result from target {}: {}", validation.getTargetId(), response);
+        validation.addStagesReports(response.getStagesDetailList());
         operationComplete(validation,
                           result.isSuccess(),
                           response.getErrorDTOList());
@@ -1200,6 +1199,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 return;
                 }
             }
+            discovery.addStagesReports(response.getStagesDetailList());
             operationComplete(discovery, success, responseUsed.getErrorDTOList());
             if (discovery.getCompletionTime() != null) {
                 try {

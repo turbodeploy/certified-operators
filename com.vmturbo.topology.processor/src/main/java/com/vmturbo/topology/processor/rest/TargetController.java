@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -50,26 +49,18 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceB
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.AllTargetsHealthResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
-import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
-import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker.DiscoveryFailure;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -82,6 +73,7 @@ import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 
@@ -103,7 +95,7 @@ public class TargetController {
 
     private final IOperationManager operationManager;
 
-    private final FailedDiscoveryTracker failedDiscoveriesTracker;
+    private final TargetStatusTracker targetStatusTracker;
 
     private final TopologyHandler topologyHandler;
 
@@ -135,7 +127,7 @@ public class TargetController {
             @Nonnull final TopologyHandler topologyHandler,
             @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
             @Nonnull final WorkflowServiceBlockingStub workflowServiceBlockingStub,
-            @Nonnull final FailedDiscoveryTracker failedDiscoveryTracker) {
+            @Nonnull final TargetStatusTracker targetStatusTracker) {
         this.scheduler = Objects.requireNonNull(scheduler);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -143,7 +135,7 @@ public class TargetController {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.settingPolicyRpcService = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.workflowRpcService = Objects.requireNonNull(workflowServiceBlockingStub);
-        this.failedDiscoveriesTracker = Objects.requireNonNull(failedDiscoveryTracker);
+        this.targetStatusTracker = Objects.requireNonNull(targetStatusTracker);
     }
 
     @RequestMapping(method = RequestMethod.POST,
@@ -465,129 +457,5 @@ public class TargetController {
         return new TargetInfo(target.getId(), target.getDisplayName(), null,
                 new TargetSpec(target.getNoSecretDto().getSpec()), probeConnected,
                 targetStatus, lastValidation);
-    }
-
-    @RequestMapping(value = "/{targetId}/health",
-                    method = RequestMethod.GET,
-                    produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
-    @ApiOperation(value = "Get information about target health by id.")
-    @ApiResponses(value = {
-                    @ApiResponse(code = 404,
-                        message = "If the target doesn't exist in the topology processor.",
-                        response = ITargetHealthInfo.class)
-    })
-    public ResponseEntity<ITargetHealthInfo> getTargetHealth(
-                    @ApiParam(value = "The ID of the target.")
-                    @PathVariable("targetId") final Long targetId) {
-        ResponseEntity<ITargetHealthInfo> response;
-        Optional<Target> target = targetStore.getTarget(targetId);
-        if (target.isPresent()) {
-            TargetHealthInfo targetHealthData = targetToTargetHealthInfo(target.get());
-            response = new ResponseEntity<>(targetHealthData, HttpStatus.OK);
-        } else {
-            response = new ResponseEntity<>(new TargetHealthInfo(null, null, null), HttpStatus.NOT_FOUND);
-        }
-        return response;
-    }
-
-    @RequestMapping(value = "/health",
-                    method = RequestMethod.GET,
-                    produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
-    @ApiOperation(value = "Get information about all targets health.")
-    public ResponseEntity<AllTargetsHealthResponse> getAllTargetsHealth()   {
-        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream ()
-                        .map(this::targetToTargetHealthInfo)
-                        .collect(Collectors.toList());
-        final AllTargetsHealthResponse response = new AllTargetsHealthResponse(allHealth);
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    private TargetHealthInfo targetToTargetHealthInfo(@Nonnull final Target target) {
-        long targetId = target.getId();
-        String targetName = target.getDisplayName();
-
-        Optional<Validation> lastValidation = operationManager.getLastValidationForTarget(targetId);
-        Optional<Discovery> lastDiscovery = operationManager.getLastDiscoveryForTarget(
-                        targetId, DiscoveryType.FULL);
-
-        //Check if we have info about validation.
-        if (!lastValidation.isPresent())    {
-            if (!lastDiscovery.isPresent())  {
-                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                                targetName, "Validation pending.");
-            } else {
-                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
-            }
-        }
-
-        Validation validation = lastValidation.get();
-        //Check if the validation has passed fine.
-        if (validation.getStatus() == Status.SUCCESS)    {
-            if (!lastDiscovery.isPresent())  {
-                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName);
-            } else {
-                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
-            }
-        }
-
-        //Validation was not Ok, but check the last discovery.
-        if (lastDiscovery.isPresent())  {
-            LocalDateTime validationCompletionTime = validation.getCompletionTime();
-            LocalDateTime discoveryCompletionTime = lastDiscovery.get().getCompletionTime();
-
-            //Check if there's a discovery that has happened later and passed fine.
-            if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0 &&
-                            lastDiscovery.get().getStatus() == Status.SUCCESS) {
-                //All is good!
-                return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
-            }
-
-            if (checkTargetDuplication(lastDiscovery.get())) {
-                //We have the case of duplicate targets.
-                return new TargetHealthInfo(TargetHealthSubcategory.DUPLICATION, targetId, targetName,
-                                ErrorType.DUPLICATION, "Duplicate targets.", discoveryCompletionTime);
-            }
-        }
-
-        //Report the failed validation.
-        return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName,
-                        validation.getErrorTypes().get(0), validation.getErrors().get(0),
-                        validation.getCompletionTime());
-    }
-
-    private boolean checkTargetDuplication(Discovery lastDiscovery) {
-        for (ErrorType errorType : lastDiscovery.getErrorTypes()) {
-            if (errorType == ErrorType.DUPLICATION) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private TargetHealthInfo verifyDiscovery(long targetId, String targetName, Discovery lastDiscovery)  {
-        if (lastDiscovery.getStatus() == Status.SUCCESS)  {
-            //The discovery was ok.
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
-        }
-
-        if (checkTargetDuplication(lastDiscovery)) {
-            //We have the case of duplicate targets.
-            return new TargetHealthInfo(TargetHealthSubcategory.DUPLICATION, targetId, targetName,
-                            ErrorType.DUPLICATION, "Duplicate targets.", lastDiscovery.getCompletionTime());
-        }
-
-        Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
-        DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
-        if (discoveryFailure != null)   {
-            //There was a discovery failure.
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
-                            discoveryFailure.getErrorType(), discoveryFailure.getErrorText(),
-                            discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
-        } else {
-            //The last discovery was probably attempted while there was no probe registered for it
-            //(e.g. after the topology-processor restart).
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
-                    "No finished discovery. May be because of the unregistered probe during the last attempt.");
-        }
     }
 }

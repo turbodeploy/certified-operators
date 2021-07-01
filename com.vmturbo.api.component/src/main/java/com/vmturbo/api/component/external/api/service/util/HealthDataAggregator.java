@@ -2,33 +2,39 @@ package com.vmturbo.api.component.external.api.service.util;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Collections2;
+
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.service.TargetsService.CommunicationError;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
 import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 
 /**
  * Aggregates health data for the consolidated health check endpoint.
  */
 public class HealthDataAggregator {
-    private final TopologyProcessor topologyProcessor;
+    private final TargetsServiceBlockingStub targetsService;
 
     /**
      * Constructor.
-     * @param topologyProcessor is addressed to get targets health info.
+     * @param targetsService to get targets health info.
      */
-    public HealthDataAggregator(@Nonnull final TopologyProcessor topologyProcessor) {
-        this.topologyProcessor = topologyProcessor;
+    public HealthDataAggregator(@Nonnull final TargetsServiceBlockingStub targetsService) {
+        this.targetsService = targetsService;
     }
 
     /**
@@ -42,9 +48,13 @@ public class HealthDataAggregator {
 
             //Only the targets health check for the moment.
             if (healthCheckCategory == null || HealthCheckCategory.TARGET.equals(healthCheckCategory)) {
-                Set<ITargetHealthInfo> healthOfTargets = topologyProcessor.getAllTargetsHealth();
+                final Map<Long, TargetDetails> targetDetails = targetsService.getTargetDetails(
+                    GetTargetDetailsRequest.newBuilder()
+                        .setReturnAll(true)
+                        .setDetailLevel(TargetDetailLevel.HEALTH_ONLY)
+                        .build()).getTargetDetailsMap();
                 List<AggregatedHealthResponseDTO> responseItems = HealthDataMapper
-                                .aggregateTargetHealthInfoToDTO(healthOfTargets);
+                                .aggregateTargetHealthInfoToDTO(Collections2.transform(targetDetails.values(), TargetDetails::getHealthDetails));
 
                 HealthCategoryReponseDTO targetsHealth = new HealthCategoryReponseDTO();
                 targetsHealth.setHealthCheckCategory(HealthCheckCategory.TARGET);
@@ -56,8 +66,8 @@ public class HealthDataAggregator {
             }
 
             return result;
-        } catch (CommunicationException e) {
-            throw new CommunicationError(e);
+        } catch (StatusRuntimeException e) {
+            throw new CommunicationError(ExceptionMapper.translateStatusException(e));
         }
     }
 

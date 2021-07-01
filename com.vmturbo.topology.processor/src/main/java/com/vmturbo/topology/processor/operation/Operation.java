@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.operation;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -184,7 +186,7 @@ public abstract class Operation {
     @Nonnull
     public Operation success() {
         status = Status.SUCCESS;
-        completionTime = LocalDateTime.now();
+        completionTime = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         completeOperation();
 
         return this;
@@ -199,7 +201,7 @@ public abstract class Operation {
     @Nonnull
     public Operation fail() {
         status = Status.FAILED;
-        completionTime = LocalDateTime.now();
+        completionTime = LocalDateTime.now(ZoneId.from(ZoneOffset.UTC));
         completeOperation();
 
         return this;

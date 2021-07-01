@@ -6,6 +6,8 @@ option java_package = "com.vmturbo.common.protobuf.target";
 import "common/Pagination.proto";
 import "search/Search.proto";
 
+import "Discovery.proto";
+
 // Request to get targets stats.
 message GetTargetsStatsRequest {
 
@@ -56,12 +58,91 @@ message SearchTargetsRequest {
   optional common.PaginationParameters pagination_params = 2;
 }
 
+// Detailed information about a single target.
+//
+// TODO (roman, Jun 23 2021): We need to migrate all of the target calls to gRPC, and have a single
+// RPC call that allows us to retrieve the right level of detail in one round-trip.
+message TargetDetails {
+  optional int64 target_id = 1;
+
+  // Health information about the target.
+  optional TargetHealth health_details = 2;
+
+  // The details reported by the most recent discovery - or, if no discovery has been run, validation.
+  // Only present if the detail level in the request is FULL.
+  repeated common_dto.ProbeStageDetails last_discovery_details = 10;
+}
+
+// Different health checks have different sub-categories.
+enum TargetHealthSubCategory {
+  // Validation health.
+  VALIDATION = 1;
+
+  // Discovery health.
+  DISCOVERY = 2;
+
+  // A special category used if duplicate target definitions are detected.
+  DUPLICATION = 3;
+}
+
+// Health information about a single target.
+message TargetHealth {
+  // Display name of the target. We include it here for ease of access, because we need the display
+  // name when formatting target information.
+  optional string target_name = 1;
+
+  // Identifies the type of health check being used for the health information.
+  optional TargetHealthSubCategory subcategory = 2;
+
+  // The type of error that happened. May be unset if there is no error.
+  optional common_dto.ErrorDTO.ErrorType error_type = 3;
+
+  // The error text. May be unset if there is nothing to report.
+  optional string error_text = 4;
+
+  // Number of consecutive failures, if the target is currently failing to discover/validate.
+  // Unset if the target is NOT failing.
+  optional int32 consecutive_failure_count = 5;
+
+  // Time of the first failure, if the target is currently not healthy.
+  optional int64 time_of_first_failure = 6;
+}
+
+// Determines the amount of detail that will be returned in the TargetDetails protobuf
+// message.
+enum TargetDetailLevel {
+  // Only includes health fields.
+  HEALTH_ONLY = 1;
+
+  // Includes all present fields.
+  FULL = 10;
+}
+
+message GetTargetDetailsRequest {
+  // The ids of the targets to retrieve details for.
+  // If empty, returns none unless return_all is set to true. This is to guard against accidentally
+  // requesting all targets.
+  repeated int64 target_ids = 1;
+
+  optional bool return_all = 2 [default = false];
+
+  // The level of detail to include.
+  optional TargetDetailLevel detail_level = 3;
+}
+
+message GetTargetDetailsResponse {
+  // The details for each target, arranged by target id.
+  map<int64, TargetDetails> target_details = 1;
+}
+
 // A service responsible for getting information about targets.
 service TargetsService {
 
+  // Get detailed information about requested targets.
+  rpc GetTargetDetails(GetTargetDetailsRequest) returns (GetTargetDetailsResponse);
+
   // Get targets stats.
-  rpc GetTargetsStats (GetTargetsStatsRequest) returns
-      (GetTargetsStatsResponse);
+  rpc GetTargetsStats (GetTargetsStatsRequest) returns (GetTargetsStatsResponse);
 
   // Search targets for a list filter and pagination info
   rpc SearchTargets(SearchTargetsRequest) returns (SearchTargetsResponse);

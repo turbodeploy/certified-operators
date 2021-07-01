@@ -1,9 +1,12 @@
 package com.vmturbo.components.common.utils;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Helper for handling time and duration.
@@ -34,5 +37,20 @@ public class TimeUtil {
         return a.isAfter(b)
                 ? a
                 : b;
+    }
+
+    /**
+     * Convert a {@link LocalDateTime} to a UNIX timestamp.
+     *
+     * @param localTime The time.
+     * @param clock The clock - this should be the same clock that was used to construct the time.
+     * @return Epoch millis in the time zone of the clock.
+     */
+    public static long localTimeToMillis(@Nullable final LocalDateTime localTime, @Nonnull final Clock clock) {
+        if (localTime == null) {
+            return 0;
+        } else {
+            return localTime.atZone(clock.getZone()).toInstant().toEpochMilli();
+        }
     }
 }

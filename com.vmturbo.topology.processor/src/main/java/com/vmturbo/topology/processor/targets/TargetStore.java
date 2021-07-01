@@ -34,6 +34,15 @@ public interface TargetStore extends RequiresDataInitialization {
     Optional<Target> getTarget(final long targetId);
 
     /**
+     * Get all matching targets that exist in the store.
+     *
+     * @param targetIds The ids of the targets to look for. Empty will return nothing.
+     * @return All the targets. Nothing returned for targets that don't exist.
+     */
+    @Nonnull
+    List<Target> getTargets(@Nonnull final Set<Long> targetIds);
+
+    /**
      * Get the name of a target if it exists.
      *
      * @param targetId OID of the target to look for.

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,10 +31,15 @@ import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceImplBase;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -42,8 +48,10 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetsStatsBuckets;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 
 /**
  * Target gRPC service.
@@ -55,6 +63,8 @@ public class TargetsRpcService extends TargetsServiceImplBase {
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
     private final IOperationManager operationManager;
+    private final TargetStatusTracker targetStatusTracker;
+    private final TargetHealthRetriever targetHealthRetriever;
 
     /**
      * Constructs target gRPC service.
@@ -62,13 +72,19 @@ public class TargetsRpcService extends TargetsServiceImplBase {
      * @param targetStore The target store
      * @param probeStore The probe store.
      * @param operationManager The operation manager.
+     * @param targetStatusTracker The tracker of the targets statuses.
+     * @param targetHealthRetriever Retrieves health information for targets.
      */
     public TargetsRpcService(@Nonnull final TargetStore targetStore,
             @Nonnull final ProbeStore probeStore,
-            @Nonnull final IOperationManager operationManager) {
+            @Nonnull final IOperationManager operationManager,
+            @Nonnull final TargetStatusTracker targetStatusTracker,
+            @Nonnull final TargetHealthRetriever targetHealthRetriever) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.operationManager = Objects.requireNonNull(operationManager);
+        this.targetStatusTracker = Objects.requireNonNull(targetStatusTracker);
+        this.targetHealthRetriever = Objects.requireNonNull(targetHealthRetriever);
     }
 
     @Override
@@ -84,6 +100,37 @@ public class TargetsRpcService extends TargetsServiceImplBase {
         responseObserver.onNext(GetTargetsStatsResponse.newBuilder()
                 .addAllTargetsGroupStat(targetsStatsBuckets.getTargetsStats())
                 .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getTargetDetails(GetTargetDetailsRequest request,
+            StreamObserver<GetTargetDetailsResponse> responseObserver) {
+        final TargetDetailLevel detailLevel = request.getDetailLevel();
+        // We always return health.
+
+        final Set<Long> requestedTargets = new HashSet<>(request.getTargetIdsList());
+        final Map<Long, TargetHealth> targetHealth = targetHealthRetriever.getTargetHealth(requestedTargets, request.getReturnAll());
+
+        final Map<Long, TargetStatus> targetStatus;
+        if (request.getDetailLevel() == TargetDetailLevel.FULL) {
+            targetStatus = targetStatusTracker.getTargetsStatuses(requestedTargets, request.getReturnAll());
+        } else {
+            targetStatus = Collections.emptyMap();
+        }
+
+        final GetTargetDetailsResponse.Builder respBuilder = GetTargetDetailsResponse.newBuilder();
+        targetHealth.forEach((targetId, health) -> {
+            TargetDetails.Builder detailsBldr = TargetDetails.newBuilder()
+                .setTargetId(targetId)
+                .setHealthDetails(health);
+            TargetStatus status = targetStatus.get(targetId);
+            if (status != null) {
+                detailsBldr.addAllLastDiscoveryDetails(status.getStageDetailsList());
+            }
+            respBuilder.putTargetDetails(targetId, detailsBldr.build());
+        });
+        responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
     }
 

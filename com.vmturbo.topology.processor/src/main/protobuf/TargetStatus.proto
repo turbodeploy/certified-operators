@@ -1,0 +1,19 @@
+syntax = "proto2";
+package com.vmturbo.topology.processor;
+
+option java_package = "com.vmturbo.topology.processor.targets";
+
+import "Discovery.proto";
+
+// Describes status of the target.
+message TargetStatus {
+  // The target id.
+  optional int64 target_id = 1;
+
+  // Validation/discovery completion time.
+  optional int64 operation_completion_time = 2;
+
+  // The validation/discovery stages that was taken that resulted in the target status.
+  // Provides additional granularity on how the probe comes up with successful or failed operation.
+  repeated common_dto.ProbeStageDetails stage_details = 10;
+}

@@ -79,7 +79,6 @@ import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
-import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -92,6 +91,7 @@ import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -244,13 +244,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
-     * Failed Discovery Tracker.
+     * Target Status Tracker.
      *
-     * @return {@link FailedDiscoveryTracker}.
+     * @return {@link TargetStatusTracker}.
      */
     @Bean
-    public FailedDiscoveryTracker failedDiscoveryTracker() {
-        return mock(FailedDiscoveryTracker.class);
+    public TargetStatusTracker targetStatusTracker() {
+        return mock(TargetStatusTracker.class);
     }
 
     @Override
@@ -264,7 +264,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public TargetController targetController() {
         return new TargetController(scheduler(), targetStore(), probeStore(), operationManager(),
                 topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub(), failedDiscoveryTracker());
+                workflowServiceBlockingStub(), targetStatusTracker());
     }
 
     @Bean
