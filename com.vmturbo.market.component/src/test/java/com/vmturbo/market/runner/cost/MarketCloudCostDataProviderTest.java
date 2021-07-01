@@ -17,6 +17,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Matchers;
 
@@ -30,16 +31,19 @@ import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequ
 import com.vmturbo.common.protobuf.cost.EntityUptimeMoles;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.PricingMoles;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CommonCost;
@@ -48,6 +52,40 @@ import com.vmturbo.platform.sdk.common.CommonCost;
  * Tests for MarketCloudCostDataProvider.
  */
 public class MarketCloudCostDataProviderTest {
+
+    private final TopologyEntityInfoExtractor topologyEntityInfoExtractor =
+        mock(TopologyEntityInfoExtractor.class);
+    private final DiscountApplicator.DiscountApplicatorFactory discountApplicatorFactory =
+        mock(DiscountApplicator.DiscountApplicatorFactory.class);
+    private static final TopologyDTO.TopologyEntityDTO CLOUD_VM_1 =
+        TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440640L)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+    private static final TopologyDTO.TopologyEntityDTO CLOUD_VM_2 =
+        TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440630L)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+    private final CostMoles.CostServiceMole costService = spy(new CostMoles.CostServiceMole());
+    private final PricingMoles.PricingServiceMole pricingService =
+        spy(new PricingMoles.PricingServiceMole());
+    private CostMoles.ReservedInstanceBoughtServiceMole riBoughtService;
+    private CostMoles.BuyReservedInstanceServiceMole buyRIService;
+    private CostMoles.ReservedInstanceSpecServiceMole riSpecService;
+    private CostMoles.ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageService;
+    private EntityUptimeMoles.EntityUptimeServiceMole entityUptimeService;
+
+    /**
+     * Prepare mocks that need preparing.
+     */
+    @Before
+    public void setup() {
+        riBoughtService = spy(new CostMoles.ReservedInstanceBoughtServiceMole());
+        buyRIService = spy(new CostMoles.BuyReservedInstanceServiceMole());
+        riSpecService = spy(new CostMoles.ReservedInstanceSpecServiceMole());
+        riUtilizationCoverageService =
+            spy(new CostMoles.ReservedInstanceUtilizationCoverageServiceMole());
+        entityUptimeService = spy(new EntityUptimeMoles.EntityUptimeServiceMole());
+    }
 
     /**
      * An entity is covered by 2 RIs, but they are not in scope.
@@ -68,66 +106,6 @@ public class MarketCloudCostDataProviderTest {
         assertTrue(filteredCoverageMap.get(100L).getCouponsCoveredByRiMap().isEmpty());
     }
 
-    private Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo buildRIBoughtInfo(String probeRIId,
-                    int numBought, long riSpecId, double fixedCost, double usageCostPerHour,
-                    double recurringCostPerHour, double numberOfCoupons, double numberOfCouponsUsed,
-                    String displayName, double amortizedCostPerHour, double onDemandRatePerHour) {
-        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo riBoughtInfo =
-                        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.newBuilder().setBusinessAccountId(73556963040147L)
-                                        .setProbeReservedInstanceId(probeRIId)
-                                        .setStartTime(1582646400000L)
-                                        .setNumBought(numBought)
-                                        .setReservedInstanceSpec(riSpecId)
-                                        .setReservedInstanceBoughtCost(
-                                                        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
-                                                                        .newBuilder()
-                                                                        .setFixedCost(getCurrencyAmount(fixedCost))
-                                                                        .setUsageCostPerHour(getCurrencyAmount(usageCostPerHour))
-                                                                        .setRecurringCostPerHour(getCurrencyAmount(recurringCostPerHour)))
-                                        .setReservedInstanceBoughtCoupons(
-                                                        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons
-                                                        .newBuilder()
-                                                        .setNumberOfCoupons(numberOfCoupons)
-                                                        .setNumberOfCouponsUsed(numberOfCouponsUsed)
-                                                        .build())
-                                        .setDisplayName(displayName)
-                                        .setReservedInstanceScopeInfo(
-                                                        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo
-                                                                        .newBuilder().setShared(true)
-                                                                        .build())
-                                        .setReservedInstanceDerivedCost(
-                                                        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost
-                                                                        .newBuilder()
-                                                                        .setAmortizedCostPerHour(getCurrencyAmount(amortizedCostPerHour))
-                                                                        .setOnDemandRatePerHour(getCurrencyAmount(onDemandRatePerHour)).build())
-                                        .setEndTime(1612273391000L)
-                                        .build();
-        return riBoughtInfo;
-    }
-
-    private Cost.ReservedInstanceSpecInfo buildRISpecInfo(CloudCostDTO.ReservedInstanceType.OfferingClass offeringClass,
-                    CommonCost.PaymentOption paymentOption, int termInYears, CloudCostDTO.Tenancy tenancy,
-                    CloudCostDTO.OSType osType) {
-        Cost.ReservedInstanceSpecInfo riSpecInfo = Cost.ReservedInstanceSpecInfo.newBuilder()
-                        .setType(CloudCostDTO.ReservedInstanceType.newBuilder()
-                                        .setOfferingClass(offeringClass)
-                                        .setPaymentOption(paymentOption)
-                                        .setTermYears(termInYears)
-                                        .build())
-                        .setTenancy(tenancy)
-                        .setOs(osType)
-                        .setTierId(73556963039728L)
-                        .setRegionId(73556963039687L)
-                        .setPlatformFlexible(false)
-                        .setSizeFlexible(false)
-                        .build();
-        return riSpecInfo;
-    }
-
-    private CommonCost.CurrencyAmount getCurrencyAmount(double cost) {
-        return CommonCost.CurrencyAmount.newBuilder().setCurrency(123).setAmount(cost).build();
-    }
-
     /**
      * This test is focused on testing the MarketCloudCostDataProviderTest::getCloudCostData to ensure
      * that the entityRICoverage that we have retrieved from the cost component is limited to the scope
@@ -144,22 +122,11 @@ public class MarketCloudCostDataProviderTest {
     public void testGetCloudCostData()
                     throws CloudCostDataProvider.CloudCostDataRetrievalException, IOException {
 
-        // This is the VM that is in the scope of Cloud Topology
-        final TopologyDTO.TopologyEntityDTO cloudVm = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440640L)
-                        .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-                        .build();
-        final TopologyDTO.TopologyEntityDTO cloudVm2 = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440630L)
-                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-                .build();
-
-
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
-        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(ImmutableList.of(cloudVm, cloudVm2));
-        when(cloudTopology.getEntity(73695157440640L)).thenReturn(Optional.of(cloudVm));
+        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE))
+            .thenReturn(ImmutableList.of(CLOUD_VM_1, CLOUD_VM_2));
+        when(cloudTopology.getEntity(73695157440640L)).thenReturn(Optional.of(CLOUD_VM_1));
         when(cloudTopology.getEntity(73695157440641L)).thenReturn(Optional.empty());
-        CostMoles.ReservedInstanceBoughtServiceMole riBoughtService = spy(new CostMoles.ReservedInstanceBoughtServiceMole());
 
         // RI Bought Info
         final Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
@@ -175,11 +142,7 @@ public class MarketCloudCostDataProviderTest {
                         Cost.GetReservedInstanceBoughtForAnalysisResponse.newBuilder().addReservedInstanceBought(riBought1).build();
         when(riBoughtService.getReservedInstanceBoughtForAnalysis(Matchers.any())).thenReturn(getReservedInstanceBoughtForAnalysisResponse);
 
-        PricingMoles.PricingServiceMole pricingService = spy(new PricingMoles.PricingServiceMole());
-        CostMoles.CostServiceMole costService = spy(new CostMoles.CostServiceMole());
-
         // Buy RI recommendations
-        CostMoles.BuyReservedInstanceServiceMole buyRIService = spy(new CostMoles.BuyReservedInstanceServiceMole());
         final Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo riBoughtInfoBuyRI =
                         buildRIBoughtInfo(StringUtils.EMPTY, 1, 706875679016785L, 5454.00048828125,
                                         0.6226027607917786, 0.0, 16.0, 16.0, StringUtils.EMPTY,
@@ -191,7 +154,6 @@ public class MarketCloudCostDataProviderTest {
         when(buyRIService.getBuyReservedInstancesByFilter(Matchers.any())).thenReturn(getBuyReservedInstancesByFilterResponse);
 
         // RI Specs
-        CostMoles.ReservedInstanceSpecServiceMole riSpecService = spy(new CostMoles.ReservedInstanceSpecServiceMole());
         Cost.ReservedInstanceSpecInfo riSpecInfo = buildRISpecInfo(CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD,
                         CommonCost.PaymentOption.ALL_UPFRONT, 1, CloudCostDTO.Tenancy.DEFAULT,
                         CloudCostDTO.OSType.WINDOWS_WITH_SQL_STANDARD);
@@ -203,8 +165,6 @@ public class MarketCloudCostDataProviderTest {
         when(riSpecService.getReservedInstanceSpecByIds(Matchers.any())).thenReturn(getReservedInstanceSpecByIdsResponse);
 
         //Entity To RI Coverage
-        CostMoles.ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageService = spy(new CostMoles.ReservedInstanceUtilizationCoverageServiceMole());
-        EntityUptimeMoles.EntityUptimeServiceMole entityUptimeService = spy(new EntityUptimeMoles.EntityUptimeServiceMole());
         EntityReservedInstanceCoverage entityToRIMapping1 = EntityReservedInstanceCoverage.newBuilder().setEntityId(73695157440640L).setEntityCouponCapacity(8).build();
         EntityReservedInstanceCoverage entityToRIMapping2 = EntityReservedInstanceCoverage.newBuilder().setEntityId(73695157440641L).setEntityCouponCapacity(8).build();
         Cost.GetEntityReservedInstanceCoverageResponse getEntityReservedInstanceCoverageResponse =
@@ -221,7 +181,7 @@ public class MarketCloudCostDataProviderTest {
         EntityUptime.GetEntityUptimeByFilterResponse uptimeByFilterResponse =
                 EntityUptime.GetEntityUptimeByFilterResponse.newBuilder()
                                     .setDefaultUptime(EntityUptimeDTO.getDefaultInstance())
-                                    .putEntityUptimeByOid(cloudVm.getOid(), expectedUptimeDTO)
+                                    .putEntityUptimeByOid(CLOUD_VM_1.getOid(), expectedUptimeDTO)
                                     .build();
         when(entityUptimeService.getEntityUptimeByFilter(Matchers.any(GetEntityUptimeByFilterRequest.class)))
                 .thenReturn(uptimeByFilterResponse);
@@ -235,7 +195,6 @@ public class MarketCloudCostDataProviderTest {
         TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder().setTopologyContextId(1000L)
                         .setTopologyType(TopologyDTO.TopologyType.PLAN)
                         .build();
-        TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
 
         AccountPricingData<TopologyDTO.TopologyEntityDTO> accountPricingData = new AccountPricingData<>(DiscountApplicator.noDiscount(),
                         Pricing.PriceTable.getDefaultInstance(), 144179052733936L, 15L, 20L);
@@ -244,8 +203,6 @@ public class MarketCloudCostDataProviderTest {
                         ImmutableMap.of(73578741418069L, accountPricingData);
         when(marketPricingResolver.getAccountPricingDataByBusinessAccount(cloudTopology)).thenReturn(accountPricingDataByBusinessAccountOid);
 
-        DiscountApplicator.DiscountApplicatorFactory discountApplicatorFactory =
-                        mock(DiscountApplicator.DiscountApplicatorFactory.class);
         MarketCloudCostDataProvider marketCloudCostDataProvider = new MarketCloudCostDataProvider(mockServer.getChannel(),
                         discountApplicatorFactory, topologyEntityInfoExtractor);
         CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> cloudCostData =
@@ -257,19 +214,134 @@ public class MarketCloudCostDataProviderTest {
         assertEquals(1, currentRiCoverage.size());
         assertTrue(currentRiCoverage.containsKey(73695157440640L));
         // verify entity uptime for id with entity uptime
-        verifyUptimePercentage(cloudCostData, cloudVm.getOid(), expectedUptimeDTO.getUptimePercentage());
-        verifyUptimePercentage(cloudCostData, cloudVm2.getOid(), EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, CLOUD_VM_1.getOid(),
+            expectedUptimeDTO.getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, CLOUD_VM_2.getOid(),
+            EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
         // now check real time
         topoInfo = topoInfo.toBuilder().setTopologyType(TopologyType.REALTIME).build();
         cloudCostData = marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
                         topologyEntityInfoExtractor);
-        verifyUptimePercentage(cloudCostData, cloudVm.getOid(), expectedUptimeDTO.getUptimePercentage());
-        verifyUptimePercentage(cloudCostData, cloudVm2.getOid(), EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, CLOUD_VM_1.getOid(),
+            expectedUptimeDTO.getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, CLOUD_VM_2.getOid(),
+            EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+    }
+
+    /**
+     * Test that for a Migrate to Cloud plan entity uptime is always set to 100%.
+     *
+     * @throws IOException never
+     * @throws CloudCostDataRetrievalException never ever
+     */
+    @Test
+    public void testMigrateCloudPlanUptimePercentage() throws IOException, CloudCostDataRetrievalException {
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(ImmutableList.of(CLOUD_VM_1));
+        when(cloudTopology.getEntity(CLOUD_VM_1.getOid())).thenReturn(Optional.of(CLOUD_VM_1));
+
+        TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder()
+            .setTopologyType(TopologyDTO.TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+                .setPlanType(PlanProjectType.CLOUD_MIGRATION.toString())
+                .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION))
+            .build();
+        final EntityUptimeDTO lessThanFullUptime = EntityUptimeDTO.newBuilder()
+            .setUptimePercentage(90D).build();
+        final EntityUptime.GetEntityUptimeByFilterResponse uptimeByFilterResponse =
+            EntityUptime.GetEntityUptimeByFilterResponse.newBuilder()
+                .putEntityUptimeByOid(CLOUD_VM_1.getOid(), lessThanFullUptime)
+                .build();
+        when(entityUptimeService.getEntityUptimeByFilter(Matchers.any(GetEntityUptimeByFilterRequest.class)))
+            .thenReturn(uptimeByFilterResponse);
+        final GrpcTestServer mockServer = GrpcTestServer.newServer(costService, pricingService,
+            riBoughtService, buyRIService, riSpecService, riUtilizationCoverageService,
+            entityUptimeService);
+        mockServer.start();
+
+        final MarketCloudCostDataProvider marketCloudCostDataProvider =
+            new MarketCloudCostDataProvider(mockServer.getChannel(), discountApplicatorFactory,
+                topologyEntityInfoExtractor);
+        final CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> result1 =
+            marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
+                topologyEntityInfoExtractor);
+        verifyUptimePercentage(result1, CLOUD_VM_1.getOid(), 100d);
+
+        topoInfo = topoInfo.toBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
+            .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+            .setPlanType(PlanProjectType.CLOUD_MIGRATION.toString())
+            .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION))
+            .build();
+
+        final CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> result2 =
+            marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
+                topologyEntityInfoExtractor);
+        verifyUptimePercentage(result2, CLOUD_VM_1.getOid(), 100d);
+    }
+
+    private Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo buildRIBoughtInfo(String probeRIId,
+        int numBought, long riSpecId, double fixedCost, double usageCostPerHour,
+        double recurringCostPerHour, double numberOfCoupons, double numberOfCouponsUsed,
+        String displayName, double amortizedCostPerHour, double onDemandRatePerHour) {
+        Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo riBoughtInfo =
+            Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.newBuilder().setBusinessAccountId(73556963040147L)
+                .setProbeReservedInstanceId(probeRIId)
+                .setStartTime(1582646400000L)
+                .setNumBought(numBought)
+                .setReservedInstanceSpec(riSpecId)
+                .setReservedInstanceBoughtCost(
+                    Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                        .newBuilder()
+                        .setFixedCost(getCurrencyAmount(fixedCost))
+                        .setUsageCostPerHour(getCurrencyAmount(usageCostPerHour))
+                        .setRecurringCostPerHour(getCurrencyAmount(recurringCostPerHour)))
+                .setReservedInstanceBoughtCoupons(
+                    Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons
+                        .newBuilder()
+                        .setNumberOfCoupons(numberOfCoupons)
+                        .setNumberOfCouponsUsed(numberOfCouponsUsed)
+                        .build())
+                .setDisplayName(displayName)
+                .setReservedInstanceScopeInfo(
+                    Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo
+                        .newBuilder().setShared(true)
+                        .build())
+                .setReservedInstanceDerivedCost(
+                    Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost
+                        .newBuilder()
+                        .setAmortizedCostPerHour(getCurrencyAmount(amortizedCostPerHour))
+                        .setOnDemandRatePerHour(getCurrencyAmount(onDemandRatePerHour)).build())
+                .setEndTime(1612273391000L)
+                .build();
+        return riBoughtInfo;
+    }
+
+    private Cost.ReservedInstanceSpecInfo buildRISpecInfo(CloudCostDTO.ReservedInstanceType.OfferingClass offeringClass,
+        CommonCost.PaymentOption paymentOption, int termInYears, CloudCostDTO.Tenancy tenancy,
+        CloudCostDTO.OSType osType) {
+        Cost.ReservedInstanceSpecInfo riSpecInfo = Cost.ReservedInstanceSpecInfo.newBuilder()
+            .setType(CloudCostDTO.ReservedInstanceType.newBuilder()
+                .setOfferingClass(offeringClass)
+                .setPaymentOption(paymentOption)
+                .setTermYears(termInYears)
+                .build())
+            .setTenancy(tenancy)
+            .setOs(osType)
+            .setTierId(73556963039728L)
+            .setRegionId(73556963039687L)
+            .setPlatformFlexible(false)
+            .setSizeFlexible(false)
+            .build();
+        return riSpecInfo;
+    }
+
+    private CommonCost.CurrencyAmount getCurrencyAmount(double cost) {
+        return CommonCost.CurrencyAmount.newBuilder().setCurrency(123).setAmount(cost).build();
     }
 
     private void verifyUptimePercentage(CloudCostData data, Long oid, Double expectedUptime) {
         Double actualEntityUptime = data.getEntityUptimePercentage(oid);
-        assertEquals(actualEntityUptime, expectedUptime, 0.0001D);
-
+        assertEquals(expectedUptime, actualEntityUptime, 0.0001D);
     }
 }
