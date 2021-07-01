@@ -90,7 +90,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
     // we'll be using a stamped lock to guard the target cost data map. However, we are inverting
     // the operations -- we are aiming to support concurrent puts (it's a concurrent map) but
     // lock for a single reader when we make a copy of the map.
-    private StampedLock targetCostDataCacheLock = new StampedLock();
+    private final StampedLock targetCostDataCacheLock = new StampedLock();
 
     private final Map<Long, SDKProbeType> probeTypesForTargetId = new HashMap<>();
 
@@ -296,7 +296,6 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
     /**
      * {@inheritDoc}
      */
-    @Nonnull
     @Override
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final Map<Long, String> strProbeTypesForTargetId = probeTypesForTargetId.entrySet().stream()
