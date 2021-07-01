@@ -29,6 +29,8 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitment
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationRequest.Builder;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationResponse;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsRequest;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
@@ -44,7 +46,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
     private static final Set<String> SUPPORTED_STATS =
-            ImmutableSet.of(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
+            ImmutableSet.of(StringConstants.CLOUD_COMMITMENT_UTILIZATION, StringConstants.CLOUD_COMMITMENT_COVERAGE);
 
     private CloudCommitmentStatsServiceBlockingStub cloudCommitmentStatsServiceGrpc;
 
@@ -79,7 +81,18 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
             while (responseIterator.hasNext()) {
                 GetHistoricalCloudCommitmentUtilizationResponse response = responseIterator.next();
                 List<CloudCommitmentStatRecord> statResponse = response.getCommitmentStatRecordChunkList();
-                snapshots.addAll(convertCloudCommitmentStatRecordsToStatsDTO(statResponse));
+                snapshots.addAll(convertCloudCommitmentStatRecordsToStatsDTO(statResponse,
+                        StringConstants.CLOUD_COMMITMENT_UTILIZATION));
+            }
+        }
+        if (containsStat(StringConstants.CLOUD_COMMITMENT_COVERAGE, stats)) {
+            Iterator<GetHistoricalCommitmentCoverageStatsResponse> responseIterator = cloudCommitmentStatsServiceGrpc
+                    .getHistoricalCommitmentCoverageStats(createHistoricalCoverageRequest(context));
+            while (responseIterator.hasNext()) {
+                GetHistoricalCommitmentCoverageStatsResponse response = responseIterator.next();
+                List<CloudCommitmentStatRecord> statResponse = response.getCommitmentStatRecordChunkList();
+                snapshots.addAll(convertCloudCommitmentStatRecordsToStatsDTO(statResponse,
+                        StringConstants.CLOUD_COMMITMENT_COVERAGE));
             }
         }
         return snapshots;
@@ -124,14 +137,53 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
 
                     default:
                         throw new OperationFailedException(
-                                "Invalid scope for query. Must be global or have an entity type.");
+                                "Invalid scope for cloud commitment utilization query. Must be global or have an entity type.");
                 }
             }
         }
         return reqBuilder.build();
     }
 
-    private List<StatSnapshotApiDTO> convertCloudCommitmentStatRecordsToStatsDTO(List<CloudCommitmentStatRecord> records)
+    @Nonnull
+    private GetHistoricalCommitmentCoverageStatsRequest createHistoricalCoverageRequest(@Nonnull final StatsQueryContext context)
+            throws OperationFailedException {
+        GetHistoricalCommitmentCoverageStatsRequest.Builder reqBuilder = GetHistoricalCommitmentCoverageStatsRequest.newBuilder();
+        context.getTimeWindow().ifPresent(timeWindow -> {
+            reqBuilder.setStartTime(timeWindow.startTime());
+            reqBuilder.setEndTime(timeWindow.endTime());
+        });
+        final ApiId inputScope = context.getInputScope();
+        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
+            final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();
+            for (Map.Entry<ApiEntityType, Set<Long>> entry : scopeEntitiesByType.entrySet()) {
+                ApiEntityType currentType = entry.getKey();
+                switch (currentType) {
+                    case BUSINESS_ACCOUNT:
+                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                .addAllAccountId(scopeEntitiesByType.get(ApiEntityType.BUSINESS_ACCOUNT)));
+                        break;
+
+                    case REGION:
+                        reqBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(scopeEntitiesByType.get(ApiEntityType.REGION)));
+                        break;
+
+                    case SERVICE_PROVIDER:
+                        reqBuilder.setServiceProviderFilter(ServiceProviderFilter.newBuilder()
+                                .addAllServiceProviderId(scopeEntitiesByType.get(ApiEntityType.SERVICE_PROVIDER))
+                                .build());
+                        break;
+
+                    default:
+                        throw new OperationFailedException(
+                                "Invalid scope for cloud commitment coverage query. Must be global or have an entity type.");
+                }
+            }
+        }
+        return reqBuilder.build();
+    }
+
+
+    private List<StatSnapshotApiDTO> convertCloudCommitmentStatRecordsToStatsDTO(List<CloudCommitmentStatRecord> records, String statName)
             throws OperationFailedException {
         List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
         for (CloudCommitmentStatRecord record: records) {
@@ -147,8 +199,8 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
             StatApiDTO statsDto = new StatApiDTO();
             statsDto.setValues(statsValueDto);
             statsDto.setCapacity(capacityDto);
-            statsDto.setName(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
-            statsDto.setUnits(StringConstants.UTILIZATION_PER_DAY);
+            statsDto.setName(statName);
+            statsDto.setUnits(StringConstants.DOLLARS_PER_DAY);
             snapshotApiDTO.setStatistics(Lists.newArrayList(statsDto));
             statSnapshotApiDTOS.add(snapshotApiDTO);
         }

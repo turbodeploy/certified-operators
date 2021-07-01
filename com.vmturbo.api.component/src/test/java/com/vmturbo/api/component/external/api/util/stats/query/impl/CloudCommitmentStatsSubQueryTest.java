@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmoun
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.CloudCommitmentStatRecord.StatValue;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCloudCommitmentUtilizationResponse;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCommitmentCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentServicesMoles.CloudCommitmentStatsServiceMole;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -56,9 +57,6 @@ public class CloudCommitmentStatsSubQueryTest {
     private CloudCommitmentStatsSubQuery cloudCommitmentStatsSubQuery;
 
     private final Long timestamp = 1609525802L;
-
-    private static final StatApiInputDTO CLOUD_COMMITMENT_INPUT =
-            StatsTestUtil.statInput(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
 
     private static final TimeWindow TIME_WINDOW = ImmutableTimeWindow.builder()
             .startTime(500_000)
@@ -109,8 +107,9 @@ public class CloudCommitmentStatsSubQueryTest {
      * @throws ConversionException A conversion exception.
      */
     @Test
-    public void testAggregateStatsByCsp()
+    public void testUtilizationAggregateStatsByCsp()
             throws OperationFailedException, InterruptedException, ConversionException {
+
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
         final StatsQueryScope queryScope = Mockito.mock(StatsQueryScope.class);
@@ -125,8 +124,10 @@ public class CloudCommitmentStatsSubQueryTest {
         responses.add(response);
         Mockito.doReturn(responses).when(backend).getHistoricalCommitmentUtilization(org.mockito.Matchers.any());
 
+        StatApiInputDTO cloudCommitmentInput =
+                StatsTestUtil.statInput(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
         final List<StatSnapshotApiDTO> results = cloudCommitmentStatsSubQuery.getAggregateStats(
-                Sets.newHashSet(CLOUD_COMMITMENT_INPUT), context);
+                Sets.newHashSet(cloudCommitmentInput), context);
 
         Assert.assertEquals(1, results.size());
         final StatSnapshotApiDTO resultSnapshot = results.get(0);
@@ -135,6 +136,49 @@ public class CloudCommitmentStatsSubQueryTest {
                 stats.stream().collect(Collectors.toMap(StatApiDTO::getName, e -> e));
         Assert.assertTrue(stringStatApiDTOMap.containsKey(StringConstants.CLOUD_COMMITMENT_UTILIZATION));
         StatApiDTO stat = stringStatApiDTOMap.get(StringConstants.CLOUD_COMMITMENT_UTILIZATION);
+        Assert.assertEquals(Float.valueOf(5.0f), stat.getCapacity().getMax());
+        Assert.assertEquals(Float.valueOf(2.5f), stat.getCapacity().getAvg());
+        Assert.assertEquals(Float.valueOf(3.0f), stat.getValues().getMax());
+        Assert.assertEquals(Float.valueOf(1.0f), stat.getValues().getAvg());
+    }
+
+    /**
+     * Test fetching of cloud commitment coverage stats from the cost component.
+     *
+     * @throws OperationFailedException An operation failed exception.
+     * @throws InterruptedException An interrupted exception.
+     * @throws ConversionException A Conversion Exception.
+     */
+    @Test
+    public void testCoverageStatsByCsp()
+            throws OperationFailedException, InterruptedException, ConversionException {
+        Mockito.when(scope.getScopeTypes())
+                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
+        final StatsQueryScope queryScope = Mockito.mock(StatsQueryScope.class);
+        Mockito.when(context.getQueryScope()).thenReturn(queryScope);
+        final CloudCommitmentStatRecord statRecord = CloudCommitmentStatRecord.newBuilder().setCapacity(capacity)
+                .setValues(value)
+                .setSnapshotDate(timestamp)
+                .build();
+
+        GetHistoricalCommitmentCoverageStatsResponse response = GetHistoricalCommitmentCoverageStatsResponse.newBuilder()
+                .addCommitmentStatRecordChunk(statRecord).build();
+        List<GetHistoricalCommitmentCoverageStatsResponse> responses = new ArrayList<>();
+        responses.add(response);
+
+        StatApiInputDTO cloudCommitmentInput =
+                StatsTestUtil.statInput(StringConstants.CLOUD_COMMITMENT_COVERAGE);
+        Mockito.doReturn(responses).when(backend).getHistoricalCommitmentCoverageStats(org.mockito.Matchers.any());
+        final List<StatSnapshotApiDTO> results = cloudCommitmentStatsSubQuery.getAggregateStats(
+                Sets.newHashSet(cloudCommitmentInput), context);
+
+        Assert.assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        final List<StatApiDTO> stats = resultSnapshot.getStatistics();
+        final Map<String, StatApiDTO> stringStatApiDTOMap =
+                stats.stream().collect(Collectors.toMap(StatApiDTO::getName, e -> e));
+        Assert.assertTrue(stringStatApiDTOMap.containsKey(StringConstants.CLOUD_COMMITMENT_COVERAGE));
+        StatApiDTO stat = stringStatApiDTOMap.get(StringConstants.CLOUD_COMMITMENT_COVERAGE);
         Assert.assertEquals(Float.valueOf(5.0f), stat.getCapacity().getMax());
         Assert.assertEquals(Float.valueOf(2.5f), stat.getCapacity().getAvg());
         Assert.assertEquals(Float.valueOf(3.0f), stat.getValues().getMax());
