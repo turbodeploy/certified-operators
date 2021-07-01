@@ -209,10 +209,6 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onError(Status.ALREADY_EXISTS
                     .withDescription(e.getLocalizedMessage())
                     .asException());
-        } catch (IllegalArgumentException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getLocalizedMessage())
-                    .asException());
         }
     }
 
