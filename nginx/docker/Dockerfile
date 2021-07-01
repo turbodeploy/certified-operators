@@ -9,6 +9,11 @@ LABEL name="nginx" \
       summary="nginx" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 
+ENV NAME=nginx \
+    NGINX_VERSION=1.18 \
+    NGINX_SHORT_VER=118 \
+    VERSION=0
+
 # Required Licenses
 COPY licenses /licenses
 
@@ -17,13 +22,11 @@ RUN groupadd -g 1000 nginx && useradd -r -g 1000 -s /bin/bash -u 102 nginx && \
 passwd -l root
 
 # Install rsyslog and nginx packages
-RUN echo "[nginx]" > /etc/yum.repos.d/nginx.repo && \
-    echo "name=nginx repo" >> /etc/yum.repos.d/nginx.repo && \
-    echo "baseurl=http://nginx.org/packages/rhel/7/x86_64/" >> /etc/yum.repos.d/nginx.repo && \
-    echo "gpgcheck=0" >> /etc/yum.repos.d/nginx.repo && \
-    echo "enabled=1" >> /etc/yum.repos.d/nginx.repo && \
-    dnf install -y rsyslog procps-ng openssl nginx gettext gnutls && \
-    dnf clean all && \
+RUN dnf -y module enable nginx:$NGINX_VERSION && \
+    INSTALL_PKGS="rsyslog procps-ng nss_wrapper bind-utils gettext hostname nginx nginx-mod-stream nginx-mod-http-perl" && \
+    dnf install -y --setopt=tsflags=nodocs $INSTALL_PKGS && \
+    rpm -V $INSTALL_PKGS && \
+    dnf -y clean all --enablerepo='*' &&\
     rm -rf /var/cache/dnf
 
 # Create a user and group first so the IDs get set the same way, even as
