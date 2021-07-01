@@ -1,21 +1,22 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import com.vmturbo.api.component.external.api.util.ApiUtils;
+import javax.annotation.Nonnull;
+
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO.Recommendation;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
 import com.vmturbo.api.enums.healthCheck.TargetErrorType;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 
 /**
  * Maps health data from topology-processor to API DTOs.
@@ -58,27 +59,28 @@ public class HealthDataMapper {
         return result;
     }
 
-    private static final Map<TargetHealthSubcategory, TargetCheckSubcategory> TARGET_CHECK_SUBCATEGORIES_CONVERTER =
+    private static final Map<TargetHealthSubCategory, TargetCheckSubcategory> TARGET_CHECK_SUBCATEGORIES_CONVERTER =
                     initializeTargetCheckSubcategories();
 
-    private static Map<TargetHealthSubcategory, TargetCheckSubcategory> initializeTargetCheckSubcategories() {
-        final Map<TargetHealthSubcategory, TargetCheckSubcategory> result = new EnumMap<>(
-                        TargetHealthSubcategory.class);
-        result.put(TargetHealthSubcategory.DISCOVERY, TargetCheckSubcategory.DISCOVERY);
-        result.put(TargetHealthSubcategory.VALIDATION, TargetCheckSubcategory.VALIDATION);
-        result.put(TargetHealthSubcategory.DUPLICATION, TargetCheckSubcategory.DUPLICATION);
+    private static Map<TargetHealthSubCategory, TargetCheckSubcategory> initializeTargetCheckSubcategories() {
+        final Map<TargetHealthSubCategory, TargetCheckSubcategory> result = new EnumMap<>(
+                        TargetHealthSubCategory.class);
+        result.put(TargetHealthSubCategory.DISCOVERY, TargetCheckSubcategory.DISCOVERY);
+        result.put(TargetHealthSubCategory.VALIDATION, TargetCheckSubcategory.VALIDATION);
+        result.put(TargetHealthSubCategory.DUPLICATION, TargetCheckSubcategory.DUPLICATION);
         return result;
     }
 
     /**
      * Convert target health report from inner representation to external API DTO.
+     * @param targetId The id of the target.
      * @param healthInfo a container to transmit info internally between the components.
      * @return target health API DTO
      */
-    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(ITargetHealthInfo healthInfo) {
+    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(final long targetId, @Nonnull final TargetHealth healthInfo) {
         TargetHealthApiDTO result = new TargetHealthApiDTO();
-        result.setUuid(healthInfo.getTargetId().toString());
-        result.setTargetName(healthInfo.getDisplayName());
+        result.setUuid(Long.toString(targetId));
+        result.setTargetName(healthInfo.getTargetName());
         switch (healthInfo.getSubcategory()) {
             case DISCOVERY:
                 result.setCheckSubcategory(TargetCheckSubcategory.DISCOVERY);
@@ -92,18 +94,17 @@ public class HealthDataMapper {
         }
 
         String errorText = healthInfo.getErrorText();
-        ErrorType targetErrorType = healthInfo.getTargetErrorType();
         if (errorText.isEmpty()) {
             result.setHealthState(HealthState.NORMAL);
-        } else if (targetErrorType == null) {
+        } else if (!healthInfo.hasErrorType()) {
             result.setHealthState(HealthState.MINOR);
             result.setErrorText(errorText);
         } else {
             result.setHealthState(HealthState.CRITICAL);
-            result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getTargetErrorType()));
+            result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getErrorType()));
             result.setErrorText(errorText);
-            result.setTimeOfFirstFailure(ApiUtils.convertToMilliseconds(healthInfo.getTimeOfFirstFailure()));
-            result.setNumberOfConsecutiveFailures(healthInfo.getNumberOfConsecutiveFailures());
+            result.setTimeOfFirstFailure(healthInfo.getTimeOfFirstFailure());
+            result.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
         }
         return result;
     }
@@ -114,14 +115,14 @@ public class HealthDataMapper {
      * @return {@link AggregatedHealthResponseDTO} items
      */
     public static List<AggregatedHealthResponseDTO> aggregateTargetHealthInfoToDTO(
-                    Set<ITargetHealthInfo> healthOfTargets) {
-        Map<TargetHealthSubcategory, Map<HealthState, Integer>> subcategoryStatesCounters =
-                        new EnumMap<>(TargetHealthSubcategory.class);
-        Map<TargetHealthSubcategory, Map<TargetErrorType, String>> subcategoryRecommendations =
-                        new EnumMap<>(TargetHealthSubcategory.class);
+                    Collection<TargetHealth> healthOfTargets) {
+        Map<TargetHealthSubCategory, Map<HealthState, Integer>> subcategoryStatesCounters =
+                        new EnumMap<>(TargetHealthSubCategory.class);
+        Map<TargetHealthSubCategory, Map<TargetErrorType, String>> subcategoryRecommendations =
+                        new EnumMap<>(TargetHealthSubCategory.class);
 
-        for (ITargetHealthInfo healthInfo : healthOfTargets) {
-            TargetHealthSubcategory healthCheckSubcategory = healthInfo.getSubcategory();
+        for (TargetHealth healthInfo : healthOfTargets) {
+            TargetHealthSubCategory healthCheckSubcategory = healthInfo.getSubcategory();
             Map<HealthState, Integer> statesCounter = subcategoryStatesCounters.computeIfAbsent(
                             healthCheckSubcategory, k -> new EnumMap<>(HealthState.class));
             Map<TargetErrorType, String> recommendations = subcategoryRecommendations.computeIfAbsent(
@@ -130,7 +131,7 @@ public class HealthDataMapper {
         }
 
         List<AggregatedHealthResponseDTO> result = new ArrayList<>(2);
-        for (Map.Entry<TargetHealthSubcategory, Map<HealthState, Integer>> entry
+        for (Map.Entry<TargetHealthSubCategory, Map<HealthState, Integer>> entry
                         : subcategoryStatesCounters.entrySet()) {
             Map<TargetErrorType, String> recommendations = subcategoryRecommendations.get(entry.getKey());
             AggregatedHealthResponseDTO responseItem = makeResponseItem(
@@ -143,11 +144,10 @@ public class HealthDataMapper {
     }
 
     private static void updateStates(Map<HealthState, Integer> statesCounter,
-                    Map<TargetErrorType, String> recommendations, ITargetHealthInfo healthInfo) {
+                    Map<TargetErrorType, String> recommendations, TargetHealth healthInfo) {
         String errorText = healthInfo.getErrorText();
-        ErrorType targetErrorType = healthInfo.getTargetErrorType();
         if (!errorText.isEmpty()) {
-            if (targetErrorType == null) {
+            if (!healthInfo.hasErrorType()) {
                 //MINOR state
                 int counter = statesCounter.getOrDefault(HealthState.MINOR, 0) + 1;
                 statesCounter.put(HealthState.MINOR, counter);
@@ -156,7 +156,7 @@ public class HealthDataMapper {
                 int counter = statesCounter.getOrDefault(HealthState.CRITICAL, 0) + 1;
                 statesCounter.put(HealthState.CRITICAL, counter);
 
-                TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(targetErrorType);
+                TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(healthInfo.getErrorType());
                 recommendations.putIfAbsent(errorType, TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType));
             }
         } else {

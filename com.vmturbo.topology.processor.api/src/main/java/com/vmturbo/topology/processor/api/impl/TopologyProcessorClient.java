@@ -21,7 +21,6 @@ import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetData;
@@ -166,18 +165,6 @@ public class TopologyProcessorClient extends
     public void modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
                     throws CommunicationException, TopologyProcessorException {
         restClient.modifyTarget(targetId, newData);
-    }
-
-    @Override
-    @Nonnull
-    public ITargetHealthInfo getTargetHealth(long id) throws CommunicationException, TopologyProcessorException {
-        return restClient.getTargetHealth(id);
-    }
-
-    @Override
-    @Nonnull
-    public Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException {
-        return Collections.unmodifiableSet(restClient.getAllTargetsHealth());
     }
 
     @Override

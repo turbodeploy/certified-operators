@@ -8,9 +8,15 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,6 +40,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -83,6 +90,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
@@ -90,16 +98,18 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
-import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.target.DiscoveryStageApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.InputValueType;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.TargetPaginationRequest;
+import com.vmturbo.api.pagination.TargetPaginationRequest.TargetPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
@@ -126,8 +136,13 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.target.TargetDTO;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
@@ -143,7 +158,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -152,7 +166,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 
 /**
  * Test the {@link TargetsService}. Mocks calls to the underlying {@link TopologyProcessor}.
@@ -170,12 +183,14 @@ public class TargetsServiceTest {
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
 
     private static final String TARGET_DISPLAY_NAME = "target name";
-    private static final String APP_CONTROL = "app_control";
     private static final Duration MILLIS_100 = Duration.ofMillis(100);
     private static final Duration MILLIS_50 = Duration.ofMillis(50);
 
     @Autowired
     private TopologyProcessor topologyProcessor;
+
+    @Autowired
+    private TargetDetailsMapper targetDetailsMapper;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -253,20 +268,6 @@ public class TargetsServiceTest {
                             }
                         });
 
-        when(topologyProcessor.getTargetHealth(Mockito.anyLong()))
-                .thenAnswer(new Answer<TargetHealthInfo>() {
-
-                    @Override
-                    public TargetHealthInfo answer(InvocationOnMock invocation) throws Throwable {
-                        final long id = invocation.getArgumentAt(0, long.class);
-                        if (registeredTargets.get(id) == null) {
-                            throw new TopologyProcessorException("Error getting target health info: " + id);
-                        } else {
-                            return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, id, null);
-                        }
-                    }
-                });
-
         when(topologyProcessor.getTargets(Mockito.any()))
             .thenAnswer((Answer<List<TargetInfo>>)invocation -> {
                 final List<Long> ids = (List<Long>)invocation.getArgumentAt(0, List.class);
@@ -303,6 +304,25 @@ public class TargetsServiceTest {
                 return new HashSet<>(registeredTargets.values());
             }
         });
+
+        when(targetDetailsMapper.convertToDiscoveryStageDetails(any())).thenReturn(
+                Arrays.asList(new DiscoveryStageApiDTO()));
+
+        doAnswer(invocation -> {
+            GetTargetDetailsRequest req = invocation.getArgumentAt(0, GetTargetDetailsRequest.class);
+            GetTargetDetailsResponse.Builder resp = GetTargetDetailsResponse.newBuilder();
+            req.getTargetIdsList().stream()
+                    .map(id -> registeredTargets.get(id))
+                    .filter(Objects::nonNull)
+                    .forEach(targetInfo -> {
+                        resp.putTargetDetails(targetInfo.getId(), TargetDetails.newBuilder()
+                                .setTargetId(targetInfo.getId())
+                                .setHealthDetails(TargetHealth.newBuilder()
+                                        .setSubcategory(TargetHealthSubCategory.VALIDATION))
+                                .build());
+                    });
+            return resp.build();
+        }).when(targetsServiceMole).getTargetDetails(any());
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
@@ -1166,7 +1186,8 @@ public class TargetsServiceTest {
                         MILLIS_100, MILLIS_50, MILLIS_100, Mockito.mock(LicenseCheckClient.class),
                         apiComponentTargetListener, repositoryApi, actionSpecMapper,
                         actionSearchUtil, apiWebsocketHandler,
-                targetsServiceBlockingStub, new PaginationMapper(), true, 100);
+                        targetsServiceBlockingStub, new PaginationMapper(), new TargetDetailsMapper(),
+                        true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1195,7 +1216,8 @@ public class TargetsServiceTest {
                         Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
                         repositoryApi, actionSpecMapper, actionSearchUtil,
                         apiWebsocketHandler, targetsServiceBlockingStub,
-                new PaginationMapper(), true, 100);
+                        new PaginationMapper(), new TargetDetailsMapper(),
+                        true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1223,7 +1245,8 @@ public class TargetsServiceTest {
                         Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
                         repositoryApi, actionSpecMapper, actionSearchUtil,
                         apiWebsocketHandler, targetsServiceBlockingStub,
-                        new PaginationMapper(), true, 100);
+                        new PaginationMapper(), new TargetDetailsMapper(),
+                        true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1608,7 +1631,8 @@ public class TargetsServiceTest {
                                    MILLIS_100, mock(LicenseCheckClient.class),
                                    apiComponentTargetListener, repositoryApi, actionSpecMapper,
                                    actionSearchUtil, apiWebsocketHandler, targetsServiceBlockingStub,
-                                   new PaginationMapper(), false, 100);
+                                   new PaginationMapper(), new TargetDetailsMapper(),
+                        false, 100);
         // Get is allowed
         targetsService.getTargets();
         try {
@@ -1828,6 +1852,7 @@ public class TargetsServiceTest {
                             apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
                 actionSearchUtil(),
                 apiWebsocketHandler(), targetsRpcService(), new PaginationMapper(),
+                targetDetailsMapper(),
                 true, 100);
         }
 
@@ -1895,6 +1920,11 @@ public class TargetsServiceTest {
 
         @Bean
         public GlobalExceptionHandler exceptionHandler() {return new GlobalExceptionHandler();}
+
+        @Bean
+        public TargetDetailsMapper targetDetailsMapper() {
+            return mock(TargetDetailsMapper.class);
+        }
 
         @Override
         public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
@@ -2133,7 +2163,7 @@ public class TargetsServiceTest {
                 .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
         final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
                 ErrorApiDTO.class);
-        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString("Error getting target health info: 3"));
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString("Unknown target id: 3"));
         Assert.assertEquals(resp.getType(), 404);
     }
 
@@ -2189,8 +2219,195 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(topologyProcessor, MILLIS_50,
                 MILLIS_100, MILLIS_50, MILLIS_100, licenseCheckClient, apiComponentTargetListener,
                 repositoryApi, actionSpecMapper, actionSearchUtil, apiWebsocketHandler,
-                targetsServiceBlockingStub, new PaginationMapper(), true, 100);
+                targetsServiceBlockingStub, new PaginationMapper(), new TargetDetailsMapper(),
+                true, 100);
         // this should throw IllegalStateException exception
         targetsService.createTarget("", Collections.emptyList());
+    }
+
+    /**
+     * When detail_devel=BASIC response should not fill in health nor health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetWithBasic() throws Exception {
+        final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
+        doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.BASIC);
+        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        assertNotNull(targetApiDTO);
+        assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+        assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+    }
+
+    /**
+     * When detail_devel=BASIC response should not fill in health nor health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetsWithBasic() throws Exception {
+        final TargetInfo targetInfo1 = createMockTargetInfo(1L, 1L);
+        final TargetInfo targetInfo2 = createMockTargetInfo(1L, 2L);
+        final SearchTargetsResponse searchTargetsResponse = SearchTargetsResponse.newBuilder()
+                .addTargets(1L)
+                .addTargets(2L)
+                .buildPartial();
+        doReturn(searchTargetsResponse).when(targetsServiceMole).searchTargets(any());
+        doReturn(Arrays.asList(targetInfo1, targetInfo2)).when(topologyProcessor).getTargets(anyList());
+        final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
+                null, null, null, TargetDetailLevel.BASIC,
+                new TargetPaginationRequest(null, null, true, null));
+        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
+        for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
+            assertNotNull(targetApiDTO);
+            assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+            assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        }
+    }
+
+    /**
+     * When detail_devel=HEALTH response should fill in health but not health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetWithHealth() throws Exception {
+        final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
+        doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH);
+        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        assertNotNull(targetApiDTO);
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+        assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+    }
+
+    /**
+     * When detail_devel=HEALTH response should fill in health but not health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetsWithHealth() throws Exception {
+        final TargetInfo targetInfo1 = createMockTargetInfo(1L, 1L);
+        final TargetInfo targetInfo2 = createMockTargetInfo(1L, 2L);
+        final SearchTargetsResponse searchTargetsResponse = SearchTargetsResponse.newBuilder()
+                .addTargets(1L)
+                .addTargets(2L)
+                .buildPartial();
+        doReturn(searchTargetsResponse).when(targetsServiceMole).searchTargets(any());
+        doReturn(Arrays.asList(targetInfo1, targetInfo2)).when(topologyProcessor).getTargets(anyList());
+        TargetHealth health = TargetHealth.newBuilder()
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                .build();
+        Map<Long, TargetHealth> healthMap = ImmutableMap.of(1L, health, 2L, health);
+        mockTargetHealth(healthMap);
+        final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
+                null, null, null, TargetDetailLevel.HEALTH,
+                new TargetPaginationRequest(null, null, true, null));
+        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
+        for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+            assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        }
+    }
+
+    /**
+     * When detail_devel=HEALTH_DETAILS response should fill in health and health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetWithHealthDetails() throws Exception {
+        final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
+        doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH_DETAILS);
+        verify(targetDetailsMapper, times(1)).convertToDiscoveryStageDetails(any());
+        assertNotNull(targetApiDTO);
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+    }
+
+    /**
+     * When detail_devel=HEALTH_DETAILS response should fill in health and health details.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetsWithHealthDetails() throws Exception {
+        final TargetInfo targetInfo1 = createMockTargetInfo(1L, 1L);
+        final TargetInfo targetInfo2 = createMockTargetInfo(1L, 2L);
+        final SearchTargetsResponse searchTargetsResponse = SearchTargetsResponse.newBuilder()
+                .addTargets(1L)
+                .addTargets(2L)
+                .buildPartial();
+        doReturn(searchTargetsResponse).when(targetsServiceMole).searchTargets(any());
+        doReturn(Arrays.asList(targetInfo1, targetInfo2)).when(topologyProcessor).getTargets(anyList());
+        TargetHealth health = TargetHealth.newBuilder()
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                .build();
+        Map<Long, TargetHealth> healthMap = ImmutableMap.of(1L, health, 2L, health);
+        mockTargetHealth(healthMap);
+        final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
+                null, null, null, TargetDetailLevel.HEALTH_DETAILS,
+                new TargetPaginationRequest(null, null, true, null));
+        verify(targetDetailsMapper, times(2)).convertToDiscoveryStageDetails(any());
+        Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
+        for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        }
+    }
+
+    private void mockTargetHealth(Map<Long, TargetHealth> health) {
+        doAnswer(invocationOnMock -> {
+            GetTargetDetailsResponse.Builder respBuilder = GetTargetDetailsResponse.newBuilder();
+            health.forEach((targetId, healthDeets) -> {
+                respBuilder.putTargetDetails(targetId, TargetDetails.newBuilder()
+                        .setTargetId(targetId)
+                        .setHealthDetails(healthDeets)
+                        .build());
+            });
+            return respBuilder.build();
+        }).when(targetsServiceMole).getTargetDetails(any());
+    }
+
+    /**
+     * The request should not fail if the health and details are not available for some. In that
+     * case the missing data will not be present in the response.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testHealthAndDetailsNotAvailableForSome() throws Exception {
+        final TargetInfo targetInfo1 = createMockTargetInfo(1L, 1L);
+        final TargetInfo targetInfo2 = createMockTargetInfo(1L, 2L);
+        final SearchTargetsResponse searchTargetsResponse = SearchTargetsResponse.newBuilder()
+                .addTargets(1L)
+                .addTargets(2L)
+                .buildPartial();
+        doReturn(searchTargetsResponse).when(targetsServiceMole).searchTargets(any());
+        doReturn(Arrays.asList(targetInfo1, targetInfo2)).when(topologyProcessor).getTargets(anyList());
+
+        // target health missing for target id 2
+        TargetHealth health = TargetHealth.newBuilder()
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                .build();
+        Map<Long, TargetHealth> healthMap = ImmutableMap.of(1L, health);
+        mockTargetHealth(healthMap);
+
+        final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
+                null, null, null, TargetDetailLevel.HEALTH_DETAILS,
+                new TargetPaginationRequest(null, null, true, null));
+        verify(targetDetailsMapper, times(1)).convertToDiscoveryStageDetails(any());
+        Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
+        assertNotNull(targetPaginationResponse.getRawResults().get(0).getHealth());
+        assertNotNull(targetPaginationResponse.getRawResults().get(0).getDiscoveryStageDetails());
+        // Target 2 has neither health nor details.
+        assertNull(targetPaginationResponse.getRawResults().get(1).getHealth());
+        assertNull(targetPaginationResponse.getRawResults().get(1).getDiscoveryStageDetails());
     }
 }

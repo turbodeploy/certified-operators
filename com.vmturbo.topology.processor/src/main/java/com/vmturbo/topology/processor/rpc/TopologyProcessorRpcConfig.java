@@ -109,7 +109,13 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public TargetsRpcService targetRpcService() {
         return new TargetsRpcService(targetConfig.targetStore(), probeConfig.probeStore(),
-                operationConfig.operationManager());
+                operationConfig.operationManager(), targetConfig.targetStatusTracker(), targetHealthRetriever());
+    }
+
+    @Bean
+    public TargetHealthRetriever targetHealthRetriever() {
+        return new TargetHealthRetriever(operationConfig.operationManager(),
+                targetConfig.targetStatusTracker(), targetConfig.targetStore(), clockConfig.clock());
     }
 
     /**

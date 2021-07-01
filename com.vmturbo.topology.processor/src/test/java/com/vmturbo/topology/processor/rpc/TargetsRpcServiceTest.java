@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 
 /**
  * Test class for {@link TargetsRpcService} class.
@@ -88,9 +89,14 @@ public class TargetsRpcServiceTest {
 
     private ProbeStore probeStore = mock(ProbeStore.class);
 
+    private TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
+
     private IOperationManager operationManager = mock(IOperationManager.class);
 
-    private TargetsRpcService service = new TargetsRpcService(targetStore, probeStore, operationManager);
+    private TargetHealthRetriever targetHealthRetriever = mock(TargetHealthRetriever.class);
+
+    private TargetsRpcService service = new TargetsRpcService(targetStore, probeStore, operationManager,
+            targetStatusTracker, targetHealthRetriever);
 
     /**
      * gRPC server for testing. It's good to use a test server instead of making calls to

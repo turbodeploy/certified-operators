@@ -23,15 +23,17 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
@@ -39,10 +41,12 @@ import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStat
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.HealthDataMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchOrderByMapper;
+import com.vmturbo.api.component.external.api.mapper.TargetDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.TargetMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -82,6 +86,8 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.target.TargetDTO;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsRequest.GroupBy;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse;
@@ -89,6 +95,7 @@ import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse.Targ
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse.TargetsGroupStat.StatGroup;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -96,7 +103,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountValue;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -120,6 +126,16 @@ public class TargetsService implements ITargetsService {
             StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS,
             StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
             StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
+    /**
+     * Map from API detail levels to the {@link com.vmturbo.common.protobuf.target.TargetDTO.TargetDetailLevel}
+     * required to fill the API DTOs.
+     *
+     * <p/>Note - the "Basic" detail level in the API returns null.
+     */
+    private static final Map<TargetDetailLevel, TargetDTO.TargetDetailLevel> DETAIL_LEVEL_MAP
+            = ImmutableMap.of(TargetDetailLevel.HEALTH, TargetDTO.TargetDetailLevel.HEALTH_ONLY,
+                TargetDetailLevel.HEALTH_DETAILS, TargetDTO.TargetDetailLevel.FULL);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -147,6 +163,9 @@ public class TargetsService implements ITargetsService {
 
     private final TargetsServiceBlockingStub targetsService;
     private final PaginationMapper paginationMapper;
+
+    private final TargetDetailsMapper targetDetailsMapper;
+
     private final boolean allowTargetManagement;
 
     private final int apiPaginationDefaultLimit;
@@ -156,6 +175,26 @@ public class TargetsService implements ITargetsService {
      */
     private final TargetMapper targetMapper = new TargetMapper();
 
+    /**
+     * Constructs the TargetsService and injects the provided dependencies.
+     *
+     * @param topologyProcessor the topology processor service.
+     * @param targetValidationTimeout how long until validation times out.
+     * @param targetValidationPollInterval the amount of time between validation status polls.
+     * @param targetDiscoveryTimeout how long until discovery times out.
+     * @param targetDiscoveryPollInterval the amount of time between discovery status polls.
+     * @param licenseCheckClient the client to check license status.
+     * @param apiComponentTargetListener the target status listener.
+     * @param repositoryApi the client to the respository.
+     * @param actionSpecMapper the mapper for converting actions.
+     * @param actionSearchUtil the client for searching for actions.
+     * @param apiWebsocketHandler the websocket for target updates.
+     * @param targetsService the internal target service.
+     * @param paginationMapper the mapper for converting pages.
+     * @param targetDetailsMapper the target details mapper.
+     * @param allowTargetManagement whether or not to allow target management.
+     * @param apiPaginationDefaultLimit the default page limit on number of entities.
+     */
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
                           @Nonnull final Duration targetValidationPollInterval,
@@ -169,6 +208,7 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
                           @Nonnull TargetsServiceBlockingStub targetsService,
                           @Nonnull final PaginationMapper paginationMapper,
+                          @Nonnull final TargetDetailsMapper targetDetailsMapper,
                           final boolean allowTargetManagement,
                           final int apiPaginationDefaultLimit) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
@@ -184,6 +224,7 @@ public class TargetsService implements ITargetsService {
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.targetDetailsMapper = Objects.requireNonNull(targetDetailsMapper);
         this.allowTargetManagement = allowTargetManagement;
         this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
         logger.debug("Created TargetsService with topology processor instance {}",
@@ -213,12 +254,11 @@ public class TargetsService implements ITargetsService {
     @Override
     @Nonnull
     public TargetPaginationRequest.TargetPaginationResponse getTargets(
-         @Nullable final EnvironmentType environmentType,
-         @Nullable final String query,
-         @Nullable final String targetCategory,
-         @Nullable final TargetDetailLevel targetDetailLevel,
-         @Nonnull final TargetPaginationRequest paginationRequest) {
-        // TODO(OM-72234): Implement targetDetailLevel
+           @Nullable final EnvironmentType environmentType,
+           @Nullable final String query,
+           @Nullable final String targetCategory,
+           @Nullable final TargetDetailLevel targetDetailLevel,
+           @Nonnull final TargetPaginationRequest paginationRequest) {
         try {
             final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
 
@@ -239,12 +279,12 @@ public class TargetsService implements ITargetsService {
             }
 
             // create the request for getting the targets
-            SearchTargetsRequest request = createSearchTargetRequest(environmentType,
+            final SearchTargetsRequest request = createSearchTargetRequest(environmentType,
                 query, paginationRequest, probeTypes);
-
             final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
 
-            List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(), probeMap);
+            final List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(), probeMap);
+            decorateWithDetails(targetList, targetDetailLevel);
 
             if (searchResponse.hasPaginationResponse()) {
                 final int totalRecords = searchResponse.getPaginationResponse().getTotalRecordCount();
@@ -419,6 +459,36 @@ public class TargetsService implements ITargetsService {
         return Collections.singletonList(statSnapshotApiDTO);
     }
 
+    private void decorateWithDetails(List<TargetApiDTO> targets, TargetDetailLevel apiDetailLevel) {
+
+        // Fetch additional details if necessary.
+        // TODO (roman, Jun 30 2021): In the future there should be a single search call to
+        // the topology processor, instead of search -> get targets -> get details.
+        TargetDTO.TargetDetailLevel detailLevel = DETAIL_LEVEL_MAP.get(apiDetailLevel);
+        if (detailLevel != null) {
+            Set<Long> targetIds = targets.stream()
+                .map(target -> Long.parseLong(target.getUuid()))
+                .collect(Collectors.toSet());
+            Map<Long, TargetDetails> detailsByTarget = targetsService.getTargetDetails(GetTargetDetailsRequest.newBuilder()
+                    .addAllTargetIds(targetIds)
+                    .setDetailLevel(detailLevel)
+                    .build()).getTargetDetailsMap();
+            for (TargetApiDTO targetApiDTO : targets) {
+                TargetDetails details = detailsByTarget.get(Long.parseLong(targetApiDTO.getUuid()));
+                if (details != null) {
+                    if (details.hasHealthDetails()) {
+                        targetApiDTO.setHealth(HealthDataMapper.mapTargetHealthInfoToDTO(details.getTargetId(),
+                                details.getHealthDetails()));
+                    }
+                    if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
+                        targetApiDTO.setDiscoveryStageDetails(targetDetailsMapper.convertToDiscoveryStageDetails(details));
+                    }
+                }
+            }
+        }
+
+    }
+
     /**
      * Return information about the given target. This largely contains information from the
      * associated probe. This is a blocking call that makes network requests of the
@@ -443,8 +513,12 @@ public class TargetsService implements ITargetsService {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
             Map<Long, TargetInfo> derivedTargetMap =
                 getDerivedTargetsMap(Collections.singletonList(targetInfo));
-            return createTargetDtoWithRelationships(targetInfo,
+            TargetApiDTO targetApiDTO = createTargetDtoWithRelationships(targetInfo,
                 derivedTargetMap, getProbeIdToProbeInfoMap());
+
+            decorateWithDetails(Collections.singletonList(targetApiDTO), targetDetailLevel);
+
+            return targetApiDTO;
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -497,9 +571,9 @@ public class TargetsService implements ITargetsService {
      * include the feature(s) necessary to operate the probe. A storage probe, for example, requires
      * the "storage" feature to available in the license.
      *
-     * This restriction check is only performed if a {@link LicenseCheckClient} has been provided.
+     * <p>This restriction check is only performed if a {@link LicenseCheckClient} has been provided.
      * If there is no <code>LicenseCheckClient</code> configured, this check always returns
-     * <code>true</code>.
+     * <code>true</code>.</p>
      *
      * @param probeInfo the ProbeInfo to check.
      * @return false, if the <code>ProbeController</code> was configured with a
@@ -507,8 +581,12 @@ public class TargetsService implements ITargetsService {
      * license. true, otherwise.
      */
     private boolean isProbeLicensed(ProbeInfo probeInfo) {
-        if (licenseCheckClient == null) return true;
-        if (!probeInfo.getLicense().isPresent()) return true;
+        if (licenseCheckClient == null) {
+            return true;
+        }
+        if (!probeInfo.getLicense().isPresent()) {
+            return true;
+        }
         Optional<ProbeLicense> licenseCategory = ProbeLicense.create(probeInfo.getLicense().get());
         return licenseCategory.map(licenseCheckClient::isFeatureAvailable).orElse(true);
     }
@@ -564,8 +642,9 @@ public class TargetsService implements ITargetsService {
         }
 
         //PAGINATED CALLS
-        final SearchOrderBy protoSearchOrderByEnum = searchOrderBy == null ? SearchOrderBy.ENTITY_NAME :
-                SearchOrderByMapper.fromApiToProtoEnum(
+        final SearchOrderBy protoSearchOrderByEnum = searchOrderBy == null
+                ? SearchOrderBy.ENTITY_NAME
+                : SearchOrderByMapper.fromApiToProtoEnum(
                         com.vmturbo.api.pagination.SearchOrderBy.valueOf(searchOrderBy.toUpperCase()));
         Pagination.OrderBy orderBy = Pagination.OrderBy.newBuilder()
                 .setSearch(protoSearchOrderByEnum)
@@ -590,10 +669,9 @@ public class TargetsService implements ITargetsService {
      * @param uuid the unique ID for the target
      * @param statPeriodApiInputDTO dto used to filter the list of Statistics
      * @return a List of {@link StatSnapshotApiDTO}
-     * @throws Exception
      */
     @Override
-    public List<StatSnapshotApiDTO> getStatsByTargetQuery(final String uuid, final StatPeriodApiInputDTO statPeriodApiInputDTO) throws Exception {
+    public List<StatSnapshotApiDTO> getStatsByTargetQuery(final String uuid, final StatPeriodApiInputDTO statPeriodApiInputDTO) {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -625,7 +703,7 @@ public class TargetsService implements ITargetsService {
             final TargetData newtargetData = new NewTargetData(probeType, inputFields);
             try {
                 // store the target number to determine if to send notification to UI.
-                final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size() ;
+                final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size();
                 final long targetId = topologyProcessor.addTarget(probeId, newtargetData);
 
                 // There is an edge case where discovery may not be kicked off yet by the time add target returns.
@@ -642,9 +720,9 @@ public class TargetsService implements ITargetsService {
 
                 // if validation is successful and this is the first target, listen to the results
                 // and send notification to UI
-                if (validatedTargetInfo != null &&
-                        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
-                        targetSizeBeforeValidation == 0) {
+                if (validatedTargetInfo != null
+                        && StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus())
+                        && targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
                 Map<Long, TargetInfo> derivedTargetMap =
@@ -685,8 +763,8 @@ public class TargetsService implements ITargetsService {
      * Execute either a validation, a rediscovery, both, or neither, on the given target, specified
      * by uuid. This is a blocking call that makes network requests of the Topology-Processor.
      *
-     * If both validation and discovery are requested, validation will be synchronously performed first. If validation
-     * fails, discovery will not be performed. If validation succeeds, discovery will then be performed.
+     * <p>If both validation and discovery are requested, validation will be synchronously performed first. If validation
+     * fails, discovery will not be performed. If validation succeeds, discovery will then be performed.</p>
      *
      * @param uuid the uuid of the target to be operated upon - must be convertible to a Long
      * @param validate if true, then validate the target - may be null, which implies false.
@@ -711,9 +789,9 @@ public class TargetsService implements ITargetsService {
 
             // Discover if the flag is set and, if validation was performed, it also succeeded.
             // There is no point in running a discovery when validation has just immediately failed.
-            boolean shouldDiscover = rediscover != null && rediscover &&
-                    result.map(targetDto -> targetDto.getStatus() != null &&
-                            targetDto.getStatus().equals(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
+            boolean shouldDiscover = rediscover != null && rediscover
+                    && result.map(targetDto -> targetDto.getStatus() != null
+                    && targetDto.getStatus().equals(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
                             .orElse(true);
 
             if (shouldDiscover) {
@@ -840,6 +918,7 @@ public class TargetsService implements ITargetsService {
         private Optional<String> communicationBindingChannel = Optional.empty();
 
         private static final InputFieldApiDTO storageBrowsingDisabledDTO = new InputFieldApiDTO();
+
         static {
             storageBrowsingDisabledDTO.setName(IS_STORAGE_BROWSING_ENABLED);
             storageBrowsingDisabledDTO.setValue("false");
@@ -874,10 +953,10 @@ public class TargetsService implements ITargetsService {
         /**
          * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
          * and value to build the new AccountData value to describe the target.
-         * <p>
+         *
          * <p>Warning: The GroupProperties of the InputFieldApiDTO is ignored for now, since there is a
          * mismatch between the InputFieldApiDTO ({@code List<String>)}) and the
-         * InputField.groupProperties ({@code List<List<String>>}).
+         * InputField.groupProperties ({@code List<List<String>>}).</p>
          *
          * @param probeType probe type
          * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
@@ -933,11 +1012,10 @@ public class TargetsService implements ITargetsService {
      * Poll the topology processor until validation completes or the timeout for validation expires.
      * Execution of this method blocks until one of the following happens:
      * <ul>
-     *     <li>Validation completes.</ul>
-     *     <li>An exception is thrown.</ul>
-     *     <li>The validation timeout expires.</ul>
+     *     <li>Validation completes.</li>
+     *     <li>An exception is thrown.</li>
+     *     <li>The validation timeout expires.</li>
      * </ul>
-     *
      * If the timeout expires, the method returns the status of target when the timeout expires.
      *
      * @param targetId The ID of the target to be validated.
@@ -957,8 +1035,9 @@ public class TargetsService implements ITargetsService {
             // If target status is not validated or in progress from topology processor, the target
             // validation fails. Send failed validation message to UI.
             if (!NON_VALIDATION_FAILED_STATUS_SET.contains(targetInfo.getStatus())) {
-                String statusDescription = targetInfo.getStatus() == null ? "Target validation failed." :
-                        targetInfo.getStatus();
+                String statusDescription = targetInfo.getStatus() == null
+                        ? "Target validation failed."
+                        : targetInfo.getStatus();
                 TargetNotification targetNotification =
                         buildTargetValidationNotification(targetId, statusDescription);
                 apiWebsocketHandler.broadcastTargetValidationNotification(targetNotification);
@@ -998,11 +1077,10 @@ public class TargetsService implements ITargetsService {
      * Poll the topology processor until discovery completes or the discovery times out.
      * Execution of this method blocks until one of the following happens:
      * <ul>
-     *     <li>Discovery completes.</ul>
-     *     <li>An exception is thrown.</ul>
-     *     <li>The discovery timeout expires.</ul>
+     *     <li>Discovery completes.</li>
+     *     <li>An exception is thrown.</li>
+     *     <li>The discovery timeout expires.</li>
      * </ul>
-     *
      * If the timeout expires, the method returns the status of target when the timeout expires.
      *
      * @param targetId The ID of the target to be discovered.
@@ -1022,6 +1100,9 @@ public class TargetsService implements ITargetsService {
     }
 
     /**
+     * Polls the provided targetId until it achieves waitOnStatus or timeout, which ever happens
+     * first.
+     *
      * @param targetId The ID of the target to be polled.
      * @param timeout Timeout for the operation.
      * @param pollInterval Wait time between polling.
@@ -1040,9 +1121,9 @@ public class TargetsService implements ITargetsService {
         TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
         Duration elapsed = Duration.ofMillis(0);
 
-        while (targetInfo.getStatus() != null &&
-                targetInfo.getStatus().equals(waitOnStatus) &&
-                elapsed.compareTo(timeout) < 0) {
+        while (targetInfo.getStatus() != null
+                && targetInfo.getStatus().equals(waitOnStatus)
+                && elapsed.compareTo(timeout) < 0) {
 
             Thread.sleep(pollInterval.toMillis());
             elapsed = elapsed.plus(pollInterval);
@@ -1112,8 +1193,8 @@ public class TargetsService implements ITargetsService {
                 }
             } else {
                 logger.warn(
-                        "Derived Target {} no longer exists, but appears as a derived target in the " +
-                                "target store", targetId);
+                        "Derived Target {} no longer exists, but appears as a derived target in the "
+                                + "target store", targetId);
             }
         });
         return derivedTargetsDtos;
@@ -1127,7 +1208,12 @@ public class TargetsService implements ITargetsService {
 
         private static final long serialVersionUID = 1L;
 
-        public CommunicationError(CommunicationException e) {
+        /**
+         * Wraps the provided exception.
+         *
+         * @param e the exception to wrap.
+         */
+        public CommunicationError(Exception e) {
             super(e.getMessage(), e);
         }
     }
@@ -1136,6 +1222,11 @@ public class TargetsService implements ITargetsService {
      * Internal exception to show, that field verification has been failed.
      */
     public static class FieldVerificationException extends Exception {
+        /**
+         * Creates an exception with the provided message.
+         *
+         * @param message the message describing the exception.
+         */
         public FieldVerificationException(String message) {
             super(message);
         }
@@ -1162,15 +1253,19 @@ public class TargetsService implements ITargetsService {
     @Nonnull
     public List<TargetHealthApiDTO> getTargetsHealth(@Nullable HealthState state) {
         try {
-            Set<ITargetHealthInfo> healthOfTargets = topologyProcessor.getAllTargetsHealth();
-            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream()
-                .map(HealthDataMapper::mapTargetHealthInfoToDTO)
-                .filter(healthDTO -> healthStateFilter(healthDTO, state))
-                .collect(Collectors.toList());
-            healthDTOs.sort(new HealthResponseComparator(state == null));
+            List<TargetHealthApiDTO> healthDTOs = targetsService.getTargetDetails(
+                    GetTargetDetailsRequest.newBuilder()
+                            .setReturnAll(true)
+                            .setDetailLevel(TargetDTO.TargetDetailLevel.HEALTH_ONLY)
+                            .build()).getTargetDetailsMap().values().stream()
+                    .map(targetDetails -> HealthDataMapper.mapTargetHealthInfoToDTO(
+                            targetDetails.getTargetId(), targetDetails.getHealthDetails()))
+                    .filter(healthDTO -> healthStateFilter(healthDTO, state))
+                    .sorted(new HealthResponseComparator(state == null))
+                    .collect(Collectors.toList());
             return healthDTOs;
-        } catch (CommunicationException e) {
-            throw new CommunicationError(e);
+        } catch (StatusRuntimeException e) {
+            throw new CommunicationError(ExceptionMapper.translateStatusException(e));
         }
     }
 
@@ -1179,12 +1274,17 @@ public class TargetsService implements ITargetsService {
     public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) throws UnknownObjectException {
         long targetId = Long.parseLong(uuid);
         try {
-            ITargetHealthInfo healthInfo = topologyProcessor.getTargetHealth(targetId);
-            return HealthDataMapper.mapTargetHealthInfoToDTO(healthInfo);
-        } catch (CommunicationException e) {
-            throw new CommunicationError(e);
-        } catch (TopologyProcessorException e) {
-            throw new UnknownObjectException("Error getting target health info", e);
+            TargetDetails targetDetails = targetsService.getTargetDetails(
+                    GetTargetDetailsRequest.newBuilder()
+                            .setDetailLevel(TargetDTO.TargetDetailLevel.HEALTH_ONLY)
+                            .addTargetIds(targetId)
+                            .build()).getTargetDetailsMap().get(targetId);
+            if (targetDetails == null) {
+                throw new UnknownObjectException("Unknown target id: " + uuid);
+            }
+            return HealthDataMapper.mapTargetHealthInfoToDTO(targetDetails.getTargetId(), targetDetails.getHealthDetails());
+        } catch (StatusRuntimeException e) {
+            throw new CommunicationError(ExceptionMapper.translateStatusException(e));
         }
     }
 
@@ -1194,6 +1294,12 @@ public class TargetsService implements ITargetsService {
     public class HealthResponseComparator implements Comparator<TargetHealthApiDTO> {
         private boolean sortByState;
 
+        /**
+         * Creates a comparator that sorts by state then by subcategory if flag is true,
+         * otherwise sorts only by sub category.
+         *
+         * @param sortByState whether or not to sort by stage.
+         */
         public HealthResponseComparator(boolean sortByState)   {
             this.sortByState = sortByState;
         }

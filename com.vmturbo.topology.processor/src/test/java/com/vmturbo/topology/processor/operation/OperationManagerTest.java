@@ -265,9 +265,9 @@ public class OperationManagerTest {
         Assert.assertTrue(discovery.isInProgress());
         Assert.assertTrue(discovery.getErrors().isEmpty());
 
-        before = LocalDateTime.now();
+        before = LocalDateTime.now(Clock.systemUTC());
         discovery.success();
-        after = LocalDateTime.now();
+        after = LocalDateTime.now(Clock.systemUTC());
         testNow(discovery.getCompletionTime(), before, after);
         Assert.assertEquals(Status.SUCCESS, discovery.getStatus());
 

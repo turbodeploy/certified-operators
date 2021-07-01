@@ -105,24 +105,6 @@ public interface TopologyProcessor {
             throws CommunicationException, TopologyProcessorException;
 
     /**
-     * Returns target health info by id.
-     * @param id of the target
-     * @return {@link TargetHealthInfo}
-     * @throws CommunicationException if persistent communication exception occurred
-     * @throws TopologyProcessorException if target is not found by the specified id
-     */
-    @Nonnull
-    ITargetHealthInfo getTargetHealth(long id) throws CommunicationException, TopologyProcessorException;
-
-    /**
-     * Returns health of all targets.
-     * @return a set of {@link ITargetHealthInfo} objects for all targets.
-     * @throws CommunicationException if persistent communication exception occurred
-     */
-    @Nonnull
-    Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException;
-
-    /**
      * Triggers target validation. Method is blocked until validation has been started.
      *
      * @param targetId target to validate
@@ -234,4 +216,3 @@ public interface TopologyProcessor {
     void addEntitiesWithNewStatesListener(@Nonnull EntitiesWithNewStateListener listener);
 
 }
-

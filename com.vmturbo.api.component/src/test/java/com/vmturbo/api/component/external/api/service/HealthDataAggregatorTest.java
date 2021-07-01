@@ -1,14 +1,16 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
-import java.time.LocalDateTime;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
@@ -17,21 +19,39 @@ import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
+import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
+import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 
 /**
  * Tests the work of {@link HealthDataAggregator}.
  */
 public class HealthDataAggregatorTest {
 
-    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+    private TargetsServiceMole targetBackend = spy(TargetsServiceMole.class);
 
-    private HealthDataAggregator healthDataAggregator = new HealthDataAggregator(topologyProcessor);
+    /**
+     * gRPC test server.
+     */
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend);
+
+    private HealthDataAggregator healthDataAggregator;
+
+    /**
+     * Common code before every test.
+     */
+    @Before
+    public void setup() {
+        healthDataAggregator = new HealthDataAggregator(TargetsServiceGrpc.newBlockingStub(
+                testServer.getChannel()));
+    }
 
     /**
      * Tests getting the aggregated health data for the TARGET health check category.
@@ -39,18 +59,18 @@ public class HealthDataAggregatorTest {
      */
     @Test
     public void testGetAggregatedTargetsHealth() throws CommunicationException {
-        Set<ITargetHealthInfo> healthOfTargets = new HashSet<>();
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, 0L, "fineValidated"));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 1L, "fineDiscovered"));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, 2L, "pendingValidationA",
+        Map<Long, TargetHealth> healthOfTargets = new HashMap<>();
+        healthOfTargets.put(0L, makeHealth(TargetHealthSubCategory.VALIDATION, "fineValidated"));
+        healthOfTargets.put(1L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscovered"));
+        healthOfTargets.put(2L, makeHealth(TargetHealthSubCategory.VALIDATION, "pendingValidationA",
                         "Pending Validation."));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 3L, "failedDiscoveryA",
-                        ErrorType.DATA_IS_MISSING, "Data is missing.", LocalDateTime.now(), 2));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 4L, "failedDiscoveryB",
-                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", LocalDateTime.now(), 4));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 5L, "failedDiscoveryC",
-                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", LocalDateTime.now(), 3));
-        when(topologyProcessor.getAllTargetsHealth()).thenReturn(healthOfTargets);
+        healthOfTargets.put(3L, makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryA",
+                        ErrorType.DATA_IS_MISSING, "Data is missing.", 1_000_000, 2));
+        healthOfTargets.put(4L, makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryB",
+                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4));
+        healthOfTargets.put(5L, makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryC",
+                        ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 3));
+        mockTargetHealth(healthOfTargets);
 
         HealthCheckCategory checkCategory = HealthCheckCategory.TARGET;
         List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(checkCategory);
@@ -73,6 +93,47 @@ public class HealthDataAggregatorTest {
         }
     }
 
+    private void mockTargetHealth(Map<Long, TargetHealth> health) {
+        doAnswer(invocationOnMock -> {
+            GetTargetDetailsResponse.Builder respBuilder = GetTargetDetailsResponse.newBuilder();
+            health.forEach((targetId, healthDeets) -> {
+                respBuilder.putTargetDetails(targetId, TargetDetails.newBuilder()
+                        .setTargetId(targetId)
+                        .setHealthDetails(healthDeets)
+                        .build());
+            });
+            return respBuilder.build();
+        }).when(targetBackend).getTargetDetails(any());
+    }
+
+    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName,
+            final ErrorType errorType, final String errorText,
+            final long failureTime, final int failureTimes) {
+        return TargetHealth.newBuilder()
+                .setSubcategory(category)
+                .setTargetName(targetDisplayName)
+                .setErrorText(errorText)
+                .setErrorType(errorType)
+                .setTimeOfFirstFailure(failureTime)
+                .setConsecutiveFailureCount(failureTimes)
+                .build();
+    }
+
+    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName, final String errorText) {
+        return TargetHealth.newBuilder()
+                .setSubcategory(category)
+                .setTargetName(targetDisplayName)
+                .setErrorText(errorText)
+                .build();
+    }
+
+    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName) {
+        return TargetHealth.newBuilder()
+                .setSubcategory(category)
+                .setTargetName(targetDisplayName)
+                .build();
+    }
+
     /**
      * Tests getting the aggregated health data for the default health check category in the case
      * when there's only the TARGET check category supported and the health state is MINOR.
@@ -80,12 +141,11 @@ public class HealthDataAggregatorTest {
      */
     @Test
     public void testGetAggregatedTargetsHealthJustMinor() throws CommunicationException {
-        Set<ITargetHealthInfo> healthOfTargets = new HashSet<>();
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, 0L, "fineValidated"));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 1L, "fineDiscovered"));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, 2L, "pendingValidationA",
-                        "Pending Validation."));
-        when(topologyProcessor.getAllTargetsHealth()).thenReturn(healthOfTargets);
+        Map<Long, TargetHealth> healthOfTargets = new HashMap<>();
+        healthOfTargets.put(0L, makeHealth(TargetHealthSubCategory.VALIDATION, "fineValidated"));
+        healthOfTargets.put(1L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscovered"));
+        healthOfTargets.put(2L, makeHealth(TargetHealthSubCategory.VALIDATION, "pendingValidationA", "Pending Validation."));
+        mockTargetHealth(healthOfTargets);
 
         List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
         Assert.assertEquals(1, aggregatedData.size());
@@ -114,10 +174,10 @@ public class HealthDataAggregatorTest {
      */
     @Test
     public void testNoValidationButNormalTargetsDiscoveries() throws CommunicationException {
-        Set<ITargetHealthInfo> healthOfTargets = new HashSet<>();
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 0L, "fineDiscoveredA"));
-        healthOfTargets.add(new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, 1L, "fineDiscoveredB"));
-        when(topologyProcessor.getAllTargetsHealth()).thenReturn(healthOfTargets);
+        Map<Long, TargetHealth> healthOfTargets = new HashMap<>();
+        healthOfTargets.put(0L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredA"));
+        healthOfTargets.put(1L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredB"));
+        mockTargetHealth(healthOfTargets);
 
         HealthCategoryReponseDTO responseDTO = healthDataAggregator.getAggregatedHealth(
                         HealthCheckCategory.TARGET).get(0);

@@ -27,6 +27,7 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 
 /**
  * Operation manager supplies with information about operations on targets.
@@ -350,10 +351,11 @@ public interface IOperationManager {
             CommunicationException;
 
     /**
-     * Set failed discoveries tracker.
-     * @param failedDiscoveryTracker is the tracker.
+     * Set target status tracker.
+     *
+     * @param targetStatusTracker target status tracker
      */
-    public void setFailedDiscoveryTracker(@Nonnull FailedDiscoveryTracker failedDiscoveryTracker);
+    public void setTargetStatusTracker(@Nonnull TargetStatusTracker targetStatusTracker);
 
     /**
      * Operation callback to receive success and failure for a requested operation.

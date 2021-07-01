@@ -152,6 +152,15 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         return Optional.ofNullable(targetsById.get(targetId));
     }
 
+    @Nonnull
+    @Override
+    public List<Target> getTargets(@Nonnull final Set<Long> targetIds) {
+        return targetIds.stream()
+            .map(targetsById::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
     /**
      * {@inheritDoc}
      */

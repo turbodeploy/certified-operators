@@ -124,6 +124,10 @@
                                     <name>java.time.LocalDateTime</name>
                                     <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus</name>
+                                    <converter>com.vmturbo.topology.processor.targets.status.TargetStatusDbConverter</converter>
+                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
@@ -131,6 +135,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor</name>
                                     <expression>.*\.assigned_identity\.properties</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus</name>
+                                    <expression>.*\.target_status\.status</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>java.time.LocalDateTime</name>

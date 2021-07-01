@@ -107,7 +107,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]StatsService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]SupplyChainsService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]TagsService.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]TargetsService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]TemplatesService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]UsersService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]service[/\\]WidgetSetsService.java" />
