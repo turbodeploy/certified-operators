@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -121,6 +122,12 @@ public class CloudMigrationPlanHelper {
      * Service for historical stat requests.
      */
     final StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub;
+
+    /**
+     * Max number of entities to use at a time, partition anything more than this, and send the
+     * request out in batches. > 1000 and it starts using temp tables, so keep it less to avoid that.
+     */
+    private static final int MAX_HISTORY_SERVICE_ENTITIES = 900;
 
     /**
      * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2/GP3 & managed_premium.
@@ -242,7 +249,7 @@ public class CloudMigrationPlanHelper {
      * together with the volume provider ID in this map. It will be used when preparing the
      * commodities of VM providers as the value also need to be set in the volume entity as well.
      */
-    private Map<Long, Double> volumeToStorageAmountMap = new HashMap<>();
+    private final Map<Long, Double> volumeToStorageAmountMap = new HashMap<>();
 
     /**
      * Constructor called by migration stage.
@@ -294,6 +301,14 @@ public class CloudMigrationPlanHelper {
             logger.error("Illegal intra-cloud migration plan {} stopped.", planOid);
             throw CloudMigrationStageException.intraCloudMigrationException(planOid);
         }
+        // Some helpful info logging.
+        final String targetRegion = planScope != null && planScope.getScopeEntriesCount() > 0
+                ? planScope.getScopeEntries(0).getDisplayName() : "";
+        final String planType = TopologyDTOUtil.isResizableCloudMigrationPlan(
+                context.getTopologyInfo()) ? "OPTIMIZED" : "LIFT & SHIFT";
+        logger.info("{} Starting Cloud Migration Stage. Plan type: {} to target region {}.",
+                TopologyDTOUtil.formatPlanLogPrefix(context.getTopologyInfo().getTopologyContextId()),
+                planType, targetRegion);
         TopologyMigration migrationChange = changes
                 .stream()
                 .filter(ScenarioChange::hasTopologyMigration)
@@ -307,7 +322,7 @@ public class CloudMigrationPlanHelper {
             sourceEntities, inputGraph, migrationChange, planOid, isDestinationAws);
 
         final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess =
-                getHistoricalStorageAccessPeak(
+                getHistoricalStorageAccessPeak(context,
                         migrationChange.getDestinationEntityType() == DestinationEntityType.VIRTUAL_MACHINE
                                 ? EntityType.VIRTUAL_MACHINE.getNumber()
                                 : EntityType.DATABASE_SERVER.getNumber(),
@@ -323,6 +338,12 @@ public class CloudMigrationPlanHelper {
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
             settingPolicyEditors.add(new CloudMigrationSettingsPolicyEditor(sourceEntities, outputGraph));
         }
+
+        logger.info("{} Completed Cloud Migration Stage. Input scope {} seed entities. "
+                        + "VMs being migrated: {}.",
+                TopologyDTOUtil.formatPlanLogPrefix(context.getTopologyInfo().getTopologyContextId()),
+        context.getTopologyInfo().getScopeSeedOidsCount(),
+                outputGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE).count());
 
         return outputGraph;
     }
@@ -611,40 +632,52 @@ public class CloudMigrationPlanHelper {
      * Retrieves the historical max StorageAccess commodity bought value over the last 30 days, and
      * updates the StorageAccess commodityBought used and peak values to that maximum.
      *
+     * @param context For logging info.
      * @param entityType the migration source type
      * @param sourceEntities a set of all OIDs being migrated
      * @return a map of migration source -> producer -> maxHistoricalStorageAccessPeak
      */
     private Map<Long, Map<Long, Double>> getHistoricalStorageAccessPeak(
+            @Nonnull final TopologyPipelineContext context,
             @Nonnull final int entityType,
             @Nonnull final Set<Long> sourceEntities) {
         if (CollectionUtils.isEmpty(sourceEntities)) {
             return Collections.emptyMap();
         }
 
-        final Iterator<EntityCommoditiesMaxValues> commMaxValues = statsHistoryServiceBlockingStub
-                .getEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest.newBuilder()
-                    .setEntityType(entityType)
-                    .addAllCommodityTypes(ImmutableSet.of(CommodityType.STORAGE_ACCESS_VALUE))
-                    .setIsBought(true)
-                    .addAllUuids(sourceEntities)
-                    .setUseHistoricalCommBoughtLookbackDays(true)
-                    .build());
-
+        long startTime = System.currentTimeMillis();
         final Map<Long, Map<Long, Double>> toReturn = Maps.newHashMap();
-        commMaxValues.forEachRemaining(entityCommoditiesMaxValues -> {
-            long migratingEntityOid = entityCommoditiesMaxValues.getOid();
-            final Map<Long, Double> producerToMaxValue =
-                entityCommoditiesMaxValues.getCommodityMaxValuesList().stream()
-                    .collect(Collectors.toMap(
-                        CommodityMaxValue::getProducerOid,
-                        CommodityMaxValue::getMaxValue));
-            if (toReturn.containsKey(migratingEntityOid)) {
-                toReturn.get(migratingEntityOid).putAll(producerToMaxValue);
-            } else {
-                toReturn.put(migratingEntityOid, producerToMaxValue);
-            }
-        });
+        for (List<Long> subsetEntities : Iterables.partition(sourceEntities,
+                MAX_HISTORY_SERVICE_ENTITIES)) {
+            final Iterator<EntityCommoditiesMaxValues> commMaxValues =
+                    statsHistoryServiceBlockingStub.getEntityCommoditiesMaxValues(
+                            GetEntityCommoditiesMaxValuesRequest.newBuilder()
+                                    .setEntityType(entityType)
+                                    .addAllCommodityTypes(ImmutableSet.of(
+                                            CommodityType.STORAGE_ACCESS_VALUE))
+                                    .setIsBought(true)
+                                    .addAllUuids(subsetEntities)
+                                    .setUseHistoricalCommBoughtLookbackDays(true)
+                                    .build());
+
+            commMaxValues.forEachRemaining(entityCommoditiesMaxValues -> {
+                long migratingEntityOid = entityCommoditiesMaxValues.getOid();
+                final Map<Long, Double> producerToMaxValue =
+                        entityCommoditiesMaxValues.getCommodityMaxValuesList().stream().collect(
+                                Collectors.toMap(CommodityMaxValue::getProducerOid,
+                                        CommodityMaxValue::getMaxValue));
+                if (toReturn.containsKey(migratingEntityOid)) {
+                    toReturn.get(migratingEntityOid).putAll(producerToMaxValue);
+                } else {
+                    toReturn.put(migratingEntityOid, producerToMaxValue);
+                }
+            });
+        }
+        logger.info("{} Completed fetching history stats peak for {} source entities in {} secs.",
+                TopologyDTOUtil.formatPlanLogPrefix(context.getTopologyInfo().getTopologyContextId()),
+                sourceEntities.size(),
+                (System.currentTimeMillis() - startTime) / 1000);
+
         return toReturn;
     }
 

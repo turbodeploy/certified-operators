@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectStatusListener.PlanProjectStatusListenerException;
@@ -69,7 +70,7 @@ public class PlanProjectStatusTracker {
     public void updateStatus(long planInstanceId, PlanStatus status)
             throws PlanProjectStatusListenerException, IntegrityException, NoSuchObjectException {
         PlanStatus oldStatus = statusMap.get(planInstanceId);
-        PlanProject project;
+        PlanProject project = null;
         if (oldStatus == null || oldStatus != status) {
             // at least one plan instance has status changed
             statusMap.put(planInstanceId, status);
@@ -96,7 +97,13 @@ public class PlanProjectStatusTracker {
                 logger.info("Plan project {} FAILED", projectId);
             } else if (anyRunning) {
                 // at least one instance is running
-                planProjectDao.updatePlanProject(projectId, PlanProjectStatus.RUNNING);
+                project = planProjectDao.updatePlanProject(projectId, PlanProjectStatus.RUNNING);
+            }
+
+            if (project != null) {
+                logger.info("{} Updated plan project status {}. Plan status {} -> {}.",
+                        TopologyDTOUtil.formatPlanLogPrefix(planInstanceId, projectId),
+                        project.getStatus(), oldStatus, status);
             }
         }
     }

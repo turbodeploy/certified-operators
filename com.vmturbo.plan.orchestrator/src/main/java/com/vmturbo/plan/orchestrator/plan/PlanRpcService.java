@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
@@ -557,7 +558,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             try {
                 planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
                         oldInstance.setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY));
-
+                logger.info("{} Triggering plan topology construction.",
+                        TopologyDTOUtil.formatPlanLogPrefix(request.getPlanId()));
                 try {
                     final StartAnalysisResponse response = RetriableOperation.newOperation(
                             () -> analysisService.startAnalysis(request))

@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -132,6 +133,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
         } catch (InterruptedException e) {
             logger.info("Thread interrupted receiving topology " + topologyId + " for " +
                 "context " + topologyContextId, e);
+        }
+        if (topologyInfo.hasPlanInfo()) {
+            logger.info("{} Scheduling market analysis for {} plan received entities.",
+                    TopologyDTOUtil.formatPlanLogPrefix(topologyInfo.getTopologyContextId()),
+                    entities.size());
         }
 
         logger.info("Topology {} {} deduplication results: {}", topologyId, topologyContextId, flyweights);

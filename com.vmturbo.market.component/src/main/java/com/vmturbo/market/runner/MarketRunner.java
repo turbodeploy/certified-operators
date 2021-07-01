@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -258,9 +259,15 @@ public class MarketRunner {
      */
     private void runAnalysis(@Nonnull final Analysis analysis) {
         boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
+        long startTime = 0;
         if (!isPlan) {
             // Set replay actions from last succeeded market cycle.
             analysis.setReplayActions(realtimeReplayActions);
+        } else {
+            startTime = System.currentTimeMillis();
+            logger.info("{} Starting plan market analysis.",
+                    TopologyDTOUtil.formatPlanLogPrefix(analysis.getTopologyInfo()
+                            .getTopologyContextId()));
         }
         try {
             analysis.execute();
@@ -278,6 +285,11 @@ public class MarketRunner {
                     if (!isPlan) {
                         // Update replay actions to contain actions from most recent analysis.
                         realtimeReplayActions = analysis.getReplayActions();
+                    } else {
+                        logger.info("{} Completed plan market analysis. Took {} secs.",
+                                TopologyDTOUtil.formatPlanLogPrefix(analysis.getTopologyInfo()
+                                        .getTopologyContextId()),
+                                (System.currentTimeMillis() - startTime)/1000);
                     }
                     // Send notification of Analysis SUCCESS
                     sendAnalysisStatus(analysis, AnalysisState.SUCCEEDED.ordinal());
@@ -327,6 +339,11 @@ public class MarketRunner {
                                 analysis.getProjectedTopologyId()
                                         .get(),
                                 projectedCoverage.values());
+                    }
+                    if (isPlan) {
+                        logger.info("{} Sent notifications on plan completion.",
+                                TopologyDTOUtil.formatPlanLogPrefix(analysis.getTopologyInfo()
+                                        .getTopologyContextId()));
                     }
                 }
             } else if (analysis.getState() == AnalysisState.FAILED) {

@@ -1542,6 +1542,9 @@ public class Stages {
                         broadcastInfo = broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastUserPlanTopology)
                             .collect(Collectors.toList()), entities);
+                        logger.info("{} Broadcast {} plan entities.",
+                                TopologyDTOUtil.formatPlanLogPrefix(getContext().getTopologyInfo()
+                                        .getTopologyContextId()), broadcastInfo.getEntityCount());
                         break;
                     default:
                         throw new IllegalStateException();

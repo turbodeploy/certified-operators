@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -118,6 +119,8 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                     request.getTopologyId(), topologyInfo,
                     request.getScenarioChangeList(), request.getPlanScope());
             } else {
+                logger.info("{} Queueing plan pipeline.",
+                        TopologyDTOUtil.formatPlanLogPrefix(request.getPlanId()));
                 pipelineRequest = pipelineExecutorService.queuePlanPipeline(topologyInfo,
                     request.getScenarioChangeList(), request.getPlanScope(), journalFactory);
             }

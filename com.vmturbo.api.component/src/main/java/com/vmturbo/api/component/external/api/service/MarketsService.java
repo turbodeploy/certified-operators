@@ -182,6 +182,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -446,6 +447,10 @@ public class MarketsService implements IMarketsService {
         if (planInstance.hasPlanProjectId()) {
             // This could be the main plan (like Consumption plan), that is part of a MCP project.
             final PlanProject planProject = getPlanProject(planInstance.getPlanProjectId());
+            final String planName = planInstance.hasName() ? planInstance.getName() : "";
+            logger.info("{} Getting MarketApiDTO for plan {}.",
+                    TopologyDTOUtil.formatPlanLogPrefix(planInstance.getPlanId(),
+                            planProject.getPlanProjectId()), planName);
             marketApiDTO = getMarketApiDto(planProject, getMainPlanInstance(planProject), null);
         } else {
             // A regular plan (like OCP) without an associated project.
@@ -991,12 +996,17 @@ public class MarketsService implements IMarketsService {
                     "Plan creation was not successful for market %s with scenario %s. %s ",
                     marketUuid, scenarioId, e.getMessage()));
             }
-                logger.info("Running a newly created {} plan project {}.",
-                        existingScenario.getScenarioInfo().getType(), planProject.getPlanProjectId());
-                planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
-                        .setId(planProject.getPlanProjectId()).build());
+            final PlanInstance mainPlan = getMainPlanInstance(planProject);
+            logger.info("{} Initiated plan project main plan '{}' run by user {}.",
+                    TopologyDTOUtil.formatPlanLogPrefix(mainPlan.getPlanId(),
+                            planProject.getPlanProjectId()),
+                    (mainPlan.hasName() ? mainPlan.getName() : ""),
+                    (mainPlan.hasCreatedByUser() ? mainPlan.getCreatedByUser() : ""));
 
-                return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
+            planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
+                    .setId(planProject.getPlanProjectId()).build());
+
+            return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
         }
         // For regular plans (like OCP) that are not part of a project.
         final PlanInstance planInstance;
@@ -1029,6 +1039,11 @@ public class MarketsService implements IMarketsService {
         final PlanInstance updatedInstance = planRpcService.runPlan(PlanId.newBuilder()
                 .setPlanId(planInstance.getPlanId())
                 .build());
+        logger.info("{} Initiated plan '{}' run by user {}.",
+                TopologyDTOUtil.formatPlanLogPrefix(updatedInstance.getPlanId()),
+                (updatedInstance.hasName() ? updatedInstance.getName() : ""),
+                (updatedInstance.hasCreatedByUser() ? updatedInstance.getCreatedByUser() : ""));
+
         return marketMapper.dtoFromPlanInstance(updatedInstance);
     }
 
@@ -1275,12 +1290,15 @@ public class MarketsService implements IMarketsService {
         Set<Long> placedOids = new HashSet<>();
         boolean isMigrationPlan = plan.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
         if (isMigrationPlan) {
+            logger.info("{} Finding unplaced entities for cloud migration plan.",
+                    TopologyDTOUtil.formatPlanLogPrefix(plan.getPlanId()));
             AtomicReference<String> cursor = new AtomicReference<>("0");
             do {
                 FilteredActionRequest filteredActionRequest =
                         FilteredActionRequest.newBuilder()
                                 .setTopologyContextId(plan.getPlanId())
                                 .setPaginationParams(PaginationParameters.newBuilder()
+                                        .setLimit(TopologyDTOUtil.CLOUD_MIGRATION_ACTION_QUERY_CURSOR_LIMIT)
                                         .setCursor(cursor.getAndSet("")))
                                 .addActionQuery(ActionQuery.newBuilder().setQueryFilter(
                                     ActionQueryFilter.newBuilder()
@@ -1305,6 +1323,8 @@ public class MarketsService implements IMarketsService {
                             }
                         });
             } while (!StringUtils.isEmpty(cursor.get()));
+            logger.info("{} Found {} placed action oids.",
+                    TopologyDTOUtil.formatPlanLogPrefix(plan.getPlanId()), placedOids.size());
         }
 
         final Iterable<RetrieveTopologyResponse> response = () ->
@@ -1325,6 +1345,7 @@ public class MarketsService implements IMarketsService {
         // We have a map of all requested entities in the plan. If this is a migration plan,
         // remove the entities that we've seen in its action list.  The remaining entities are
         // unplaced.
+        int originalEntityCount = entities.size();
         for (Long oid : placedOids) {
             entities.remove(oid);
         }
@@ -1332,7 +1353,9 @@ public class MarketsService implements IMarketsService {
         List<TopologyAndApiEntity> unplacedApiDTOs =
                 convertServiceEntitiesForPlan(plan, entities.values());
 
-        logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
+        logger.debug("{} Found {} unplaced entities. Total {} original entities.",
+                TopologyDTOUtil.formatPlanLogPrefix(plan.getPlanId()),
+                unplacedApiDTOs.size(), originalEntityCount);
         return unplacedApiDTOs.stream()
             .map(e -> e.apiEntity)
             .collect(Collectors.toList());
