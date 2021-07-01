@@ -59,8 +59,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -472,17 +470,7 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                      @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
-        // Check if there are any delete volume actions.  If so we need to
-        // get these from the real-time SOURCE topology as plan projected topology
-        // won't have them.
-        Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
-                .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
-                .collect(Collectors.toSet());
-        final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
-
-        //TODO: Remove deleteVolumesToRetrieve from entitiesToRetrieve
-        final Set<Long> entitiesToRetrieve =
-            new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
+        final Set<Long> entitiesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(actions);
         // snapshot contains the entities information that is required for the actions descriptions
         long planContextId = planData.getTopologyContextId();
         // TODO: a temp fix to get the  entities used for buy RI.
@@ -492,7 +480,7 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-                entitiesToRetrieve, deleteVolumesToRetrieve, planContextId);
+                entitiesToRetrieve, planContextId);
         snapshotHack.setTopologyInfo(topologyInfo);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
@@ -500,7 +488,6 @@ public class PlanActionStore implements ActionStore {
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
             snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve,
-                                                           deleteVolumesToRetrieve,
                                                            realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
@@ -691,8 +678,6 @@ public class PlanActionStore implements ActionStore {
         private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
         private final ActionTranslator actionTranslator;
         private final long realtimeTopologyContextId;
-        private final SupplyChainServiceBlockingStub supplyChainService;
-        private final RepositoryServiceBlockingStub repositoryService;
         private final ActionTargetSelector actionTargetSelector;
         private final LicenseCheckClient licenseCheckClient;
 
@@ -702,8 +687,6 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
-                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final LicenseCheckClient licenseCheckClient) {
             this.dsl = Objects.requireNonNull(dsl);
@@ -712,8 +695,6 @@ public class PlanActionStore implements ActionStore {
             this.entitySettingsCache = entitySettingsCache;
             this.actionTranslator = actionTranslator;
             this.realtimeTopologyContextId = realtimeTopologyContextId;
-            this.supplyChainService = supplyChainService;
-            this.repositoryService = repositoryService;
             this.actionTargetSelector = actionTargetSelector;
             this.licenseCheckClient = licenseCheckClient;
         }

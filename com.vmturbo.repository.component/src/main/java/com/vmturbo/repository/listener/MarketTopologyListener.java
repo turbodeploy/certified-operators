@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -60,10 +61,11 @@ public class MarketTopologyListener implements
     }
 
     @Override
-    public void onProjectedTopologyReceived(final long projectedTopologyId,
-                @Nonnull final TopologyInfo originalTopologyInfo,
+    public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo,
                 @Nonnull final SpanContext tracingContext) {
+        final TopologyInfo originalTopologyInfo = metadata.getSourceTopologyInfo();
+        final long projectedTopologyId = metadata.getProjectedTopologyId();
         try {
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
                     projectedTopo, tracingContext);

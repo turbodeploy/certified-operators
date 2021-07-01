@@ -58,13 +58,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -75,12 +73,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
+import com.vmturbo.market.topology.conversions.action.ResizeInterpreter;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator;
 import com.vmturbo.market.topology.conversions.cloud.CloudActionSavingsCalculator.CalculatedSavings;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
@@ -95,10 +93,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.CommodityContext
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -136,6 +130,8 @@ public class ActionInterpreter {
     private final BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
             Pair<Boolean, ChangeProviderExplanation>> complianceExplanationOverride;
 
+    private final ResizeInterpreter resizeInterpreter;
+
         /**
      * Comparator used to sort the resizeInfo list so StorageAmount resizeInfo comes first,
      * and StorageAccess comes second, and then others(IO_Throughput).
@@ -172,6 +168,7 @@ public class ActionInterpreter {
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
         this.complianceExplanationOverride = explanationFunction;
+        this.resizeInterpreter = new ResizeInterpreter(commodityConverter, commodityIndex, oidToProjectedTraderTOMap, originalTopology);
     }
 
     /**
@@ -253,7 +250,7 @@ public class ActionInterpreter {
                     break;
                 case RESIZE:
                     action = createAction(actionTO);
-                    Optional<ActionDTO.Resize> resize = interpretResize(
+                    Optional<ActionDTO.Resize> resize = resizeInterpreter.interpret(
                             actionTO.getResize(), projectedTopology);
                     if (resize.isPresent()) {
                         action.getInfoBuilder().setResize(resize.get());
@@ -472,11 +469,6 @@ public class ActionInterpreter {
             provisionActionTracker.computeIfAbsent(provisionBySupplyTO.getModelSeller(),
                 id -> new AtomicInteger());
 
-        ActionDTO.Provision.Builder provisionBuilder = ActionDTO.Provision.newBuilder()
-                .setEntityToClone(createActionEntity(
-                        provisionBySupplyTO.getModelSeller(), projectedTopology))
-                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
-                .setProvisionIndex(index.getAndIncrement());
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                         provisionBySupplyTO.getModelSeller(), projectedTopology))
@@ -749,139 +741,6 @@ public class ActionInterpreter {
     }
 
     @Nonnull
-    private Optional<ActionDTO.Resize> interpretResize(@Nonnull final ResizeTO resizeTO,
-                     @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
-        final long entityId = resizeTO.getSellingTrader();
-        final CommoditySpecificationTO cs = resizeTO.getSpecification();
-        final CommodityType topologyCommodityType =
-                commodityConverter.marketToTopologyCommodity(cs)
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "Resize commodity can't be converted to topology commodity format! "
-                                        + cs));
-        // Determine if this is a remove limit or a regular resize.
-        final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
-
-        // Find the CommoditySoldDTO for the resize commodity.
-        final Optional<CommoditySoldDTO> resizeCommSold =
-            projectedEntity.getCommoditySoldListList().stream()
-                .filter(commSold -> commSold.getCommodityType().equals(topologyCommodityType))
-                .findFirst();
-        Optional<CommoditySoldDTO> originalCommoditySold =
-                commodityIndex.getCommSold(projectedEntity.getOid(), topologyCommodityType);
-        ResizeTO adjustedResizeTO = resizeTO.toBuilder()
-                .setOldCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(),
-                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .setNewCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(),
-                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .build();
-        if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
-            // If this is a VM and has a restricted capacity, we are going to assume it's a limit
-            // removal. This logic seems like it could be fragile, in that limit may not be the
-            // only way VM capacity could be restricted in the future, but this is consistent
-            // with how classic makes the same decision.
-            TraderTO traderTO = oidToProjectedTraderTOMap.get(entityId);
-            // find the commodity on the trader and see if there is a limit?
-            for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
-                if (commoditySold.getSpecification().equals(cs)) {
-                    // We found the commodity sold.  If it has a utilization upper bound < 1.0,
-                    // then the commodity is restricted, and according to our VM-rule, we will
-                    // treat this as a limit removal.
-                    float utilizationPercentage = commoditySold.getSettings().getUtilizationUpperBound();
-                    if (utilizationPercentage < 1.0) {
-                        // The "limit removal" is actually a resize on the commodity's "limit"
-                        // attribute that effectively sets it to zero.
-                        //
-                        // Ideally we would set the "old capacity" to the current limit
-                        // value, but as noted above, we don't have access to the limit here. We
-                        // only have the utilization percentage, which we expect to be based on
-                        // the limit and raw capacity values. Since we do have the utilization %
-                        // and raw capacity here, we can _approximate_ the current limit by
-                        // reversing the math used to determine the utilization %.
-                        //
-                        // We will grudgingly do that here. Note that this may be subject to
-                        // precision and rounding errors. In addition, if in the future we have
-                        // factors other than "limit" that could drivef the VM resource
-                        // utilization threshold to below 100%, then this approximation would
-                        // likely be wrong and misleading in those cases.
-                        float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
-                        logger.debug("The commodity {} has util% of {}, so treating as limit"
-                                        +" removal (approximate limit: {}).",
-                                topologyCommodityType.getKey(), utilizationPercentage, approximateLimit);
-
-                        ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
-                            .setTarget(createActionEntity(entityId, projectedTopology))
-                            .setOldCapacity(approximateLimit)
-                            .setNewCapacity(0)
-                            .setCommodityType(topologyCommodityType)
-                            .setCommodityAttribute(CommodityAttribute.LIMIT);
-                        setHotAddRemove(resizeBuilder, resizeCommSold);
-                        return Optional.of(resizeBuilder.build());
-                    }
-                    break;
-                }
-            }
-        }
-        ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
-                .setTarget(createActionEntity(entityId, projectedTopology))
-                .setNewCapacity(adjustedResizeTO.getNewCapacity())
-                .setOldCapacity(adjustedResizeTO.getOldCapacity())
-                .setCommodityType(topologyCommodityType);
-        if (resizeTO.hasReasonCommodity()) {
-            final CommodityType reasonCommodityType =
-                    commodityConverter.marketToTopologyCommodity(resizeTO.getReasonCommodity())
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "Resize commodity can't be converted to topology commodity format! "
-                                            + cs));
-            resizeBuilder.setReason(reasonCommodityType);
-
-        }
-        setHotAddRemove(resizeBuilder, resizeCommSold);
-        if (resizeTO.hasScalingGroupId()) {
-            resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
-        }
-        if (!resizeTO.getResizeTriggerTraderList().isEmpty()) {
-            // Scale Up: Show relevant vSan resizes when hosts are provisioned due to
-            // the commodity type being scaled.
-            if (adjustedResizeTO.getNewCapacity() > adjustedResizeTO.getOldCapacity()) {
-                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
-                    .filter(resizeTriggerTrader -> resizeTriggerTrader.getRelatedCommoditiesList()
-                        .contains(cs.getBaseType())).findFirst();
-                if (!resizeTriggerTraderTO.isPresent()) {
-                    return Optional.empty();
-                }
-            // Scale Down: Pick related vSan host being suspended that has no reason commodities
-            // since it is suspension due to low roi.
-            } else if (adjustedResizeTO.getNewCapacity() < adjustedResizeTO.getOldCapacity()) {
-                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
-                    .filter(resizeTriggerTrader -> resizeTriggerTrader.getRelatedCommoditiesList()
-                        .isEmpty()).findFirst();
-                if (!resizeTriggerTraderTO.isPresent()) {
-                    return Optional.empty();
-                }
-            }
-        }
-        return Optional.of(resizeBuilder.build());
-    }
-
-    /**
-     * Set the hot add / hot remove flag on the resize action. This is needed for the resize
-     * action execution of probes like VMM.
-     */
-    private void setHotAddRemove(@Nonnull ActionDTO.Resize.Builder resizeBuilder,
-                                 @Nonnull Optional<CommoditySoldDTO> commoditySold) {
-        commoditySold.filter(CommoditySoldDTO::hasHotResizeInfo)
-            .map(CommoditySoldDTO::getHotResizeInfo)
-            .ifPresent(hotResizeInfo -> {
-                if (hotResizeInfo.hasHotAddSupported()) {
-                    resizeBuilder.setHotAddSupported(hotResizeInfo.getHotAddSupported());
-                }
-                if (hotResizeInfo.hasHotRemoveSupported()) {
-                    resizeBuilder.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
-                }
-            });
-    }
-
-    @Nonnull
     private ActionDTO.Activate interpretActivate(@Nonnull final ActivateTO activateTO,
                                                  @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = activateTO.getTraderToActivate();
@@ -1135,8 +994,7 @@ public class ActionInterpreter {
                         interpretProvisionExplanation(actionTO.getProvisionByDemand()));
                 break;
             case RESIZE:
-                expBuilder.setResize(
-                        interpretResizeExplanation(actionTO.getResize()));
+                expBuilder.setResize(resizeInterpreter.interpretExplanation(actionTO.getResize()));
                 break;
             case ACTIVATE:
                 expBuilder.setActivate(
@@ -1376,16 +1234,6 @@ public class ActionInterpreter {
             provisionExpBuilder.setReasonEntity(provisionBySupply.getReasonEntity());
         }
         return provisionExpBuilder.build();
-    }
-
-    private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
-        ResizeExplanation.Builder builder = ResizeExplanation.newBuilder()
-            .setDeprecatedStartUtilization(resizeTO.getStartUtilization())
-            .setDeprecatedEndUtilization(resizeTO.getEndUtilization());
-        if (resizeTO.hasScalingGroupId()) {
-            builder.setScalingGroupId(resizeTO.getScalingGroupId());
-        }
-        return builder.build();
     }
 
     private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {

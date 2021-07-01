@@ -42,6 +42,7 @@ public abstract class ProjectedTopologyWriterBase
                                          @Nonnull String infoSummary) throws InterruptedException {
         final List<ProjectedTopologyEntity> filteredChunk = chunk.stream()
                 .filter(ProjectedTopologyEntity::hasEntity)
+                .filter(entity -> !entity.getDeleted())
                 .filter(pe -> entitiesFilter.test(pe.getEntity()))
                 .collect(Collectors.toList());
         return processEntities(filteredChunk, infoSummary);

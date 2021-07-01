@@ -128,8 +128,10 @@ public class MarketConfig {
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
             MarketSubscription.forTopic(Topic.ActionPlans),
-            MarketSubscription.forTopicWithStartFrom(Topic.AnalysisSummary, StartFrom.BEGINNING));
+            MarketSubscription.forTopicWithStartFrom(Topic.AnalysisSummary, StartFrom.BEGINNING),
+            MarketSubscription.forTopic(Topic.ProjectedTopologies));
         market.addActionsListener(marketActionListener());
+        market.addProjectedTopologyListener(actionStoreConfig.entitiesSnapshotFactory());
         return market;
     }
 }

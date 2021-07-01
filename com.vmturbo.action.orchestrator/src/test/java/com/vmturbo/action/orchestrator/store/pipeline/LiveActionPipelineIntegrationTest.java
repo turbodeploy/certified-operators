@@ -9,7 +9,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
@@ -323,7 +322,7 @@ public class LiveActionPipelineIntegrationTest {
     }
 
     private void setEntitiesOIDs() {
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
                 EntityType.VIRTUAL_MACHINE.getNumber()));
@@ -397,8 +396,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                 TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         assertEquals(2, actionStore.size());
@@ -428,8 +427,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         assertEquals(2, actionStore.size());
@@ -464,8 +463,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
@@ -522,8 +521,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         Action actionToClear = actionStore.getAction(firstMove.getId()).get();
@@ -575,8 +574,8 @@ public class LiveActionPipelineIntegrationTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         Mockito.doNothing().when(listener).sendOnGenerationEvents(actionsCaptor.capture(), any());
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
@@ -610,8 +609,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
@@ -659,8 +658,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
@@ -717,8 +716,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
@@ -763,8 +762,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
@@ -819,8 +818,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
@@ -864,8 +863,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
@@ -896,8 +895,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         assertThat(actionStore.getActionViews().getAll()
@@ -935,8 +934,8 @@ public class LiveActionPipelineIntegrationTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         final long secondOid = actionIdentityService.getOidsForObjects(
             Collections.singletonList(secondMove.getInfo())).iterator().next();
@@ -978,8 +977,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         assertThat(actionStore.getActionViews().getAll()
@@ -1008,9 +1007,8 @@ public class LiveActionPipelineIntegrationTest {
         pipelineFactory.actionPipeline(plan).run(plan);
 
         verify(entitySettingsCache).newSnapshot(eq(ImmutableSet.of(vm1, hostA, hostB)),
-            any(),
-            eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()),
-            eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId()));
+            eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()));
+
         verify(spyActionFactory).newAction(any(),
             eq(firstPlanId), Mockito.anyLong());
         assertEquals(1, actionStore.size());
@@ -1054,8 +1052,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
 
@@ -1086,8 +1084,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -1121,8 +1119,8 @@ public class LiveActionPipelineIntegrationTest {
         }).when(actionTranslator).translate(any(Stream.class), any(EntitiesAndSettingsSnapshot.class));
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -1162,8 +1160,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -1210,8 +1208,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
@@ -1272,8 +1270,8 @@ public class LiveActionPipelineIntegrationTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
@@ -1395,8 +1393,8 @@ public class LiveActionPipelineIntegrationTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(allEntities,
-                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+                TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
     }
 
     private static ActionDTO.Action.Builder resize(long targetId) {

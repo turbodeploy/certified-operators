@@ -68,8 +68,13 @@ class MySQLProjectedTopologyCreator extends MySQLTopologyCreator<ProjectedTopolo
     @Override
     public void addEntities(final Collection<ProjectedTopologyEntity> entities, TopologyID tid) {
         // Add the regular entity entries.
-        super.addEntities(entities, tid);
-        addPriceIndexEntries(entities, tid);
+        super.addEntities(removeDeletedEntities(entities), tid);
+        addPriceIndexEntries(removeDeletedEntities(entities), tid);
+    }
+
+    @Nonnull
+    private Collection<ProjectedTopologyEntity> removeDeletedEntities(@Nonnull final Collection<ProjectedTopologyEntity> entities) {
+        return Collections2.filter(entities, e -> e.hasEntity() && !e.getDeleted());
     }
 
     private void addPriceIndexEntries(final Collection<ProjectedTopologyEntity> entities,

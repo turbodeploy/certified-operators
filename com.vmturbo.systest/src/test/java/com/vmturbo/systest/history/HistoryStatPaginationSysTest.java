@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -170,7 +171,9 @@ public class HistoryStatPaginationSysTest {
                 .setProjectedPriceIndex(entity.getOid())
                 .build())
             .collect(Collectors.toList()),
-            4L);
+                ActionPlan.newBuilder()
+                    .setId(4L)
+                    .build());
 
 
         logger.info("Waiting for stats to be available...");

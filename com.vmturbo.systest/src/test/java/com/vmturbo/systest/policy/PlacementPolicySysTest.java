@@ -1062,8 +1062,7 @@ public class PlacementPolicySysTest {
         }
 
         @Override
-        public void onProjectedTopologyReceived(final long projectedTopologyId,
-                                                @Nonnull final TopologyInfo sourceTopologyInfo,
+        public void onProjectedTopologyReceived(final ProjectedTopology.Metadata metadata,
                                                 @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopology,
                                                 @Nonnull final SpanContext tracingContext) {
             this.projectedTopology = new HashMap<>();

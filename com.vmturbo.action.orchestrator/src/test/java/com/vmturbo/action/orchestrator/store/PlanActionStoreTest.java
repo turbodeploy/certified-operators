@@ -162,11 +162,9 @@ public class PlanActionStoreTest {
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), eq(realtimeId))).thenReturn(snapshot);
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
         }
@@ -391,7 +389,7 @@ public class PlanActionStoreTest {
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-                null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
+                actionTargetSelector, licenseCheckClient).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -420,7 +418,7 @@ public class PlanActionStoreTest {
         // Load the stores from DB
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-            null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
+                actionTargetSelector, licenseCheckClient).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially

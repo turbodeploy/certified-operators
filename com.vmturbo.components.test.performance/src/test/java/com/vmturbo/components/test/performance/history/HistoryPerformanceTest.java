@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -169,8 +170,7 @@ public abstract class HistoryPerformanceTest {
                     .setEntity(entity)
                     .setProjectedPriceIndex(1.0)
                     .setOriginalPriceIndex(2.0)
-                    .build()),
-                ACTION_PLAN_ID);
+                    .build()), ActionPlan.newBuilder().setId(ACTION_PLAN_ID).build());
     }
 
     protected void fetchStats(final long topologyContextId){

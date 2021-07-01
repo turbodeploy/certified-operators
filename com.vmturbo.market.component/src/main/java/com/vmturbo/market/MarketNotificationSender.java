@@ -2,10 +2,12 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
@@ -16,7 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Metadata;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -96,12 +98,15 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
                                     @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo,
-                                        final long actionPlanId)
+                                    final ActionPlan actionPlan)
             throws CommunicationException, InterruptedException {
+        Set<Long> entityIds = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()
-                .setStart(Start.newBuilder()
-                        .setSourceTopologyInfo(originalTopologyInfo)
-                        .build())
+                .setMetadata(Metadata.newBuilder()
+                    .setSourceTopologyInfo(originalTopologyInfo)
+                    .addAllEntitiesInvolvedInActions(entityIds)
+                    .setProjectedTopologyId(projectedTopologyId)
+                    .build())
                 .setTopologyId(projectedTopologyId)
                 .build());
 
@@ -141,7 +146,7 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 .setTopologyId(projectedTopologyId)
                 .setEnd(End.newBuilder().setTotalCount(totalCount).build())
                 .build());
-        sendAnalysisSummary(projectedTopologyId, originalTopologyInfo, actionPlanId);
+        sendAnalysisSummary(projectedTopologyId, originalTopologyInfo, actionPlan.getId());
     }
 
     /**

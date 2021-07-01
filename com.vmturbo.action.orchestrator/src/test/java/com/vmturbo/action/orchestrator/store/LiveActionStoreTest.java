@@ -1,12 +1,9 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -14,41 +11,28 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mockito;
-import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
@@ -209,7 +193,7 @@ public class LiveActionStoreTest {
     }
 
     public void setEntitiesOIDs() {
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
                 EntityType.VIRTUAL_MACHINE.getNumber()));
@@ -282,60 +266,4 @@ public class LiveActionStoreTest {
         assertFalse(actionStore.allowsExecution());
     }
 
-    @Test
-    public void testClearThrowsIllegalStateException() {
-        expectedException.expect(IllegalStateException.class);
-        actionStore.clear();
-    }
-
-    @Test
-    public void testGetTopologyContextId() {
-        assertEquals(TOPOLOGY_CONTEXT_ID, actionStore.getTopologyContextId());
-    }
-
-    /** Defining a Mockito rule to allow initializating the argument captors.
-     */
-    @Rule
-    public MockitoRule rule = MockitoJUnit.rule();
-
-    @Test
-    public void testRecommendationTracker() {
-        ActionDTO.Action move1 =
-            move(vm1, hostA, vmType, hostB, vmType).build();
-        ActionDTO.Action move2 =
-            move(vm2, hostA, vmType, hostB, vmType).build();
-        ActionDTO.Action move3 =
-            move(vm1, hostA, vmType, hostC, vmType).build();
-        // Add some duplicates actionInfos to fill the queue with more than 1 entry
-        ActionDTO.Action move4 =
-            move(vm1, hostA, vmType, hostB, vmType).build();
-        ActionDTO.Action move5 =
-            move(vm2, hostA, vmType, hostB, vmType).build();
-
-        ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
-        List<Action> actions = ImmutableList.of(move1, move2, move3, move4, move5)
-            .stream()
-            .map(action -> actionFactory.newAction(action, firstPlanId, 334L))
-            .collect(Collectors.toList());
-
-        // Now test the recommendation tracker structure.
-        // Run many iterations where a different action is taken from the tracker in each iteration
-        // to cover various cases (i.e. remove from front, middle, end)
-        int numIterations = actions.size();
-        for (int i=0; i < numIterations; i++) {
-            RecommendationTracker recommendations = new RecommendationTracker();
-            actions.forEach(action -> recommendations.add(action));
-            Action actionToRemove = actions.get(i);
-            recommendations.take(334L);
-            Set<Long> actionIdsRemaining =
-                actions.stream()
-                    .map(a -> a.getId())
-                    .filter(id -> id!=actionToRemove.getId())
-                    .collect(Collectors.toSet());
-            assertThat(actionIdsRemaining, new ReflectionEquals(
-                StreamSupport.stream(recommendations.spliterator(), false)
-                    .map(action -> action.getId())
-                    .collect(Collectors.toSet())));
-        }
-    }
 }

@@ -1,9 +1,7 @@
 package com.vmturbo.repository.listener;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,7 +9,6 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Optional;
 
-import com.arangodb.ArangoDBException;
 import com.google.common.collect.Sets;
 
 import io.opentracing.SpanContext;
@@ -24,6 +21,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -103,8 +101,10 @@ public class MarketTopologyListenerExceptionTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                 .thenThrow(new InterruptedException("interrupted"));
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
-        marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
-                originalInfo,
+        marketTopologyListener.onProjectedTopologyReceived(ProjectedTopology.Metadata.newBuilder()
+                .setProjectedTopologyId(projectedTopologyId)
+                .setSourceTopologyInfo(originalInfo)
+                .build(),
                 entityIterator,
                 Mockito.mock(SpanContext.class));
 
@@ -124,12 +124,13 @@ public class MarketTopologyListenerExceptionTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                 .thenThrow(new CommunicationException("communication exception"));
         marketTopologyListener.onProjectedTopologyReceived(
-                projectedTopologyId,
-                TopologyInfo.newBuilder()
-                        .setTopologyId(srcTopologyId)
-                        .setTopologyContextId(topologyContextId)
-                        .setCreationTime(creationTime)
-                        .build(),
+                ProjectedTopology.Metadata.newBuilder()
+                    .setProjectedTopologyId(projectedTopologyId)
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                            .setTopologyId(srcTopologyId)
+                            .setTopologyContextId(topologyContextId)
+                            .setCreationTime(creationTime))
+                    .build(),
                 entityIterator,
                 Mockito.mock(SpanContext.class));
 
@@ -150,12 +151,13 @@ public class MarketTopologyListenerExceptionTest {
                 .thenThrow(new IllegalStateException("other exception"));
         try {
             marketTopologyListener.onProjectedTopologyReceived(
-                    projectedTopologyId,
-                    TopologyInfo.newBuilder()
+                    ProjectedTopology.Metadata.newBuilder()
+                        .setProjectedTopologyId(projectedTopologyId)
+                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
                             .setTopologyId(srcTopologyId)
                             .setTopologyContextId(topologyContextId)
-                            .setCreationTime(creationTime)
-                            .build(),
+                            .setCreationTime(creationTime))
+                        .build(),
                     entityIterator,
                     Mockito.mock(SpanContext.class));
         } catch (IllegalStateException ise) {

@@ -110,7 +110,7 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
             if (analysis.getState().equals(AnalysisState.SUCCEEDED)) {
                 respBuilder.setOutput(AnalysisOutput.newBuilder()
                     .setActionPlan(analysis.getActionPlan().get())
-                    .addAllProjectedEntities(analysis.getProjectedTopology().get()));
+                    .addAllProjectedEntities(analysis.getProjectedTopology().get().values()));
             }
 
             responseObserver.onNext(GetAnalysisInfoResponse.newBuilder()
