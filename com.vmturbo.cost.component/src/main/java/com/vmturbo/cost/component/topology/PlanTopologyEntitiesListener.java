@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -83,7 +84,8 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
                     + "Expected:{}, Received:{}", topologyContextId, realtimeTopologyContextId);
                 return;
             }
-            logger.info("Received plan topology with topologyId: {}", topologyInfo.getTopologyId());
+            logger.info("{} Received plan topology.",
+                    TopologyDTOUtil.formatPlanLogPrefix(topologyInfo.getTopologyContextId()));
             final CloudTopology<TopologyEntityDTO> cloudTopology =
                 cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
 
@@ -99,6 +101,9 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
                     // Send the plan entity cost status notification - SUCCESS.
                     sendPlanEntityCostNotification(buildPlanEntityCostNotification(topologyInfo,
                             Status.SUCCESS, null));
+                    logger.info("{} Persisted pre-action costs for {} received plan entities.",
+                            TopologyDTOUtil.formatPlanLogPrefix(topologyInfo
+                                    .getTopologyContextId()), cloudTopology.size());
                 } catch (DbException e) {
                     logger.error("Failed to persist plan entity costs.", e);
                     // Send the plan entity cost status notification - FAIL.

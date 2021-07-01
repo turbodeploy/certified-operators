@@ -132,6 +132,12 @@ public final class TopologyDTOUtil {
     public static final Set<Integer> ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES =
             ImmutableSet.of(EntityType.DATABASE_VALUE, EntityType.DATABASE_SERVER_VALUE);
 
+    /**
+     * Bump up the cursor limit for getting all actions for MCP results, from the default 100
+     * to 2000, otherwise MCP plan UI results load too slow for large topology migration.
+     */
+    public static final int CLOUD_MIGRATION_ACTION_QUERY_CURSOR_LIMIT = 2000;
+
     private TopologyDTOUtil() {
     }
 
@@ -673,5 +679,26 @@ public final class TopologyDTOUtil {
             }
         }
         return hasStAmt && hasStProv && !hasStAcc && !hasStLat;
+    }
+
+    /**
+     * Helper util methods to log messages about cloud plans.
+     *
+     * @param planId Plan id.
+     * @param projectId Plan project id.
+     * @return Formatted message for logging.
+     */
+    public static String formatPlanLogPrefix(long planId, final long projectId) {
+        return String.format("|%s|%s|: ", planId, projectId);
+    }
+
+    /**
+     * Helper util methods to log messages about cloud plans.
+     *
+     * @param planId Plan id.
+     * @return Formatted message for logging.
+     */
+    public static String formatPlanLogPrefix(long planId) {
+        return String.format("|%s|: ", planId);
     }
 }

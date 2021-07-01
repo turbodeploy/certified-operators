@@ -89,7 +89,12 @@ public class RpcConfig {
     @Value("${actionPaginationDefaultLimit:100}")
     private int actionPaginationDefaultLimit;
 
-    @Value("${actionPaginationMaxLimit:500}")
+    /**
+     * Increase limit from 500 to 2001, getting action list for large MCP plans is too slow otherwise.
+     * Note that the default chunk size is still 100, here we are only increasing the max limit,
+     * to enable action query for large MCP plans (with larger chunk size of 2K).
+     */
+    @Value("${actionPaginationMaxLimit:2001}")
     private int actionPaginationMaxLimit;
 
     @Value("${maxAmountOfEntitiesPerGrpcMessage:5000}")

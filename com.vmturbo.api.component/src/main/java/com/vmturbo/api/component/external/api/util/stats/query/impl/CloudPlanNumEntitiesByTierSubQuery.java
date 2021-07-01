@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -16,12 +17,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -52,6 +57,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -60,6 +66,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * results.
  */
 public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * Mapping of all 'numEntity' stat types to a Set of their respective API strings.
      */
@@ -109,12 +117,26 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final ActionsServiceBlockingStub actionsServiceBlockingStub;
 
+    /**
+     * A 10-minute cache to keep mapping of destination (VM/Volume) tierIds to the number of
+     * entities in that tier. This is used to populate the VM/Volume mapping tables when viewing
+     * the output of MPC plan. Cache was needed as we were making multiple calls to get complete
+     * action list that is used to populate the tier -> count mapping table, having the cache
+     * reduces calls to AO.
+     *
+     * Key: <plan-id>-<statsKey>
+     * Value: Map of tier oid to count of entities with that tier.
+     */
+    private final Cache<String, Map<Optional<Long>, Long>> countsByTierCache;
+
     public CloudPlanNumEntitiesByTierSubQuery(@Nonnull final RepositoryApi repositoryApi,
             @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
             ActionsServiceBlockingStub actionsServiceBlockingStub) {
         this.repositoryApi = repositoryApi;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.actionsServiceBlockingStub = actionsServiceBlockingStub;
+        this.countsByTierCache = CacheBuilder.newBuilder()
+                .expireAfterAccess(10, TimeUnit.MINUTES).build();
     }
 
     @Override
@@ -322,12 +344,23 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     @Nonnull
     private Map<Optional<Long>, Long> getEntitiesFromActionList(long contextId,
             @Nonnull String statName) {
-        Map<Optional<Long>, Long> tierIdToNumEntities = new HashMap<>();
         final Integer requiredDestinationType = NUM_STAT_TYPES_TO_ENTITY_TYPE.get(statName);
         if (requiredDestinationType == null) {
             // Invalid entity type requested
-            return tierIdToNumEntities;
+            return Collections.emptyMap();
         }
+        final String cacheKey = String.format("%s-%s", contextId, statName);
+        final Map<Optional<Long>, Long> tierToCounts = countsByTierCache.getIfPresent(cacheKey);
+        if (tierToCounts != null) {
+            logger.info("{} Returning {} cached entities from actions for {}.",
+                    TopologyDTOUtil.formatPlanLogPrefix(contextId), tierToCounts.size(), statName);
+            return tierToCounts;
+        }
+        Map<Optional<Long>, Long> tierIdToNumEntities = new HashMap<>();
+
+        logger.info("{} Start getting entities from actions for {}.",
+                TopologyDTOUtil.formatPlanLogPrefix(contextId), statName);
+
         ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
                 .setVisible(true)
                 .addTypes(ActionType.MOVE)
@@ -339,6 +372,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                     FilteredActionRequest.newBuilder()
                             .setTopologyContextId(contextId)
                             .setPaginationParams(PaginationParameters.newBuilder()
+                                    .setLimit(TopologyDTOUtil.CLOUD_MIGRATION_ACTION_QUERY_CURSOR_LIMIT)
                                     .setCursor(cursor.getAndSet("")))
                             .addActionQuery(ActionQuery.newBuilder()
                                 .setQueryFilter(actionQueryFilter))
@@ -379,6 +413,9 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                 }
             });
         } while (!StringUtils.isEmpty(cursor.get()));
+        logger.info("{} Completed getting entities from actions for {}.",
+                TopologyDTOUtil.formatPlanLogPrefix(contextId), statName);
+        countsByTierCache.put(cacheKey, tierIdToNumEntities);
         return tierIdToNumEntities;
     }
 
