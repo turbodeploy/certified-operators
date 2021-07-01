@@ -148,6 +148,7 @@ import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityCapacityLimit;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -1996,11 +1997,24 @@ public class TopologyConverter {
         // copy the TypeSpecificInfo from the original entity
         if (source.hasTypeSpecificInfo()) {
             destination.setTypeSpecificInfo(source.getTypeSpecificInfo());
+            // Special case for Cloud-to-Cloud migration: Spot (Bidding) instances should be
+            // converted to On Demand instances.
+            handleBiddingVm(source, destination);
         }
+
         // Copy over entity property map.
         Map<String, String> propertyMap = source.getEntityPropertyMapMap();
         if (propertyMap != null) {
             destination.putAllEntityPropertyMap(propertyMap);
+        }
+    }
+
+    private void handleBiddingVm(TopologyEntityDTO source, TopologyEntityDTO.Builder destination) {
+        final TypeSpecificInfo typeSpecificInfo = source.getTypeSpecificInfo();
+        if (isCloudMigration && typeSpecificInfo.hasVirtualMachine()
+                && typeSpecificInfo.getVirtualMachine().getBillingType() == VMBillingType.BIDDING) {
+            destination.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                    .setBillingType(VMBillingType.ONDEMAND);
         }
     }
 
