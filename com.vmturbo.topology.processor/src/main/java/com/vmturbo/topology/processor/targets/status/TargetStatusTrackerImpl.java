@@ -25,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
@@ -42,7 +41,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 /**
  * Class responsible for tracking statuses of the targets.
  */
-public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStoreListener, StringDiagnosable {
+public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStoreListener {
     private static final Logger LOGGER = LogManager.getLogger();
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, TargetStatus> targetStatusCache;

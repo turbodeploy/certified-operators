@@ -82,6 +82,7 @@ import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 
@@ -113,12 +114,11 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final TopologyPipelineExecutorService topologyPipelineExecutorService;
     private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
     private final BinaryDiscoveryDumper binaryDiscoveryDumper;
+    private final TargetStatusTracker targetStatusTracker;
 
-    TopologyProcessorDiagnosticsHandler(
-            @Nonnull final TargetStore targetStore,
+    TopologyProcessorDiagnosticsHandler(@Nonnull final TargetStore targetStore,
             @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
-            @Nonnull final Scheduler scheduler,
-            @Nonnull final EntityStore entityStore,
+            @Nonnull final Scheduler scheduler, @Nonnull final EntityStore entityStore,
             @Nonnull final ProbeStore probeStore,
             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
             @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
@@ -127,7 +127,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final PriceTableUploader priceTableUploader,
             @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
             @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
-            final BinaryDiscoveryDumper binaryDiscoveryDumper) {
+            final BinaryDiscoveryDumper binaryDiscoveryDumper,
+            final TargetStatusTracker targetStatusTracker) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -141,6 +142,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.topologyPipelineExecutorService = topologyPipelineExecutorService;
         this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
         this.binaryDiscoveryDumper = binaryDiscoveryDumper;
+        this.targetStatusTracker = targetStatusTracker;
     }
 
     /**
@@ -292,6 +294,9 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
                     diagsWriter.getErrors().iterator());
         }
+
+        // target status details (contains details information about last validation/discovery and info about failed discoveries)
+        diagsWriter.dumpDiagnosable(targetStatusTracker);
     }
 
     /**

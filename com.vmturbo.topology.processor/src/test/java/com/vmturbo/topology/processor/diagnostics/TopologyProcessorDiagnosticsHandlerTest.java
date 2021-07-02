@@ -153,6 +153,7 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.util.Probes;
@@ -164,6 +165,7 @@ import com.vmturbo.topology.processor.util.Probes;
 public class TopologyProcessorDiagnosticsHandlerTest {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
+    public static final String TARGET_STATUSES_DIAGS_NAME = "TargetStatuses";
 
     private final List<Target> targets = Lists.newArrayList();
     private final TargetStore targetStore = mock(TargetStore.class);
@@ -181,6 +183,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private IdentityProvider identityProvider;
     private final TargetIncrementalEntities targetIncrementalEntities =
         mock(TargetIncrementalEntities.class);
+    private final TargetStatusTracker targetStatusTracker = mock(TargetStatusTracker.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
 
@@ -256,6 +259,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         }).when(priceTableUploader).collectDiags(Mockito.any());
         Mockito.when(priceTableUploader.getFileName())
                 .thenReturn(PriceTableUploader.PRICE_TABLE_NAME);
+        Mockito.when(targetStatusTracker.getFileName()).thenReturn(TARGET_STATUSES_DIAGS_NAME);
         statefulEditors = Collections.emptyMap();
     }
 
@@ -266,7 +270,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                         identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                                statefulEditors, binaryDiscoveryDumper);
+                                statefulEditors, binaryDiscoveryDumper, targetStatusTracker);
         handler.dump(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -319,6 +323,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("PrometheusMetrics", ze.getName());
+
+        ze = zis.getNextEntry();
+        assertEquals(TARGET_STATUSES_DIAGS_NAME, ze.getName());
 
         ze = zis.getNextEntry();
         assertNull(ze);
@@ -404,7 +411,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                 entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
                 identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                            statefulEditors, binaryDiscoveryDumper);
+                            statefulEditors, binaryDiscoveryDumper, targetStatusTracker);
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -574,6 +581,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals("PrometheusMetrics", ze.getName());
 
         ze = zis.getNextEntry();
+        assertEquals(TARGET_STATUSES_DIAGS_NAME, ze.getName());
+
+        ze = zis.getNextEntry();
         assertNull(ze);
         zis.close();
     }
@@ -608,7 +618,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,
             discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
-                        statefulEditors, binaryDiscoveryDumper);
+                        statefulEditors, binaryDiscoveryDumper, targetStatusTracker);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
         handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"
