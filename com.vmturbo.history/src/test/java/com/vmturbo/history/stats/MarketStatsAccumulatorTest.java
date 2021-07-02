@@ -70,7 +70,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationReco
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
-import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
+import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -227,10 +227,10 @@ public class MarketStatsAccumulatorTest {
         marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
         final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
                 ArgumentCaptor.forClass(HistUtilizationRecord.class);
-        final CapacityCache capacityCache = new CapacityCache(excludedCommodityTypes, new LongDataPack());
+        final CommodityCache capacityCache = new CommodityCache(excludedCommodityTypes, new LongDataPack());
         final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
                 HashMultimap.create();
-        capacityCache.cacheCapacities(testVm);
+        capacityCache.cacheUsagesAndCapacity(testVm);
         final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
         marketStatsAccumulator.persistCommoditiesBought(testApp, capacityCache,
                 delayedCommoditiesBought, entityByOid);
@@ -278,8 +278,8 @@ public class MarketStatsAccumulatorTest {
     public void testRecordsParametersForBoughtCommodity()
         throws InterruptedException, VmtDbException {
         final LongDataPack oidPack = new LongDataPack();
-        final CapacityCache capacityCache = new CapacityCache(excludedCommodityTypes, oidPack);
-        capacityCache.cacheCapacities(testVm);
+        final CommodityCache capacityCache = new CommodityCache(excludedCommodityTypes, oidPack);
+        capacityCache.cacheUsagesAndCapacity(testVm);
         final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
                 HashMultimap.create();
         final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);

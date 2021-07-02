@@ -230,7 +230,8 @@ public class IngestersConfig {
                         new EntityStatsWriter.Factory(
                                 historyDbConfig.historyDbIO(),
                                 excludedCommodities(),
-                                getEntitiesFilter()
+                                getEntitiesFilter(),
+                                statsConfig.liveStatsStore()
                         ),
                         new SystemLoadWriter.Factory(
                                 groupServiceBlockingStub(),

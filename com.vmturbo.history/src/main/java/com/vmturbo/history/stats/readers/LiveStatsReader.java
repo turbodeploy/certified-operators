@@ -30,6 +30,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.TextFormat;
 
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -402,6 +403,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         }
 
         answer.addAll(histUtilizationReader.getRecords(entityIds, statsFilter));
+
         final double elapsedSeconds = timer.observe();
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), elapsedSeconds);
         return answer;
