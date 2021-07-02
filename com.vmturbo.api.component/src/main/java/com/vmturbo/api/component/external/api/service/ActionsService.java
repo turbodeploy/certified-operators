@@ -10,7 +10,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -66,7 +65,6 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -186,10 +184,7 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
-        final long id = actionSearchUtil.getActionInstanceId(uuid, null).orElseThrow(() -> {
-           logger.error("Cannot execute action as one with ID {} cannot be found.", uuid);
-           return new UnknownObjectException("Cannot find action with ID " + uuid);
-        });
+        final long id = getActionId(uuid);
 
         if (accept) {
             // accept the action
@@ -206,6 +201,36 @@ public class ActionsService implements IActionsService {
             log.info("Rejecting action with id: {}", id);
             throw new NotImplementedException("!!!!!! Reject Action not implemented");
         }
+    }
+
+    @Override
+    public boolean executeActions(
+            @Nonnull final List<String> actionUuids,
+            final boolean accept) throws Exception {
+        if (accept) {
+            try {
+                // TODO: (OM-68923) Send single gRPC call to Action Orchestrator instead of
+                //  sending multiple requests in a loop when Action Orchestrator supports this.
+                for (final String uuid : actionUuids) {
+                    final long id = getActionId(uuid);
+                    log.info("Accepting action with id: {}", id);
+                    actionOrchestratorRpc.acceptAction(actionRequest(id));
+                }
+                return true;
+            } catch (StatusRuntimeException e) {
+                log.error("Execute action error: {}", e.getMessage(), e);
+                throw convertToApiException(e);
+            }
+        } else {
+            throw new NotImplementedException("Reject Action not implemented");
+        }
+    }
+
+    private long getActionId(final String actionUuid) throws UnknownObjectException {
+        return actionSearchUtil.getActionInstanceId(actionUuid, null).orElseThrow(() -> {
+            logger.error("Cannot execute action as one with ID {} cannot be found.", actionUuid);
+            return new UnknownObjectException("Cannot find action with ID " + actionUuid);
+        });
     }
 
     private static Exception convertToApiException(StatusRuntimeException e) {
