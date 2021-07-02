@@ -16,6 +16,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +75,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
@@ -134,9 +136,9 @@ public class ActionsServiceTest {
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
-    private final long REALTIME_TOPOLOGY_ID = 777777L;
+    private static final long REALTIME_TOPOLOGY_ID = 777777L;
 
-    private final String UUID = "12345";
+    private static final String UUID = "12345";
 
     private final int maxInnerPagination = 500;
 
@@ -212,6 +214,31 @@ public class ActionsServiceTest {
         when(actionsServiceBackend.acceptActionError(any())).thenReturn(Optional.of(Status.NOT_FOUND
             .withDescription("test").asException()));
         actionsServiceUnderTest.executeAction(UUID, true, false);
+    }
+
+    /**
+     * Test execute multiple actions in one request.
+     *
+     * @throws Exception On any error.
+     */
+    @Test
+    public void testExecuteActions() throws Exception {
+        when(actionsServiceBackend.acceptAction(any()))
+                .thenReturn(AcceptActionResponse.getDefaultInstance());
+        final List<Long> actionOids = ImmutableList.of(1L, 2L);
+        final List<String> actionUuids = actionOids.stream()
+                .map(String::valueOf)
+                .collect(Collectors.toList());
+        actionsServiceUnderTest.executeActions(actionUuids, true);
+
+        // Check that Action Orchestrator stub was invoked for each of the actions in the list
+        actionOids.forEach(actionOid -> {
+            final SingleActionRequest request = SingleActionRequest.newBuilder()
+                    .setTopologyContextId(REALTIME_TOPOLOGY_ID)
+                    .setActionId(actionOid)
+                    .build();
+            verify(actionsServiceBackend, times(1)).acceptAction(request);
+        });
     }
 
     @Test
