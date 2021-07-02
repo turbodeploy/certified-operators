@@ -52,7 +52,7 @@ import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
+import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -272,7 +272,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      * {@link MarketStatsAccumulator}.
      *
      * @param entityDTO                The entity.
-     * @param capacityCache            cached seller capacities for selling entities seen so far
+     * @param commodityCache            cached seller capacities for selling entities seen so far
      * @param delayedCommoditiesBought a map of (providerId) -> ({@link DelayedCommodityBoughtWriter}).
      *                                 This method may add entries to the map if the entity being
      *                                 processed is buying commodities from a provider that does
@@ -282,10 +282,10 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      */
     @Override
     public void recordEntity(@Nonnull final TopologyEntityDTO entityDTO,
-            @Nonnull final CapacityCache capacityCache,
+            @Nonnull final CommodityCache commodityCache,
             @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
             @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
-        persistCommoditiesBought(entityDTO, capacityCache,
+        persistCommoditiesBought(entityDTO, commodityCache,
                 delayedCommoditiesBought, entityByOid);
 
         persistCommoditiesSold(entityDTO.getOid(),
@@ -492,7 +492,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      * in the incoming topology message) then delay the insertion of that set of commodities.
      *
      * @param entityDTO                the buyer DTO
-     * @param capacityCache            capacity data for seller entities seen so far
+     * @param commodityCache            capacity data for seller entities seen so far
      * @param delayedCommoditiesBought a map of commodities-bought where seller entity is not yet known
      * @param entityByOid              mapping from oid of the entity to the entity object
      * @throws InterruptedException if interrupted
@@ -500,7 +500,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     @VisibleForTesting
     void persistCommoditiesBought(
             @Nonnull final TopologyDTO.TopologyEntityDTO entityDTO,
-            @Nonnull final CapacityCache capacityCache,
+            @Nonnull final CommodityCache commodityCache,
             @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
             @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
@@ -509,9 +509,9 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(
                     topologyInfo.getCreationTime(),
                     entityDTO, providerId, commodityBoughtGrouping,
-                    capacityCache, entityByOid);
+                    commodityCache, entityByOid);
 
-            if (providerId != null && !capacityCache.hasEntityCapacities(providerId)) {
+            if (providerId != null && !commodityCache.hasEntityCapacities(providerId)) {
                 delayedCommoditiesBought.put(providerId, queueCommoditiesBlock);
             } else {
                 queueCommoditiesBlock.queCommoditiesNow();
@@ -530,7 +530,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
         private final TopologyEntityDTO entityDTO;
         private final Long providerId;
         private final CommoditiesBoughtFromProvider commoditiesBought;
-        private final CapacityCache capacityCache;
+        private final CommodityCache commodityCache;
         private final Map<Long, TopologyEntityDTO> entityByOid;
 
         /**
@@ -540,20 +540,20 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
          * @param entityDTO         entity
          * @param providerId        providing entity id
          * @param commoditiesBought commodities bought from provider
-         * @param capacityCache     cache of capacity info for selling entities seen so far
+         * @param commodityCache     cache of capacity info for selling entities seen so far
          * @param entityByOid       map of entities by oid
          */
         public DelayedCommodityBoughtWriter(final long snapshotTime,
                 @Nonnull final TopologyEntityDTO entityDTO,
                 @Nullable final Long providerId,
                 @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
-                @Nonnull final CapacityCache capacityCache,
+                @Nonnull final CommodityCache commodityCache,
                 @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
             this.snapshotTime = snapshotTime;
             this.entityDTO = entityDTO;
             this.providerId = providerId;
             this.commoditiesBought = commoditiesBought;
-            this.capacityCache = capacityCache;
+            this.commodityCache = commodityCache;
             this.entityByOid = entityByOid;
         }
 
@@ -564,7 +564,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
          */
         public void queCommoditiesNow() throws InterruptedException {
             queueCommoditiesBought(snapshotTime,
-                    entityDTO, providerId, commoditiesBought, capacityCache, entityByOid);
+                    entityDTO, providerId, commoditiesBought, commodityCache, entityByOid);
         }
     }
 
@@ -662,7 +662,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             @Nonnull TopologyEntityDTO entityDTO,
             @Nullable Long providerId,
             @Nonnull CommoditiesBoughtFromProvider commoditiesBought,
-            @Nonnull CapacityCache capacityCache,
+            @Nonnull CommodityCache capacityCache,
             @Nonnull Map<Long, TopologyEntityDTO> entityByOid)
             throws InterruptedException {
         for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBought.getCommodityBoughtList()) {

@@ -2,9 +2,7 @@ package com.vmturbo.history.stats.live;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,28 +14,16 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
-
-import it.unimi.dsi.fastutil.ints.Int2FloatMap;
-import it.unimi.dsi.fastutil.ints.Int2FloatMaps;
-import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.utils.DataPacks.CommodityTypeDataPack;
-import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -46,6 +32,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
+import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -73,7 +60,7 @@ public class LiveStatsAggregator implements MemReporter {
      * Cache for sold commodity capacities, so bought commodity records can include seller
      * capacities.
      */
-    private final CapacityCache capacityCache;
+    private final CommodityCache commodityCache;
 
     /**
      * Commodity keys that exceeded their max allowed length, encountered during the lifetime of
@@ -118,7 +105,7 @@ public class LiveStatsAggregator implements MemReporter {
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.excludedCommodityTypes = Objects.requireNonNull(excludedCommodityTypes);
-        this.capacityCache = new CapacityCache(excludedCommodityTypes, state.getOidPack());
+        this.commodityCache = new CommodityCache(excludedCommodityTypes, state.getOidPack());
         this.loaders = Objects.requireNonNull(state.getLoaders());
         createAccumulators();
     }
@@ -155,8 +142,8 @@ public class LiveStatsAggregator implements MemReporter {
      *
      * @param entityDTO the entity which sold commodities capacities are added to the cache.
      */
-    private void cacheCapacities(TopologyEntityDTO entityDTO) {
-        capacityCache.cacheCapacities(entityDTO);
+    private void cacheUsagesAndCapacity(TopologyEntityDTO entityDTO) {
+        commodityCache.cacheUsagesAndCapacity(entityDTO);
     }
 
     /**
@@ -209,7 +196,7 @@ public class LiveStatsAggregator implements MemReporter {
         final String baseEntityType = baseEntityTypeOptional.get();
 
         accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType())
-                .recordEntity(entityDTO, capacityCache, delayedCommoditiesBought, entityByOid);
+                .recordEntity(entityDTO, commodityCache, delayedCommoditiesBought, entityByOid);
     }
 
     /**
@@ -228,8 +215,8 @@ public class LiveStatsAggregator implements MemReporter {
      * @return the sold commodities cache
      */
     @VisibleForTesting
-    CapacityCache capacities() {
-        return capacityCache;
+    CommodityCache capacities() {
+        return commodityCache;
     }
 
     /**
@@ -267,7 +254,7 @@ public class LiveStatsAggregator implements MemReporter {
     public void aggregateEntity(TopologyEntityDTO entityDTO,
             Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         // save commodity sold capacities for filling other commodity bought capacities
-        cacheCapacities(entityDTO);
+        cacheUsagesAndCapacity(entityDTO);
         // provide commodity sold capacities for previously unsatisfied commodity bought
         handleDelayedCommoditiesBought(entityDTO.getOid());
         if (EntityType.fromSdkEntityType(entityDTO.getEntityType())
@@ -278,120 +265,8 @@ public class LiveStatsAggregator implements MemReporter {
         }
     }
 
-    /**
-     * Class to store capacities for all sold commodities encountered during the processing of a
-     * topology.
-     *
-     * <p>These may be needed to fill in capacities in the stats record created for corresponding
-     * bought commodities in other entities appearing in the topology.</p>
-     */
-    public static class CapacityCache implements MemReporter {
-        private final Set<CommodityType> excludedCommodityTypes;
-        private final IDataPack<Long> oidPack;
-
-        // entity oid (via oidPack) -> commodity type/key -> capacity
-        Int2ObjectMap<Int2FloatMap> capacities = new Int2ObjectOpenHashMap<>();
-        // data pack that allows us to use ints to represent commodity type/key
-        CommodityTypeDataPack commodityTypePack = new CommodityTypeDataPack();
-
-        /**
-         * Create a new instance.
-         *
-         * @param excludedCommodityTypes commodity types for which we don't cache capacities
-         * @param oidPack                data pack so we can represent oids as ints in data
-         *                               structures
-         */
-        public CapacityCache(Set<CommodityType> excludedCommodityTypes, IDataPack<Long> oidPack) {
-            this.excludedCommodityTypes = excludedCommodityTypes;
-            this.oidPack = oidPack;
-        }
-
-        /**
-         * Cache capacities for all commodities sold by the given entity.
-         *
-         * @param entity the entity
-         */
-        public void cacheCapacities(TopologyEntityDTO entity) {
-            final Iterator<CommoditySoldDTO> soldCommodities = entity.getCommoditySoldListList().stream()
-                    .filter(sold -> !excludedCommodityTypes.contains(
-                            CommodityType.forNumber(sold.getCommodityType().getType())))
-                    .iterator();
-            if (soldCommodities.hasNext()) {
-                int iid = oidPack.toIndex(entity.getOid());
-                final Int2FloatMap entityCapacities = capacities.computeIfAbsent(iid,
-                        _iid -> new Int2FloatOpenHashMap());
-                soldCommodities.forEachRemaining(sold -> {
-                    final int index = commodityTypePack.toIndex(sold.getCommodityType());
-                    entityCapacities.put(index, (float)sold.getCapacity());
-                });
-            }
-        }
-
-        /**
-         * Check whether we have any cached capacities for a given entity.
-         *
-         * @param providerId entity OID to check
-         * @return true if we have cached capacities for the entity
-         */
-        public boolean hasEntityCapacities(long providerId) {
-            return capacities.containsKey(oidPack.toIndex(providerId));
-        }
-
-        /**
-         * Get the cached capacity for the given commodity type sold by the given provider.
-         *
-         * @param providerId    provider entity id
-         * @param commodityType commodity type whose capacity is needed
-         * @return the cached capacity, or null if not found
-         */
-        public Double getCapacity(final long providerId, final TopologyDTO.CommodityType commodityType) {
-            final Int2FloatMap entityCapacities = capacities.get(oidPack.toIndex(providerId));
-            return entityCapacities != null
-                    ? Double.valueOf(entityCapacities.get(commodityTypePack.toIndex(commodityType)))
-                    : null;
-        }
-
-        @VisibleForTesting
-        Map<Long, Map<TopologyDTO.CommodityType, Double>> getAllEntityCapacities() {
-            final Map<Long, Map<TopologyDTO.CommodityType, Double>> result
-                    = new Long2ObjectOpenHashMap<>();
-            capacities.keySet().forEach((int iid) ->
-                    result.put(oidPack.fromIndex(iid), getEntityCapacities(iid)));
-            return result;
-        }
-
-        /**
-         * Retrieves all the cached capacities for the given entity, in the form of a map of {@link
-         * CommodityType} to capacity value.
-         *
-         * <p>This is used in tests, but in general, requests for individual capacity values using
-         * {@link #getCapacity(long, TopologyDTO.CommodityType)} is recommended, since it does not
-         * carry the overhead of constructing {@link CommodityType} instaces.</p>
-         *
-         * @param providerIid iid of entity whose cached capacities are required
-         * @return cached capacities
-         */
-        @VisibleForTesting
-        public Map<TopologyDTO.CommodityType, Double> getEntityCapacities(final int providerIid) {
-            Map<TopologyDTO.CommodityType, Double> result = new HashMap<>();
-            capacities.getOrDefault(providerIid, Int2FloatMaps.EMPTY_MAP).forEach((index, capacity) ->
-                    result.put(commodityTypePack.fromIndex(index), Double.valueOf(capacity)));
-            return result;
-        }
-
-
-        @Override
-        public Long getMemSize() {
-            return null;
-        }
-
-        @Override
-        public List<MemReporter> getNestedMemReporters() {
-            return ImmutableList.of(
-                    new SimpleMemReporter("capacities", capacities),
-                    new SimpleMemReporter("commodityTypePack", commodityTypePack)
-            );
-        }
+    public CommodityCache getCommodityCache() {
+        return commodityCache;
     }
 
     @Override
@@ -401,6 +276,6 @@ public class LiveStatsAggregator implements MemReporter {
 
     @Override
     public List<MemReporter> getNestedMemReporters() {
-        return Arrays.asList(capacityCache);
+        return Arrays.asList(commodityCache);
     }
 }

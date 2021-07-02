@@ -19,7 +19,7 @@ import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
-import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
+import com.vmturbo.history.stats.live.LiveStatsStore.CommodityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -46,7 +46,7 @@ public interface MarketStatsAccumulator {
      * attributes, and aggregating values for per-entity-type market-wide stats.
      *
      * @param entityDTO                the entity to be processed
-     * @param capacityCache            cache of capacities recorded for entities processed so far
+     * @param commodityCache            cache of capacities recorded for entities processed so far
      * @param delayedCommoditiesBought information for bought commodities for which capacities were
      *                                 not available at the time of processing; they will be
      *                                 handled when the needed capacities show up
@@ -54,7 +54,7 @@ public interface MarketStatsAccumulator {
      * @throws InterruptedException if interrupted
      */
     default void recordEntity(@Nonnull TopologyEntityDTO entityDTO,
-            @Nonnull CapacityCache capacityCache,
+            @Nonnull CommodityCache commodityCache,
             @Nonnull Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
             @Nonnull Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
     }

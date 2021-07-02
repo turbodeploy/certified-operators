@@ -34,6 +34,7 @@ import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.live.LiveStatsAggregator;
+import com.vmturbo.history.stats.live.LiveStatsStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -47,6 +48,7 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
     private final HistorydbIO historydbIO;
     private final IngesterState state;
     private LiveStatsAggregator aggregator;
+    private LiveStatsStore liveStatsStore;
 
     /**
      * Create a new writer instance.
@@ -56,17 +58,20 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
      * @param historydbIO            database utils
      * @param state                  shared ingester state
      * @param entitiesFilter         entities filter
+     * @param liveStatsStore         store for commodity stats of entities
      */
     private EntityStatsWriter(TopologyInfo topologyInfo,
             Set<CommodityType> excludedCommodityTypes,
             HistorydbIO historydbIO,
             IngesterState state,
-            Predicate<TopologyEntityDTO> entitiesFilter) {
+            Predicate<TopologyEntityDTO> entitiesFilter,
+            LiveStatsStore liveStatsStore) {
         super(entitiesFilter);
         this.topologyInfo = topologyInfo;
         this.excludedCommodityTypes = excludedCommodityTypes;
         this.historydbIO = historydbIO;
         this.state = state;
+        this.liveStatsStore = liveStatsStore;
     }
 
     @VisibleForTesting
@@ -99,6 +104,7 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
             try {
                 getAggregator().writeFinalStats();
                 getAggregator().logShortenedCommodityKeys();
+                liveStatsStore.updateCommodityCache(aggregator.getCommodityCache());
             } catch (VmtDbException e) {
                 logger.warn("EntityStatsWriter failed to record final stats for topology {}",
                     infoSummary);
@@ -125,6 +131,7 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
         private final HistorydbIO historydbIO;
         private final Set<CommodityType> excludedCommodityTypes;
         private final Predicate<TopologyEntityDTO> entitiesFilter;
+        private final LiveStatsStore liveStatsStore;
 
         /**
          * Create a new factory instance.
@@ -132,12 +139,14 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
          * @param historydbIO            database utils
          * @param excludedCommodityTypes commodities to be excluded from stats tables
          * @param entitiesFilter         entities filter
+         * @param liveStatsStore         store for commodity stats of entities
          */
         public Factory(HistorydbIO historydbIO, Set<CommodityType> excludedCommodityTypes,
-                Predicate<TopologyEntityDTO> entitiesFilter) {
+                Predicate<TopologyEntityDTO> entitiesFilter, LiveStatsStore liveStatsStore) {
             this.historydbIO = historydbIO;
             this.excludedCommodityTypes = excludedCommodityTypes;
             this.entitiesFilter = entitiesFilter;
+            this.liveStatsStore = liveStatsStore;
         }
 
         @Override
@@ -145,7 +154,7 @@ public class EntityStatsWriter extends TopologyWriterBase implements MemReporter
         getChunkProcessor(final TopologyInfo topologyInfo,
                           IngesterState state) {
             return Optional.of(new EntityStatsWriter(
-                    topologyInfo, excludedCommodityTypes, historydbIO, state, entitiesFilter));
+                    topologyInfo, excludedCommodityTypes, historydbIO, state, entitiesFilter, liveStatsStore));
         }
     }
 

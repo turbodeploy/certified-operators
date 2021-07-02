@@ -40,6 +40,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRe
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
+import com.vmturbo.history.stats.live.LiveStatsStore;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.SystemLoadReader;
@@ -263,6 +264,15 @@ public class StatsConfig {
                 historyPaginationMaxLimit, historyPaginationDefaultSortCommodity);
     }
 
+    /**
+     * The {@link LiveStatsStore} keeps track of stats from the most recent live topology.
+     *
+     */
+    @Bean
+    public LiveStatsStore liveStatsStore() {
+        return new LiveStatsStore(ingestersConfig.excludedCommodities(),
+                new LongDataPack());
+    }
 
     @Bean
     public ProjectedStatsStore projectedStatsStore() {
@@ -287,7 +297,7 @@ public class StatsConfig {
 
     @Bean
     protected HistUtilizationReader histUtilizationReader() {
-        return new HistUtilizationReader(historyDbConfig.historyDbIO(), entitiesReadPerChunk);
+        return new HistUtilizationReader(historyDbConfig.historyDbIO(), entitiesReadPerChunk, liveStatsStore());
     }
 
     /**
