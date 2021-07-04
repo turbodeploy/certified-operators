@@ -188,13 +188,26 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final DatabaseEngine engine;
         private final LicenseModel licenseModel;
         private final DeploymentType deploymentType;
+        private final Double hourlyBilledOps;
 
-        public DatabaseConfig(final DatabaseEdition edition, final DatabaseEngine engine,
-                @Nonnull  LicenseModel licenseModel, @Nullable DeploymentType deploymentType) {
+        public DatabaseConfig(
+                final DatabaseEdition edition,
+                final DatabaseEngine engine,
+                @Nonnull  LicenseModel licenseModel,
+                @Nullable DeploymentType deploymentType,
+                @Nullable Double hourlyBilledOps) {
             this.engine = engine;
             this.edition = edition;
             this.licenseModel = licenseModel;
             this.deploymentType = deploymentType;
+            this.hourlyBilledOps = hourlyBilledOps;
+        }
+
+        public DatabaseConfig(final DatabaseEdition edition,
+                              final DatabaseEngine engine,
+                              @Nonnull  LicenseModel licenseModel,
+                              @Nullable DeploymentType deploymentType) {
+            this(edition, engine, licenseModel, deploymentType, null);
         }
 
         @Nonnull
@@ -215,6 +228,11 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         @Nonnull
         public Optional<DeploymentType> getDeploymentType() {
             return Optional.ofNullable(deploymentType);
+        }
+
+        @Nullable
+        public Double getHourlyBilledOps() {
+            return hourlyBilledOps;
         }
 
         public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {

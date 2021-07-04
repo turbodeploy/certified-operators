@@ -51,6 +51,9 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
             if (databaseInfo.hasDeploymentType()) {
                 aspect.setDeploymentType(databaseInfo.getDeploymentType().name());
             }
+            if (databaseInfo.hasHourlyBilledOps()) {
+                aspect.setHourlyBilledOps(databaseInfo.getHourlyBilledOps());
+            }
         }
 
         String concurrentSessions = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_SESSION, null);

@@ -22,6 +22,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
@@ -827,6 +829,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
                         configPrice.getPricesList().get(0), computeBillableAmount);
                 final Multimap<CommodityType, Price> storagePrices = ArrayListMultimap.create();
+                final Map<Price.Unit, List<Price>> ioRequestsPrice = Maps.newHashMap();
                 //we support only Storage Amount and IOPS cost, other will be ignored
                 for (Price price : serverConfigPrice.getDependentPricesList()) {
                     switch (price.getUnit()) {
@@ -838,12 +841,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         case MILLION_IOPS:
                             storagePrices.put(CommodityType.STORAGE_ACCESS, price);
                             break;
+                        //storage IO usage price
+                        case IO_REQUESTS:
+                            ioRequestsPrice.put(Unit.IO_REQUESTS, Lists.newArrayList(price));
                     }
                 }
                 for (Entry<CommodityType, Collection<Price>> entry : storagePrices.asMap().entrySet()){
                     journal.recordOnDemandCost(CostCategory.STORAGE, dbsTier,
                             calculateRDBStorageCost(entry.getValue(), entity,
                                     entry.getKey()), FULL);
+                }
+                Double hourlyBilledOpsValue = databaseConfig.getHourlyBilledOps();
+                if (!ioRequestsPrice.isEmpty() && Objects.nonNull(hourlyBilledOpsValue)) {
+                    final TraxNumber hourlyBilledOps = trax(hourlyBilledOpsValue,
+                            "billed I/O operations per hour");
+                    recordStorageRangePricesByUnit(ioRequestsPrice, journal, dbsTier,
+                            hourlyBilledOps, Unit.IO_REQUESTS);
                 }
             }
         }
