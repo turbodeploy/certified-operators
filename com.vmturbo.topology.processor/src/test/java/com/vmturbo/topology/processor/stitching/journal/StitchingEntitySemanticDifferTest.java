@@ -218,8 +218,7 @@ public class StitchingEntitySemanticDifferTest {
                 "  [\n" +
                 "  --{\n" +
                 "  ----\"capacity\": 75.0,\n" +
-                "  ----\"commodityType\": \"VCPU\",\n" +
-                "  ----\"vcpuData\": { }\n" +
+                "  ----\"commodityType\": \"VCPU\"\n" +
                 "  --},\n" +
                 "    {\n" +
                 "      \"capacity\": 200.0,\n" +
@@ -242,20 +241,17 @@ public class StitchingEntitySemanticDifferTest {
                 "  [\n" +
                 "    {\n" +
                 "      \"capacity\": 75.0,\n" +
-                "      \"commodityType\": \"VCPU\",\n" +
-                "      \"vcpuData\": { }\n" +
+                "      \"commodityType\": \"VCPU\"\n" +
                 "    },\n" +
                 "  ++{\n" +
                 "  ++++\"capacity\": 45.0,\n" +
                 "  ++++\"commodityType\": \"VMEM\",\n" +
-                "  ++++\"key\": \"bar\",\n" +
-                "  ++++\"vmemData\": { }\n" +
+                "  ++++\"key\": \"bar\"\n" +
                 "  ++},\n" +
                 "  ++{\n" +
                 "  ++++\"capacity\": 45.0,\n" +
                 "  ++++\"commodityType\": \"VMEM\",\n" +
-                "  ++++\"key\": \"foo\",\n" +
-                "  ++++\"vmemData\": { }\n" +
+                "  ++++\"key\": \"foo\"\n" +
                 "  ++},\n" +
                 "    {\n" +
                 "      \"capacity\": 200.0,\n" +
@@ -279,9 +275,7 @@ public class StitchingEntitySemanticDifferTest {
                 "    {\n" +
                 "      \"capacity\": ((75.0 --> 45.0)),\n" +
                 "      \"commodityType\": ((\"VCPU\" --> \"VMEM\")),\n" +
-                "  ++++\"key\": \"foo\",\n" +
-                "  ----\"vcpuData\": { },\n" +
-                "  ++++\"vmemData\": { }\n" +
+                "  ++++\"key\": \"foo\"\n" +
                 "    },\n" +
                 "    {\n" +
                 "      \"capacity\": 200.0,\n" +
