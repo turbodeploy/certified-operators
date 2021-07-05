@@ -5,6 +5,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.targets.TargetStatusOuterClass.TargetStatus;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl.DiscoveryFailure;
@@ -12,7 +13,7 @@ import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl.Dis
 /**
  * Interface for tracking targets statuses.
  */
-public interface TargetStatusTracker extends OperationListener {
+public interface TargetStatusTracker extends OperationListener, StringDiagnosable {
 
     /**
      * Get statuses for the requested targets. If input target ids is null then return statuses for
