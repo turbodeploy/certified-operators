@@ -115,3 +115,5 @@ spec:
     enabled: false
   instana:
     enabled: true
+  jboss:
+    enabled: false
