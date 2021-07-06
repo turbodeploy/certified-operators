@@ -100,11 +100,11 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.target.DiscoveryStageApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
+import com.vmturbo.api.dto.target.TargetOperationStageApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -305,8 +305,8 @@ public class TargetsServiceTest {
             }
         });
 
-        when(targetDetailsMapper.convertToDiscoveryStageDetails(any())).thenReturn(
-                Arrays.asList(new DiscoveryStageApiDTO()));
+        when(targetDetailsMapper.convertToTargetOperationStages(any())).thenReturn(
+                Arrays.asList(new TargetOperationStageApiDTO()));
 
         doAnswer(invocation -> {
             GetTargetDetailsRequest req = invocation.getArgumentAt(0, GetTargetDetailsRequest.class);
@@ -2235,10 +2235,10 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
         doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.BASIC);
-        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-        assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
 
     /**
@@ -2259,12 +2259,12 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.BASIC,
                 new TargetPaginationRequest(null, null, true, null));
-        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO);
             assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-            assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+            assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
     }
 
@@ -2278,10 +2278,10 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
         doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH);
-        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-        assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
 
     /**
@@ -2307,11 +2307,11 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH,
                 new TargetPaginationRequest(null, null, true, null));
-        verify(targetDetailsMapper, never()).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-            assertNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+            assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
     }
 
@@ -2325,10 +2325,10 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
         doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH_DETAILS);
-        verify(targetDetailsMapper, times(1)).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, times(1)).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-        assertNotNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
 
     /**
@@ -2354,11 +2354,11 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
                 new TargetPaginationRequest(null, null, true, null));
-        verify(targetDetailsMapper, times(2)).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, times(2)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
-            assertNotNull(targetApiDTO.toString(), targetApiDTO.getDiscoveryStageDetails());
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
     }
 
@@ -2402,12 +2402,12 @@ public class TargetsServiceTest {
         final TargetPaginationResponse targetPaginationResponse = targetsService.getTargets(
                 null, null, null, TargetDetailLevel.HEALTH_DETAILS,
                 new TargetPaginationRequest(null, null, true, null));
-        verify(targetDetailsMapper, times(1)).convertToDiscoveryStageDetails(any());
+        verify(targetDetailsMapper, times(1)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         assertNotNull(targetPaginationResponse.getRawResults().get(0).getHealth());
-        assertNotNull(targetPaginationResponse.getRawResults().get(0).getDiscoveryStageDetails());
+        assertNotNull(targetPaginationResponse.getRawResults().get(0).getLastTargetOperationStages());
         // Target 2 has neither health nor details.
         assertNull(targetPaginationResponse.getRawResults().get(1).getHealth());
-        assertNull(targetPaginationResponse.getRawResults().get(1).getDiscoveryStageDetails());
+        assertNull(targetPaginationResponse.getRawResults().get(1).getLastTargetOperationStages());
     }
 }

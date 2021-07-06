@@ -460,7 +460,6 @@ public class TargetsService implements ITargetsService {
     }
 
     private void decorateWithDetails(List<TargetApiDTO> targets, TargetDetailLevel apiDetailLevel) {
-
         // Fetch additional details if necessary.
         // TODO (roman, Jun 30 2021): In the future there should be a single search call to
         // the topology processor, instead of search -> get targets -> get details.
@@ -481,7 +480,7 @@ public class TargetsService implements ITargetsService {
                                 details.getHealthDetails()));
                     }
                     if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
-                        targetApiDTO.setDiscoveryStageDetails(targetDetailsMapper.convertToDiscoveryStageDetails(details));
+                        targetApiDTO.setLastTargetOperationStages(targetDetailsMapper.convertToTargetOperationStages(details));
                     }
                 }
             }
