@@ -50,6 +50,9 @@ public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
             if (!dbData.getLowerBoundScaleUpList().isEmpty()) {
                 databaseInfoBuilder.addAllLowerBoundScaleUp(dbData.getLowerBoundScaleUpList());
             }
+            if (dbData.hasHourlyBilledOps()) {
+                databaseInfoBuilder.setHourlyBilledOps(dbData.getHourlyBilledOps());
+            }
             // we don't yet need 'dbData.getVersion() - but that may change
             appInfo.setDatabase(databaseInfoBuilder);
         }

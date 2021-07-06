@@ -138,7 +138,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
                     dbConfig.getEngine(),
                     dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
-                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null));
+                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null,
+                    dbConfig.hasHourlyBilledOps() ? dbConfig.getHourlyBilledOps() : null));
             }
         }
         return Optional.empty();

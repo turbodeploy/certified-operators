@@ -297,6 +297,9 @@ message TypeSpecificInfo {
 
         // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
         repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
+
+        // Average number of billed operations (e.g. reads, writes) per hour.
+        optional double hourly_billed_ops = 8;
     }
 
     // specific data for virtual volume
