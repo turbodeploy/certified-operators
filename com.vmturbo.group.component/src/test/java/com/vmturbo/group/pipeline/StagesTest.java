@@ -1,5 +1,7 @@
 package com.vmturbo.group.pipeline;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -58,6 +60,7 @@ import com.vmturbo.group.service.CachingMemberCalculator.RegroupingResult;
 import com.vmturbo.group.service.MockGroupStore;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.group.service.TransactionProvider;
 
 /**
  * Test class for the various stages of a {@link GroupInfoUpdatePipeline}.
@@ -273,8 +276,8 @@ public class StagesTest {
     }
 
     /**
-     * Tests that {@link StoreSupplementaryGroupInfoStage} does not stop if an exception occurs
-     * during evaluation of a group's members.
+     * Tests that processing the groups in a batch does not stop if an exception occurs during
+     * evaluation of a single group's members.
      *
      * @throws StoreOperationException to satisfy compiler
      * @throws InterruptedException to satisfy compiler
@@ -339,5 +342,71 @@ public class StagesTest {
         // resolve members for group 1, only group 2 should be queued for update.
         Assert.assertEquals(1, captor.getValue().size());
         Assert.assertEquals(groupUuid2, captor.getValue().keySet().iterator().next());
+    }
+
+    /**
+     * Tests that if a batch fails, {@link StoreSupplementaryGroupInfoStage} continues execution
+     * for the rest of the batches.
+     *
+     * @throws StoreOperationException to satisfy compiler
+     * @throws InterruptedException to satisfy compiler
+     */
+    @Test
+    public void testStoreSupplementaryGroupInfoStageExecutionContinuesAfterSingleBatchFailure()
+            throws StoreOperationException, InterruptedException {
+        final SearchServiceBlockingStub searchServiceRpc =
+                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
+        final TransactionProvider mockTransactionProvider = mock(TransactionProvider.class);
+        final StoreSupplementaryGroupInfoStage stage =
+                new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
+                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock,
+                        mockTransactionProvider, executorService, 1);
+        // GIVEN
+        final long groupUuid1 = 1;
+        final long groupUuid2 = 2;
+        final long entityUuid1 = 10;
+        final long entityUuid2 = 20;
+        final Set<Long> group1entities = new HashSet<>();
+        group1entities.add(entityUuid1);
+        final Set<Long> group2entities = new HashSet<>();
+        group2entities.add(entityUuid2);
+        final LongOpenHashSet input = new LongOpenHashSet();
+        input.add(groupUuid1);
+        input.add(groupUuid2);
+        final EntityWithOnlyEnvironmentTypeAndTargets entityWithEnv1 =
+                createEntityWithOnlyEnvironmentTypeAndTargets(entityUuid1);
+        final EntityWithOnlyEnvironmentTypeAndTargets entityWithEnv2 =
+                createEntityWithOnlyEnvironmentTypeAndTargets(entityUuid2);
+        final List<PartialEntity> partialEntities = new ArrayList<>();
+        partialEntities.add(createPartialEntityWithOnlyEnvironmentTypeAndTargets(entityWithEnv1));
+        partialEntities.add(createPartialEntityWithOnlyEnvironmentTypeAndTargets(entityWithEnv2));
+        final PartialEntityBatch repositoryResult = PartialEntityBatch.newBuilder()
+                .addAllEntities(partialEntities)
+                .build();
+        final List<PartialEntityBatch> repositoryResults = new ArrayList<>();
+        repositoryResults.add(repositoryResult);
+        when(searchServiceMole.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
+                .setSearch(SearchQuery.getDefaultInstance())
+                .setReturnType(Type.WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS)
+                .build())).thenReturn(repositoryResults);
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid1), true))
+                .thenReturn(group1entities);
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
+                .thenReturn(group2entities);
+        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any()))
+                .thenReturn(new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
+        when(groupSeverityCalculator.calculateSeverity(any())).thenReturn(Severity.CRITICAL);
+        when(mockTransactionProvider.transaction(any()))
+                // 1 batch succeeds
+                .thenReturn(true)
+                // 1 batch fails
+                .thenThrow(new StoreOperationException(io.grpc.Status.DATA_LOSS,
+                        "db error during severity update"));
+        // WHEN
+        Status status = stage.passthrough(input);
+
+        // THEN
+        // verify that the whole process succeeds since at least one batch succeeded
+        Assert.assertEquals(Status.success().getType(), status.getType());
     }
 }

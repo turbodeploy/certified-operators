@@ -109,6 +109,10 @@ public class PipelineConfig {
     @Bean
     public GroupSeverityUpdater groupSeverityUpdater() {
         return new GroupSeverityUpdater(rpcConfig.cachingMemberCalculator(),
-                groupConfig.groupSeverityCalculator(), groupConfig.groupStore());
+                groupConfig.groupSeverityCalculator(),
+                groupConfig.groupStore(),
+                rpcConfig.transactionProvider(),
+                groupSupplementaryInfoIngestionThreadPool(),
+                groupSupplementaryInfoIngestionBatchSize);
     }
 }
