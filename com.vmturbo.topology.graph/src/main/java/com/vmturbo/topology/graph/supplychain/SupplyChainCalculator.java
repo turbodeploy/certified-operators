@@ -1,5 +1,6 @@
 package com.vmturbo.topology.graph.supplychain;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,12 +21,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse.LeafEntity;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 
@@ -34,6 +39,81 @@ import com.vmturbo.topology.graph.TopologyGraphEntity;
  */
 public class SupplyChainCalculator {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final  Set<TraversalMode> LEAVES_DIRECTION_MODES =
+        Sets.newHashSet(TraversalMode.START, TraversalMode.PRODUCES);
+
+    /**
+     * Get the supply chain entities starting from a set of vertices.
+     *
+     * @param topology              - the topology to work on.
+     * @param seed                  - the collection of entities to start from.
+     * @param filterOutClasses      - entity types that should not be included.
+     * @param traversalRulesLibrary -  a set of traversal rules that are used for analysing
+     *                              supply chain relationships.
+     * @param <E>                   The type of {@link TopologyGraphEntity} in the graph.
+     * @return a list of {@link LeafEntity}.
+     */
+    public <E extends TopologyGraphEntity<E>> List<E>  getLeafEntities(
+            @Nonnull TopologyGraph<E> topology,
+            @Nonnull Collection<Long> seed,
+            @Nonnull List<EntityType> filterOutClasses,
+            @Nonnull TraversalRulesLibrary<E> traversalRulesLibrary) {
+
+        final List<Integer> filterOutClassesNumbers = filterOutClasses.stream()
+                .map(EntityType::getNumber).collect(Collectors.toList());
+        final Set<E> leaves = new HashSet<>();
+        final Queue<TraversalState> frontier = new Frontier<>(seed.stream()
+                .map(id -> new TraversalState(id, id, TraversalMode.START, 1))
+                .collect(Collectors.toList()), topology);
+        while (!frontier.isEmpty()) {
+            // remove traversal state from frontier
+            final TraversalState state = frontier.remove();
+            // skip the state if it does not match the desired direction
+            if (!LEAVES_DIRECTION_MODES.contains(state.getTraversalMode())) {
+                continue;
+            }
+            long entityId = state.getEntityId();
+            // get entity
+            final E entity = topology.getEntity(entityId).orElse(null);
+            if (entity == null) {
+                logger.error("Error while constructing supply chain: "
+                        + "missing entity with id {}", entityId);
+                continue;
+            }
+            // add entity to the result
+            if (shouldIncludeEntity(entity, filterOutClassesNumbers)) {
+                leaves.add(entity);
+            }
+            // apply a traversal rule to add traversal states to the frontier
+            if (!filterOutClassesNumbers.contains(entity.getEntityType())) {
+                traversalRulesLibrary.apply(entity, state.getTraversalMode(), state.getDepth(), frontier);
+            }
+        }
+        return new ArrayList<>(leaves);
+    }
+
+    /**
+     * The method decides if an entity should be included to the response based on filter and the
+     * defined highest entity type.
+     *
+     * @param entity           - entity to analyse.
+     * @param filterOutClasses - entity types that should not be included.
+     * @param <E>              - The type of {@link TopologyGraphEntity} in the graph.
+     * @return TRUE if it should be included.
+     */
+    private <E extends TopologyGraphEntity<E>> boolean shouldIncludeEntity(@Nonnull E entity,
+        @Nonnull List<Integer> filterOutClasses) {
+        if (filterOutClasses.contains(entity.getEntityType())) {
+            return false;
+        }
+        if (entity.getConsumers().isEmpty()) {
+            return true;
+        }
+        final List<E> filteredConsumers = new ArrayList<>(entity.getConsumers());
+        filteredConsumers.removeIf(e -> filterOutClasses.contains(e.getEntityType()));
+        return filteredConsumers.isEmpty();
+    }
 
     /**
      * Get the supply chain starting from a set of vertices.
