@@ -9,9 +9,9 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.vmturbo.api.dto.target.DiscoveryStageApiDTO;
-import com.vmturbo.api.dto.target.DiscoveryStageState;
-import com.vmturbo.api.dto.target.DiscoveryStageStatusApiDTO;
+import com.vmturbo.api.dto.target.TargetOperationStageApiDTO;
+import com.vmturbo.api.dto.target.TargetOperationStageState;
+import com.vmturbo.api.dto.target.TargetOperationStageStatusApiDTO;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails;
 import com.vmturbo.platform.common.dto.Discovery.ProbeStageDetails.StageStatus;
@@ -45,14 +45,14 @@ public class TargetDetailsMapperTest {
      */
     @Test
     public void testValuesPresent() {
-        final List<DiscoveryStageApiDTO> actual = targetDetailsMapper.convertToDiscoveryStageDetails(
+        final List<TargetOperationStageApiDTO> actual = targetDetailsMapper.convertToTargetOperationStages(
             SAMPLE_FAILED);
         assertEquals(1, actual.size());
-        final DiscoveryStageApiDTO actualStage = actual.get(0);
+        final TargetOperationStageApiDTO actualStage = actual.get(0);
         assertEquals(DATABASE_DESCRIPTION, actualStage.getDescription());
         assertNotNull(actualStage.getStatus());
-        final DiscoveryStageStatusApiDTO actualStatus = actualStage.getStatus();
-        assertEquals(DiscoveryStageState.FAILURE, actualStatus.getState());
+        final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
+        assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
         assertEquals(DATABASE_LONG_EXPLANATION, actualStatus.getFullExplanation());
         assertEquals(SAMPLE_STACK_TRACE, actualStatus.getStackTrace());
         assertEquals(DATABASE_SHORT_EXPLANATION, actualStatus.getSummary());
@@ -63,16 +63,16 @@ public class TargetDetailsMapperTest {
      */
     @Test
     public void testValuesMissing() {
-        final List<DiscoveryStageApiDTO> actual = targetDetailsMapper.convertToDiscoveryStageDetails(
+        final List<TargetOperationStageApiDTO> actual = targetDetailsMapper.convertToTargetOperationStages(
                 TargetDetails.newBuilder()
                         .addLastDiscoveryDetails(ProbeStageDetails.newBuilder()
                                 .build())
                         .build());
         assertEquals(1, actual.size());
-        final DiscoveryStageApiDTO actualStage = actual.get(0);
+        final TargetOperationStageApiDTO actualStage = actual.get(0);
         assertNull(actualStage.getDescription());
         assertNotNull(actualStage.getStatus());
-        final DiscoveryStageStatusApiDTO actualStatus = actualStage.getStatus();
+        final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
         assertNull(actualStatus.getState());
         assertNull(actualStatus.getFullExplanation());
         assertNull(actualStatus.getStackTrace());
@@ -84,13 +84,13 @@ public class TargetDetailsMapperTest {
      */
     @Test
     public void testEnumConversion() {
-        checkStageStatus(DiscoveryStageState.FAILURE, StageStatus.FAILURE);
-        checkStageStatus(DiscoveryStageState.SUCCESS, StageStatus.SUCCESS);
-        checkStageStatus(DiscoveryStageState.DID_NOT_RUN, StageStatus.DID_NOT_RUN);
+        checkStageStatus(TargetOperationStageState.FAILURE, StageStatus.FAILURE);
+        checkStageStatus(TargetOperationStageState.SUCCESS, StageStatus.SUCCESS);
+        checkStageStatus(TargetOperationStageState.DID_NOT_RUN, StageStatus.DID_NOT_RUN);
     }
 
-    private void checkStageStatus(DiscoveryStageState apiState, StageStatus internalState) {
-        final List<DiscoveryStageApiDTO> actual = targetDetailsMapper.convertToDiscoveryStageDetails(
+    private void checkStageStatus(TargetOperationStageState apiState, StageStatus internalState) {
+        final List<TargetOperationStageApiDTO> actual = targetDetailsMapper.convertToTargetOperationStages(
                 // replace the the sample with the state being checked
                 TargetDetails.newBuilder()
                     .addLastDiscoveryDetails(SAMPLE_FAILED_STAGE.toBuilder()
@@ -98,9 +98,9 @@ public class TargetDetailsMapperTest {
                         .build())
                     .build());
         assertEquals(1, actual.size());
-        final DiscoveryStageApiDTO actualStage = actual.get(0);
+        final TargetOperationStageApiDTO actualStage = actual.get(0);
         assertNotNull(actualStage.getStatus());
-        final DiscoveryStageStatusApiDTO actualStatus = actualStage.getStatus();
+        final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
         assertEquals(apiState, actualStatus.getState());
     }
 
@@ -120,16 +120,16 @@ public class TargetDetailsMapperTest {
                     .build();
             multiStageDetails.addLastDiscoveryDetails(probeStageDetails);
         }
-        final List<DiscoveryStageApiDTO> actual = targetDetailsMapper.convertToDiscoveryStageDetails(
+        final List<TargetOperationStageApiDTO> actual = targetDetailsMapper.convertToTargetOperationStages(
                 multiStageDetails.build());
         assertEquals(multiStageDetails.getLastDiscoveryDetailsCount(), actual.size());
         for (int i = 0; i < multiStageDetails.getLastDiscoveryDetailsCount(); i++) {
-            final DiscoveryStageApiDTO actualStage = actual.get(i);
+            final TargetOperationStageApiDTO actualStage = actual.get(i);
             assertEquals(DATABASE_DESCRIPTION + i, actualStage.getDescription());
             assertNotNull(actualStage.getStatus());
-            final DiscoveryStageStatusApiDTO actualStatus = actualStage.getStatus();
+            final TargetOperationStageStatusApiDTO actualStatus = actualStage.getStatus();
             assertNotNull(actualStage.getStatus());
-            assertEquals(DiscoveryStageState.FAILURE, actualStatus.getState());
+            assertEquals(TargetOperationStageState.FAILURE, actualStatus.getState());
             assertEquals(DATABASE_LONG_EXPLANATION + i, actualStatus.getFullExplanation());
             assertEquals(SAMPLE_STACK_TRACE + i, actualStatus.getStackTrace());
             assertEquals(DATABASE_SHORT_EXPLANATION + i, actualStatus.getSummary());
@@ -141,7 +141,7 @@ public class TargetDetailsMapperTest {
      */
     @Test
     public void testZeroStages() {
-        final List<DiscoveryStageApiDTO> actual = targetDetailsMapper.convertToDiscoveryStageDetails(
+        final List<TargetOperationStageApiDTO> actual = targetDetailsMapper.convertToTargetOperationStages(
                 TargetDetails.newBuilder()
                         .build());
         assertTrue(actual.isEmpty());
