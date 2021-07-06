@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -26,11 +27,14 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.Frontier;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.TraversalMode;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.TraversalState;
+import com.vmturbo.topology.graph.util.BaseGraphEntity;
 
 /**
  * Tests the functionality of the generation of scoped supply chains.
@@ -2225,5 +2229,51 @@ public class SupplyChainCalculatorTest {
             @Nonnull Predicate<TestGraphEntity> entityFilter) {
         return new SupplyChainCalculator()
                     .getSupplyChainNodes(topology, seedIds, entityFilter, new TraversalRulesLibrary<>());
+    }
+
+    /**
+     * It tests getting the leaf entities (highest entities without consumers).
+     *
+     * The graph:
+     * Service(122) - AppComponent2(12)
+     *                                \
+     *                                VM(1)
+     *                               /
+     *                AppComponent(11)
+     * It expects to get:
+     *  - case 1. leaves are: service(122) and appComponent 11)
+     *  - case 2. leaves are:  appComponent(11) and appComponent(12).
+     *            In this case the EntityType SERVICE is filtered out.
+     */
+    @Test
+    public void testLeafEntities() {
+        List<TestGraphEntity> leaves;
+        Set<Long> ids;
+        final TraversalRulesLibrary rules = new TraversalRulesLibrary();
+        final long vmId = 1;
+        final long app1Id = 11;
+        final long app2Id = 12;
+        final long svcId = 122;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(svcId, ApiEntityType.SERVICE)
+                                .addProviderId(app2Id),
+                        TestGraphEntity.newBuilder(app2Id, ApiEntityType.APPLICATION_COMPONENT)
+                                .addProviderId(vmId),
+                        TestGraphEntity.newBuilder(app1Id, ApiEntityType.APPLICATION_COMPONENT)
+                                .addProviderId(vmId),
+                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE));
+        final Set<Long> seed = Collections.singleton(vmId);
+        // Case 1
+        leaves = new SupplyChainCalculator().getLeafEntities(graph, seed, Collections.emptyList(), rules);
+        Assert.assertEquals(2, leaves.size());
+        ids = leaves.stream().map(BaseGraphEntity::getOid).collect(Collectors.toSet());
+        assertThat(ids, containsInAnyOrder(svcId, app1Id));
+        // Case 2
+        final List<EntityType> filterOutClasses = Collections.singletonList(EntityType.SERVICE);
+        leaves = new SupplyChainCalculator().getLeafEntities(graph, seed, filterOutClasses, rules);
+        Assert.assertEquals(2, leaves.size());
+        ids = leaves.stream().map(BaseGraphEntity::getOid).collect(Collectors.toSet());
+        assertThat(ids, containsInAnyOrder(app1Id, app2Id));
     }
 }

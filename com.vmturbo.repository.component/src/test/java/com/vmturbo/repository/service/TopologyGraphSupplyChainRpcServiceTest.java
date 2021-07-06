@@ -30,12 +30,15 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -656,5 +659,52 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertTrue(vmIds.contains(VM_ID));
         Assert.assertEquals(onpremVmIncluded, vmIds.contains(ONPREM_VM_ID));
         Assert.assertEquals(hybridVmIncluded, vmIds.contains(HYBRID_VM_ID));
+    }
+
+    /**
+     * Tests the leaf entities request.
+     *
+     * @throws InterruptedException should not happen
+     */
+    @Test
+    public void testLeafEntitiesRequest() throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        SimpleStreamObserver<LeafEntitiesResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getLeafEntities(LeafEntitiesRequest
+                .newBuilder()
+                .addAllSeeds(Collections.singletonList(VM_ID))
+                .setPaginationParams(Pagination.PaginationParameters.newBuilder()
+                        .setLimit(1)
+                        .setCursor("0")
+                        .build())
+                .build(), responseObserver);
+        latch.await();
+        Assert.assertEquals(1, responseObserver.getResults().size());
+        Assert.assertEquals(1, responseObserver.getResults().get(0).getLeavesList().size());
+        // incorrect limit
+        responseObserver = new SimpleStreamObserver<>(latch);
+        service.getLeafEntities(LeafEntitiesRequest
+                .newBuilder()
+                .addAllSeeds(Collections.singletonList(VM_ID))
+                .setPaginationParams(Pagination.PaginationParameters.newBuilder()
+                        .setLimit(-1)
+                        .build())
+                .build(), responseObserver);
+        latch.await();
+        Assert.assertTrue(responseObserver.getResults().isEmpty());
+        Assert.assertTrue(responseObserver.isFailure());
+        // incorrect cursor
+        responseObserver = new SimpleStreamObserver<>(latch);
+        service.getLeafEntities(LeafEntitiesRequest
+                .newBuilder()
+                .addAllSeeds(Collections.singletonList(VM_ID))
+                .setPaginationParams(Pagination.PaginationParameters.newBuilder()
+                        .setCursor("f-f-f-f")
+                        .build())
+                .build(), responseObserver);
+        latch.await();
+        Assert.assertTrue(responseObserver.getResults().isEmpty());
+        Assert.assertTrue(responseObserver.isFailure());
     }
 }

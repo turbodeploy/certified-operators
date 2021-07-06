@@ -6,6 +6,8 @@ option java_package = "com.vmturbo.common.protobuf.repository";
 option java_outer_classname = "SupplyChainProto";
 
 import "common/EnvironmentTypeEnum.proto";
+import "common/Pagination.proto";
+import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "action/ActionDTO.proto";
 
@@ -260,6 +262,25 @@ message GetSupplyChainStatsResponse {
     repeated SupplyChainStat stats = 1;
 }
 
+message LeafEntitiesRequest {
+    repeated int64 seeds = 1;
+    repeated .common_dto.EntityDTO.EntityType filter_out_classes = 2;
+    optional common.PaginationParameters pagination_params = 3;
+}
+
+// Response for leaf entities.
+//
+// The leaf entities are the highest entities in the supply chain that have
+// no consumers.
+message LeafEntitiesResponse {
+    message LeafEntity {
+        required int64 oid = 1;
+        required .common_dto.EntityDTO.EntityType entityType = 2;
+    }
+    repeated LeafEntity leaves = 3;
+    optional common.PaginationResponse pagination_response = 4;
+}
+
 // A service for fetching information about supply chains.
 // The supply chain is a concept that expresses the links between entities in a topology.
 service SupplyChainService {
@@ -274,4 +295,7 @@ service SupplyChainService {
     //
     // The response streams back each supply chain once it's computed.
     rpc GetMultiSupplyChains(GetMultiSupplyChainsRequest) returns (stream GetMultiSupplyChainsResponse);
+
+    // Retrieve the leaf entities.
+    rpc GetLeafEntities(LeafEntitiesRequest) returns (LeafEntitiesResponse);
 }

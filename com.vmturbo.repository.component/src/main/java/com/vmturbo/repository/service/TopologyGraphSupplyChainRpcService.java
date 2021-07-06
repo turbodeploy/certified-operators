@@ -2,6 +2,7 @@ package com.vmturbo.repository.service;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -11,13 +12,13 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
-
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,12 +26,16 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse.LeafEntity;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
@@ -127,6 +132,12 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                 // topology, or to remove it altogether.
             arangoSupplyChainService.getSupplyChain(request, responseObserver);
         }
+    }
+
+    @Override
+    public void getLeafEntities(LeafEntitiesRequest request,
+                                StreamObserver<LeafEntitiesResponse> observer) {
+        inMemorySupplyChainResolver.getLeafEntities(request, observer);
     }
 
     @Override
@@ -368,6 +379,83 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                         .build());
                 responseObserver.onCompleted();
             }
+        }
+
+        private void getLeafEntities(LeafEntitiesRequest request,
+                                     StreamObserver<LeafEntitiesResponse> observer) {
+            final LeafEntitiesResponse.Builder responseBuilder = LeafEntitiesResponse.newBuilder();
+            if (liveTopologyStore.getSourceTopology().isPresent()) {
+                final SourceRealtimeTopology topology = liveTopologyStore.getSourceTopology().get();
+                final List<RepoGraphEntity> entities = supplyChainCalculator.getLeafEntities(
+                    topology.entityGraph(),
+                    request.getSeedsList(),
+                    request.getFilterOutClassesList(),
+                    TRAVERSAL_RULES_LIBRARY);
+                if (!request.hasPaginationParams()) {
+                    observer.onNext(responseBuilder.addAllLeaves(
+                            entities.stream()
+                                    .map(entity -> LeafEntity
+                                        .newBuilder()
+                                        .setOid(entity.getOid())
+                                        .setEntityType(EntityType.forNumber(entity.getEntityType()))
+                                        .build())
+                                    .collect(Collectors.toSet()))
+                            .build());
+                    observer.onCompleted();
+                    return;
+                }
+                // Verify Limit
+                int limit = entities.size();
+                if (request.getPaginationParams().hasLimit() ) {
+                    if (request.getPaginationParams().getLimit() <= 0) {
+                        final String errorMessage = String.format("Illegal pagination limit: %d. "
+                            + "Must be be a positive integer.", request.getPaginationParams().getLimit());
+                        observer.onError(Status.INVALID_ARGUMENT.withDescription(errorMessage).asException());
+                        return;
+                    }
+                    limit = request.getPaginationParams().getLimit();
+                }
+                // Verify Cursor
+                long skip = 0L;
+                if (request.getPaginationParams().hasCursor()) {
+                    try {
+                        skip = Long.parseUnsignedLong(request.getPaginationParams().getCursor());
+                    } catch (NumberFormatException e) {
+                        final String errorMessage = String.format("Illegal cursor value: %s. "
+                            + "Must be 0 or a positive integer", request.getPaginationParams().getCursor());
+                        observer.onError(Status.INVALID_ARGUMENT.withDescription(errorMessage).asException());
+                        return;
+                    }
+                }
+                // It ignores ascending order and comparing parameters.
+                // It always sorts by OID.
+                entities.sort(Comparator.comparingLong(RepoGraphEntity::getOid));
+                responseBuilder.addAllLeaves(entities.stream()
+                        .skip(skip)
+                        .limit(limit)
+                        .map(entity -> LeafEntity
+                                .newBuilder()
+                                .setOid(entity.getOid())
+                                .setEntityType(EntityType.forNumber(entity.getEntityType()))
+                                .build())
+                        .collect(Collectors.toList()));
+                // Add pagination parameters
+                final int totalRecordCount = entities.size();
+                final int respRecordCount = responseBuilder.getLeavesCount();
+                final Pagination.PaginationResponse.Builder paginationRespBuilder
+                        = Pagination.PaginationResponse.newBuilder();
+                paginationRespBuilder.setTotalRecordCount(totalRecordCount);
+                if (skip + respRecordCount < totalRecordCount) {
+                    final String nextCursor = String.valueOf(skip + respRecordCount);
+                    paginationRespBuilder.setNextCursor(nextCursor);
+                }
+                responseBuilder.setPaginationResponse(paginationRespBuilder.build());
+                observer.onNext(responseBuilder.build());
+            } else {
+                observer.onNext(LeafEntitiesResponse.newBuilder()
+                        .addAllLeaves(Collections.emptyList()).build());
+            }
+            observer.onCompleted();
         }
 
         /**
