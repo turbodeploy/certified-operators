@@ -61,6 +61,9 @@ public class GroupConfig {
     @Value("${entitySettingsChunksSize:100}")
     private int entitySettingsChunksSize;
 
+    @Value("${considerUtilizationConstraintInClusterHeadroomPlan:false}")
+    private boolean considerUtilizationConstraintInClusterHeadroomPlan;
+
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {
         return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -141,7 +144,7 @@ public class GroupConfig {
 
     @Bean
     public EntitySettingsApplicator entitySettingsApplicator() {
-        return new EntitySettingsApplicator();
+        return new EntitySettingsApplicator(considerUtilizationConstraintInClusterHeadroomPlan);
     }
 
     @Bean

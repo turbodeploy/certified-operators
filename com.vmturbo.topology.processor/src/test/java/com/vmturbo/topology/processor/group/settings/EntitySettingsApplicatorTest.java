@@ -587,7 +587,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Before
     public void init() {
-        applicator = new EntitySettingsApplicator();
+        applicator = new EntitySettingsApplicator(false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
@@ -1888,6 +1888,47 @@ public class EntitySettingsApplicatorTest {
         // The effective capacity for headroom should be 80% * 75% = 60%
         Assert.assertEquals(60f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
+    }
+
+    /**
+     * When user defined cpu utilization setting exists, effective capacity percentage should be cpuUtilization * maxDesiredUtilization.
+     */
+    @Test
+    public void testHeadroomCpuUtilizationFeatureFlagEnabled() {
+        applicator = new EntitySettingsApplicator(true);
+        final TopologyEntityDTO.Builder builder =
+            createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
+        // Suppose the effective capacity is 80 - i.e. 20% is reserved for HA
+        builder.getCommoditySoldListBuilder(0).setEffectiveCapacityPercentage(80.0f);
+        // Suppose the maximum desired utilization is 75%
+        applySettings(CLUSTER_HEADROOM_TOPOLOGY_INFO, builder,
+            createSetting(EntitySettingSpecs.TargetBand, 10f),
+            createSetting(EntitySettingSpecs.UtilTarget, 70f),
+            // User defined cpu utilization is 50%, which will override HA setting
+            createSetting(EntitySettingSpecs.CpuUtilization, 50f));
+        // The effective capacity for headroom should be 75% * 50% = 37.5%
+        Assert.assertEquals(37.5f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+            0.0001);
+    }
+
+    /**
+     * When user defined cpu utilization setting exists, effective capacity percentage should be  maxDesiredUtilization.
+     */
+    @Test
+    public void testHeadroomCpuUtilizationFeatureFlagdisabled() {
+        final TopologyEntityDTO.Builder builder =
+            createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
+        // Suppose the effective capacity is 80 - i.e. 20% is reserved for HA
+        builder.getCommoditySoldListBuilder(0).setEffectiveCapacityPercentage(80.0f);
+        // Suppose the maximum desired utilization is 75%
+        applySettings(CLUSTER_HEADROOM_TOPOLOGY_INFO, builder,
+            createSetting(EntitySettingSpecs.TargetBand, 10f),
+            createSetting(EntitySettingSpecs.UtilTarget, 70f),
+            // User defined cpu utilization is 50%, which will override HA setting
+            createSetting(EntitySettingSpecs.CpuUtilization, 50f));
+        // The effective capacity for headroom should be 75% * 80% = 60%
+        Assert.assertEquals(60.0f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+            0.0001);
     }
 
     @Test

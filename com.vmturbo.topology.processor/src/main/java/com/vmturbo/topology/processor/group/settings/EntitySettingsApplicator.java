@@ -88,6 +88,17 @@ public class EntitySettingsApplicator {
         CommodityType.VMEM_REQUEST_VALUE
     );
 
+    private final boolean considerUtilizationConstraintInClusterHeadroomPlan;
+
+    /**
+     * Constructor.
+     *
+     * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
+     */
+    public EntitySettingsApplicator(final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
+        this.considerUtilizationConstraintInClusterHeadroomPlan = considerUtilizationConstraintInClusterHeadroomPlan;
+    }
+
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
      * contained in it.
@@ -97,7 +108,8 @@ public class EntitySettingsApplicator {
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
-        final List<SettingApplicator> applicators = buildApplicators(topologyInfo, graphWithSettings);
+        final List<SettingApplicator> applicators =
+            buildApplicators(topologyInfo, graphWithSettings, considerUtilizationConstraintInClusterHeadroomPlan);
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
@@ -134,10 +146,12 @@ public class EntitySettingsApplicator {
      *
      * @param topologyInfo The {@link TopologyInfo} of an in-progress topology broadcast.
      * @param graphWithSettings {@link GraphWithSettings} of the in-progress topology
+     * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
      * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
-                                                            @Nonnull final GraphWithSettings graphWithSettings) {
+                                                            @Nonnull final GraphWithSettings graphWithSettings,
+                                                            final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
         return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
                 new ReconfigureApplicator(),
@@ -190,7 +204,7 @@ public class EntitySettingsApplicator {
                         CommodityType.STORAGE_AMOUNT),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
-                new HaDependentUtilizationApplicator(topologyInfo),
+                new HaDependentUtilizationApplicator(topologyInfo, considerUtilizationConstraintInClusterHeadroomPlan),
                 new VMCPUIncrementApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
                         CommodityType.VMEM),
@@ -947,14 +961,26 @@ public class EntitySettingsApplicator {
 
         private final TopologyInfo topologyInfo;
 
-        private HaDependentUtilizationApplicator(@Nonnull final TopologyInfo topologyInfo) {
+        private final boolean considerUtilizationConstraintInClusterHeadroomPlan;
+
+        private HaDependentUtilizationApplicator(@Nonnull final TopologyInfo topologyInfo,
+                                                 final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
             this.topologyInfo = Objects.requireNonNull(topologyInfo);
+            this.considerUtilizationConstraintInClusterHeadroomPlan = considerUtilizationConstraintInClusterHeadroomPlan;
         }
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                 @Nonnull final Map<EntitySettingSpecs, Setting> settings,
                 @Nonnull final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            if (topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.CLUSTER_HEADROOM
+                    || considerUtilizationConstraintInClusterHeadroomPlan) {
+                final Setting cpuUtilSetting = settings.get(EntitySettingSpecs.CpuUtilization);
+                final Setting memUtilSetting = settings.get(EntitySettingSpecs.MemoryUtilization);
+                applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting);
+                applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting);
+            }
+
             if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLUSTER_HEADROOM) {
                 // For cluster headroom calculation, we ignore the normal settings that affect
                 // effective capacity.
@@ -971,11 +997,6 @@ public class EntitySettingsApplicator {
                     applyMaxUtilizationToCapacity(entity, CommodityType.CPU, maxDesiredUtilization);
                     applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
                 }
-            } else {
-                final Setting cpuUtilSetting = settings.get(EntitySettingSpecs.CpuUtilization);
-                final Setting memUtilSetting = settings.get(EntitySettingSpecs.MemoryUtilization);
-                applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting);
-                applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting);
             }
         }
 
