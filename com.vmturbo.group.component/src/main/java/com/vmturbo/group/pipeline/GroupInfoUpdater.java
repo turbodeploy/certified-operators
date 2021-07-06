@@ -126,6 +126,8 @@ public class GroupInfoUpdater implements RepositoryListener,
         executorService.execute(() -> {
             try {
                 groupSeverityUpdater.refreshGroupSeverities();
+            } catch (InterruptedException e) {
+                logger.warn("Group severity update was interrupted. Cause: ", e);
             } finally {
                 severityUpdateIsQueued = false;
             }

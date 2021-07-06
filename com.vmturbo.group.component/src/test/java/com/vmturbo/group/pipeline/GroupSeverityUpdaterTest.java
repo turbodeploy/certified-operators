@@ -11,23 +11,32 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.common.collect.Sets;
+
+import io.grpc.Status;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.BadSqlGrammarException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
-import com.vmturbo.group.group.GroupDAO;
+import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupSeverityCalculator;
-import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.service.CachingMemberCalculator;
+import com.vmturbo.group.service.MockGroupStore;
+import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.group.service.TransactionProvider;
 
 /**
  * Unit tests for {@link GroupSeverityUpdater}.
@@ -39,38 +48,60 @@ public class GroupSeverityUpdaterTest {
     private final GroupSeverityCalculator groupSeverityCalculator =
             mock(GroupSeverityCalculator.class);
 
-    private final IGroupStore groupStore = mock(GroupDAO.class);
+    private MockGroupStore groupStoreMock;
+
+    private MockTransactionProvider transactionProvider;
+
+    private ExecutorService executorService;
+
+    /**
+     * Sets up environment for tests.
+     */
+    @Before
+    public void setUp() {
+        transactionProvider = new MockTransactionProvider();
+        groupStoreMock = transactionProvider.getGroupStore();
+        executorService = Executors.newFixedThreadPool(2);
+    }
 
     /**
      * Tests that {@link GroupSeverityUpdater#refreshGroupSeverities()} refreshes groups' severity
      * data.
      *
      * @throws StoreOperationException to satisfy compiler
+     * @throws InterruptedException to satisfy compiler
      */
     @Test
-    public void testRefreshGroupSeverities() throws StoreOperationException {
+    public void testRefreshGroupSeverities() throws StoreOperationException, InterruptedException {
         // GIVEN
         final long group1Uuid = 1001L;
         final long group2Uuid = 1002L;
         final long entity1Uuid = 2001L;
         final long entity2Uuid = 2002L;
         final GroupSeverityUpdater updater = new GroupSeverityUpdater(memberCache,
-                groupSeverityCalculator, groupStore);
+                groupSeverityCalculator, groupStoreMock, transactionProvider, executorService, 10);
+        groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
         LongOpenHashSet groupIds = new LongOpenHashSet();
         groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));
         when(memberCache.getCachedGroupIds()).thenReturn(groupIds);
-        when(memberCache.getGroupMembers(groupStore, Collections.singleton(group1Uuid), true))
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group1Uuid), true))
                 .thenReturn(Sets.newHashSet(entity1Uuid));
-        when(memberCache.getGroupMembers(groupStore, Collections.singleton(group2Uuid), true))
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group2Uuid), true))
                 .thenReturn(Sets.newHashSet(entity2Uuid));
         when(groupSeverityCalculator.calculateSeverity(any()))
                 .thenReturn(Severity.MAJOR);
-        when(groupStore.updateBulkGroupsSeverity(any())).thenReturn(2);
+//        when(groupStoreMock.updateBulkGroupsSeverity(any())).thenReturn(2);
         // WHEN
-        updater.refreshGroupSeverities();
+        final boolean result = updater.refreshGroupSeverities();
         // THEN
+        Assert.assertTrue(result);
         ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(groupStore, times(1)).updateBulkGroupsSeverity(captor.capture());
+        verify(groupStoreMock, times(1)).updateBulkGroupsSeverity(captor.capture());
         // validate the arguments passed to updateBulkGroupsSeverity (only groupUuid and severity
         // matter, since the rest are ignored during severity updates)
         Assert.assertEquals(2, captor.getValue().size());
@@ -88,35 +119,93 @@ public class GroupSeverityUpdaterTest {
      * group and continue resolving the rest.
      *
      * @throws StoreOperationException to satisfy compiler
+     * @throws InterruptedException to satisfy compiler
      */
     @Test
-    public void testThatExecutionContinuesAfterSingleGroupFailure() throws StoreOperationException {
+    public void testThatExecutionContinuesAfterSingleGroupFailure()
+            throws StoreOperationException, InterruptedException {
         // GIVEN
         final long group1Uuid = 1001L;
         final long group2Uuid = 1002L;
+        final Severity newSeverity = Severity.MAJOR;
         final GroupSeverityUpdater updater = new GroupSeverityUpdater(memberCache,
-                groupSeverityCalculator, groupStore);
+                groupSeverityCalculator, groupStoreMock, transactionProvider, executorService, 10);
+        groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
         LongOpenHashSet groupIds = new LongOpenHashSet();
         groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));
         when(memberCache.getCachedGroupIds()).thenReturn(groupIds);
-        when(memberCache.getGroupMembers(groupStore, Collections.singleton(group1Uuid), true))
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group1Uuid), true))
                 .thenThrow(new BadSqlGrammarException(null, "SqlQuery", new SQLException()));
-        when(memberCache.getGroupMembers(groupStore, Collections.singleton(group2Uuid), true))
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group2Uuid), true))
                 .thenReturn(Sets.newHashSet(1L));
         when(groupSeverityCalculator.calculateSeverity(any()))
-                .thenReturn(Severity.MAJOR);
-        when(groupStore.updateBulkGroupsSeverity(any())).thenReturn(1);
+                .thenReturn(newSeverity);
+        groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
         // WHEN
-        updater.refreshGroupSeverities();
+        final boolean result = updater.refreshGroupSeverities();
         // THEN
+        Assert.assertTrue(result);
         ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(groupStore, times(1)).updateBulkGroupsSeverity(captor.capture());
+        verify(groupStoreMock, times(1)).updateBulkGroupsSeverity(captor.capture());
         // Validate that group 2 was added to the groups to be updated. This would indicate that
         // processing didn't stop after group 1 threw an exception during member retrieval.
         Assert.assertEquals(1, captor.getValue().size());
         Iterator<GroupSupplementaryInfo> it = captor.getValue().iterator();
         GroupSupplementaryInfo gsi = it.next();
         Assert.assertEquals(group2Uuid, gsi.getGroupId().longValue());
-        Assert.assertEquals(Severity.MAJOR.getNumber(), gsi.getSeverity().intValue());
+        Assert.assertEquals(newSeverity.getNumber(), gsi.getSeverity().intValue());
+    }
+
+    /**
+     * Test that if the processing of a batch fails, processing the rest continues and the update
+     * (partially) succeeds.
+     *
+     * @throws StoreOperationException to satisfy compiler
+     * @throws InterruptedException to satisfy compiler
+     */
+    @Test
+    public void testThatExecutionContinuesAfterSingleBatchFailure()
+            throws StoreOperationException, InterruptedException {
+        // GIVEN
+        final long group1Uuid = 1001L;
+        final long group2Uuid = 1002L;
+        final Severity newSeverity = Severity.MAJOR;
+        final TransactionProvider mockTransactionProvider = mock(TransactionProvider.class);
+        final GroupSeverityUpdater updater = new GroupSeverityUpdater(memberCache,
+                groupSeverityCalculator, groupStoreMock, mockTransactionProvider,
+                executorService, 1);
+        groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
+                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                Severity.NORMAL);
+        LongOpenHashSet groupIds = new LongOpenHashSet();
+        groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));
+        when(memberCache.getCachedGroupIds()).thenReturn(groupIds);
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group1Uuid), true))
+                .thenReturn(Sets.newHashSet(1L));
+        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(group2Uuid), true))
+                .thenReturn(Sets.newHashSet(2L));
+        when(groupSeverityCalculator.calculateSeverity(any()))
+                .thenReturn(newSeverity);
+        when(mockTransactionProvider.transaction(any()))
+                // 1 batch succeeds
+                .thenReturn(1)
+                // 1 batch fails
+                .thenThrow(new StoreOperationException(Status.DATA_LOSS,
+                        "db error during severity update"));
+        // WHEN
+        final boolean result = updater.refreshGroupSeverities();
+        // THEN
+        // verify that the process succeeds since at least 1 batch succeeded.
+        Assert.assertTrue(result);
     }
 }

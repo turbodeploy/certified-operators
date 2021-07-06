@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StopWatch;
@@ -40,6 +41,8 @@ import com.vmturbo.components.common.pipeline.Pipeline.PassthroughStage;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.components.common.pipeline.Stage;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
@@ -222,9 +225,8 @@ public class Stages {
                 final Multimap<Long, Long> discoveredGroups) throws InterruptedException {
             final SupplementaryInfoIngestionResult result = new SupplementaryInfoIngestionResult();
             final Map<Long, GroupSupplementaryInfo> groupsToInsert = new HashMap<>();
-            final StopWatch stopWatch =
-                    new StopWatch("group supplementary info calculation & storage worker");
-            stopWatch.start("Batch's data calculation");
+            final MultiStageTimer timer = new MultiStageTimer(logger);
+            timer.start("Group supplementary info calculation");
             // iterate over all groups and calculate supplementary info
             for (long groupId : groups) {
                 // get group's members
@@ -258,8 +260,7 @@ public class Stages {
                         groupEnvironment.getCloudType().getNumber(),
                         groupSeverity.getNumber()));
             }
-            stopWatch.stop();
-            stopWatch.start("Batch's data ingestion");
+            timer.start("Group supplementary info ingestion");
             // update database records in a batch
             try {
                 transactionProvider.transaction(stores -> {
@@ -271,9 +272,10 @@ public class Stages {
                 logger.trace("List of groups in failed batch: {}", () -> groups);
                 return null;
             } finally {
-                stopWatch.stop();
+                timer.stop();
             }
-            logger.trace(stopWatch::prettyPrint);
+            timer.log(Level.DEBUG, "Group supplementary info calculation & ingestion worker "
+                    + "results: ", Detail.STAGE_SUMMARY);
             return result;
         }
 
@@ -317,8 +319,7 @@ public class Stages {
         /**
          * Class that holds the results of the execution of a single worker thread that calculates
          * and ingests supplementary info for a given list of groups.
-         * It contains group counts (broken down by environment type, cloud type and severity) and
-         * execution time for ingestion (in ms).
+         * It contains group counts (broken down by environment type, cloud type and severity).
          */
         private static class SupplementaryInfoIngestionResult {
             private final Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType;

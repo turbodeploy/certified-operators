@@ -4,6 +4,7 @@ import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMEN
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -2617,6 +2618,64 @@ public class GroupDaoTest {
         Assert.assertEquals(envType, gsi.getEnvironmentType().intValue());
         Assert.assertEquals(cloudType, gsi.getCloudType().intValue());
         Assert.assertEquals(severity, gsi.getSeverity().intValue());
+    }
+
+    /**
+     * Tests updating group severities in a bulk.
+     * Any groups that are not currently in the database (in main `grouping` table) are expected to
+     * be skipped.
+     *
+     * @throws StoreOperationException to satisfy compiler.
+     */
+    @Test
+    public void testUpdateBulkGroupSeverities() throws StoreOperationException {
+        // GIVEN
+        prepareGroups("group1", "group2", "group3", "group4");
+        Collection<GroupSupplementaryInfo> groupsToUpdate = new ArrayList<>();
+        // leave same
+        final Severity group1NewSeverity = Severity.MAJOR;
+        groupsToUpdate.add(new GroupSupplementaryInfo(OID1, false, 0, 0,
+                group1NewSeverity.getNumber()));
+        // change
+        final Severity group2NewSeverity = Severity.NORMAL;
+        groupsToUpdate.add(new GroupSupplementaryInfo(OID2, false, 0, 0,
+                group2NewSeverity.getNumber()));
+        // change
+        final Severity group3NewSeverity = Severity.MINOR;
+        groupsToUpdate.add(new GroupSupplementaryInfo(OID3, true, 0, 0,
+                group3NewSeverity.getNumber()));
+        // leave same
+        final Severity group4NewSeverity = Severity.NORMAL;
+        groupsToUpdate.add(new GroupSupplementaryInfo(OID4, true, 0, 0,
+                group4NewSeverity.getNumber()));
+        // group that doesn't exist in the database (in grouping table)
+        final Severity group5NewSeverity = Severity.MINOR;
+        groupsToUpdate.add(new GroupSupplementaryInfo(OID5, true, 0, 0,
+                group5NewSeverity.getNumber()));
+
+        // WHEN
+        groupStore.updateBulkGroupsSeverity(groupsToUpdate);
+
+        // THEN
+        Map<Long, GroupSupplementaryInfo> retrievedGroups = dbConfig.getDslContext()
+                .select()
+                .from(GROUP_SUPPLEMENTARY_INFO)
+                .fetchInto(GroupSupplementaryInfo.class)
+                .stream()
+                .collect(Collectors.toMap(GroupSupplementaryInfo::getGroupId, Function.identity()));
+        Assert.assertEquals(4, retrievedGroups.size());
+        Assert.assertThat(retrievedGroups.keySet(),
+                Matchers.containsInAnyOrder(OID1, OID2, OID3, OID4));
+        // (group with oid 5 should not be present)
+        // Verify the contents of the retrieved groups
+        Assert.assertEquals(group1NewSeverity.getNumber(),
+                retrievedGroups.get(OID1).getSeverity().intValue());
+        Assert.assertEquals(group2NewSeverity.getNumber(),
+                retrievedGroups.get(OID2).getSeverity().intValue());
+        Assert.assertEquals(group3NewSeverity.getNumber(),
+                retrievedGroups.get(OID3).getSeverity().intValue());
+        Assert.assertEquals(group4NewSeverity.getNumber(),
+                retrievedGroups.get(OID4).getSeverity().intValue());
     }
 
     @Nonnull

@@ -105,9 +105,11 @@ public class GroupInfoUpdaterTest {
     /**
      * Tests that only one severity update can run at a time, and notifications for severity updates
      * that arrive while another severity update is already running are skipped.
+     *
+     * @throws InterruptedException to satisfy compiler
      */
     @Test
-    public void testQueueMultipleSeverityUpdates() {
+    public void testQueueMultipleSeverityUpdates() throws InterruptedException {
         final ExecutorService executor = mock(ExecutorService.class);
         final GroupInfoUpdater runner = new GroupInfoUpdater(factory, severityUpdater,
                 realtimeContextId, executor);
