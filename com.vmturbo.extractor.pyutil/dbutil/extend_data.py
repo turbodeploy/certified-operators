@@ -3,6 +3,7 @@ import collections
 import importlib
 import logging
 import os
+import sys
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -98,7 +99,35 @@ class Extender:
             db.execute(f"TRUNCATE TABLE {self.extended}")
         else:
             db.execute(f"CREATE TABLE {self.extended} (LIKE {self.sample} INCLUDING ALL)")
+        self.indexes = db.get_indexes(self.args.replica_schema, self.table)
         return not exists
+
+    def drop_indexes(self):
+        """Drop this table's indexes in the replica schema.
+
+        This is done in order to improve speed of record insertion when copying data from base
+        table. The indexes can be restored when copying is complete.
+        """
+        for index in self.indexes:
+            index.drop()
+
+    def create_indexes(self):
+        """Recreate indexes that were previously dropped, once data copying is complete"""
+        for index in self.indexes:
+            index.create()
+
+    def finish(self):
+        """Peform any required work after all the data copying has completed.
+        """
+        db.execute(f"ANALYZE {self.extended}")
+
+    def log_stats(self, count, time):
+        """Log summary stats for this table's replication.
+
+        :param count: number of records copied into the replica table
+        :param time: amount of time spent copying data for this table
+        """
+        logger.info(f"Copied {count} records from {self.table} to {self.extended} in {time}")
 
     def extend(self, replica_number):
         """Copy the sample data into replica table with values adjusted so that this replica
@@ -107,9 +136,10 @@ class Extender:
         :param replica_number: number of replica to copy; one means the first replica, which
         should be copied with no column value adjustments
         """
-        self.copy_data(replica_number)
+        return self.copy_data(replica_number)
 
-    def copy_data(self, replica_number, start=None, end=None, source=None):
+    def copy_data(self, replica_number, start=None, end=None, extra_cond=None, source=None,
+                  adjustments=None, source_desc=None):
         """Copy data from the table in the sample schema to the corresponding table in the
         replica schema.
 
@@ -119,24 +149,30 @@ class Extender:
         :param replica_number: one-origin replica count
         :param start: inclusive beginning range of timestamps of sample data to copy
         :param end: exclusive end of range of timestamps of sample data to copy
-        :param source: name of source or data, purely for logging
+        :param extra_cond: any conditions to add to the standard time-based condition
+        :param source: source table to copy records from (defaults to table in sample schema)
+        :param source_dest: name of source, purely for logging purposes
         :return: number of records copied
         """
         start = start or self.args.sample_start
         end = end or self.args.sample_end
+        source = source or self.table
+        adjustments = adjustments or self.adjustments
         cond = f"{self.time_col} >= '{start}' AND {self.time_col} < '{end}'" if self.time_col \
             else 'true'
-        select_list = self.__adjusted_columns(replica_number)
+        if extra_cond:
+            cond = f"{cond} AND {extra_cond}"
+        select_list = self.__adjusted_columns(replica_number, adjustments)
         t0 = datetime.now()
         n = db.execute(f"INSERT INTO {self.extended} ({', '.join(self.columns)}) "
-                       f"SELECT {select_list} FROM {self.table} WHERE {cond}")
-        from_desc = f" from {source}" if source else ""
-        logger.info(f"Wrote {n} records{from_desc} to {self.extended} in {datetime.now() - t0}")
+                       f"SELECT {select_list} FROM {source} WHERE {cond}")
+        from_desc = f" from {source_desc}" if source_desc else ""
+        logger.debug(f"Copied {n} records{from_desc} in {datetime.now() - t0}")
         return n
 
-    def __adjusted_columns(self, replica_number):
+    def __adjusted_columns(self, replica_number, adjustments):
         cols = self.columns
-        for adjustment in self.adjustments:
+        for adjustment in adjustments:
             cols = adjustment.adjust(cols, replica_number - 1)
         return ', '.join(cols)
 
@@ -152,7 +188,6 @@ class HypertableExtender(Extender):
     later replicas first. We don't ever compress the latest replica, which leaves the replica
     schema suitable as a target for ingestion, should that be desired.
     """
-
     def __init__(self, table, args, adjustments=None, time_col=None):
         self.sample_htconfig = HypertableConfig(args.db_schema, table, db)
         super().__init__(table, args, adjustments, time_col)
@@ -173,19 +208,21 @@ class HypertableExtender(Extender):
                 self.sample_htconfig.log_config(logger, logging.DEBUG)
             self.sample_htconfig.configure(self.args.replica_schema, self.table)
             HypertableConfig(self.args.replica_schema, self.table, db) \
-                .log_config(logger, logging.INFO)
+                .log_config(logger, logging.DEBUG)
             return True
         else:
             return False
 
     def extend(self, replica_number):
-        super().extend(replica_number)
+        n = super().extend(replica_number)
         # after all replicas have been copied, compress any chunk partially filled when copying
         # final (earliest) replica (unless it's also the latest existing chunk)
         if replica_number == self.args.replica_count:
             self.compress_compressible_chunks(datetime.min)
+        return n
 
-    def copy_data(self, replica_number, start=None, end=None, source=None):
+    def copy_data(self, replica_number, start=None, end=None, extra_cond=None, source=None,
+                  adjustments=None, source_desc=None):
         """Implementation of copy_data for a hypertable extender.
 
         The copies are done chunk-by-chunk, from latest to earliest chunk. After each chunk is
@@ -193,30 +230,35 @@ class HypertableExtender(Extender):
         compressed. A chunk is eligible for compression if it is not the latest chunk, and if its
         time range lies wholly beyond the timestamp of the last record inserted.
 
-        :param replica_number: one-origin replica number
-        :param start: inclusive lower bound of timestamps to copy
-        :param end: exclusive upper bound of timestamps to copy
-        :param source: source of data, purely for loging
+        :param replica_number: one-origin replica count
+        :param start: inclusive beginning range of timestamps of sample data to copy
+        :param end: exclusive end of range of timestamps of sample data to copy
+        :param extra_cond: any conditions to add to the standard time-based condition
+        :param source: source table to copy records from (defaults to table in sample schema)
+        :param source_dest: name of source, purely for logging purposes
         :return: number of records copied
         """
         start = start or self.args.sample_start
         end = end or self.args.sample_end
+        source = source or self.table
+        adjustments = adjustments or self.adjustments
         chunks = self.sample_htconfig.chunk_ranges
         n = 0
         t0 = datetime.now()
         for c in chunks:
             _start, _end = max(start, c.start), min(end, c.end)
             if _start < _end:
-                source = f"from chunk #{c.number}"
-                logger.debug(f"Copying records from {source}[{c.start}..{c.end}] "
+                sd = source_desc or f"chunk #{c.number}"
+                logger.debug(f"Copying records from {sd}[{c.start}..{c.end}] "
                              f"of {self.table}")
-                n += super().copy_data(replica_number, start=_start, end=_end, source=source)
+                n += super().copy_data(replica_number, start=_start, end=_end,
+                                       extra_cond=extra_cond, adjustments=adjustments,
+                                       source=source, source_desc=sd)
                 self.compress_compressible_chunks(
                     _start - (replica_number - 1) * self.args.replica_gap_delta)
             else:
                 logger.debug(f"Skipping chunk {c.number} of {self.table}: no range overlap")
-        logger.info(f"Copied {n} records total from {self.table} to {self.extended} in "
-                    f"{datetime.now() - t0}")
+        return n
 
     def compress_compressible_chunks(self, start):
         """Compress all eligible chunks for this table.
@@ -246,9 +288,9 @@ class HypertableExtender(Extender):
                     f"FROM chunk_compression_stats('{self.extended}') "
                     f"WHERE chunk_schema='{chunk_schema}' AND chunk_name='{chunk_name}'"))
                 factor = '%.1f' % (before / after)
-                logger.info(f"Compressed chunk {chunk_name} of {self.extended}: "
-                            f"{humanize.naturalsize(before)} => {humanize.naturalsize(after)} "
-                            f"({factor}x) in {datetime.now() - t0}")
+                logger.debug(f"Compressed chunk {chunk_name} of {self.extended}: "
+                             f"{humanize.naturalsize(before)} => {humanize.naturalsize(after)} "
+                             f"({factor}x) in {datetime.now() - t0}")
         else:
             logger.debug("No chunks ready for compression")
 
@@ -268,8 +310,9 @@ class EntityExtender(Extender):
         from the sample start time.
         """
         if replica_number == 1:
-            self.copy_data(replica_number)
-
+            return self.copy_data(replica_number)
+        else:
+            return 0
 
 class MetricExtender(HypertableExtender):
     """Extender for the metric hypertable."""
@@ -302,12 +345,12 @@ class PendingActionExtender(Extender):
     def __init__(self, args):
         super().__init__('pending_action', args)
         oid_span = db.query(f"SELECT max(action_oid) - min(action_oid) AS span "
-                            f"FROM {self.table}").fetchone()['span']
+                            f"FROM {self.table}").fetchone()['span'] or 0
         self.adjustments = [Adjustment('action_oid', oid_span + 1)]
 
 
 class WastedFileExtender(Extender):
-    """Extender for wasted_file table. We don't actually create any replica data, because this
+    """Extender for wasted_file table. We only copy into first replica replica data, because this
     table is completely rewritten on every ingestion."""
 
     def __init__(self, args):
@@ -315,7 +358,9 @@ class WastedFileExtender(Extender):
 
     def extend(self, replica_number):
         if replica_number == 1:
-            self.copy_data(1)
+            return self.copy_data(1)
+        else:
+            return 0
 
 
 class ScopeExtender(Extender):
@@ -323,6 +368,18 @@ class ScopeExtender(Extender):
 
     This table requires very different handling that other tables because of the internal
     structure of the data.
+
+    We consider the following scenarios in the sample data:
+
+    * If a record has finish = INF, we'll adjust that record so that its start time lands
+      in the final (earliest) replica, so that its scope will continue through all later
+      replicas. The record itself will not be duplicated for other replicas.
+    * If a record with finish != INF has the same oids as another record with finish = INF,
+      that record is moved to the final (earliest) replica). In all following replicas it must
+      not appear, since it would overlap with the extension of the matching finish=INF record
+      that runs through all replicas (first case)
+    * If a record with finish != INF does have the same oids as any other record with finish = INF,
+      that record is repeated in every replica, with times adjusted.
     """
 
     def __init__(self, args):
@@ -334,122 +391,70 @@ class ScopeExtender(Extender):
         # we have have different implementations for first replica, last replica, and all others
         replica_count = self.args.replica_count
         t0 = datetime.now()
-        n = self.extend_first_replica() if replica_number == 1 \
-            else self.extend_last_replica(replica_number) if replica_number == replica_count \
-            else self.extend_interior_replica(replica_number)
-        logger.info(f"Wrote {n} records to {self.extended} in {datetime.now() - t0}")
+        return self.extend_first_replica() if replica_number == 1 \
+            else self.extend_other_replicas(replica_number)
 
     def extend_first_replica(self):
         """
-        For first replica we copy any record that either starts after the start timestamp of the
-        sample data, or has a non-infinite finish. Such records are wholly contained within the
-        interior of the sample data and so will appear in each replica, with times adjusted.
+        For the first replica we'll copy all records into the replica table, and then (unless
+        replica-count = 1):
 
-        Except that if this is also the final replica (i.e. replica_count == 1), then we just
-        copy all the records as-is.
+        * Adjust start times in records with finish=INF so they fall in the final repcica
+        * Move all records with finish != INF that matches another record with FIN=INF so that
+          its start and finish times are in the final record.
+
+        After making these adjustments, any record whose start time remains in the first replica
+        will be eligible for copying into all other replicas, and that's how we'll process the
+        other replicas.
 
         :return: number of records written
         """
+        t0 = datetime.now()
+        n = self.copy_data(1)
+        logger.debug(
+            f"Wrote {n} records into scope table for first replica in {datetime.now() - t0}")
+        moved = extended = 0
         if self.args.replica_count != 1:
-            n = db.execute(
-                f"INSERT INTO {self.extended} SELECT * FROM {self.table} "
-                f"WHERE (start > '{self.args.sample_start}' OR finish != '{self.inf_time}') "
-                f"AND seed_oid != 0")
-            logger.debug(f"First replica wrote {n} scope records")
-            return n
-        else:
-            n = db.execute(
-                f"INSERT INTO {self.extended} SELECT * FROM {self.table}")
-            logger.debug(f"First (and only) replica wrote {n} scope records")
+            shift = f"INTERVAL '{self.args.replica_gap_delta}'"
+            # move all records with non-inf finish but for which there is a corresponding
+            # inf-finish record so they fall in the earliest scope
+            t0 = datetime.now()
+            moved = db.execute(
+                f"UPDATE {self.extended} "
+                f"SET start = scope.start - {shift}, finish = scope.finish - {shift} "
+                f"FROM {self.extended} s "
+                f"WHERE scope.seed_oid = s.seed_oid AND scope.scoped_oid = s.scoped_oid "
+                f"AND scope.finish != '{self.inf_time}' AND s.finish = '{self.inf_time}'")
+            logger.debug(
+                f"Moved {moved} records to earliest replica in {datetime.now() - t0}")
+            t0 = datetime.now()
+            extended = db.execute(
+                f"UPDATE {self.extended} SET start = start - {shift}"
+                f"WHERE finish = '{self.inf_time}'")
+            logger.debug(
+                f"Moved {extended} record starts to earliest replica in {datetime.now() - t0}")
+        return n
 
-    def extend_last_replica(self, replica_number):
-        """For last replica, we write all records (including the special marker with seed_oid =
-        scoped_oid = 0, and finish = time of last topology processed, used during restart).
+    def extend_other_replicas(self, replica_number):
+        """Fill in replicas other than first (latest) replica.
 
-        In any record with start > sample_start and finish = INF, we change the finish to
-        replica-end, since that scope will reappear in the next replica and should not be
-        considered active at the start of that replica.
+        We copy from the extended schema rather than the sample schema, because the adjustments
+        already made in creating first replica mean tht we can avoid the relative expensive
+        filtering of scope records that are followed by matching inf-finish records. The only
+        records with remaining with a start time in the first replica time range are the ones
+        we need.
 
-        When start > sample_start and finish != INF the record is wholly contained in the
-        replica and is copied with times adjusted.
-
-        When start = sample_start and finish = INF, we copy the record with the start time
-        adjusted and the finish left at INF. This is a scope that was present throughout the sample
-        data. We have suppressed it in other replicas because it will appear here with finish =
-        INF and will therefore be active throughout the extended data
-
-        :param replica_number: one-based replica number
-        :return: number of records written
+        :param replica_number: replica number
+        :return: # of records written into this replica
         """
-        time_shift = self.__get_time_shift(replica_number)
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, start - {time_shift}, "
-            f"'{self.args.sample_end}'::timestamptz - {time_shift} FROM {self.table} "
-            f"WHERE start > '{self.args.sample_start}' AND finish = '{self.inf_time}' "
-            f"AND seed_oid != 0")
-        logger.debug(f"Last replica (start > sample_start, finish = INF) wrote {n} scope records")
-        total = n
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, "
-            f"  start - {time_shift}, finish FROM {self.table} "
-            f"WHERE start = '{self.args.sample_start}' AND finish = '{self.inf_time}'"
-            f"AND seed_oid != 0")
-        logger.debug(f"Last replica (start = sample_start, finish = INF) wrote {n} scope records")
-        total += n
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, "
-            f"  start - {time_shift}, finish - {time_shift} FROM {self.table} "
-            f"WHERE finish != '{self.inf_time}' AND seed_oid != 0")
-        logger.debug(f"Last replica (start = sample_start, finish = INF) wrote {n} scope records")
-        total += n
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, start, finish FROM scope "
-            f"WHERE seed_oid = 0")
-        logger.debug(f"Last replica (seed = 0 marker) wrote {n} scope records")
-        return total + n
-
-    def extend_interior_replica(self, replica_number):
-        """Write an interior (neither earliest nor latest) replica.
-
-        Any record with start > sample_start and finish = INF, we copy the record with start
-        adjusted and finish replaced with replica end, since this record will reappear as a
-        disjoint scope in the next replica.
-
-        Any record with finish != INF is copied with both start and finish adjusted. It is wholly
-        contained in this replica and will likewise appear in all replicas.
-
-        All other records (start = sample_start and finish = INF) are suppressed since they'll
-        be included in a record written for the earliest replica.
-
-        :param replica_number: one-based replica number
-        :return: number of records written
-        """
-        time_shift = self.__get_time_shift(replica_number)
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, "
-            f"  start - {time_shift}, '{self.args.sample_end}'::timestamptz - {time_shift} "
-            f" FROM {self.table} "
-            f"WHERE start > '{self.args.sample_start}' AND finish = '{self.inf_time}' "
-            f"AND seed_oid != 0")
-        logger.debug(f"Interior replica (start > sample_start and finish = INF) "
-                     f"wrote {n} scope records")
-        total = n
-        n = db.execute(
-            f"INSERT INTO {self.extended} (seed_oid, scoped_oid, scoped_type, start, finish) "
-            f"SELECT seed_oid, scoped_oid, scoped_type, "
-            f"  start - {time_shift}, finish - {time_shift} FROM {self.table} "
-            f"WHERE finish != '{self.inf_time}' AND seed_oid != 0")
-        logger.debug(f"Interior replica (finish != INF) wrote {n} scope records")
-        return total + n
-
-    def __get_time_shift(self, replica_number):
-        return f"INTERVAL '{(replica_number - 1) * self.args.replica_gap_delta}'"
-
+        t0 = datetime.now()
+        shift = (replica_number - 1) * self.args.replica_gap_delta
+        adjustments = [Adjustment('start', -shift), Adjustment('finish', -shift)]
+        n = self.copy_data(replica_number, source=self.extended, adjustments=adjustments,
+                           extra_cond=f"start >= '{self.args.sample_start}'")
+        logger.debug(f"Wrote {n} records to scope table for replica {replica_number} "
+                     f"in {datetime.now() - t0}")
+        return n
 
 class ArgParser:
     """Command line argument parser."""
@@ -498,7 +503,7 @@ class ArgParser:
             action='store_true')
         # miscellaneous
         parser.add_argument(
-            '--log-level', '-l', help='log level',
+            '--log-level', '-l', help='log level', type=str.upper,
             choices=[logging.getLevelName(level)
                      for level in logging._levelToName.keys()], default='INFO')
         parser.add_argument(
@@ -543,10 +548,6 @@ def dedupe(dupes):
     """Remove duplicates from a list."""
     return list(collections.OrderedDict.fromkeys(dupes))
 
-
-#log_sizes = getattr(importlib.import_module("schema-size-info"), 'log_sizes')
-
-
 def get_args():
     """Parse command line args and perform any required post-processing."""
     parser = ArgParser()
@@ -565,10 +566,14 @@ def get_args():
     global db
     db = Database(args, logger)
     # query DB to get default start end end times if not given
+    # we need to omit cluster-stats records when retrieving min/max times, since those records
+    # are always pinned to midnight of the day in which they are observed.
     if args.sample_start:
         args.sample_start = datetime.fromisoformat(args.sample_start)
     else:
-        args.sample_start = db.query('SELECT min(time) AS min FROM metric').fetchone()['min']
+        args.sample_start = db.query("SELECT min(time) AS min FROM metric "
+                                     "WHERE entity_type != 'COMPUTE_CLUSTER'") \
+            .fetchone()['min']
     if args.sample_end:
         args.sample_end = datetime.fromisoformat(args.sample_end)
     else:
@@ -603,15 +608,31 @@ def main():
         db.execute(f"CREATE SCHEMA {schema}")
     extenders = [Extendable[table](args) for table in args.extend_tables]
     t0 = datetime.now()
+    # keep track of record count and time spent on each table
+    tableTimes = {}
+    tableCounts = {}
     for i in range(1, args.replica_count + 1):
         logger.info(f"Copying sample data to all tables for replica #{i}")
         for extender in extenders:
-            logger.info(f"Replicating to table {extender.table} for replica #{i}")
-            extender.extend(i)
+            table_t0 = datetime.now()
+            if i == 1:
+                extender.drop_indexes()
+            logger.info(f"Copying data to table {extender.table} for replica #{i}")
+            n = extender.extend(i)
+            # tie each table off after we complete its last replica
+            if i == args.replica_count:
+                extender.create_indexes()
+                extender.finish()
+            # and update overall stats after each replica
+            tableCounts[extender] = tableCounts.get(extender, 0) + n
+            tableTimes[extender] = tableTimes.get(extender, timedelta(0)) \
+                                   + (datetime.now() - table_t0)
+    for extender in extenders:
+        extender.log_stats(tableCounts[extender], tableTimes[extender])
     logger.info(f"Replication completed in {datetime.now() - t0}")
     if not args.no_log_sizes:
-        log_sizes(args.db_schema, db, logger=logger)
-        log_sizes(args.replica_schema, db, logger)
+        log_sizes(args.db_schema, db)
+        log_sizes(args.replica_schema, db)
 
 
 if __name__ == '__main__':
