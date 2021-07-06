@@ -3,9 +3,12 @@ package com.vmturbo.market.topology.conversions.action;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
@@ -25,6 +28,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -36,17 +40,30 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
     private final Map<Long, TopologyEntityDTO> originalTopology;
 
     /**
+     * Entity types that support CPU resize translation.
+     */
+    private static final Set<Integer> ENTITY_TYPES = ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE,
+                                                                     EntityType.CONTAINER_VALUE);
+
+    /**
+     * CPU commodity types that support translation from MHz to number of CPUs.
+     */
+    private static final Set<Integer> CPU_COMMODITY_TYPES =
+            ImmutableSet.of(CommodityDTO.CommodityType.VCPU_VALUE,
+                            CommodityDTO.CommodityType.VCPU_REQUEST_VALUE);
+
+    /**
      * Create a new interpreter in the context of a specific topology.
      *
      * @param commodityConverter The {@link CommodityConverter}.
      * @param commodityIndex THe {@link CommodityIndex}.
      * @param oidToProjectedTraderTOMap The {@link TraderTO}s arranged by oid.
-     * @param originalTopology The {@link TopologyEntityDTO}s in the original topology[
+     * @param originalTopology The {@link TopologyEntityDTO}s in the original topology
      */
     public ResizeInterpreter(@Nonnull final CommodityConverter commodityConverter,
-            @Nonnull final CommodityIndex commodityIndex,
-            @Nonnull final Map<Long, TraderTO> oidToProjectedTraderTOMap,
-            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology) {
+                             @Nonnull final CommodityIndex commodityIndex,
+                             @Nonnull final Map<Long, TraderTO> oidToProjectedTraderTOMap,
+                             @Nonnull final Map<Long, TopologyEntityDTO> originalTopology) {
         super(commodityConverter, commodityIndex, oidToProjectedTraderTOMap);
         this.originalTopology = originalTopology;
     }
@@ -75,22 +92,25 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
         double oldCapacity = TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
         double newCapacity = TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
 
-        if (topologyCommodityType.getType() == UICommodityType.VCPU.typeNumber()) {
+        // Convert from MHz to cores or millicores when needed
+        if (ENTITY_TYPES.contains(projectedEntity.getEntityType())
+                && CPU_COMMODITY_TYPES.contains(topologyCommodityType.getType())) {
             final TopologyEntityDTO originalEntity = originalTopology.get(entityId);
-            double cpuSpeedMhz = 0.0;
-            if (originalEntity != null && projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
+            if (originalEntity == null) {
+                return Optional.empty();
+            }
+            double cpuSpeedMhz;
+            if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
                 // We don't have to find the sold commodities on the original entities, because it
                 // should be identical to the "old" capacity.
                 final int numCores = Math.max(originalEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus(), 1);
                 cpuSpeedMhz = oldCapacity / numCores;
-            } else if (originalEntity != null && originalEntity.getEntityType() == EntityType.CONTAINER_VALUE) {
+            } else {
                 // TODO: Remove this when switching container vCPU to millicores end-to-end.
                 TopologyEntityDTO vm = getVmFromContainer(originalEntity);
                 // Containers are in millicores, which is number of cores / 1000.
                 cpuSpeedMhz = getVmCpuSpeedMhz(vm) / 1000;
             }
-
-            // Resizing VM CPU
             if (cpuSpeedMhz == 0.0) {
                 // If we can't get the CPU speed we can't interpret the resize, so discard it.
                 return Optional.empty();

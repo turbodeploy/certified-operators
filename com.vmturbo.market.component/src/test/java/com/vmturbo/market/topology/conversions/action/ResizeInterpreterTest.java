@@ -131,13 +131,13 @@ public class ResizeInterpreterTest {
     }
 
     /**
-     * Interpret a container VCPU resize. Convert MhZ to cores using information on the associated VM.
+     * Interpret a container VCPURequest resize. Convert MhZ to cores using information on the associated VM.
      */
     @Test
     public void testInterpretContainerVcpuResize() {
         CommoditySpecificationTO commSpec = CommoditySpecificationTO.newBuilder()
-                .setType(UICommodityType.VCPU.typeNumber())
-                .setBaseType(UICommodityType.VCPU.typeNumber())
+                .setType(UICommodityType.VCPU_REQUEST.typeNumber())
+                .setBaseType(UICommodityType.VCPU_REQUEST.typeNumber())
                 .build();
         CommodityType topologyCommType = CommodityType.newBuilder()
                 .setType(UICommodityType.VCPU.typeNumber())
