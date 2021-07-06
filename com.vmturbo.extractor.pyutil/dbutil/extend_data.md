@@ -77,7 +77,10 @@ leave it as-is, only truncating it prior to copying in data.
   table. If you only specify excluded tables, it will be as if you had listed all extendable tables, 
   and any exclusions are applied to that list.
 * `--sample-start` or `--start`: specify inclusive beginning of range of timestamps to be included
-  in sample data, defaults to min timestamp in `time` column of `metric` table.
+  in sample data, defaults to min timestamp in `time` column of `metric` table, not counting
+  records for cluster stats (since those are always stored with a time of midnight on their
+  day of observation, which could cause the sample range to have an undesired period of no
+  apparent activity spanning much or most of the first day).
 * `--sample-end` or `--end`: specify exclusive end of range of timestamps to be included in sample
   data, defaults to one millisecond beyond max timestamp in `time` column of `metric` table.
 * `--replica-schema`: schema where replica tables will be created, defaults to `extractor_extend`.

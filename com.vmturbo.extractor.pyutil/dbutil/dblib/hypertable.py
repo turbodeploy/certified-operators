@@ -117,5 +117,7 @@ class HypertableConfig:
                  f"Other: {ns(bo_tot)}=>{ns(ao_tot)}; " \
                  f"Total: {ns(btotal)}=>{ns(atotal)}; " \
                  f"Compression: {'%.1f' % ratio}x; " \
-                 f"Uncompressed: {ns(utotal)}"
+                 f"Uncompressed: {ns(utotal)}; " \
+                 f"Compressed: {atotal}b; " \
+                 f"Actual: {utotal + atotal}b"
         return total, detail
