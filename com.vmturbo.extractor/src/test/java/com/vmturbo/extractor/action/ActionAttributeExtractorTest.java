@@ -288,11 +288,9 @@ public class ActionAttributeExtractorTest {
     private ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
 
     private DataProvider dataProvider = mock(DataProvider.class);
-    private VolumeAttachmentHistoryRetriever volumeAttachmentHistoryRetriever = mock(VolumeAttachmentHistoryRetriever.class);
 
-    private ActionAttributeExtractor actionAttributeExtractor = new ActionAttributeExtractor(actionCommodityDataRetriever,
-            dataProvider,
-            volumeAttachmentHistoryRetriever);
+    private ActionAttributeExtractor actionAttributeExtractor = new ActionAttributeExtractor(
+            actionCommodityDataRetriever, dataProvider);
 
     /**
      * Common setup code before each test.

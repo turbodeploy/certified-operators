@@ -86,16 +86,6 @@ public class ActionConfig {
     private long cachedPolicyUpdateIntervalMins;
 
     /**
-     * See {@link VolumeAttachmentHistoryRetriever}.
-     *
-     * @return The {@link VolumeAttachmentHistoryRetriever}.
-     */
-    @Bean
-    public VolumeAttachmentHistoryRetriever volumeAttachmentHistoryRetriever() {
-        return new VolumeAttachmentHistoryRetriever(topologyListenerConfig.statsHistoryServiceBlockingStub(), globalConfig.clock());
-    }
-
-    /**
      * See {@link ActionAttributeExtractor}.
      *
      * @return The {@link ActionAttributeExtractor}.
@@ -103,8 +93,7 @@ public class ActionConfig {
     @Bean
     public ActionAttributeExtractor actionAttributeExtractor() {
         return new ActionAttributeExtractor(topologyListenerConfig.actionCommodityDataRetriever(),
-                                            topologyListenerConfig.dataProvider(),
-                                            volumeAttachmentHistoryRetriever());
+                topologyListenerConfig.dataProvider());
     }
 
     /**
