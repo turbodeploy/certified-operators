@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+
 import com.vmturbo.commons.Units;
 import com.vmturbo.extractor.action.commodity.ActionCommodityData;
 import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
@@ -81,11 +82,14 @@ public class ActionAttributeExtractor {
 
     private final ActionCommodityDataRetriever actionCommodityDataRetriever;
     private final DataProvider dataProvider;
+    private final VolumeAttachmentHistoryRetriever volumeAttachmentHistoryRetriever;
 
     ActionAttributeExtractor(@Nonnull final ActionCommodityDataRetriever actionCommodityDataRetriever,
-            @Nonnull final DataProvider dataProvider) {
+                             @Nonnull final DataProvider dataProvider,
+                             @Nonnull final VolumeAttachmentHistoryRetriever volumeAttachmentHistoryRetriever) {
         this.actionCommodityDataRetriever = actionCommodityDataRetriever;
         this.dataProvider = dataProvider;
+        this.volumeAttachmentHistoryRetriever = volumeAttachmentHistoryRetriever;
     }
 
     /**
@@ -147,6 +151,8 @@ public class ActionAttributeExtractor {
             @Nonnull BiFunction<T, List<CommodityChange>, List<T>> processResizeChanges,
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
             @Nonnull BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
+        final Map<Long, Integer> unattachedDaysMap = volumeAttachmentHistoryRetriever.getVolumeAttachmentDays(actionSpecs);
+
         final List<T> result = new ArrayList<>();
         final ActionCommodityData commodityChanges =
                 actionCommodityDataRetriever.getActionCommodityData(actionSpecs);
@@ -154,7 +160,7 @@ public class ActionAttributeExtractor {
             final T actionAttrs = attributes.get(actionSpec.getRecommendation().getId());
             if (actionAttrs != null) {
                 result.addAll(populateAttributes(actionSpec, actionAttrs, topologyGraph,
-                        commodityChanges, processResizeChanges, processMoveChanges, processScaleChanges));
+                        commodityChanges, processResizeChanges, processMoveChanges, processScaleChanges, unattachedDaysMap));
             }
         });
         return result;
@@ -166,7 +172,8 @@ public class ActionAttributeExtractor {
             ActionCommodityData actionCommodityData,
             BiFunction<T, List<CommodityChange>, List<T>> processResizeChanges,
             BiFunction<T, List<MoveChange>, List<T>> processMoveChanges,
-            BiFunction<T, List<MoveChange>, List<T>> processScaleChanges) {
+            BiFunction<T, List<MoveChange>, List<T>> processScaleChanges,
+            Map<Long, Integer> unattachedDaysMap) {
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
         final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
@@ -208,7 +215,8 @@ public class ActionAttributeExtractor {
                 return processResizeChanges.apply(actionOrAttributes, resizeChanges);
             case DELETE:
                 actionOrAttributes.setDeleteInfo(getDeleteInfo(actionInfo.getDelete(),
-                        recommendation.getExplanation().getDelete()));
+                                                                recommendation.getExplanation().getDelete(),
+                                                                unattachedDaysMap));
                 return Collections.singletonList(actionOrAttributes);
             case BUY_RI:
                 actionOrAttributes.setBuyRiInfo(getBuyRiInfo(actionInfo.getBuyRi(), topologyGraph));
@@ -483,9 +491,10 @@ public class ActionAttributeExtractor {
      *
      * @param delete delete action
      * @param deleteExplanation delete explanation
+     * @param unattachedDaysMap map contains [volumeOid, unattachedDays]
      * @return {@link DeleteInfo}
      */
-    private DeleteInfo getDeleteInfo(Delete delete, DeleteExplanation deleteExplanation) {
+    private DeleteInfo getDeleteInfo(Delete delete, DeleteExplanation deleteExplanation, Map<Long, Integer> unattachedDaysMap) {
         DeleteInfo deleteInfo = new DeleteInfo();
         if (deleteExplanation.getSizeKb() > 0) {
             deleteInfo.setFileSize(deleteExplanation.getSizeKb() / (double)Units.NUM_OF_KB_IN_MB);
@@ -499,6 +508,12 @@ public class ActionAttributeExtractor {
             final OffsetDateTime offsetDateTime =
                 OffsetDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
             deleteInfo.setLastModifiedTimestamp(offsetDateTime.toString());
+        }
+
+        Long volumeOid = delete.getTarget().getId();
+        Integer unattachedDays = unattachedDaysMap.get(volumeOid);
+        if (unattachedDays != null) {
+            deleteInfo.setUnattachedDays(unattachedDays);
         }
         return deleteInfo;
     }
