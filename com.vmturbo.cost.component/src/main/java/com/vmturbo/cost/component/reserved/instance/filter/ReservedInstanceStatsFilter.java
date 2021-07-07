@@ -7,6 +7,7 @@ import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +21,7 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.cost.component.db.Tables;
 
 /**
  * A abstract class represent a filter object which will be used to query reserved instance stats
@@ -89,7 +91,15 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
 
         final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)table.field(SNAPSHOT_TIME);
         if (startDate != null) {
-            final Timestamp startDateTimestamp = new Timestamp(startDate.toEpochMilli());
+            final Instant updatedStartDate;
+            // When querying the daily tables, we want to trim the startDate to the nearest day
+            if (table.equals(Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY)
+                    || table.equals(Tables.RESERVED_INSTANCE_UTILIZATION_BY_DAY)) {
+                updatedStartDate = startDate.truncatedTo(ChronoUnit.DAYS);
+            } else {
+                updatedStartDate = startDate;
+            }
+            final Timestamp startDateTimestamp = new Timestamp(updatedStartDate.toEpochMilli());
             conditions.add(snapshotTimeField.greaterOrEqual(startDateTimestamp));
         }
 
