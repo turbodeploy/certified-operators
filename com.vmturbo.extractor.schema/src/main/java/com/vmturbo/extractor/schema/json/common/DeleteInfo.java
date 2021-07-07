@@ -14,6 +14,7 @@ public class DeleteInfo {
     private String unit;
     private String filePath;
     private String lastModifiedTimestamp;
+    private Integer unattachedDays;
 
     public Double getFileSize() {
         return fileSize;
@@ -45,5 +46,9 @@ public class DeleteInfo {
 
     public void setLastModifiedTimestamp(String lastModifiedTimestamp) {
         this.lastModifiedTimestamp = lastModifiedTimestamp;
+    }
+
+    public void setUnattachedDays(Integer unattachedDays) {
+        this.unattachedDays = unattachedDays;
     }
 }
