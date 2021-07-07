@@ -216,14 +216,6 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.vcd.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.vcd.sdk-${vmturbo.mt.branch.version}</outputDirectory>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.vmware.sdk</artifactId>
                                     <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
