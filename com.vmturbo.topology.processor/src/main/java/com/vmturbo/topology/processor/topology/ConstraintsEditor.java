@@ -208,9 +208,12 @@ public class ConstraintsEditor {
                                 .filter(commodity -> commodity.getGroupUuid() == group.getId())
                                 .map(ConstraintGroup::getCommodityType)
                                 .collect(Collectors.toSet());
-                        // GlobalIgnoreConstraint means we need to disable all access commodities
-                        if (commoditiesOfGroup.contains(ConstraintType.GlobalIgnoreConstraint.name())) {
+                        // At a group level, if AllCommodities are ignored, then we need to ignore all access commodities.
+                        // We still support deprecated GlobalIgnoreConstraint at a group level for backward compatibility.
+                        if (commoditiesOfGroup.contains(ConstraintType.GlobalIgnoreConstraint.name())
+                                || commoditiesOfGroup.contains(ConstraintType.AllCommodities.name())) {
                             commoditiesOfGroup.remove(ConstraintType.GlobalIgnoreConstraint.name());
+                            commoditiesOfGroup.remove(ConstraintType.AllCommodities.name());
                             commoditiesOfGroup.add(ALL_COMMODITIES);
                         }
                         groupMembersOids.forEach(entityId -> {

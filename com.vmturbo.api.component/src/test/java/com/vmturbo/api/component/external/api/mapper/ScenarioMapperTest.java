@@ -2223,7 +2223,7 @@ public class ScenarioMapperTest {
                 scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
 
         //THEN
-        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.AllCommodities));
         assertNull(removeConstraintApiDTO.getTarget());
         assertNull(removeConstraintApiDTO.getTarget());
     }
@@ -2245,7 +2245,7 @@ public class ScenarioMapperTest {
                 scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
 
         //THEN
-        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.AllCommodities));
         assertThat(removeConstraintApiDTO.getTargetEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         assertNull(removeConstraintApiDTO.getTarget());
     }

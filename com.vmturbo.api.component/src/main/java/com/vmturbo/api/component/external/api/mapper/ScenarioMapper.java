@@ -1163,9 +1163,10 @@ public class ScenarioMapper {
      * @return true if all entity constraints should be ignored
      */
     private static boolean isIgnoreAllEntities(RemoveConstraintApiDTO constraint) {
-        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
-                constraint.getTarget() == null &&
-                constraint.getTargetEntityType() == null;
+        return (ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType()
+                || ConstraintType.AllCommodities == constraint.getConstraintType())
+                && constraint.getTarget() == null
+                && constraint.getTargetEntityType() == null;
     }
 
     /**
@@ -1175,9 +1176,10 @@ public class ScenarioMapper {
      * @return true if constraints should be ignored for specific entityType
      */
     private static boolean isIgnoreAllConstraintsForEntityType(RemoveConstraintApiDTO constraint) {
-        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
-                constraint.getTarget() == null &&
-                constraint.getTargetEntityType() != null;
+        return (ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType()
+                || ConstraintType.AllCommodities == constraint.getConstraintType())
+                && constraint.getTarget() == null
+                && constraint.getTargetEntityType() != null;
     }
 
     /**
@@ -1218,7 +1220,7 @@ public class ScenarioMapper {
             ignoreConstraint.setGlobalIgnoreEntityType(globalIgnoreEntityType);
         } else if (isIgnoreConstraintForGroup(constraint)) {
             final ApiId apiId = uuidMapper.fromUuid(constraint.getTarget().getUuid());
-            final ConstraintType constraintType = constraint.getConstraintType() == null ? ConstraintType.GlobalIgnoreConstraint :
+            final ConstraintType constraintType = constraint.getConstraintType() == null ? ConstraintType.AllCommodities :
                     constraint.getConstraintType();
             ConstraintGroup constraintGroup = ConstraintGroup.newBuilder()
                     .setGroupUuid(apiId.oid())
@@ -2112,12 +2114,12 @@ public class ScenarioMapper {
         final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
 
         if (constraint.hasIgnoreAllEntities() && constraint.getIgnoreAllEntities()) {
-            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+            constraintApiDTO.setConstraintType(ConstraintType.AllCommodities);
         } else if (constraint.hasGlobalIgnoreEntityType()) {
             EntityType entityType = constraint.getGlobalIgnoreEntityType().getEntityType();
             constraintApiDTO.setTargetEntityType(
                     ApiEntityType.fromSdkTypeToEntityTypeString(entityType.getNumber()));
-            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+            constraintApiDTO.setConstraintType(ConstraintType.AllCommodities);
         } else if (constraint.hasIgnoreGroup()) { // Per Group Settings
             ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
             constraintApiDTO.setConstraintType(
