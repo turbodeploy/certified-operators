@@ -28,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.TargetsService;
-import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -85,6 +84,11 @@ import com.vmturbo.history.schema.RelationType;
 public class StatsMapper {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Prefix used for commodity key.
+     */
+    public static final String COMMODITY_KEY_PREFIX = "KEY: ";
 
     @VisibleForTesting
     public static final String RELATION_FILTER_TYPE = "relation";
@@ -497,7 +501,7 @@ public class StatsMapper {
 
         // add key information
         if (!StringUtils.isEmpty(statRecord.getStatKey())) {
-            resultBuilder.append(StatsUtils.COMMODITY_KEY_PREFIX).append(statRecord.getStatKey());
+            resultBuilder.append(COMMODITY_KEY_PREFIX).append(statRecord.getStatKey());
         }
 
         return resultBuilder.toString();
