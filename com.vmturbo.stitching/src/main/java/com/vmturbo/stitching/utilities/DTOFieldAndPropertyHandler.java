@@ -190,21 +190,26 @@ public class DTOFieldAndPropertyHandler {
      * @param onto the Builder to write the values onto
      * @param patchedFields the list of fields to patch, patch all if empty
      */
-    public static <T extends Builder> T mergeBuilders(@Nonnull final T from,
+    public static <T extends MessageOrBuilder> T mergeBuilders(@Nonnull final T from,
                                                       @Nonnull final T onto,
                                                       @Nonnull List<DTOFieldSpec> patchedFields) {
         if (patchedFields.isEmpty()) {
             final Map<FieldDescriptor, ?> allFromFields = from.getAllFields();
             for (Entry<FieldDescriptor, ?> entry : allFromFields.entrySet()) {
                 final FieldDescriptor key = entry.getKey();
-                onto.setField(key, entry.getValue());
+                if(entry.getValue() instanceof MessageOrBuilder) {
+                    Builder ontoBuilder = ((Builder)onto).getFieldBuilder(entry.getKey());
+                    mergeBuilders((MessageOrBuilder) entry.getValue(), ontoBuilder, patchedFields);
+                } else{
+                    ((Builder)onto).setField(key, entry.getValue());
+                }
                 // "Used" and "utilizationData" are two fields that depend on each other, so
                 // if we change one of them, we must also change the second one, and if the probe
                 // contains information about only one field and overwrites the information of another
                 // probe, then the other field must be cleared.
-                clearConnectedField(onto, allFromFields, key, USED_FIELD_FIELD_DESCRIPTOR,
+                clearConnectedField((Builder)onto, allFromFields, key, USED_FIELD_FIELD_DESCRIPTOR,
                         UTILIZATION_DATA_FIELD_DESCRIPTOR);
-                clearConnectedField(onto, allFromFields, key, UTILIZATION_DATA_FIELD_DESCRIPTOR,
+                clearConnectedField((Builder)onto, allFromFields, key, UTILIZATION_DATA_FIELD_DESCRIPTOR,
                         USED_FIELD_FIELD_DESCRIPTOR);
             }
         } else {
@@ -213,7 +218,7 @@ public class DTOFieldAndPropertyHandler {
                     final Object newValue = DTOFieldAndPropertyHandler.getValueFromFieldSpec(from,
                         fieldSpec);
                     if (newValue != null) {
-                        DTOFieldAndPropertyHandler.setValueToFieldSpec(onto, fieldSpec, newValue);
+                        DTOFieldAndPropertyHandler.setValueToFieldSpec((Builder)onto, fieldSpec, newValue);
                     }
                 } catch (NoSuchFieldException e) {
                     logger.error("Unable to patch field {} with path {} from {} to {}",
