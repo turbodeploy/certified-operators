@@ -222,7 +222,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                 Map<Integer, Double> entitySmoothedUsageStats = liveStatsStore.getEntityUsageStats(entityOid);
                 Map<Integer, Double> entityCapacityStats = liveStatsStore.getEntityCapacityStats(entityOid);
                 for (int commType : commTypes) {
-                    if (entityCapacityStats.containsKey(commType)) {
+                    if (entitySmoothedUsageStats.containsKey(commType)) {
                         records.add(new HistUtilizationRecord(entityOid, 0l, commType, 0, "",
                                 HistoryUtilizationType.Smoothed.ordinal(), 0, new BigDecimal(entitySmoothedUsageStats.get(commType)),
                                 entityCapacityStats.get(commType)));
