@@ -515,6 +515,16 @@ message GetTagsResponse {
     map<int64, .tag.Tags> tags = 1;
 }
 
+message GetTagValuesRequest {
+    repeated int64 group_id = 1;
+
+    repeated common_dto.GroupDTO.GroupType group_type = 2;
+}
+
+message GetTagValuesResponse {
+    optional .tag.Tags distinct_tags = 1;
+}
+
 // Request owners for groups
 message GetOwnersRequest {
     // The groupType to get owners for. If not specified, query will not distinguish between group types.
@@ -591,6 +601,11 @@ service GroupService {
 
     // Returns tags of groups
     rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
+
+    // Returns distinct tag values.
+    // This is different from GetTags because it does not return per-group tags. Instead, it returns
+    // all distinct tags on the matched groups.
+    rpc GetTagValues (GetTagValuesRequest) returns (GetTagValuesResponse);
 
     // Returns owners of requested groups
     rpc GetOwnersOfGroups (GetOwnersRequest) returns (GetOwnersResponse);

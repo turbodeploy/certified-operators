@@ -65,6 +65,7 @@ import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.SelectJoinStep;
 import org.jooq.TableField;
+import org.jooq.TableLike;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
@@ -76,6 +77,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -1979,6 +1981,34 @@ public class GroupDAO implements IGroupStore {
             });
         }
         return tagsMap;
+    }
+
+    @Nonnull
+    @Override
+    public Map<String, Set<String>> getTagValues(GetTagValuesRequest request) {
+        final Map<String, Set<String>> retMap = new HashMap<>();
+
+        final TableLike<?> table;
+        if (!request.getGroupTypeList().isEmpty()) {
+            table = GROUP_TAGS.innerJoin(GROUPING)
+                .on(GROUP_TAGS.GROUP_ID.eq(GROUPING.ID))
+                // Restrict the type before the join
+                .and(GROUPING.GROUP_TYPE.in(request.getGroupTypeList()));
+        } else {
+            table = GROUP_TAGS;
+        }
+
+        final List<Condition> conditions = new ArrayList<>();
+        if (!request.getGroupIdList().isEmpty()) {
+            conditions.add(GROUP_TAGS.GROUP_ID.in(request.getGroupIdList()));
+        }
+        dslContext.select(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
+            .from(table)
+            .where(conditions)
+            .groupBy(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
+            .fetch()
+            .forEach(record -> retMap.computeIfAbsent(record.value1(), k -> new HashSet<>()).add(record.value2()));
+        return retMap;
     }
 
     @Nonnull

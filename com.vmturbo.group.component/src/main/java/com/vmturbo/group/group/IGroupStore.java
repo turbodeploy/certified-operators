@@ -15,6 +15,7 @@ import com.google.common.collect.Table;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -259,6 +260,15 @@ public interface IGroupStore {
     Map<Long, Map<String, Set<String>>> getTags(@Nonnull Collection<Long> groupIds);
 
     /**
+     * Return the aggregated tags across all groups that match the request.
+     *
+     * @param request The request specifying the groups to match.
+     * @return Map with distinct tags.
+     */
+    @Nonnull
+    Map<String, Set<String>> getTagValues(GetTagValuesRequest request);
+
+    /**
      * Returns direct static members of the specified group. Method does not perform any
      * recursion. Only direct static members are returned. If group is a dynamic group or
      * it does not have any members, this method returns empty set.
@@ -303,6 +313,7 @@ public interface IGroupStore {
     @Nonnull
     Set<Long> getOwnersOfGroups(@Nonnull Collection<Long> groupIds,
             @Nullable GroupType groupType);
+
 
     /**
      * Class to hold discovered group information.

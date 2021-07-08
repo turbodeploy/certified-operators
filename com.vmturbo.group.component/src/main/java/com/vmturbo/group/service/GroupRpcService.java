@@ -67,6 +67,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -845,17 +847,31 @@ public class GroupRpcService extends GroupServiceImplBase {
                     stores.getGroupStore().getTags(request.getGroupIdList());
             final Map<Long, Tags> tagsMap = tagsToGroups.entrySet()
                     .stream()
-                    .collect(Collectors.toMap(Entry::getKey, el -> Tags.newBuilder()
-                            .putAllTags(el.getValue()
-                                    .entrySet()
-                                    .stream()
-                                    .collect(Collectors.toMap(Entry::getKey,
-                                            tag -> TagValuesDTO.newBuilder()
-                                                    .addAllValues(tag.getValue())
-                                                    .build())))
-                            .build()));
+                    .collect(Collectors.toMap(Entry::getKey, el -> constructTags(el.getValue())));
             responseObserver.onNext(
                     GetTagsResponse.newBuilder().putAllTags(tagsMap).build());
+            responseObserver.onCompleted();
+        });
+    }
+
+    private Tags constructTags(Map<String, Set<String>> tagsMap) {
+         Tags.Builder tagsBldr = Tags.newBuilder();
+         tagsMap.forEach((key, values) -> {
+             tagsBldr.putTags(key, TagValuesDTO.newBuilder()
+                     .addAllValues(values)
+                     .build());
+         });
+         return tagsBldr.build();
+
+    }
+
+    @Override
+    public void getTagValues(GetTagValuesRequest request, StreamObserver<GetTagValuesResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            Map<String, Set<String>> tags = stores.getGroupStore().getTagValues(request);
+            responseObserver.onNext(GetTagValuesResponse.newBuilder()
+                    .setDistinctTags(constructTags(tags))
+                    .build());
             responseObserver.onCompleted();
         });
     }

@@ -2,6 +2,7 @@ package com.vmturbo.group.group;
 
 import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMENTARY_INFO;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -726,6 +728,75 @@ public class GroupDaoTest {
             .findAny();
         Assert.assertTrue(oversizedTagValue.isPresent());
         Assert.assertEquals(tagValue3.substring(0, 200), oversizedTagValue.get().substring(0, 200));
+    }
+
+    /**
+     * Test getting aggregate tag values.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGetAggregateTags() throws Exception {
+        // ARRANGE
+        final Origin origin = createUserOrigin();
+        final String tagName1 = "tag1";
+        final String tagName2 = "tag2";
+        final String tagValue11 = "tag1-1";
+        final String tagValue12 = "tag1-2";
+        final String tagValue2 = "tag2";
+
+        final GroupDefinition groupDefinition1 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setType(GroupType.RESOURCE)
+                .setTags(Tags.newBuilder()
+                        .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue2).build()))
+                .build();
+        final GroupDefinition groupDefinition2 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setType(GroupType.RESOURCE)
+                .setTags(Tags.newBuilder()
+                        .putTags(tagName1, TagValuesDTO.newBuilder()
+                                .addAllValues(Arrays.asList(tagValue11, tagValue12))
+                                .build())
+                        .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue2).build()))
+                .build();
+        final GroupDefinition groupDefinition3 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setTags(Tags.newBuilder()
+                        // Same (tag2, tagValue2) tuple
+                        .putTags(tagName2, TagValuesDTO.newBuilder().addValues(tagValue2).build())
+                        // Different tag1 tuple - missing one value
+                        .putTags(tagName1, TagValuesDTO.newBuilder()
+                                .addValues(tagValue11)
+                                .build()))
+                .build();
+
+        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID3, origin, groupDefinition3, EXPECTED_MEMBERS, true);
+
+        // ACT/ASSERT - We do several act-assert cycles to avoid cleaning and repopulating the DB.
+
+        // Get all tag values
+        Map<String, Set<String>> allTags = groupStore.getTagValues(GetTagValuesRequest.newBuilder().build());
+        assertThat(allTags, is(ImmutableMap.of(tagName1, Sets.newHashSet(tagValue11, tagValue12), tagName2, Sets.newHashSet(tagValue2))));
+
+        // Get all "compute host" group tags - should be tag 1 with just 1 value, and tag 2
+        Map<String, Set<String>> computeHostTags = groupStore.getTagValues(GetTagValuesRequest.newBuilder()
+                .addGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                .build());
+        assertThat(computeHostTags, is(ImmutableMap.of(tagName1, Sets.newHashSet(tagValue11), tagName2, Sets.newHashSet(tagValue2))));
+
+        // Get all "OID1" group tags - should just be tag 2.
+        Map<String, Set<String>> oid1tags = groupStore.getTagValues(GetTagValuesRequest.newBuilder()
+                .addGroupId(OID1)
+                .build());
+        assertThat(oid1tags, is(ImmutableMap.of(tagName2, Sets.newHashSet(tagValue2))));
+
+        // Get all "OID1 and RESOURCE" group tags - to check that AND works correctly.
+        Map<String, Set<String>> oid1AndResourcetags = groupStore.getTagValues(GetTagValuesRequest.newBuilder()
+                .addGroupId(OID1)
+                .addGroupType(GroupType.RESOURCE)
+                .build());
+        assertThat(oid1AndResourcetags, is(ImmutableMap.of(tagName2, Sets.newHashSet(tagValue2))));
     }
 
     /**
