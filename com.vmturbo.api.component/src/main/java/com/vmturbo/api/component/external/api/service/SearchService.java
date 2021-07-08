@@ -34,8 +34,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -88,6 +90,7 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -1185,17 +1188,18 @@ public class SearchService implements ISearchService {
             final String entityType,
             final EnvironmentType envType) throws OperationFailedException {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-        if (GroupMapper.GROUP_CLASSES.contains(entityType)) {
+        GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(entityType);
+        if (groupType != null) {
             // retrieve tags from the group service
-            final Map<Long, Tags> tagsOfGroups =
-                    groupServiceRpc.getTags(GetTagsRequest.newBuilder().build()).getTagsMap();
-            final Map<String, TagValuesDTO> tags = convertReceivedTags(tagsOfGroups);
-
-            // map to desired output
-            tags.entrySet().forEach(tagEntry -> {
+            final Tags tagsOfGroups =
+                    groupServiceRpc.getTagValues(
+                            GetTagValuesRequest.newBuilder()
+                                    .addGroupType(groupType)
+                                    .build()).getDistinctTags();
+            tagsOfGroups.getTagsMap().forEach((key, tagValues) -> {
                 final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
-                criteriaOptionApiDTO.setValue(tagEntry.getKey());
-                criteriaOptionApiDTO.setSubValues(tagEntry.getValue().getValuesList());
+                criteriaOptionApiDTO.setValue(key);
+                criteriaOptionApiDTO.setSubValues(tagValues.getValuesList());
                 optionApiDTOs.add(criteriaOptionApiDTO);
             });
         } else {

@@ -19,6 +19,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -26,6 +27,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagValuesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -250,6 +252,12 @@ public class MockGroupStore implements IGroupStore {
     @Nonnull
     @Override
     public Map<Long, Map<String, Set<String>>> getTags(@Nonnull Collection<Long> groupIds) {
+        return Collections.emptyMap();
+    }
+
+    @NotNull
+    @Override
+    public Map<String, Set<String>> getTagValues(final GetTagValuesRequest request) {
         return Collections.emptyMap();
     }
 
