@@ -317,9 +317,9 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     /**
-     * Targets Health Check settings: failed discovery count to notify user.
+     * Targets Health Check settings: failed discovery count threshold to notify user.
      */
-    FailedDiscoveryCount("failedDiscoveryCount", "Number of successive failed discoveries after which we report the target as unhealthy",
+    FailedDiscoveryCountThreshold("failedDiscoveryCountThreshold", "Number of successive failed discoveries after which we report the target as unhealthy",
                            numeric(1, 100, 3),
                            Collections.emptyList()),
 
