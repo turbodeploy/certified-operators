@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentAmount;
@@ -107,6 +108,12 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
         try (TraxContext traxContext = Trax.track("SAVINGS", actionInfo.getActionTypeCase().name())) {
             switch (actionInfo.getActionTypeCase()) {
 
+                case MOVE:
+                    createSavingsDetailsForMove(actionInfo.getMove())
+                            .ifPresent(details -> savingsBuilder
+                                    .cloudSavingsDetails(details)
+                                    .savingsPerHour(calculateSavingsFromDetails(details)));
+                    break;
                 case SCALE:
                     final Optional<TraxSavingsDetails> savingsDetails = createSavingsDetailsForScale(actionInfo.getScale());
                     savingsDetails.ifPresent(details -> savingsBuilder
@@ -282,6 +289,29 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
 
             // A commodity change is treated as a tier change to the same tier.
             return createDetailsForTierChange(targetEntity, primaryProvider, primaryProvider, false);
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Calculates savings details for MOVE actions. Savings details assume this is an MPC move action,
+     * either across cloud targets or from on-prem to cloud. If the move is from on-prem to cloud,
+     * only the destination data will be set for the details.
+     * @param moveAction The target move action.
+     * @return The savings details, representing the cloud tier change contained within the move action.
+     */
+    private Optional<TraxSavingsDetails> createSavingsDetailsForMove(@Nonnull Move moveAction) {
+
+        final TopologyEntityDTO targetEntity = sourceTopologyMap.get(moveAction.getTarget().getId());
+
+        final Optional<ChangeProvider> tierChange = getCloudTierChangeProvider(moveAction.getChangesList());
+        if (tierChange.isPresent()) {
+
+            final TopologyEntityDTO sourceTier = sourceTopologyMap.get(tierChange.get().getSource().getId());
+            final ProjectedTopologyEntity destinationTier = projectedTopologyMap.get(tierChange.get().getDestination().getId());
+
+            return createDetailsForTierChange(targetEntity, sourceTier, destinationTier.getEntity(), false);
         } else {
             return Optional.empty();
         }

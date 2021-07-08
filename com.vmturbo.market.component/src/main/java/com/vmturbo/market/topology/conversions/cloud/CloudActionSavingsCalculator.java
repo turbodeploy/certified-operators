@@ -80,6 +80,8 @@ public interface CloudActionSavingsCalculator {
                             .setAmount(savings.getValue())
                             .build()).ifPresent(action::setSavingsPerHour);
 
+            // Move actions (from MPC) may have cloud savings details. However, the DTO
+            // currently does not have an attribute to store it and therefore we drop it.
             cloudSavingsDetails().map(TraxSavingsDetails::toCloudSavingsDetails)
                     .ifPresent(savingsDetails -> {
                         final ActionInfo.Builder actionInfo = action.getInfoBuilder();
