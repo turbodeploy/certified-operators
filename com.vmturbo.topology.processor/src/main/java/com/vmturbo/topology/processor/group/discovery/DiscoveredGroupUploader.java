@@ -204,7 +204,7 @@ public class DiscoveredGroupUploader {
             policy.setEntityType(group.getEntityType().getNumber());
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
             String targetName = getTargetDisplayName(targetId);
-            String displayName = String.format("%s - Consistent Scaling Policy (account %d)",
+            String displayName = String.format("%s - Consistent Scaling Policy (target %d)",
                                         group.getDisplayName(), targetId);
             policy.setDisplayName(displayName);
             policy.setName(createPolicyName(group, targetId, "CSP"));
@@ -244,7 +244,7 @@ public class DiscoveredGroupUploader {
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
             policy.setEntityType(group.getEntityType().getNumber());
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String name = String.format("%s - %s (account %d)",
+            String name = String.format("%s - %s (target %d)",
                     group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
             policy.setDisplayName(name);
             policy.setName(createPolicyName(group, targetId, "EXP"));
