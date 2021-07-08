@@ -363,7 +363,7 @@
     "healthcheckmanager" : {
       "displayName": "Health Check Settings",
       "settings": [
-        "failedDiscoveryCount"
+        "failedDiscoveryCountThreshold"
       ]
     }
   }
