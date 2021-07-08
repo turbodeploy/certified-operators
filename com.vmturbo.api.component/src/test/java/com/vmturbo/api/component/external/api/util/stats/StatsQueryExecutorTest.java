@@ -28,12 +28,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import com.google.protobuf.util.JsonFormat;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,6 +55,8 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
@@ -214,6 +219,82 @@ public class StatsQueryExecutorTest {
         final StatSnapshotApiDTO snapshotApiDTO = stats.get(0);
         assertThat(snapshotApiDTO.getDate(), is(DateTimeUtil.toString(MILLIS)));
         assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
+    }
+
+    /**
+     * Test the vStorage stat with a good key.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testGoodVStorageKey() throws Exception {
+        Assert.assertEquals("/",
+                testVStorageKey("KEY: VirtualMachine::127a3e53fcb3de994c37620f15cc15e00ae950be"));
+    }
+
+    /**
+     * Test the vStorage stat with a bad key.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testBadStorageKey() throws Exception {
+        Assert.assertEquals("BAD KEY", testVStorageKey("BAD KEY"));
+    }
+
+    /**
+     * Test the vStorage stat with an empty key.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testNoStorageKey1() throws Exception {
+        Assert.assertEquals("KEY:", testVStorageKey("KEY:"));
+    }
+
+    /**
+     * Test the vStorage stat with an empty key.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testNoStorageKey2() throws Exception {
+        Assert.assertEquals("KEY: ", testVStorageKey("KEY: "));
+    }
+
+    @Nonnull
+    private String testVStorageKey(@Nonnull String key)
+            throws OperationFailedException, InterruptedException, ConversionException {
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+
+        StatApiDTO stat = new StatApiDTO();
+        stat.setName("VStorage");
+        stat.setDisplayName(key);
+        StatSnapshotApiDTO snapshot = snapshotWithStats(MILLIS, stat);
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+                .thenReturn(Collections.singletonList(snapshot));
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils
+                .mockSingleEntityRequest(vmDto);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
+        // ACT
+        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
+
+        // ASSERT
+        verify(contextFactory).newContext(scope, expandedScope, period);
+        assertThat(stats.size(), is(1));
+
+        List<StatApiDTO> results = stats.get(0).getStatistics();
+        assertThat(results.size(), is(1));
+
+        return results.get(0).getDisplayName();
     }
 
     @Test

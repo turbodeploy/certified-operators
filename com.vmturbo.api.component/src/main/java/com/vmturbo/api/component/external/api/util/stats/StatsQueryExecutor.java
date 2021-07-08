@@ -29,9 +29,9 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
@@ -228,7 +228,8 @@ public class StatsQueryExecutor {
                 statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
                     statSnapshotApiDTO
                             .setStatistics(
-                                    convertVstorageNames(partitions, entry.getValue().values()));
+                                    convertVstorageNames(scopeDisplayName, partitions,
+                                            entry.getValue().values()));
 
                 return statSnapshotApiDTO;
             })
@@ -290,16 +291,18 @@ public class StatsQueryExecutor {
 
     /**
      * Modify stats. Convert vStorage display names from keys to partition
-     * names, e.g. 'VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6' ->
+     * names, e.g. 'KEY:
+     * VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6' ->
      * '/var/lib/mysql'.
      *
+     * @param entityName entity name
      * @param partitions VM partitions
      * @param stats commodity statistics
      * @return new stats with converted names
      */
     @Nonnull
-    private static List<StatApiDTO> convertVstorageNames(@Nonnull Map<String, String> partitions,
-            @Nonnull Collection<StatApiDTO> stats) {
+    private static List<StatApiDTO> convertVstorageNames(@Nonnull String entityName,
+            @Nonnull Map<String, String> partitions, @Nonnull Collection<StatApiDTO> stats) {
         List<StatApiDTO> result = new ArrayList<>();
 
         if (partitions.isEmpty()) {
@@ -308,17 +311,24 @@ public class StatsQueryExecutor {
         }
 
         for (StatApiDTO stat : stats) {
-            String displayName = stat.getDisplayName();
+            if (UICommodityType.VSTORAGE.apiStr().equals(stat.getName())) {
+                String displayName = stat.getDisplayName();
 
-            if (UICommodityType.VSTORAGE.apiStr().equals(stat.getName())
-                    && Strings.isNotBlank(displayName)) {
-                String key = displayName.substring(
-                        com.vmturbo.api.component.external.api.util.StatsUtils.COMMODITY_KEY_PREFIX
-                                .length());
-                String partitionName = partitions.get(key);
+                if (displayName != null
+                        && displayName.startsWith(StatsMapper.COMMODITY_KEY_PREFIX)) {
+                    String key = displayName.substring(StatsMapper.COMMODITY_KEY_PREFIX.length());
+                    String partitionName = partitions.get(key);
 
-                if (partitionName != null) {
-                    stat.setDisplayName(partitionName);
+                    if (partitionName != null) {
+                        stat.setDisplayName(partitionName);
+                    } else {
+                        // E.g. 'KEY: MULTIPLE KEYS'
+                        logger.debug("Cannot find the partition for the entity '{}'. Key: '{}'",
+                                entityName, displayName);
+                    }
+                } else {
+                    logger.warn("Entity '{}' has invalid key format: '{}'", entityName,
+                            displayName);
                 }
             }
 
