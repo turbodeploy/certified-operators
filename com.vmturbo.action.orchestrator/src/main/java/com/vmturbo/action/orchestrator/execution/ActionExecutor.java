@@ -124,6 +124,7 @@ public class ActionExecutor implements ActionExecutionListener {
             throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
+        logger.info("Starting synchronous action {}", action.getRecommendation().getId());
         execute(targetId, action, workflowOpt);
         SynchronousExecutionState synchronousExecutionState = synchronousExecutionStateFactory.newState();
         inProgressSyncActions.put(action.getRecommendation().getId(), synchronousExecutionState);
@@ -131,6 +132,7 @@ public class ActionExecutor implements ActionExecutionListener {
             // TODO (roman, July 30 2019): OM-49081 - Handle TP restarts and dropped messages
             // without relying only on timeout.
             synchronousExecutionState.waitForActionCompletion(executionTimeout, executionTimeoutUnit);
+            logger.info("Completed synchronous action {}", action.getRecommendation().getId());
         } catch (TimeoutException e) {
             throw new SynchronousExecutionException(ActionFailure.newBuilder()
 
@@ -275,8 +277,10 @@ public class ActionExecutor implements ActionExecutionListener {
         SynchronousExecutionState futureForAction = inProgressSyncActions.get(actionSuccess.getActionId());
         if (futureForAction != null) {
             futureForAction.complete(null);
+        } else {
+            logger.warn("Cannot find action ID {} in inProgressSyncActions: {}",
+                    actionSuccess.getActionId(), inProgressSyncActions.keySet());
         }
-
     }
 
     @Override
@@ -285,6 +289,9 @@ public class ActionExecutor implements ActionExecutionListener {
                 inProgressSyncActions.get(actionFailure.getActionId());
         if (futureForAction != null) {
             futureForAction.complete(new SynchronousExecutionException(actionFailure));
+        } else {
+            logger.warn("Cannot find action ID {} in inProgressSyncActions: {}",
+                    actionFailure.getActionId(), inProgressSyncActions.keySet());
         }
     }
 

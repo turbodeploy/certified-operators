@@ -354,7 +354,7 @@ public class AutomatedActionExecutor {
             }
 
             try {
-                logger.info("Attempting to execute action {}", action.getId());
+                logger.info("Attempting to execute the automated action {}", action.getId());
                 // Fetch the Workflow, if any, that controls this Action
                 Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore,
                         action.getState());
@@ -362,6 +362,7 @@ public class AutomatedActionExecutor {
                 // Execute the Action on the given target, or the Workflow
                 // target if a Workflow is specified.
                 actionExecutor.executeSynchronously(targetId, actionSpec, workflowOpt);
+                logger.info("Completed executing the automated action {}", action.getId());
             } catch (ExecutionStartException e) {
                 final String errorMsg = String.format(EXECUTION_START_MSG, action.getId());
                 logger.error(errorMsg, e);
