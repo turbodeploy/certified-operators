@@ -22,6 +22,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.UtilizationData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 import com.vmturbo.stitching.DTOFieldSpec;
@@ -140,6 +141,73 @@ public class DTOFieldAndPropertyHandlerTest {
         assertEquals(10.0D, comm2.getUsed(), 0.1D);
         assertEquals(100, comm2.getUtilizationData().getIntervalMs());
         assertEquals(100.0D, comm2.getPeak(), 0.1D);
+    }
+
+    @Test
+    public void testMergeCommoditiesHotAddSupportedFromFieldsSet(){
+        final CommodityDTO.Builder comm1 = getCommodityBuilder(900, CommodityType.VCPU).setVcpuData(
+                VCpuData.newBuilder().setHotAddSupported(true));
+
+        final CommodityDTO.Builder comm2 = getCommodityBuilder(1000, CommodityType.VCPU).setVcpuData(
+                VCpuData.newBuilder().setHotAddSupported(false).setHotRemoveSupported(true));
+
+        final CommodityDTO.Builder comm3 = getCommodityBuilder(900, CommodityType.VMEM).setVmemData(
+                VMemData.newBuilder().setHotAddSupported(true));
+
+        final CommodityDTO.Builder comm4 = getCommodityBuilder(1000, CommodityType.VMEM).setVmemData(
+                VMemData.newBuilder().setHotAddSupported(false).setHotRemoveSupported(true));
+
+        List<DTOFieldSpec> dtoFieldSpecs = ImmutableList.of();
+
+        DTOFieldAndPropertyHandler.mergeBuilders(comm1, comm2, dtoFieldSpecs);
+        DTOFieldAndPropertyHandler.mergeBuilders(comm3, comm4, dtoFieldSpecs);
+        assertTrue(comm2.getVcpuData().getHotAddSupported());
+        assertTrue(comm4.getVmemData().getHotAddSupported());
+        assertTrue(comm2.getVcpuData().getHotRemoveSupported());
+        assertTrue(comm4.getVmemData().getHotRemoveSupported());
+    }
+
+    @Test
+    public void testMergeCommoditiesHotAddSupportedFromFieldsNotSet(){
+        final CommodityDTO.Builder comm1 = getCommodityBuilder(900, CommodityType.VCPU);
+
+        final CommodityDTO.Builder comm2 = getCommodityBuilder(1000, CommodityType.VCPU).setVcpuData(
+                VCpuData.newBuilder().setHotAddSupported(true).setHotRemoveSupported(false));
+
+        final CommodityDTO.Builder comm3 = getCommodityBuilder(900, CommodityType.VMEM);
+
+        final CommodityDTO.Builder comm4 = getCommodityBuilder(1000, CommodityType.VMEM).setVmemData(
+                VMemData.newBuilder().setHotAddSupported(true).setHotRemoveSupported(true));
+
+        List<DTOFieldSpec> dtoFieldSpecs = ImmutableList.of();
+
+        DTOFieldAndPropertyHandler.mergeBuilders(comm1, comm2, dtoFieldSpecs);
+        DTOFieldAndPropertyHandler.mergeBuilders(comm3, comm4, dtoFieldSpecs);
+        assertTrue(comm2.getVcpuData().getHotAddSupported());
+        assertTrue(comm4.getVmemData().getHotAddSupported());
+    }
+
+    @Test
+    public void testMergeCommoditiesHotAddSupportedFromFieldsSetEmpty(){
+        final CommodityDTO.Builder comm1 = getCommodityBuilder(900, CommodityType.VCPU).setVcpuData(
+                VCpuData.newBuilder().build());
+
+        final CommodityDTO.Builder comm2 = getCommodityBuilder(1000, CommodityType.VCPU).setVcpuData(
+                VCpuData.newBuilder().setHotAddSupported(true).setHotRemoveSupported(false));
+
+        final CommodityDTO.Builder comm3 = getCommodityBuilder(900, CommodityType.VMEM).setVmemData(
+                VMemData.newBuilder().build());
+
+        final CommodityDTO.Builder comm4 = getCommodityBuilder(1000, CommodityType.VMEM).setVmemData(
+                VMemData.newBuilder().setHotAddSupported(true).setHotRemoveSupported(true));
+
+        List<DTOFieldSpec> dtoFieldSpecs = ImmutableList.of();
+
+
+        DTOFieldAndPropertyHandler.mergeBuilders(comm1, comm2, dtoFieldSpecs);
+        DTOFieldAndPropertyHandler.mergeBuilders(comm3, comm4, dtoFieldSpecs);
+        assertTrue(comm2.getVcpuData().getHotAddSupported());
+        assertTrue(comm4.getVmemData().getHotAddSupported());
     }
 
     @Test
