@@ -45,6 +45,7 @@ import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
+import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
 import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
@@ -72,6 +73,7 @@ import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceCo
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -543,6 +545,8 @@ public class AdminService implements IAdminService {
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
         productCapabilityDTO.setReportingEnabled(this.enableReporting);
         productCapabilityDTO.setSearchApiEnabled(this.enableSearchApi);
+        productCapabilityDTO.setJdbcHttpSessionEnabled(EnvironmentUtils.parseBooleanFromEnv(
+                SpringJdbcHttpSessionCondition.ENABLED));
         return productCapabilityDTO;
     }
 
