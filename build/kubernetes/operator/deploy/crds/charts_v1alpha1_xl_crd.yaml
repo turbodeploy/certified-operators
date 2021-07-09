@@ -71,6 +71,9 @@ spec:
                 customImageNames:
                   description: Use custom image names
                   type: boolean
+                externalArangoDBName:
+                  description: DNS name for external arangodb server
+                  type: string
                 externalIP:
                   description: Static external IP address for ingress LoadBalancer
                   type: string
@@ -86,10 +89,10 @@ spec:
                 externalDbIP:
                   description: IP address for external mysql compliant database server
                   type: string
-                externalTimescaleName:
+                externalTimescaleDBName:
                   description: DNS name for external postgresql/timescaledb database server
                   type: string
-                externalTimescaleIP:
+                externalTimescaleDBIP:
                   description: IP address for external postgresql/timescaledb compliant database server
                   type: string
                 externalInfluxDBName:
