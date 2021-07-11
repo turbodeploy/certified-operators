@@ -7,6 +7,19 @@ then
   exit
 fi
 
+# Check if thr root user needs to change their password
+changePW=$(chage -l root | grep "Last password change" | awk -F: '{print $2}' | xargs)
+if [ "${changePW}" = "password must be changed" ]
+then
+  echo ""
+  echo "It appears the root password has not been set."
+  echo "Please set the root password before"
+  echo "running this script again."
+  echo "Instructions can be found in the Install Guide"
+  echo ""
+  exit 10
+fi
+
 # Check if the install script has been run already
 localStorageDataDirectory="/data/turbonomic/"
 if grep -q "$localStorageDataDirectory" /etc/fstab
