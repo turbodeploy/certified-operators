@@ -468,7 +468,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
         final Optional<Long> storage = TopologyDTOUtil.getVolumeProvider(entity);
         if (!storage.isPresent()) {
-            logger.error("No storage provider for volume: {}:{}", entity.getOid(),
+            // This error is to be expected if there is no provider since local storage is being used.
+            // Some probes (e.g. kubeturbo) may discover volumes as proxy entities.
+            // These volumes will have no providers if no target discovers the real volumes separately.
+            logger.debug("No storage provider for volume: {}:{}", entity.getOid(),
                     entity.getDisplayName());
             return;
         }
