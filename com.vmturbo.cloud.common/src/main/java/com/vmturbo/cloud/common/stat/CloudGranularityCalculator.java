@@ -19,9 +19,12 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
  */
 public class CloudGranularityCalculator {
 
+    //TODO: Currently we only support daily and monthly granularity so if the granularity is determined
+    // to be hourly, we should look up the daily table. Once we add support for hourly granularity, this
+    // should be changed to looking up the hourly table.
     private static final Map<TimeFrame, CloudStatGranularity> TIME_FRAME_TO_GRANULARITY_MAP = ImmutableMap.of(
             TimeFrame.LATEST, CloudStatGranularity.HOURLY,
-            TimeFrame.HOUR, CloudStatGranularity.HOURLY,
+            TimeFrame.HOUR, CloudStatGranularity.DAILY,
             TimeFrame.DAY, CloudStatGranularity.DAILY,
             TimeFrame.MONTH, CloudStatGranularity.MONTHLY,
             // If the window requested resolves to a yearly time frame, we return
