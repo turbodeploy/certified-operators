@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.topology.processor.operation.OperationListener;
@@ -32,4 +33,13 @@ public interface TargetStatusTracker extends OperationListener, StringDiagnosabl
      * @return the map of failed discoveries for targets
      */
     Map<Long, DiscoveryFailure> getFailedDiscoveries();
+
+    /**
+     * Get last successful discovery time of target.
+     *
+     * @param targetId target id.
+     * @return time of last successful discovery.
+     */
+    @Nullable
+    Long getLastSuccessfulDiscoveryTime(long targetId);
 }

@@ -246,6 +246,73 @@ public class TargetHealthRetrieverTest {
         Assert.assertEquals(numberOfFailures, healthInfo.getConsecutiveFailureCount());
     }
 
+    /**
+     * Test that last discovery time is present given a successful discovery.
+     */
+    @Test
+    public void testLastDiscoveryTimePresent() {
+        final Target target = mockTarget(probeId, 1, "43");
+        final long targetId = target.getId();
+
+        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        final Validation validation = new Validation(probeId,  targetId, identityProvider);
+        discovery.success();
+        validation.success();
+
+        when(targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId)).thenReturn(System.currentTimeMillis());
+        when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+
+        TargetHealth healthInfo = getTargetHealth(targetId);
+        Assert.assertTrue(healthInfo.hasLastSuccessfulDiscovery());
+    }
+
+    /**
+     * Test that last discovery time is persistent.
+     */
+    @Test
+    public void testLastDiscoveryTimePersists() {
+        final Target target = mockTarget(probeId, 1, "43");
+        final long targetId = target.getId();
+
+        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        final Validation validation = new Validation(probeId,  targetId, identityProvider);
+        discovery.success();
+        validation.success();
+
+        long time = System.currentTimeMillis();
+
+        when(targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId)).thenReturn(time);
+        when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+
+        TargetHealth healthInfo = getTargetHealth(targetId);
+        Assert.assertTrue(healthInfo.hasLastSuccessfulDiscovery());
+        Assert.assertEquals(time, healthInfo.getLastSuccessfulDiscovery());
+
+        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
+        ErrorDTO errorDTO = ErrorDTO.newBuilder()
+                .setErrorType(errorType)
+                .setDescription("data is missing")
+                .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
+                .build();
+        validation.addError(errorDTO);
+        discovery.fail();
+        validation.fail();
+
+        when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+
+        healthInfo = getTargetHealth(targetId);
+        Assert.assertEquals(time, healthInfo.getLastSuccessfulDiscovery());
+    }
+
     private Target mockTarget(long probeId, long targetId, String displayName) {
         Target target = mock(Target.class);
         when(target.getProbeId()).thenReturn(probeId);
