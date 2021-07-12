@@ -1093,7 +1093,8 @@ public class ServiceConfig {
      */
     @Bean
     public HealthDataAggregator healthDataAggregator() {
-        return new HealthDataAggregator(communicationConfig.targetsService());
+        return new HealthDataAggregator(communicationConfig.targetsService(),
+            communicationConfig.settingRpcService());
     }
 
     @Bean

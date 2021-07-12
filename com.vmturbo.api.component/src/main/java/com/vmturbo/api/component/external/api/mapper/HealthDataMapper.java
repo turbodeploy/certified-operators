@@ -112,10 +112,11 @@ public class HealthDataMapper {
     /**
      * Aggregate targets health info into a list of {@link AggregatedHealthResponseDTO} items.
      * @param healthOfTargets health of targets received from topology-processor
+     * @param failedDiscoveryCountThreshold failed discovery count threshold.
      * @return {@link AggregatedHealthResponseDTO} items
      */
     public static List<AggregatedHealthResponseDTO> aggregateTargetHealthInfoToDTO(
-                    Collection<TargetHealth> healthOfTargets) {
+                    Collection<TargetHealth> healthOfTargets, int failedDiscoveryCountThreshold) {
         Map<TargetHealthSubCategory, Map<HealthState, Integer>> subcategoryStatesCounters =
                         new EnumMap<>(TargetHealthSubCategory.class);
         Map<TargetHealthSubCategory, Map<TargetErrorType, String>> subcategoryRecommendations =
@@ -127,7 +128,7 @@ public class HealthDataMapper {
                             healthCheckSubcategory, k -> new EnumMap<>(HealthState.class));
             Map<TargetErrorType, String> recommendations = subcategoryRecommendations.computeIfAbsent(
                             healthCheckSubcategory, k -> new EnumMap<>(TargetErrorType.class));
-            updateStates(statesCounter, recommendations, healthInfo);
+            updateStates(statesCounter, recommendations, healthInfo, failedDiscoveryCountThreshold);
         }
 
         List<AggregatedHealthResponseDTO> result = new ArrayList<>(2);
@@ -144,9 +145,10 @@ public class HealthDataMapper {
     }
 
     private static void updateStates(Map<HealthState, Integer> statesCounter,
-                    Map<TargetErrorType, String> recommendations, TargetHealth healthInfo) {
+                    Map<TargetErrorType, String> recommendations, TargetHealth healthInfo,
+                    int failedDiscoveryCountThreshold) {
         String errorText = healthInfo.getErrorText();
-        if (!errorText.isEmpty()) {
+        if (!errorText.isEmpty() && !ignoreFailedDiscovery(healthInfo, failedDiscoveryCountThreshold)) {
             if (!healthInfo.hasErrorType()) {
                 //MINOR state
                 int counter = statesCounter.getOrDefault(HealthState.MINOR, 0) + 1;
@@ -164,6 +166,12 @@ public class HealthDataMapper {
             int counter = statesCounter.getOrDefault(HealthState.NORMAL, 0) + 1;
             statesCounter.put(HealthState.NORMAL, counter);
         }
+    }
+
+    private static boolean ignoreFailedDiscovery(TargetHealth healthInfo,
+        int failedDiscoveryCountThreshold) {
+        return healthInfo.getSubcategory() == TargetHealthSubCategory.DISCOVERY
+            && healthInfo.getConsecutiveFailureCount() < failedDiscoveryCountThreshold;
     }
 
     private static AggregatedHealthResponseDTO makeResponseItem(TargetCheckSubcategory subcategory,

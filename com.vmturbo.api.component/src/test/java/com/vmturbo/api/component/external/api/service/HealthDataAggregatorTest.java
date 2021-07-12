@@ -19,6 +19,8 @@ import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
 import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetDetailsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetDetails;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
@@ -35,12 +37,13 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 public class HealthDataAggregatorTest {
 
     private TargetsServiceMole targetBackend = spy(TargetsServiceMole.class);
+    private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
 
     /**
      * gRPC test server.
      */
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend);
+    public GrpcTestServer testServer = GrpcTestServer.newServer(targetBackend, settingBackend);
 
     private HealthDataAggregator healthDataAggregator;
 
@@ -50,7 +53,8 @@ public class HealthDataAggregatorTest {
     @Before
     public void setup() {
         healthDataAggregator = new HealthDataAggregator(TargetsServiceGrpc.newBlockingStub(
-                testServer.getChannel()));
+            testServer.getChannel()), SettingServiceGrpc.newBlockingStub(
+            testServer.getChannel()));
     }
 
     /**
