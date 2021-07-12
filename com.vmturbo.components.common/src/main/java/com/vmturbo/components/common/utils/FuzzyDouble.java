@@ -15,7 +15,7 @@ public class FuzzyDouble {
     /**
      * The default tolerance used in creating {@link FuzzyDouble} instances.
      */
-    public static final double DEFAULT_TOLERANCE = .001;
+    public static final double DEFAULT_TOLERANCE = 1.0e-6;
 
     private final double value;
 
