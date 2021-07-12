@@ -106,6 +106,9 @@ message TargetHealth {
 
   // Time of the first failure, if the target is currently not healthy.
   optional int64 time_of_first_failure = 6;
+
+  // Time of last successful discovery.
+  optional int64 last_successful_discovery = 7;
 }
 
 // Determines the amount of detail that will be returned in the TargetDetails protobuf

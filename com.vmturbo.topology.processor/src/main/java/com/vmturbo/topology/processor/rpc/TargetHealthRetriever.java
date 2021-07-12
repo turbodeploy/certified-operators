@@ -80,10 +80,18 @@ public class TargetHealthRetriever {
         Optional<Discovery> lastDiscovery = operationManager.getLastDiscoveryForTarget(targetId,
                 DiscoveryType.FULL);
 
+        TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
+
+        // set lastSuccessfulDiscoveryTime if time is present/known
+        Long lastSuccessfulDiscoveryTime = targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId);
+        if (lastSuccessfulDiscoveryTime != null) {
+            targetHealthBuilder.setLastSuccessfulDiscovery(lastSuccessfulDiscoveryTime);
+        }
+
         //Check if we have info about validation.
         if (!lastValidation.isPresent()) {
             if (!lastDiscovery.isPresent()) {
-                return TargetHealth.newBuilder()
+                return targetHealthBuilder
                         .setSubcategory(TargetHealthSubCategory.VALIDATION)
                         .setTargetName(targetName)
                         .setErrorText("Validation pending.")
@@ -97,7 +105,7 @@ public class TargetHealthRetriever {
         //Check if the validation has passed fine.
         if (validation.getStatus() == Status.SUCCESS) {
             if (!lastDiscovery.isPresent()) {
-                return TargetHealth.newBuilder()
+                return targetHealthBuilder
                         .setSubcategory(TargetHealthSubCategory.VALIDATION)
                         .setTargetName(targetName)
                         .build();
@@ -115,7 +123,7 @@ public class TargetHealthRetriever {
             if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0
                     && lastDiscovery.get().getStatus() == Status.SUCCESS) {
                 //All is good!
-                return TargetHealth.newBuilder()
+                return targetHealthBuilder
                         .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                         .setTargetName(targetName)
                         .build();
@@ -123,7 +131,7 @@ public class TargetHealthRetriever {
 
             if (checkTargetDuplication(lastDiscovery.get())) {
                 //We have the case of duplicate targets.
-                return TargetHealth.newBuilder()
+                return targetHealthBuilder
                         .setSubcategory(TargetHealthSubCategory.DUPLICATION)
                         .setErrorType(ErrorType.DUPLICATION)
                         .setErrorText("Duplicate targets.")
@@ -136,7 +144,7 @@ public class TargetHealthRetriever {
         }
 
         //Report the failed validation.
-        return TargetHealth.newBuilder()
+        return targetHealthBuilder
                 .setSubcategory(TargetHealthSubCategory.VALIDATION)
                 .setTargetName(targetName)
                 .setErrorType(validation.getErrorTypes().get(0))
@@ -158,9 +166,17 @@ public class TargetHealthRetriever {
 
     private TargetHealth verifyDiscovery(long targetId, String targetName,
             Discovery lastDiscovery) {
+        TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
+
+        // set lastSuccessfulDiscoveryTime if time is present/known
+        Long lastSuccessfulDiscoveryTime = targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId);
+        if (lastSuccessfulDiscoveryTime != null) {
+            targetHealthBuilder.setLastSuccessfulDiscovery(lastSuccessfulDiscoveryTime);
+        }
+
         if (lastDiscovery.getStatus() == Status.SUCCESS) {
             //The discovery was ok.
-            return TargetHealth.newBuilder()
+            return targetHealthBuilder
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                     .setTargetName(targetName)
                     .build();
@@ -168,7 +184,7 @@ public class TargetHealthRetriever {
 
         if (checkTargetDuplication(lastDiscovery)) {
             //We have the case of duplicate targets.
-            return TargetHealth.newBuilder()
+            return targetHealthBuilder
                     .setSubcategory(TargetHealthSubCategory.DUPLICATION)
                     .setErrorType(ErrorType.DUPLICATION)
                     .setErrorText("Duplicate targets.")
@@ -184,7 +200,7 @@ public class TargetHealthRetriever {
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
         if (discoveryFailure != null) {
             //There was a discovery failure.
-            return TargetHealth.newBuilder()
+            return targetHealthBuilder
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                     .setTargetName(targetName)
                     .setErrorType(discoveryFailure.getErrorType())
@@ -196,7 +212,7 @@ public class TargetHealthRetriever {
         } else {
             //The last discovery was probably attempted while there was no probe registered for it
             //(e.g. after the topology-processor restart).
-            return TargetHealth.newBuilder()
+            return targetHealthBuilder
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
                     .setTargetName(targetName)
                     .setErrorText(

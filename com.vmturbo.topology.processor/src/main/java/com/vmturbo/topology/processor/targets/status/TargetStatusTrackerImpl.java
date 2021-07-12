@@ -13,6 +13,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -45,6 +46,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     private static final Logger LOGGER = LogManager.getLogger();
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, TargetStatus> targetStatusCache;
+    private final Map<Long, Long> lastSuccessfulDiscoveryTimeByTargetId = new HashMap<>();
     private final TargetStatusStore targetStatusStore;
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
@@ -112,6 +114,8 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         final long removedTargetId = target.getId();
         targetStatusCache.remove(removedTargetId);
         removeFailedDiscovery(removedTargetId);
+        // do not report last successful discovery time on targets that no longer exist
+        lastSuccessfulDiscoveryTimeByTargetId.remove(removedTargetId);
         try {
             targetStatusStore.deleteTargetStatus(removedTargetId);
         } catch (TargetStatusStoreException exception) {
@@ -170,6 +174,8 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
                     storeFailedDiscovery(discovery.getTargetId(), discovery);
                 } else if (discovery.getStatus() == Status.SUCCESS) {
                     removeFailedDiscovery(discovery.getTargetId());
+                    lastSuccessfulDiscoveryTimeByTargetId.put(discovery.getTargetId(),
+                            TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock));
                 }
             }
         } else if (operation.getClass() == Validation.class
@@ -196,6 +202,18 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     @Nonnull
     public Map<Long, DiscoveryFailure> getFailedDiscoveries() {
         return Collections.unmodifiableMap(targetToFailedDiscoveries);
+    }
+
+    /**
+     * Returns last successful discovery time of target.
+     *
+     * @param targetId id of target.
+     * @return time of last successful discovery.
+     */
+    @Nullable
+    @Override
+    public Long getLastSuccessfulDiscoveryTime(long targetId) {
+        return lastSuccessfulDiscoveryTimeByTargetId.get(targetId);
     }
 
     private void initializeTargetsStatusCache() throws TargetStatusStoreException {
