@@ -847,9 +847,9 @@ public class TargetsService implements ITargetsService {
                         + targetInfo.getDisplayName() + " (id " + targetId
                         + ") cannot be changed through public APIs.");
             }
-            topologyProcessor.modifyTarget(targetId,
-                    new TargetInputFields(updatedTargetData.inputFieldsList, updatedTargetData.getCommunicationBindingChannel()));
-            TargetInfo updatedTargetInfo = topologyProcessor.getTarget(targetId);
+            TargetInfo updatedTargetInfo = topologyProcessor.modifyTarget(targetId,
+                    new TargetInputFields(updatedTargetData.inputFieldsList,
+                            updatedTargetData.getCommunicationBindingChannel()));
             Map<Long, TargetInfo> derivedTargetMap =
                 getDerivedTargetsMap(Collections.singletonList(updatedTargetInfo));
             return createTargetDtoWithRelationships(updatedTargetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());

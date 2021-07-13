@@ -14,6 +14,7 @@ import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
 import com.vmturbo.api.enums.healthCheck.TargetErrorType;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
@@ -105,6 +106,11 @@ public class HealthDataMapper {
             result.setErrorText(errorText);
             result.setTimeOfFirstFailure(healthInfo.getTimeOfFirstFailure());
             result.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
+        }
+
+        // set the last successful discovery if we have information for it
+        if (healthInfo.hasLastSuccessfulDiscovery()) {
+            result.setLastSuccessfulDiscovery(DateTimeUtil.toString(healthInfo.getLastSuccessfulDiscovery()));
         }
         return result;
     }

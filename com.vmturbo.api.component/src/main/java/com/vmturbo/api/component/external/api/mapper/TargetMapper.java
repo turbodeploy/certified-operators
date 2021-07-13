@@ -172,6 +172,12 @@ public class TargetMapper {
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
         targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
+        // set the last edit user/time
+        targetApiDTO.setLastEditUser(targetInfo.getLastEditingUser());
+        if (targetInfo.getLastEditTime() != null) {
+            targetApiDTO.setLastEditTime(DateTimeUtil.toString(targetInfo.getLastEditTime()));
+        }
+
         if (targetInfo.getLastValidationTime() != null) {
             // UI requires Offset date time. E.g.: 2019-01-28T20:31:04.302Z
             // Assume API component is on the same timezone as topology processor (for now)
