@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity.ResizeExplanationPerCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -641,8 +643,9 @@ public class ExplanationComposerTest {
 
         // test resize up by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4)
-                .setReason(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
+                .build();
+        action.getExplanationBuilder().getResizeBuilder()
+                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
                 .build();
         assertEquals("(^_^)~VCPU Throttling Congestion in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
@@ -699,21 +702,34 @@ public class ExplanationComposerTest {
                          .setOldCapacity(890)
                           .setNewCapacity(567))))
             .setExplanation(Explanation.newBuilder()
-                .setAtomicResize(AtomicResizeExplanation.newBuilder()
-                    .setMergeGroupId("bar")));
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(1)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .build())
+                                        .build())
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(1)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                                                .build())
+                                        .build())
+                        ));
 
         setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
 
 
-        assertEquals("Container Resize - "
-                + "Resize UP VCPU Limit from 123 millicores to 456 millicores, "
-                + "Resize DOWN VMem Request from 890 KB to 567 KB"
+        assertEquals("VCPU Limit Congestion, "
+                + "Underutilized VMem Request"
                 + " in Container Spec {entity:1:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
 
-        assertEquals("Container Resize - "
-                        + "Resize UP VCPU Limit from 123 millicores to 456 millicores, "
-                        + "Resize DOWN VMem Request from 890 KB to 567 KB"
+        assertEquals("VCPU Limit Congestion, "
+                        + "Underutilized VMem Request"
                         + " in Container Spec Irene",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
@@ -765,30 +781,55 @@ public class ExplanationComposerTest {
                                         .setNewCapacity(456))))
                 .setExplanation(Explanation.newBuilder()
                         .setAtomicResize(AtomicResizeExplanation.newBuilder()
-                                .setMergeGroupId("bar")));
+                                .setMergeGroupId("bar")
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(1)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .build())
+                                        .build())
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(1)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                                .build())
+                                        .build())
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(2)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
+                                                .build())
+                                        .build())
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(2)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                                .build())
+                                        .build())
+                        ));
         setupTopologyGraph(entity(0, "Harry", EntityType.WORKLOAD_CONTROLLER_VALUE));
         setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
         setupTopologyGraph(entity(2, "John", EntityType.CONTAINER_SPEC_VALUE));
 
         String explanation = ExplanationComposer.composeExplanation(action.build());
-        String coreExplanation =  ExplanationComposer.buildAtomicResizeCoreExplanation(action.build());
-        assertEquals("Controller Resize", coreExplanation);
-        assertTrue(explanation.startsWith(coreExplanation));
-        assertTrue(explanation.contains("Resize DOWN VMem Limit from 890 KB to 567 KB, "
-                                         + "Resize UP VCPU Limit from 123 millicores to 456 millicores"
+        assertTrue(explanation.contains("Underutilized VMem Limit, "
+                                         + "VCPU Throttling Congestion"
                                          + " in Container Spec {entity:2:displayName:}"));
-        assertTrue(explanation.contains("Resize UP VCPU Limit from 123 millicores to 456 millicores, "
-                + "Resize DOWN VMem Limit from 890 KB to 567 KB"
+        assertTrue(explanation.contains("VCPU Limit Congestion, "
+                + "Underutilized VMem Limit"
                 + " in Container Spec {entity:1:displayName:}"));
 
         String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null);
-        assertTrue(translatedExplanation.startsWith(coreExplanation));
-        assertTrue(translatedExplanation.contains("Resize DOWN VMem Limit from 890 KB to 567 KB, "
-                + "Resize UP VCPU Limit from 123 millicores to 456 millicores"
+        assertTrue(translatedExplanation.contains("Underutilized VMem Limit, "
+                + "VCPU Throttling Congestion"
                 + " in Container Spec John"));
-        assertTrue(translatedExplanation.contains("Resize UP VCPU Limit from 123 millicores to 456 millicores, "
-                + "Resize DOWN VMem Limit from 890 KB to 567 KB"
+        assertTrue(translatedExplanation.contains("VCPU Limit Congestion, "
+                + "Underutilized VMem Limit"
                 + " in Container Spec Irene"));
     }
 

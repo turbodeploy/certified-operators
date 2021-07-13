@@ -297,7 +297,7 @@ public class AtomicResizeBuilderTest {
         assertEquals(exp.getPerEntityExplanation(0).getPerCommodityExplanation().getCommodityType(),
                                         vcpuType);
 
-        assertEquals(exp.getPerEntityExplanation(0).getEntityId(), deDupEntity1.getEntityName());
+        assertEquals(exp.getPerEntityExplanation(0).getTargetId(), deDupEntity1.getEntity().getId());
     }
 
     /**
@@ -485,12 +485,12 @@ public class AtomicResizeBuilderTest {
         assertEquals(exp.getPerEntityExplanation(0).getPerCommodityExplanation().getCommodityType(),
                 vcpuType);
 
-        assertEquals(exp.getPerEntityExplanation(0).getEntityId(), deDupEntity1.getEntityName());
+        assertEquals(exp.getPerEntityExplanation(0).getTargetId(), deDupEntity1.getEntity().getId());
 
         assertEquals(exp.getPerEntityExplanation(1).getPerCommodityExplanation().getCommodityType(),
                 vcpuType);
 
-        assertEquals(exp.getPerEntityExplanation(1).getEntityId(), deDupEntity2.getEntityName());
+        assertEquals(exp.getPerEntityExplanation(1).getTargetId(), deDupEntity2.getEntity().getId());
     }
 
     /**
@@ -537,7 +537,7 @@ public class AtomicResizeBuilderTest {
         assertEquals(exp.getPerEntityExplanation(0).getPerCommodityExplanation().getCommodityType(),
                 vcpuType);
 
-        assertEquals(exp.getPerEntityExplanation(0).getEntityId(), deDupEntity2.getEntityName());
+        assertEquals(exp.getPerEntityExplanation(0).getTargetId(), deDupEntity2.getEntity().getId());
     }
 
     /**

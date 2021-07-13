@@ -354,7 +354,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
         Action origAction = actionList.iterator().next();
         ActionDTO.Resize origResize = origAction.getInfo().getResize();
-
+        Explanation.ResizeExplanation resizeExplanation = origAction.getExplanation().getResize();
         ActionView actionView = actionViewMap.get(origAction.getId());
         float oldCapacity = origResize.getOldCapacity();
         float newCapacity = origResize.getNewCapacity();
@@ -389,18 +389,25 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         ActionDTO.ResizeInfo resizeInfo = resizeInfoBuilder.build();
 
         // Explanation for this resize
-        AtomicResizeExplanation.ResizeExplanationPerEntity explanationPerEntity
+        AtomicResizeExplanation.ResizeExplanationPerEntity.Builder explanationPerEntity
                 = AtomicResizeExplanation.ResizeExplanationPerEntity.newBuilder()
-                .setEntityId(targetName)
-                .addAllResizeEntityIds(entityIds)
-                .setPerCommodityExplanation(
-                        ResizeExplanationPerEntity.ResizeExplanationPerCommodity.newBuilder()
-                                .setCommodityType(resizeCommType))
-                .build();
+                .setTargetId(targetEntity.getId())
+                .addAllResizeEntityIds(entityIds);
+
+        ResizeExplanationPerEntity.ResizeExplanationPerCommodity.Builder expPerComm =
+                ResizeExplanationPerEntity.ResizeExplanationPerCommodity.newBuilder()
+                        .setCommodityType(resizeCommType);
+        if (resizeExplanation.hasReason()) {
+            expPerComm.setReason(resizeExplanation.getReason());
+        } else {
+            expPerComm.setReason(resizeCommType);
+        }
+
+        explanationPerEntity.setPerCommodityExplanation(expPerComm);
 
         return ImmutableResizeInfoAndExplanation.builder()
                 .resizeInfo(resizeInfo)
-                .explanation(explanationPerEntity).build();
+                .explanation(explanationPerEntity.build()).build();
     }
 
     // Create one merged resize info and explanation for the given set of actions

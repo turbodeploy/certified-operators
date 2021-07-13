@@ -202,7 +202,7 @@ public class ActionDTOUtilTest {
         .setExplanation(Explanation.newBuilder()
             .setAtomicResize(AtomicResizeExplanation.newBuilder()
                 .addPerEntityExplanation(
-                    ResizeExplanationPerEntity.newBuilder().addResizeEntityIds(2L).setEntityId("foo"))
+                    ResizeExplanationPerEntity.newBuilder().addResizeEntityIds(2L).setTargetId(1))
                 .addAllEntityIds(Arrays.asList(1L))
                 .setMergeGroupId("bar")
                 .build())

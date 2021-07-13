@@ -87,7 +87,6 @@ public class ResizeInterpreterTest {
         assertThat(resize.getCommodityType(), is(topologyCommType));
         assertThat(resize.getNewCapacity(), is(2.0f));
         assertThat(resize.getOldCapacity(), is(1.0f));
-        assertThat(resize.getReason(), is(topologyCommType));
         assertThat(resize.getScalingGroupId(), is("foo"));
         assertThat(resize.getHotAddSupported(), is(true));
         assertThat(resize.getHotRemoveSupported(), is(true));

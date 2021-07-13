@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity.ResizeExplanationPerCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
@@ -102,6 +106,8 @@ public class ExplanationComposer {
         "Can not give a proper explanation";
     private static final String INCREASE_RI_UTILIZATION =
         "Increase RI Utilization";
+    private static final String PER_COMMODITY_ATOMIC_RESIZE_CONGESTION_EXPLANATION = "{0} Congestion";
+    private static final String PER_COMMODITY_ATOMIC_RESIZE_UNDERUTILIZATION_EXPLANATION = "Underutilized {0}";
     private static final String WASTED_COST = "Cost Reduction";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
@@ -681,82 +687,63 @@ public class ExplanationComposer {
         }
 
         AtomicResize atomicResize = action.getInfo().getAtomicResize();
-
-        final String coreExplanation = buildAtomicResizeCoreExplanation(action);
-        // This generic explanation string is used as a filter criterion for grouping actions.
-        if (keepItShort) {
-            return Collections.singleton(coreExplanation);
-        }
-
         final List<String> resizeInfoExplanations = new ArrayList<>();
+
+        final Map<Long, List<ResizeExplanationPerEntity>> resizeExplanationByTarget
+                = action.getExplanation().getAtomicResize().getPerEntityExplanationList().stream()
+                    .collect(Collectors.groupingBy(ResizeExplanationPerEntity::getTargetId));
 
         // group the resize infos by target entity
         final Map<ActionEntity, List<ResizeInfo>> resizeInfoByTarget
-                            = atomicResize.getResizesList().stream()
-                              .collect(Collectors.groupingBy(resize -> resize.getTarget()));
+                = atomicResize.getResizesList().stream().collect(Collectors.groupingBy(resize -> resize.getTarget()));
 
+        Set<String> risks = new HashSet<>();
         resizeInfoByTarget.forEach((target, resizeInfoList) -> {
             List<String> explanations = new ArrayList<>();
 
             // explanation string for all the commodity resizes per target
-            for (ResizeInfo resize : resizeInfoByTarget.get(target)) {
-                CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType
-                        .forNumber(resize.getCommodityType().getType());
+            for (ResizeInfo resize : resizeInfoList) {
+                List<ResizeExplanationPerEntity> expPerEntity =
+                        resizeExplanationByTarget.get(resize.getTarget().getId());
+                Optional<ResizeExplanationPerCommodity> commodityExp =
+                        expPerEntity.stream().map(exp -> exp.getPerCommodityExplanation())
+                                .filter(commExp -> commExp.getCommodityType().equals(resize.getCommodityType()))
+                                .findFirst();
 
-                String format_capacity =  "Resize {0} {1} from {2} to {3}";
+                CommodityType reason = resize.getCommodityType();
+                if (commodityExp.isPresent() && commodityExp.get().hasReason()) {
+                    reason = commodityExp.get().getReason();
+                }
+                if (resize.getNewCapacity() > resize.getOldCapacity()) {
+                    String explanation = MessageFormat.format(
+                            PER_COMMODITY_ATOMIC_RESIZE_CONGESTION_EXPLANATION,
+                            beautifyAtomicActionsCommodityType(reason));
 
-                String explanation = MessageFormat.format(
-                        format_capacity,
-                        resize.getNewCapacity() > resize.getOldCapacity() ? "UP" : "DOWN",
-                        beautifyAtomicActionsCommodityType(resize.getCommodityType()),
-                        ActionDescriptionBuilder.formatResizeActionCommodityValue(
-                                commodity, resize.getTarget().getType(), resize.getOldCapacity()),
-                        ActionDescriptionBuilder.formatResizeActionCommodityValue(
-                                commodity, resize.getTarget().getType(), resize.getNewCapacity())
-                );
+                    explanations.add(explanation);
+                } else {
+                    String explanation = MessageFormat.format(
+                            PER_COMMODITY_ATOMIC_RESIZE_UNDERUTILIZATION_EXPLANATION,
+                            beautifyAtomicActionsCommodityType(reason));
 
-                explanations.add(explanation);
+                    explanations.add(explanation);
+                }
             }
 
             String targetClause = " in " + buildEntityTypeAndName(target, topology);
+            risks.addAll(explanations);
 
             resizeInfoExplanations.add(String.join(", ", explanations) + targetClause);
         });
 
+        // This generic explanation string is used as a filter criterion for grouping actions.
+        if (keepItShort) {
+            return risks;
+        }
         // Combined explanation for all the targets
         StringBuilder allExplanations = new StringBuilder();
-        allExplanations.append(coreExplanation).append(" - ");
         allExplanations.append(String.join("; ", resizeInfoExplanations));
 
         return Collections.singleton(allExplanations.toString());
-    }
-
-    /**
-     * Build the core generic explanation that is returned
-     * as short explanation or 'risk' for the for the atomic resize action
-     * This generic explanation string is used as a filter criterion for grouping actions.
-     *
-     * @param action the action to explain
-     *
-     * @return core explanation for the atomic resize
-     */
-    @VisibleForTesting
-    static String buildAtomicResizeCoreExplanation( @Nonnull final ActionDTO.Action action) {
-        StringBuilder explanation = new StringBuilder();
-
-        ActionEntity executionEntity = action.getInfo().getAtomicResize().getExecutionTarget();
-        switch (executionEntity.getType()) {
-            case EntityType.WORKLOAD_CONTROLLER_VALUE:
-                explanation.append("Controller");
-                break;
-            case EntityType.CONTAINER_SPEC_VALUE:
-                explanation.append("Container");
-                break;
-            default:
-                logger.error("Unsupported entity type for atomic resize {}", executionEntity.getType());
-        }
-        explanation.append(" Resize");
-        return explanation.toString();
     }
 
     /**
@@ -826,8 +813,10 @@ public class ExplanationComposer {
         if (isResizeDown) {
             return UNDERUTILIZED_EXPLANATION + commodityType;
         } else {
-            if (resize.hasReason()) {
-                final String reasonCommodityType = convertStorageAccessToIops.apply(commodityDisplayName(resize.getReason(), keepItShort)) +
+            // if reason present in explanation use it.
+            if (action.getExplanation().getResize().hasReason()) {
+                final String reasonCommodityType = convertStorageAccessToIops.apply(
+                        commodityDisplayName(action.getExplanation().getResize().getReason(), keepItShort)) +
                         (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
                 return reasonCommodityType + CONGESTION_EXPLANATION;
             }
