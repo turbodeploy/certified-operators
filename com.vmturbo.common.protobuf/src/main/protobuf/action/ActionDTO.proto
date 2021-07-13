@@ -170,6 +170,9 @@ message Explanation {
         required float _deprecated_start_utilization = 1 [deprecated=true];
         required float _deprecated_end_utilization = 2 [deprecated=true];
         optional string scaling_group_id = 3;
+
+        // The reason for the commodity being resized is populated for commodities with byProducts while resizing up.
+        optional topology.CommodityType reason = 4;
     }
 
     // Explanation for the atomic resize action
@@ -184,11 +187,6 @@ message Explanation {
         repeated ResizeExplanationPerEntity per_entity_explanation = 3;
 
         message ResizeExplanationPerEntity {
-            // target entity for the resize,
-            // typically the entity that will de-duplicate the actions for a set of entities
-            // or the original entity itself
-            required string entity_id = 1;
-
             // original resize entities - multiple if the resize actions of all these entities
             // are de-duplicated and reduced to one resize
             repeated int64 resize_entity_ids = 2;
@@ -196,9 +194,19 @@ message Explanation {
             // explanation for each commodity resize
             optional ResizeExplanationPerCommodity per_commodity_explanation = 3;
 
+            // Id of entity
+            optional int64 target_id = 4;
+
             message ResizeExplanationPerCommodity {
                  required topology.CommodityType commodity_type = 1;
+
+                 // The reason for the commodity being resized is populated for commodities with byProducts while resizing up.
+                 optional topology.CommodityType reason = 2;
             }
+
+            // deprecated entity_id of type string.
+            reserved 1;
+            reserved "entity_id";
         }
     }
 
@@ -381,6 +389,7 @@ message ResizeInfo {
 
     // scaling group ID that the source entities belong to
     optional string scaling_group_id = 7;
+
 }
 
 // Change one or more providers of an entity.
@@ -508,8 +517,9 @@ message Resize {
     // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
     optional ActionEntity resize_trigger_trader = 9;
 
-    // The reason for the commodity being resized is populated for commodities with byProducts while resizing up.
-    optional topology.CommodityType reason = 10;
+    // deprecated reason commodity being resized.
+    reserved 10;
+    reserved "reason";
 }
 
 // Activate an existing deactivated entity.

@@ -140,15 +140,6 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                 .setNewCapacity((float)newCapacity)
                 .setOldCapacity((float)oldCapacity)
                 .setCommodityType(topologyCommodityType);
-        if (resizeTO.hasReasonCommodity()) {
-            final CommodityType reasonCommodityType =
-                    commodityConverter.marketToTopologyCommodity(resizeTO.getReasonCommodity())
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "Resize commodity can't be converted to topology commodity format! "
-                                            + cs));
-            resizeBuilder.setReason(reasonCommodityType);
-
-        }
         setHotAddRemove(resizeBuilder, resizeCommSold);
         if (resizeTO.hasScalingGroupId()) {
             resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
@@ -241,6 +232,16 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                 .setDeprecatedEndUtilization(resizeTO.getEndUtilization());
         if (resizeTO.hasScalingGroupId()) {
             builder.setScalingGroupId(resizeTO.getScalingGroupId());
+        }
+        // populate reason on ResizeExplanation
+        if (resizeTO.hasReasonCommodity()) {
+            final CommodityType reasonCommodityType =
+                    commodityConverter.marketToTopologyCommodity(resizeTO.getReasonCommodity())
+                            .orElseThrow(() -> new IllegalArgumentException(
+                                    "Resize commodity can't be converted to topology commodity format! "
+                                            + resizeTO.getSpecification()));
+            builder.setReason(reasonCommodityType);
+
         }
         return builder.build();
     }
