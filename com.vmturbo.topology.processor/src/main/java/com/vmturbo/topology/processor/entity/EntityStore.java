@@ -20,6 +20,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -201,12 +202,12 @@ public class EntityStore {
             .register();
 
     protected static final DataMetricHistogram DUPLICATE_CHECK_TIMES = DataMetricHistogram.builder()
-            .withName(StringConstants.METRICS_TURBO_PREFIX + "target_check_duplicates_time_millis")
-            .withHelp("Count of duplicate checks for targets by the time in milliseconds it took to"
+            .withName("tp_target_check_duplicates_time")
+            .withHelp("Count of duplicate checks for targets by the time in seconds it took to"
                     + " perform the check. A check is performed on the completion of every full "
                     + "discovery for every target.")
             .withLabelNames("target_type", "duplicate_detected")
-            .withBuckets(new double[]{10.0, 100.0, 200.0, 500.0, 1000.0, 2000.0})
+            .withBuckets(new double[]{0.01, 0.1, 0.2, 0.5, 1.0, 2.0})
             .build()
             .register();
 
@@ -612,8 +613,10 @@ public class EntityStore {
                         "Time to calculate duplicate target set for target {} is {} milliseconds.",
                         () -> target.get(), () -> System.currentTimeMillis() - startTime);
                 DUPLICATE_CHECK_TIMES.labels(duplicateTargetDetector.adjustProbeType(
-                        target.get().getProbeInfo().getProbeType()), Boolean.toString(!originalTargets.isEmpty())).observe(
-                        (double)System.currentTimeMillis() - startTime);
+                        target.get().getProbeInfo().getProbeType()),
+                        Boolean.toString(!originalTargets.isEmpty())).observe(
+                        ((double)System.currentTimeMillis() - startTime)
+                                / TimeUnit.SECONDS.toMillis(1L));
                 if (!originalTargets.isEmpty()) {
                     logger.debug("Returned duplicate target set {}", () -> originalTargets);
                     // if there are multiple duplicate targets, we will keep processing only the
