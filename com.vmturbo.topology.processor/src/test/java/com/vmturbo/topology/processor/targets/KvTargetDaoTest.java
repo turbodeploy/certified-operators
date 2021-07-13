@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -77,12 +78,31 @@ public class KvTargetDaoTest {
      */
     @Test
     public void testPutGet() throws Exception {
-        final Target target = prepareTestTarget();
+        final String lastEditingUser = "admin";
+        final Target target = prepareTestTarget(lastEditingUser);
         final KeyValueStore kvStore = new MapKeyValueStore();
         final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
         dao.store(target);
         final Target retrievedTarget = dao.getAll().get(0);
         assertThat(retrievedTarget.getNoSecretDto(), is(target.getNoSecretDto()));
+        Assert.assertEquals(lastEditingUser, retrievedTarget.getNoSecretDto().getSpec().getLastEditingUser());
+        Assert.assertTrue(retrievedTarget.getNoSecretDto().getSpec().hasLastEditTime());
+    }
+
+    /**
+     * Test adding and retrieving target without last edit info to/from the DAO.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGetTargetWithoutLastEditInfo() throws Exception {
+        final Target target = prepareTestTarget(null);
+        final KeyValueStore kvStore = new MapKeyValueStore();
+        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
+        dao.store(target);
+        final Target retrievedTarget = dao.getAll().get(0);
+        assertThat(retrievedTarget.getNoSecretDto(), is(target.getNoSecretDto()));
+        Assert.assertFalse(retrievedTarget.getNoSecretDto().getSpec().hasLastEditingUser());
     }
 
     /**
@@ -92,7 +112,7 @@ public class KvTargetDaoTest {
      */
     @Test
     public void testRemove() throws Exception {
-        final Target target = prepareTestTarget();
+        final Target target = prepareTestTarget(null);
         final KeyValueStore kvStore = new MapKeyValueStore();
         final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
         dao.store(target);
@@ -109,7 +129,7 @@ public class KvTargetDaoTest {
      */
     @Test
     public void testInitializationWithAccountVals() throws Exception {
-        final Target target = prepareTestTarget();
+        final Target target = prepareTestTarget(null);
         final KeyValueStore kvStore = new MapKeyValueStore();
         final KvTargetDao kvTargetDao = new KvTargetDao(kvStore, probeStore);
 
@@ -168,8 +188,8 @@ public class KvTargetDaoTest {
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
             new InputField(SECRET_FIELD_NAME, "ThePassValue", Optional.empty()),
-            new InputField(PLAIN_FIELD_NAME, "theUserName", Optional.empty())), Optional.empty());
-        final Target target = new Target(0L, probeStore, spec.toDto(), true);
+            new InputField(PLAIN_FIELD_NAME, "theUserName", Optional.empty())), Optional.empty(), "System");
+        final Target target = new Target(0L, probeStore, spec.toDto(), true, true);
 
 
         KeyValueStore kvStore = new MapKeyValueStore();
@@ -199,7 +219,7 @@ public class KvTargetDaoTest {
         }
     }
 
-    private Target prepareTestTarget() throws Exception {
+    private Target prepareTestTarget(@Nullable String lastEditingUser) throws Exception {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(Probes.emptyProbe)
             .addAccountDefinition(AccountDefEntry.newBuilder().setCustomDefinition(
                 CustomAccountDefEntry.newBuilder()
@@ -214,8 +234,8 @@ public class KvTargetDaoTest {
             Arrays.asList(new InputField("name", "value",
                 Optional.of(Collections.singletonList(Collections.singletonList("test")))),
                 new InputField("targetId", "value",
-                    Optional.of(Collections.singletonList(Collections.singletonList("test"))))), Optional.empty());
-        return new Target(0L, probeStore, spec.toDto(), true);
+                    Optional.of(Collections.singletonList(Collections.singletonList("test"))))), Optional.empty(), lastEditingUser);
+        return new Target(0L, probeStore, spec.toDto(), true, true);
     }
 
     /**

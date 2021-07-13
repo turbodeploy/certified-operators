@@ -64,6 +64,7 @@ import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+import com.vmturbo.topology.processor.api.impl.AccountValuesWrapper;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -228,7 +229,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final long targetId = getTopologyProcessor().addTarget(probeId, data);
         final Optional<Target> target = targetStore.getTarget(targetId);
         Assert.assertTrue(target.isPresent());
-        final Collection<AccountValue> actual = target.get().createTargetInfo().getAccountData();
+        final Collection<AccountValue> actual =
+                target.get().getNoSecretDto().getSpec().getAccountValueList().stream().map(
+                        AccountValuesWrapper::new).collect(Collectors.toSet());
         Assert.assertEquals(Collections.singleton(original), new HashSet<>(actual));
         Assert.assertEquals(communicationBindingChannel, target.get().getSpec().getCommunicationBindingChannel());
     }
@@ -332,7 +335,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
 
         final TargetInputFields targetData = new TargetInputFields(Collections.singletonList(field),
-            Optional.of("channel"));
+            Optional.of("channel"), "admin");
         getTopologyProcessor().modifyTarget(targetId, targetData);
         final Target resultTarge = targetStore.getTarget(targetId).get();
         Assert.assertEquals("2",
@@ -349,7 +352,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     public void testUpdateNonExistingTarget() throws Exception {
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
         final TargetInputFields targetData = new TargetInputFields(Collections.singletonList(field),
-            Optional.of("label"));
+            Optional.of("label"), "admin");
 
         final long targetId = -1;
         expectExceptionForId(targetId, "does not exist");

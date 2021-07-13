@@ -699,11 +699,11 @@ public class TargetsService implements ITargetsService {
                         "Derived targets cannot be created through public APIs.");
             }
             final long probeId = probeInfo.getId();
-            final TargetData newtargetData = new NewTargetData(probeType, inputFields);
+            final TargetData newTargetData = new NewTargetData(probeType, inputFields);
             try {
                 // store the target number to determine if to send notification to UI.
                 final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size();
-                final long targetId = topologyProcessor.addTarget(probeId, newtargetData);
+                final long targetId = topologyProcessor.addTarget(probeId, newTargetData);
 
                 // There is an edge case where discovery may not be kicked off yet by the time add target returns.
                 // Trigger validation so that topologyProcessor.getTarget is guaranteed to be able to find a status

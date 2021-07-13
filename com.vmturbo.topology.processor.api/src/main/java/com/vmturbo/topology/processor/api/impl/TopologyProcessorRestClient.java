@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableSet;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 
+import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
@@ -104,10 +105,11 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
     public long addTarget(final long probeId, @Nonnull final TargetData targetData)
                     throws CommunicationException, TopologyProcessorException {
+        final String currentUser = UserContextUtils.getCurrentUserName();
         final TargetSpec spec = new TargetSpec(probeId,
                 Objects.requireNonNull(targetData).getAccountData().stream()
                     .map(this::convert)
-                    .collect(Collectors.toList()), targetData.getCommunicationBindingChannel());
+                    .collect(Collectors.toList()), targetData.getCommunicationBindingChannel(), currentUser);
         final RequestEntity<?> request = RequestEntity.post(URI.create(targetUri)).body(spec);
         return addTargetClient.execute(request).getId();
     }
@@ -160,12 +162,14 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
      * @throws TopologyProcessorException if required fields are not present when parsed from JSON.
      * @throws CommunicationException if error occurs in communicating with the component
      */
-    public void modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
+    public TargetInfo modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
                     throws CommunicationException, TopologyProcessorException {
+        final String editingUser = UserContextUtils.getCurrentUserName();
+        newData.setEditingUser(editingUser);
         final RequestEntity<?> request =
                         RequestEntity.put(URI.create(targetUri + Long.toString(targetId)))
                                         .body(Objects.requireNonNull(newData));
-        updateTargetsClient.execute(request);
+        return updateTargetsClient.execute(request);
     }
 
     @Nonnull

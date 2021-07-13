@@ -149,7 +149,6 @@ public class OperationControllerTest {
 
         @Bean
         TargetStore targetStore() {
-            GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
             return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
         }
 
@@ -698,7 +697,7 @@ public class OperationControllerTest {
 
     private Target addTarget(final long probeId) throws Exception {
         TargetSpec target = new TargetSpec(probeId, Collections.singletonList(new InputField(
-            "targetId", "123", Optional.empty())), Optional.empty());
+            "targetId", "123", Optional.empty())), Optional.empty(), "System");
         return targetStore.createTarget(target.toDto());
     }
 

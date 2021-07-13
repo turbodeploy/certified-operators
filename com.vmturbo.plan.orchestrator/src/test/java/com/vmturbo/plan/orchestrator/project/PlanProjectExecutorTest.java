@@ -340,7 +340,7 @@ public class PlanProjectExecutorTest {
             .thenReturn(Optional.of(template));
 
         when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(new TargetInfo(500L,
-            "target", null, null, null, null, null)));
+            "target", null, null, null, null, null, null, null)));
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);

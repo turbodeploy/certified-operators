@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
@@ -26,16 +27,33 @@ public class TargetInputFields implements TargetData {
     @ApiModelProperty(value = "The communication channel of the target")
     private String communicationBindingChannel = null;
 
+    @ApiModelProperty(value = "The user editing the target")
+    private String editingUser = null;
+
     public TargetInputFields() {
         this.inputFields = null;
     }
 
     /**
-    * Creates a new instance of {@link TargetInputFields}.
-    *
-    * @param inputFields values
-    * @param communicationBindingChannel optional of the channel
-    **/
+     * Creates a new instance of {@link TargetInputFields}.
+     *
+     * @param inputFields values
+     * @param communicationBindingChannel optional of the channel
+     * @param editingUser the user added/updated the target
+     **/
+    public TargetInputFields(List<? extends InputField> inputFields,
+            Optional<String> communicationBindingChannel, @Nullable String editingUser) {
+        this.inputFields = ImmutableList.copyOf(inputFields);
+        this.communicationBindingChannel = communicationBindingChannel.orElse(null);
+        this.editingUser = editingUser;
+    }
+
+    /**
+     * Creates a new instance of {@link TargetInputFields}.
+     *
+     * @param inputFields values
+     * @param communicationBindingChannel optional of the channel
+     **/
     public TargetInputFields(List<? extends InputField> inputFields, Optional<String> communicationBindingChannel) {
         this.inputFields = ImmutableList.copyOf(inputFields);
         this.communicationBindingChannel = communicationBindingChannel.orElse(null);
@@ -55,6 +73,15 @@ public class TargetInputFields implements TargetData {
     @Nonnull
     public Optional<String> getCommunicationBindingChannel() {
         return Optional.ofNullable(communicationBindingChannel);
+    }
+
+    @Nullable
+    public String getEditingUser() {
+        return editingUser;
+    }
+
+    public void setEditingUser(final String editingUser) {
+        this.editingUser = editingUser;
     }
 
     public String toString() {

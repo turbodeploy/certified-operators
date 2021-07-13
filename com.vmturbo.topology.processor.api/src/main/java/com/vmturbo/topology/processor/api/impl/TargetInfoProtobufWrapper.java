@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -29,7 +30,7 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public Set<AccountValue> getAccountData() {
         return targetInfo.getSpec().getAccountValueList().stream()
-                        .map(av -> new AccountValuesWrapper(av)).collect(Collectors.toSet());
+                        .map(AccountValuesWrapper::new).collect(Collectors.toSet());
     }
 
     @Override
@@ -65,6 +66,18 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public List<Long> getDerivedTargetIds() {
         return targetInfo.getSpec().getDerivedTargetIdsList().stream().collect(Collectors.toList());
+    }
+
+    @Nullable
+    @Override
+    public String getLastEditingUser() {
+        return targetInfo.getSpec().getLastEditingUser();
+    }
+
+    @Nullable
+    @Override
+    public Long getLastEditTime() {
+        return targetInfo.getSpec().getLastEditTime();
     }
 
     @Override

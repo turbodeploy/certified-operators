@@ -109,7 +109,9 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
                 try {
                     targetStore.restoreTarget(target.getId(), target.getSpec().toBuilder()
                             .clearAccountValue().addAllAccountValue(accountVals).build());
-                    targetStore.updateTarget(target.getId(), Collections.emptySet(), Optional.empty());
+                    targetStore.updateTarget(target.getId(), Collections.emptySet(),
+                            Optional.empty(),
+                            target.getNoSecretDto().getSpec().getLastEditingUser());
                     LOGGER.info("Target migrated: {} ({})", target.getId(), probeType.getProbeType());
                 } catch (InvalidTargetException | TargetNotFoundException | IdentityStoreException | IdentifierConflictException e) {
                     LOGGER.error("Cannot update target values.", e);

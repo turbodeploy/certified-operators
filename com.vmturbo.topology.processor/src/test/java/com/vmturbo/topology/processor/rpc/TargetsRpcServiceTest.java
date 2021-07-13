@@ -855,7 +855,8 @@ public class TargetsRpcServiceTest {
                 .addAccountValue(
                         AccountValue.newBuilder().setKey(ID).setStringValue("tgt-" + targetId));
         customizer.accept(targetSpec);
-        final Target target = spy(new Target(targetId, probeStore, targetSpec.build(), false));
+        final Target target = spy(
+                new Target(targetId, probeStore, targetSpec.build(), false, true));
         targets.put(targetId, target);
         return target;
     }

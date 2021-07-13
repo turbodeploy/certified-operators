@@ -54,7 +54,7 @@ public class V_01_01_07__Target_Common_Proxy_Settings_CloudFoundryTest {
                         .setStringValue(PROXY_PORT)
                         .build())
                 .build();
-        return new Target(0L, probeStore, spec, true);
+        return new Target(0L, probeStore, spec, true, true);
     }
 
     /**

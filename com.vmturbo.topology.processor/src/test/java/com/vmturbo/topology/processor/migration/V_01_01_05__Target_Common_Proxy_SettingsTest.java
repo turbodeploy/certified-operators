@@ -153,7 +153,7 @@ public class V_01_01_05__Target_Common_Proxy_SettingsTest {
                         .setStringValue("turbouser")
                         .build())
                 .build();
-        return new Target(0L, probeStore, spec, true);
+        return new Target(0L, probeStore, spec, true, true);
     }
 
     static Discovery.AccountDefEntry createAccountDefEntry(boolean mandatory, String name, String displayName) {
@@ -200,7 +200,7 @@ public class V_01_01_05__Target_Common_Proxy_SettingsTest {
                         .setStringValue(PROXY_PORT)
                         .build())
                 .build();
-        return new Target(0L, probeStore, spec, true);
+        return new Target(0L, probeStore, spec, true, true);
     }
 
     /**
