@@ -1,5 +1,6 @@
 package com.vmturbo.group.group;
 
+import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static com.vmturbo.group.db.tables.GroupSupplementaryInfo.GROUP_SUPPLEMENTARY_INFO;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -1310,26 +1311,25 @@ public class GroupDaoTest {
         createCustomGroup(OID1, origin, groupDefinition1,
                 ImmutableSet.of(
                         MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
-                false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                false, mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MAJOR);
         createCustomGroup(OID2, origin, groupDefinition2,
                 ImmutableSet.of(
                         MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
                 false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.CRITICAL);
         createCustomGroup(OID3, origin, groupDefinition3,
                 ImmutableSet.of(
                         MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()),
                 true,
-                new GroupEnvironment(EnvironmentType.CLOUD, CloudType.AWS),
+                mockEnvironment(EnvironmentType.CLOUD, CloudType.AWS),
                 Severity.NORMAL);
         createCustomGroup(OID4, origin, groupDefinition4,
                 ImmutableSet.of(
                         MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
                 true,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
     }
 
@@ -2063,7 +2063,7 @@ public class GroupDaoTest {
                 ImmutableSet.of(
                         MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build()),
                 false,
-                new GroupEnvironment(EnvironmentType.HYBRID, CloudType.HYBRID_CLOUD),
+                mockEnvironment(EnvironmentType.HYBRID, CloudType.HYBRID_CLOUD),
                 Severity.MINOR);
     }
 
@@ -2515,7 +2515,7 @@ public class GroupDaoTest {
         // WHEN
         groupStore.createGroupSupplementaryInfo(groupOid,
                 false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         // THEN
         Assert.assertEquals(Integer.valueOf(1), dbConfig.getDslContext().selectCount()
@@ -2576,12 +2576,12 @@ public class GroupDaoTest {
                 false);
         groupStore.createGroupSupplementaryInfo(groupOid,
                 false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.AWS),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.AWS),
                 Severity.NORMAL);
         // WHEN
         groupStore.updateSingleGroupSupplementaryInfo(groupOid,
                 true,
-                new GroupEnvironment(EnvironmentType.CLOUD, CloudType.AZURE),
+                mockEnvironment(EnvironmentType.CLOUD, CloudType.AZURE),
                 Severity.MAJOR);
         // THEN
         Assert.assertEquals(Integer.valueOf(1), dbConfig.getDslContext().selectCount()

@@ -1,5 +1,6 @@
 package com.vmturbo.group.pipeline;
 
+import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -192,15 +193,15 @@ public class StagesTest {
                 .build())).thenReturn(repositoryResults);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid1), true))
                 .thenReturn(group1entities);
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(eq(groupUuid1),
+        GroupEnvironment g1Env = mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD);
+        GroupEnvironment g2Env = mockEnvironment(EnvironmentType.HYBRID, CloudType.AWS);
+        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(any(), eq(groupUuid1),
                 eq(group1entitiesWithEnvType),
-                eq(ArrayListMultimap.create()))).thenReturn(
-                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+                eq(ArrayListMultimap.create()))).thenReturn(g1Env);
         when(groupSeverityCalculator.calculateSeverity(group1entities)).thenReturn(Severity.NORMAL);
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(eq(groupUuid2),
+        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(any(), eq(groupUuid2),
                 eq(group2entitiesWithEnvType),
-                eq(ArrayListMultimap.create()))).thenReturn(
-                        new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
+                eq(ArrayListMultimap.create()))).thenReturn(g2Env);
         when(groupSeverityCalculator.calculateSeverity(group2entities)).thenReturn(Severity.CRITICAL);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
                 .thenReturn(group2entities);
@@ -322,10 +323,10 @@ public class StagesTest {
                 .build())).thenReturn(repositoryResults);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid1), true))
                 .thenThrow(new BadSqlGrammarException(null, "SqlQuery", new SQLException()));
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(eq(groupUuid2),
+        GroupEnvironment g2Env = mockEnvironment(EnvironmentType.HYBRID, CloudType.AWS);
+        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(any(), eq(groupUuid2),
                 eq(group2entitiesWithEnvType),
-                eq(ArrayListMultimap.create()))).thenReturn(
-                new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
+                eq(ArrayListMultimap.create()))).thenReturn(g2Env);
         when(groupSeverityCalculator.calculateSeverity(group2entities)).thenReturn(Severity.CRITICAL);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
                 .thenReturn(group2entities);
@@ -393,8 +394,9 @@ public class StagesTest {
                 .thenReturn(group1entities);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
                 .thenReturn(group2entities);
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any()))
-                .thenReturn(new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
+        GroupEnvironment gEnv = mockEnvironment(EnvironmentType.HYBRID, CloudType.AWS);
+        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(any(), anyLong(), any(), any()))
+                .thenReturn(gEnv);
         when(groupSeverityCalculator.calculateSeverity(any())).thenReturn(Severity.CRITICAL);
         when(mockTransactionProvider.transaction(any()))
                 // 1 batch succeeds

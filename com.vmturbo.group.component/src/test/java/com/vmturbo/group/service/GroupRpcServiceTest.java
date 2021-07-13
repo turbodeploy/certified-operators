@@ -1,5 +1,6 @@
 package com.vmturbo.group.service;
 
+import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -71,8 +72,6 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
-import com.vmturbo.common.protobuf.common.Pagination.OrderBy.GroupOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -378,11 +377,11 @@ public class GroupRpcServiceTest {
         final Grouping grouping2 = createGrouping(group2Id, group2Members);
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null,
@@ -442,11 +441,11 @@ public class GroupRpcServiceTest {
         final Grouping grouping2 = createGrouping(group2Id, group2Members);
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         final EntityAccessScope accessScope =
                 new EntityAccessScope(Collections.singleton(group1Id), null,
@@ -526,23 +525,23 @@ public class GroupRpcServiceTest {
         final Grouping grouping5 = createGrouping(group5Id, Collections.emptySet());
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         groupStoreDAO.addGroup(grouping3);
         groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MAJOR);
         groupStoreDAO.addGroup(grouping4);
         groupStoreDAO.createGroupSupplementaryInfo(group4Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.CRITICAL);
         groupStoreDAO.addGroup(grouping5);
         groupStoreDAO.createGroupSupplementaryInfo(group5Id, true,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         final EntityAccessScope userAccessScope =
                 new EntityAccessScope(null, null,
@@ -640,15 +639,15 @@ public class GroupRpcServiceTest {
         final Grouping grouping3 = createGrouping(group3Id, group3Members);
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         groupStoreDAO.addGroup(grouping3);
         groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null,
@@ -719,15 +718,15 @@ public class GroupRpcServiceTest {
         final Grouping grouping3 = createGrouping(group3Id, group3Members);
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         groupStoreDAO.addGroup(grouping3);
         groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MAJOR);
         // group1 & group3 in scope
         final EntityAccessScope accessScope =
@@ -797,15 +796,15 @@ public class GroupRpcServiceTest {
         final Grouping grouping3 = createGrouping(group3Id, group3Members);
         groupStoreDAO.addGroup(grouping1);
         groupStoreDAO.createGroupSupplementaryInfo(group1Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreDAO.addGroup(grouping2);
         groupStoreDAO.createGroupSupplementaryInfo(group2Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MINOR);
         groupStoreDAO.addGroup(grouping3);
         groupStoreDAO.createGroupSupplementaryInfo(group3Id, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.MAJOR);
         // group1 in scope
         final EntityAccessScope accessScope =
@@ -2190,9 +2189,9 @@ public class GroupRpcServiceTest {
 
         long groupingOid = 5;
         Mockito.when(identityProvider.next()).thenReturn(groupingOid).thenReturn(-1L);
+        GroupEnvironment env = mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD);
         Mockito.when(groupEnvironmentTypeResolver
-                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
-                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+                .getEnvironmentAndCloudTypeForGroup(any(), anyLong(), any(), any())).thenReturn(env);
         Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
 
         groupRpcService.createGroup(groupRequest, mockObserver);
@@ -2259,9 +2258,9 @@ public class GroupRpcServiceTest {
             mock(StreamObserver.class);
 
         Mockito.when(identityProvider.next()).thenReturn(idA).thenReturn(idB);
+        GroupEnvironment env = mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD);
         Mockito.when(groupEnvironmentTypeResolver
-                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
-                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+                .getEnvironmentAndCloudTypeForGroup(any(), anyLong(), any(), any())).thenReturn(env);
         Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
         groupRpcService.createGroup(groupRequest, mockObserver);
         HashSet<Long> idAList = new HashSet<>(Collections.singletonList(idA));
@@ -2606,9 +2605,9 @@ public class GroupRpcServiceTest {
         final StreamObserver<UpdateGroupResponse> mockObserver =
                         mock(StreamObserver.class);
 
+        GroupEnvironment env = mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD);
         Mockito.when(groupEnvironmentTypeResolver
-                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
-                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+                .getEnvironmentAndCloudTypeForGroup(any(), anyLong(), any(), any())).thenReturn(env);
         Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
 
         given(groupStoreDAO
@@ -2863,6 +2862,30 @@ public class GroupRpcServiceTest {
                             .setEntity(3)
                             .build()
                         ), memberTypes);
+    }
+
+     /**
+      * Tests the findExpectedTypes method in group service when we are dealing with
+      * dynamic group of groups.
+      */
+    @Test
+    public void testFindExpectedTypeDynamicGroupOfGroups() {
+        // GIVEN
+        GroupDefinition groupDefinition = GroupDefinition
+                .newBuilder()
+                .setGroupFilters(GroupFilters.newBuilder()
+                        .addGroupFilter(GroupFilter.newBuilder()
+                            .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                        )).build();
+
+        // WHEN
+        final Set<MemberType> memberTypes =
+        groupRpcService.findGroupExpectedTypes(groupStoreDAO, groupDefinition);
+
+        // THEN
+        assertEquals(ImmutableSet.of(MemberType.newBuilder()
+                        .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                        .build()), memberTypes);
     }
 
     /**

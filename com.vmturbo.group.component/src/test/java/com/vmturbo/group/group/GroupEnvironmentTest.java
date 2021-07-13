@@ -15,7 +15,7 @@ public class GroupEnvironmentTest {
      */
     @Test
     public void testEmptyTypes() {
-        GroupEnvironment groupEnvironment = new GroupEnvironment();
+        GroupEnvironment groupEnvironment = new GroupEnvironment(false);
         Assert.assertEquals(EnvironmentType.UNKNOWN_ENV, groupEnvironment.getEnvironmentType());
         Assert.assertEquals(CloudType.UNKNOWN_CLOUD, groupEnvironment.getCloudType());
     }
@@ -25,7 +25,9 @@ public class GroupEnvironmentTest {
      */
     @Test
     public void testSingleTypes() {
-        GroupEnvironment groupEnvironment = new GroupEnvironment(EnvironmentType.CLOUD, CloudType.AWS);
+        GroupEnvironment groupEnvironment = new GroupEnvironment(false);
+        groupEnvironment.addEnvironmentType(EnvironmentType.CLOUD);
+        groupEnvironment.addCloudType(CloudType.AWS);
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
         Assert.assertEquals(CloudType.AWS, groupEnvironment.getCloudType());
     }
@@ -35,7 +37,7 @@ public class GroupEnvironmentTest {
      */
     @Test
     public void testMultipleTypes() {
-        GroupEnvironment groupEnvironment = new GroupEnvironment();
+        GroupEnvironment groupEnvironment = new GroupEnvironment(false);
         groupEnvironment.addEnvironmentType(EnvironmentType.CLOUD);
         groupEnvironment.addEnvironmentType(EnvironmentType.ON_PREM);
         groupEnvironment.addCloudType(CloudType.AWS);
@@ -50,12 +52,24 @@ public class GroupEnvironmentTest {
      */
     @Test
     public void testTwoTypesWithUnknown() {
-        GroupEnvironment groupEnvironment = new GroupEnvironment();
+        GroupEnvironment groupEnvironment = new GroupEnvironment(false);
         groupEnvironment.addEnvironmentType(EnvironmentType.CLOUD);
         groupEnvironment.addEnvironmentType(EnvironmentType.UNKNOWN_ENV);
         groupEnvironment.addCloudType(CloudType.AWS);
         groupEnvironment.addCloudType(CloudType.UNKNOWN_CLOUD);
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
         Assert.assertEquals(CloudType.AWS, groupEnvironment.getCloudType());
+    }
+
+    /**
+     * Test the special case where hybrid entities should be reported as on prem entities when there
+     * are no app/container targets.
+     */
+    @Test
+    public void testHybridAsOnPrem() {
+        GroupEnvironment groupEnvironment = new GroupEnvironment(false);
+        groupEnvironment.addEnvironmentType(EnvironmentType.HYBRID);
+        Assert.assertEquals(EnvironmentType.ON_PREM, groupEnvironment.getEnvironmentType());
+        Assert.assertEquals(CloudType.UNKNOWN_CLOUD, groupEnvironment.getCloudType());
     }
 }

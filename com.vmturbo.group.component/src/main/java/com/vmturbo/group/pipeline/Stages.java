@@ -242,7 +242,8 @@ public class Stages {
                 }
                 // calculate environment type based on members' environment type
                 GroupEnvironment groupEnvironment =
-                        groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                        groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupStore,
+                                groupId,
                                 groupEntities.stream()
                                         .map(entitiesWithEnvironmentMap::get)
                                         .filter(Objects::nonNull)

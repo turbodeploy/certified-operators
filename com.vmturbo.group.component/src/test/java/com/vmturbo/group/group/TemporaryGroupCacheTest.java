@@ -1,5 +1,6 @@
 package com.vmturbo.group.group;
 
+import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
@@ -96,10 +97,9 @@ public class TemporaryGroupCacheTest {
                         .setOid(entityoid1)
                         .setEnvironmentType(EnvironmentType.CLOUD)
                         .build();
-        final GroupEnvironment environment =
-                new GroupEnvironment(EnvironmentType.CLOUD, CloudType.AWS);
+        final GroupEnvironment environment = mockEnvironment(EnvironmentType.CLOUD, CloudType.AWS);
         final Severity severity = Severity.MINOR;
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any()))
+        when(groupEnvironmentTypeResolver.calculateEnvironmentTypeFromEntities(anyLong(), any()))
                 .thenReturn(environment);
         when(groupSeverityCalculator.calculateSeverity(Collections.singleton(entityoid1)))
                 .thenReturn(severity);
@@ -164,11 +164,9 @@ public class TemporaryGroupCacheTest {
                 PartialEntity.newBuilder().setWithOnlyEnvironmentTypeAndTargets(entity1).build());
         inputlist.add(
                 PartialEntity.newBuilder().setWithOnlyEnvironmentTypeAndTargets(entity2).build());
-        final GroupEnvironment environment =
-                new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS);
+        final GroupEnvironment environment = mockEnvironment(EnvironmentType.HYBRID, CloudType.AWS);
         final Severity severity = Severity.MINOR;
-        when(groupEnvironmentTypeResolver
-                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any()))
+        when(groupEnvironmentTypeResolver.calculateEnvironmentTypeFromEntities(anyLong(), any()))
                 .thenReturn(environment);
         when(groupSeverityCalculator.calculateSeverity(any())).thenReturn(severity);
 
@@ -178,36 +176,5 @@ public class TemporaryGroupCacheTest {
 
         // THEN
         assertEquals(EnvironmentType.CLOUD, grouping.getEnvironmentType());
-    }
-
-    /**
-     * Tests that when we don't have information about the group's entities, we fall back to
-     * defaults.
-     */
-    @Test
-    public void testCreateWithNullEntityInfo() {
-        // GIVEN
-        final TemporaryGroupCache temporaryGroupCache = new TemporaryGroupCache(identityProvider,
-                groupEnvironmentTypeResolver, groupSeverityCalculator, 1, TimeUnit.MINUTES);
-        final Collection<MemberType> expectedTypes = ImmutableSet
-                .of(MemberType.newBuilder().setEntity(2).build());
-        final GroupDefinition groupDef = GroupDefinition.newBuilder()
-                .setType(GroupType.REGULAR)
-                .setDisplayName("TestGroup")
-                .setStaticGroupMembers(StaticMembers
-                        .newBuilder()
-                        .addMembersByType(StaticMembersByType
-                                .newBuilder()
-                                .setType(MemberType.newBuilder().setEntity(2))
-                                .addAllMembers(Arrays.asList(entityoid1, entityoid2))))
-                .build();
-
-        // WHEN
-        final Grouping grouping = temporaryGroupCache.create(groupDef, origin, expectedTypes, null);
-
-        // THEN
-        assertEquals(EnvironmentType.UNKNOWN_ENV, grouping.getEnvironmentType());
-        assertEquals(CloudType.UNKNOWN_CLOUD, grouping.getCloudType());
-        assertEquals(Severity.NORMAL, grouping.getSeverity());
     }
 }

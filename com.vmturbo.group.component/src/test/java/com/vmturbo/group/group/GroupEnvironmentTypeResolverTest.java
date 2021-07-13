@@ -42,7 +42,7 @@ public class GroupEnvironmentTypeResolverTest {
     private IGroupStore groupStore = mock(GroupDAO.class);
 
     private final GroupEnvironmentTypeResolver resolver =
-            new GroupEnvironmentTypeResolver(targetCache, groupStore);
+            new GroupEnvironmentTypeResolver(targetCache);
 
     private static final ThinTargetCache.ThinTargetInfo AWS_TARGET = ImmutableThinTargetInfo.builder()
             .probeInfo(ImmutableThinProbeInfo.builder()
@@ -136,7 +136,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(VC_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.ON_PREM, groupEnvironment.getEnvironmentType());
@@ -161,7 +161,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(AZURE_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -186,7 +186,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(AWS_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -211,7 +211,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(AZURE_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
@@ -241,7 +241,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(AWS_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
@@ -261,7 +261,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(APPD_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.HYBRID, groupEnvironment.getEnvironmentType());
@@ -282,7 +282,7 @@ public class GroupEnvironmentTypeResolverTest {
                 .addDiscoveringTargetIds(APPD_TARGET.oid())
                 .build());
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(1L,
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore, 1L,
                 entities, ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -303,7 +303,7 @@ public class GroupEnvironmentTypeResolverTest {
         expectedTypes.put(groupId, MemberType.newBuilder().setEntity(14).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), discoveredGroups);
         // THEN
         Assert.assertEquals(EnvironmentType.ON_PREM, groupEnvironment.getEnvironmentType());
@@ -324,7 +324,7 @@ public class GroupEnvironmentTypeResolverTest {
         expectedTypes.put(groupId, MemberType.newBuilder().setEntity(10).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), discoveredGroups);
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -343,7 +343,7 @@ public class GroupEnvironmentTypeResolverTest {
         expectedTypes.put(groupId, MemberType.newBuilder().setEntity(10).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -362,7 +362,7 @@ public class GroupEnvironmentTypeResolverTest {
         expectedTypes.put(groupId, MemberType.newBuilder().setEntity(10).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -382,7 +382,7 @@ public class GroupEnvironmentTypeResolverTest {
                 groupId, MemberType.newBuilder().setGroup(GroupType.RESOURCE).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.CLOUD, groupEnvironment.getEnvironmentType());
@@ -401,7 +401,7 @@ public class GroupEnvironmentTypeResolverTest {
         expectedTypes.put(groupId, MemberType.newBuilder().setEntity(10).build(), true);
         when(groupStore.getExpectedMemberTypesForGroup(groupId)).thenReturn(expectedTypes);
         // WHEN
-        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(
+        final GroupEnvironment groupEnvironment = resolver.getEnvironmentAndCloudTypeForGroup(groupStore,
                 groupId, new HashSet<>(), ArrayListMultimap.create());
         // THEN
         Assert.assertEquals(EnvironmentType.UNKNOWN_ENV, groupEnvironment.getEnvironmentType());

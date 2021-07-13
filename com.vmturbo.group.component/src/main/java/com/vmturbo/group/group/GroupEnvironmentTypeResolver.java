@@ -39,25 +39,18 @@ public class GroupEnvironmentTypeResolver {
     private final ThinTargetCache thinTargetCache;
 
     /**
-     * Group store to use when querying for group ids.
-     */
-    private final IGroupStore groupStore;
-
-    /**
      * Constructor.
      *
      * @param thinTargetCache Cache that stores target information.
-     * @param groupStore groupStore used in queries.
      */
-    public GroupEnvironmentTypeResolver(@Nonnull ThinTargetCache thinTargetCache,
-            @Nonnull final IGroupStore groupStore) {
+    public GroupEnvironmentTypeResolver(@Nonnull ThinTargetCache thinTargetCache) {
         this.thinTargetCache = thinTargetCache;
-        this.groupStore = groupStore;
     }
 
     /**
      * Returns the environment type and the cloud type for a group, given the list of its entities.
      *
+     * @param groupStore Access group definition if necessary.
      * @param groupId the group's id.
      * @param entities the list of group's entities (with all the necessary information for
      *                 environment type calculation).
@@ -70,22 +63,15 @@ public class GroupEnvironmentTypeResolver {
      *         object.
      */
     public GroupEnvironment getEnvironmentAndCloudTypeForGroup(
+            @Nonnull final IGroupStore groupStore,
             final long groupId,
             @Nonnull final Set<EntityWithOnlyEnvironmentTypeAndTargets> entities,
             @Nonnull final Multimap<Long, Long> discoveredGroups) {
         GroupEnvironment groupEnvironment;
         if (entities.size() > 0) {
-            groupEnvironment = getEnvironmentAndCloudTypeForNonEmptyGroup(groupId, entities);
+            groupEnvironment = calculateEnvironmentTypeFromEntities(groupId, entities);
         } else {
-            groupEnvironment = getEnvironmentAndCloudTypeForEmptyGroup(groupId, discoveredGroups);
-        }
-
-        if (groupEnvironment.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.HYBRID
-                && groupEnvironment.getCloudType() == CloudTypeEnum.CloudType.UNKNOWN_CLOUD
-                && !hasAppOrContainerEnvironmentTarget()) {
-            // Fix the case where a group of non-cloud entities would report HYBRID env type.
-            groupEnvironment = new GroupEnvironment(EnvironmentTypeEnum.EnvironmentType.ON_PREM,
-                    CloudTypeEnum.CloudType.UNKNOWN_CLOUD);
+            groupEnvironment = getEnvironmentAndCloudTypeForEmptyGroup(groupStore, groupId, discoveredGroups);
         }
         return groupEnvironment;
     }
@@ -98,9 +84,9 @@ public class GroupEnvironmentTypeResolver {
      * @param entities group's entities
      * @return the environment & cloud type of the group, bundled in a {@link GroupEnvironment}.
      */
-    private GroupEnvironment getEnvironmentAndCloudTypeForNonEmptyGroup(final long groupId,
+    public GroupEnvironment calculateEnvironmentTypeFromEntities(final long groupId,
             @Nonnull final Set<EntityWithOnlyEnvironmentTypeAndTargets> entities) {
-        GroupEnvironment groupEnvironment = new GroupEnvironment();
+        GroupEnvironment groupEnvironment = new GroupEnvironment(hasAppOrContainerEnvironmentTarget());
         // Iterate through all entities in the group, and add their environment/cloud type to the
         // group's environment/cloud types.
         for (EntityWithOnlyEnvironmentTypeAndTargets entity : entities) {
@@ -143,15 +129,17 @@ public class GroupEnvironmentTypeResolver {
      * Tries to resolve an empty group's environment & cloud type, by using heuristics or (in the
      * case of discovered groups) information from the target that discovered it.
      *
+     * @param groupStore To look up necessary group information.
      * @param groupId id of the group
      * @param discoveredGroups A map containing information about discovered groups.
      * @return a {@link GroupEnvironment} bundling the environment & cloud type of the group (if
      *         they could be resolved, otherwise unknown for both).
      */
     private GroupEnvironment getEnvironmentAndCloudTypeForEmptyGroup(
+            @Nonnull final IGroupStore groupStore,
             final long groupId,
             @Nonnull final Multimap<Long, Long>  discoveredGroups) {
-        GroupEnvironment groupEnvironment = new GroupEnvironment();
+        GroupEnvironment groupEnvironment = new GroupEnvironment(hasAppOrContainerEnvironmentTarget());
         final GroupType groupType = groupStore.getGroupType(groupId);
         final Set<MemberType> expectedTypes =
                 groupStore.getExpectedMemberTypesForGroup(groupId).columnKeySet();
