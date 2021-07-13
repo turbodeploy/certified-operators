@@ -33,7 +33,7 @@ then
 fi
 
 # Ask if the ipsetup script has been run
-read -e -p "Have you run the ipsetup script to setup netowkring yet? [y/n] " ipAnswer
+read -e -p "Have you run the ipsetup script to setup networking yet? [y/n] " ipAnswer
 
 if [ "$ipAnswer" != "${ipAnswer#[Nn]}" ]
 then
