@@ -936,6 +936,8 @@ public class TargetsServiceTest {
         targetDto.setType(probe.getType());
         targetDto.setInputFields(Arrays.asList(inputField("key", "value2")));
         final String targetString = GSON.toJson(targetDto);
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        when(topologyProcessor.modifyTarget(Mockito.eq(targetId), captor.capture())).thenReturn(targetInfo);
 
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
@@ -943,8 +945,6 @@ public class TargetsServiceTest {
                                         .content(targetString)
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
-        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
         final Collection<AccountValue> inputFields = captor.getValue().getAccountData();
         Assert.assertEquals(targetDto.getInputFields().size(), inputFields.size());
         final Map<String, InputFieldApiDTO> expectedFieldsMap = targetDto.getInputFields().stream()
@@ -969,6 +969,9 @@ public class TargetsServiceTest {
         targetDtoWithChannel.setInputFields(Arrays.asList(inputField(COMMUNICATION_BINDING_CHANNEL,
             channel)));
         final String targetString = GSON.toJson(targetDtoWithChannel);
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        when(topologyProcessor.modifyTarget(Mockito.eq(targetId), captor.capture()))
+          .thenReturn(targetInfo);
 
         mockMvc
             .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
@@ -976,8 +979,6 @@ public class TargetsServiceTest {
                 .content(targetString)
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
             .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
-        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
         Assert.assertEquals(channel, captor.getValue().getCommunicationBindingChannel().get());
     }
 
@@ -1000,14 +1001,17 @@ public class TargetsServiceTest {
         targetDtoWithoutChannel.setInputFields(Arrays.asList(inputField("field",
             "value")));
         final String targetString = GSON.toJson(targetDtoWithoutChannel);
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        when(topologyProcessor.modifyTarget(Mockito.eq(targetId), captor.capture()))
+                .thenReturn(targetInfo);
+
         mockMvc
             .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
                 .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
                 .content(targetString)
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
             .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
-        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
+
         Assert.assertFalse(captor.getValue().getCommunicationBindingChannel().isPresent());
     }
 
@@ -1030,14 +1034,15 @@ public class TargetsServiceTest {
         targetDtoWithoutChannel.setInputFields(Arrays.asList(inputField(COMMUNICATION_BINDING_CHANNEL,
             "")));
         final String targetString = GSON.toJson(targetDtoWithoutChannel);
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        when(topologyProcessor.modifyTarget(Mockito.eq(targetId), captor.capture())).thenReturn(targetInfo);
         mockMvc
             .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
                 .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
                 .content(targetString)
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
             .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
-        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
+
         Assert.assertEquals("", captor.getValue().getCommunicationBindingChannel().get());
     }
 
@@ -1059,7 +1064,7 @@ public class TargetsServiceTest {
         targetDto.setType(probe.getType());
         targetDto.setInputFields(Arrays.asList(inputField("key", "value2")));
         final String targetString = GSON.toJson(targetDto);
-
+        when(topologyProcessor.modifyTarget(Mockito.eq(targetId), Mockito.any())).thenReturn(targetInfo);
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.put("/targets/" + targetId)
                 .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
                 .content(targetString)
