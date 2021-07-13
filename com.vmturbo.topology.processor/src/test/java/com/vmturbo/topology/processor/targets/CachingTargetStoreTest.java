@@ -14,11 +14,14 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.TimeZone;
 
 import javax.annotation.Nonnull;
 
@@ -135,12 +138,13 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty(), "System");
 
         final Target target = targetStore.createTarget(spec.toDto());
 
         verify(targetDao).store(target);
-
+        Assert.assertTrue(target.getNoSecretDto().getSpec().hasLastEditingUser());
+        Assert.assertTrue(target.getNoSecretDto().getSpec().hasLastEditTime());
     }
 
     /**
@@ -154,7 +158,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty(), "System");
 
         final Target target = targetStore.createTarget(spec.toDto());
 
@@ -176,7 +180,7 @@ public class CachingTargetStoreTest {
         final long probeId = 717;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId,
             Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty(), "System");
 
         final Target target = targetStore.createTarget(spec.toDto());
         assertThat(target.getProbeId(), is(probeId));
@@ -204,7 +208,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty(), "System");
 
         final Target target = targetStore.createTarget(spec.toDto());
 
@@ -231,7 +235,7 @@ public class CachingTargetStoreTest {
             Collections.singletonList(new InputField(
                 PredefinedAccountDefinition.Username.name().toLowerCase(),
                 "foo",
-                Optional.empty())), Optional.empty());
+                Optional.empty())), Optional.empty(), "System");
         // we expect the create target to fail since the account values don't match the account
         // definition of the probe.
         targetStore.createTarget(spec.toDto());
@@ -260,7 +264,7 @@ public class CachingTargetStoreTest {
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo",
-                Optional.empty())), Optional.empty());
+                Optional.empty())), Optional.empty(), "System");
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("foo", target.getDisplayName());
@@ -277,7 +281,7 @@ public class CachingTargetStoreTest {
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
             new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name",
-                Optional.empty())), Optional.empty());
+                Optional.empty())), Optional.empty(), "System");
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("my name", target.getDisplayName());
@@ -290,7 +294,7 @@ public class CachingTargetStoreTest {
         targetStore.addListener(listener);
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty(), "System");
         Target target = targetStore.createTarget(spec.toDto());
 
         verify(listener).onTargetAdded(target);
@@ -307,16 +311,18 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final long targetId = 0L;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Arrays.asList(
-            new InputField("targetId", "foo", Optional.empty())), Optional.empty());
+            new InputField("targetId", "foo", Optional.empty())), Optional.empty(), "System");
 
-        final Target target = new Target(targetId, probeStore, spec.toDto(), false);
+        final Target target = new Target(targetId, probeStore, spec.toDto(), false, true);
 
         final TargetDao targetDao = mock(TargetDao.class);
         when(targetDao.getAll()).thenReturn(Collections.singletonList(target));
         final CachingTargetStore newTargetStore = new CachingTargetStore(targetDao, probeStore,
-            targetIdentityStore);
+                targetIdentityStore);
         newTargetStore.initialize();
-        newTargetStore.getTarget(0L).get();
+        final Target restoredTarget = newTargetStore.getTarget(0L).get();
+        Assert.assertTrue(restoredTarget.getNoSecretDto().getSpec().hasLastEditingUser());
+        Assert.assertTrue(restoredTarget.getNoSecretDto().getSpec().hasLastEditTime());
     }
 
     @Test
@@ -359,6 +365,12 @@ public class CachingTargetStoreTest {
             .build();
     }
 
+    private TargetSpec createTargetSpec(long probeId, @Nonnull String fieldName,
+            @Nonnull String fieldValue, @Nonnull String lastEditUser) {
+        return TargetSpec.newBuilder().setProbeId(probeId).addAccountValue(
+                createAccountValue(fieldName, fieldValue)).setLastEditingUser(lastEditUser).build();
+    }
+
     private Collection<TopologyProcessorDTO.AccountValue> createAccountValue(int fieldValue) {
         return Collections.singleton(TopologyProcessorDTO.AccountValue.newBuilder().setKey(FIELD_NAME)
             .setStringValue(Integer.toString(fieldValue)).build());
@@ -381,18 +393,29 @@ public class CachingTargetStoreTest {
         prepareInitialProbe();
         final TargetSpec targetSpec = createTargetSpec(0, 1);
         Target target = targetStore.createTarget(targetSpec);
+        final String creationUser = target.getNoSecretDto().getSpec().getLastEditingUser();
+        final long creationTimeStamp = target.getNoSecretDto().getSpec().getLastEditTime();
         TargetStoreListener listener = mock(TargetStoreListener.class);
         targetStore.addListener(listener);
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
-        target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList(), Optional.empty());
+        target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList(), Optional.empty(), "admin");
         // No update message sent since account values did not change
         verify(listener, never()).onTargetUpdated(target);
+        Assert.assertEquals(creationUser, target.getNoSecretDto().getSpec().getLastEditingUser());
+        Assert.assertEquals(creationTimeStamp, target.getNoSecretDto().getSpec().getLastEditTime());
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(2);
-        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty());
+        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty(),
+                "admin");
+        final long editTimestamp = target.getNoSecretDto().getSpec().getLastEditTime();
+        final LocalDateTime lastEditTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(editTimestamp),
+                TimeZone.getDefault().toZoneId());
+        final LocalDateTime creationTime = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(creationTimeStamp), TimeZone.getDefault().toZoneId());
+        Assert.assertTrue(lastEditTime.isAfter(creationTime));
         Assert.assertEquals("2",
             target.getMediationAccountVals(groupScopeResolver)
                 .iterator().next().getStringValue());
@@ -415,7 +438,8 @@ public class CachingTargetStoreTest {
         Target target = targetStore.createTarget(createTargetSpec(0, 2));
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(1);
-        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty());
+        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty(),
+                "admin");
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver)
                 .iterator().next().getStringValue());
@@ -494,7 +518,7 @@ public class CachingTargetStoreTest {
         Assert.assertFalse(derived1.getSpec().hasCommunicationBindingChannel());
 
         targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList(),
-            Optional.of(communicationBindingChannel));
+            Optional.of(communicationBindingChannel), "admin");
 
 
         Assert.assertEquals(communicationBindingChannel,
@@ -533,7 +557,7 @@ public class CachingTargetStoreTest {
             targetStore.getTarget(derived1.getId()).get().getSpec().getCommunicationBindingChannel());
 
         targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList(),
-            Optional.of(Target.EMPTY_CHANNEL));
+                Optional.of(Target.EMPTY_CHANNEL), "admin");
 
 
         Assert.assertFalse(targetStore.getTarget(derived1.getId()).get().getSpec().hasCommunicationBindingChannel());
@@ -622,7 +646,7 @@ public class CachingTargetStoreTest {
 
         Target updatedTarget = target.withUpdatedFields(
             Collections.singleton(barAccountValue.toBuilder().setStringValue("bar-updated").build()),
-            probeStore, Optional.empty());
+            probeStore, Optional.empty(), null);
 
         assertAccountValueEquals(updatedTarget, fooName, "foo-original");
         assertAccountValueEquals(updatedTarget, barName, "bar-updated");
@@ -687,7 +711,7 @@ public class CachingTargetStoreTest {
         final Target updatedTargetEmptyBarAndCarValues = target.withUpdatedFields(
             ImmutableList.of(barAccountValue.toBuilder().setStringValue("").build(),
                 carAccountValue.toBuilder().setStringValue("").build()),
-            probeStore, Optional.empty());
+            probeStore, Optional.empty(), null);
         // assert that account value that was set to empty string does not exist
         assertFalse(updatedTargetEmptyBarAndCarValues.getMediationAccountVals(groupScopeResolver).stream()
             .filter(acctValue -> acctValue.getKey().equals(barAccountValue.getKey()))
@@ -720,7 +744,7 @@ public class CachingTargetStoreTest {
         final TargetSpec spec = createTargetSpec(0, 1);
         expectedException.expect(TargetNotFoundException.class);
         expectedException.expectMessage("does not exist");
-        targetStore.updateTarget(-1, spec.getAccountValueList(), Optional.empty());
+        targetStore.updateTarget(-1, spec.getAccountValueList(), Optional.empty(), "admin");
     }
 
     /**
@@ -829,7 +853,8 @@ public class CachingTargetStoreTest {
             parent.getId());
         final Long derivedTargetId = verifyDerivedTargetCreation(derivedTargetSpec);
         assertNotNull(derivedTargetId);
-        targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList(), Optional.empty());
+        targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList(),
+                Optional.empty(), "admin");
         Assert.assertTrue(targetStore.getTarget(derivedTargetId).isPresent());
     }
 
@@ -844,7 +869,7 @@ public class CachingTargetStoreTest {
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), FIELD_NAME,
-                Optional.empty())), Optional.empty());
+                Optional.empty())), Optional.empty(), "System");
         final Target target = targetStore.createTarget(spec.toDto());
         Assert.assertEquals(ProbeCategory.HYPERVISOR, targetStore.getProbeCategoryForTarget(target.getId()).get());
 
@@ -998,6 +1023,46 @@ public class CachingTargetStoreTest {
             scheduler);
         // confirm that derived target is deleted
         assertFalse(targetStore.getTarget(derivedTargetId3).isPresent());
+    }
+
+    /**
+     * Test populating last edit info (user/time) for parent target and don't populating these info
+     * for derived targets.
+     *
+     * @throws Exception if the targetStore throws one.
+     */
+    @Test
+    public void testLastEditInfoForParentAndDerivedTargets() throws Exception {
+        final long parentProbeId = 1L;
+        final long derivedProbeId = 2L;
+        final String commonNameValue = "foo";
+        final String derivedTargetAddress1 = "Address1";
+
+        when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
+        when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
+
+        final Target parentTarget = targetStore.createTarget(createTargetSpec(parentProbeId,
+                PredefinedAccountDefinition.Address.name().toLowerCase(),
+                "Parent1", "Admin"));
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+                .setProbeId(derivedProbeId)
+                .setIsHidden(true)
+                .addAllAccountValue(ImmutableList.of(
+                        createAccountValue(NAME_ACCT_DEF.getCustomDefinition().getName(), commonNameValue),
+                        createAccountValue(PredefinedAccountDefinition.Address.name().toLowerCase(),
+                                derivedTargetAddress1)))
+                .build();
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+                parentTarget.getId());
+
+        final Long derivedTargetId1 = verifyDerivedTargetCreation(derivedTargetSpec1);
+        assertNotNull(derivedTargetId1);
+        final Target derivedTrg = targetStore.getTarget(derivedTargetId1).get();
+        final Target parentTrg = targetStore.getTarget(parentTarget.getId()).get();
+        Assert.assertTrue(parentTrg.getNoSecretDto().getSpec().hasLastEditTime());
+        Assert.assertTrue(parentTrg.getNoSecretDto().getSpec().hasLastEditingUser());
+        Assert.assertFalse(derivedTrg.getNoSecretDto().getSpec().hasLastEditTime());
+        Assert.assertFalse(derivedTrg.getNoSecretDto().getSpec().hasLastEditingUser());
     }
 
     /**

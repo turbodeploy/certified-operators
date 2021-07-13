@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -390,7 +391,7 @@ public class TargetControllerTest {
         String communicationBindingChannel = "testChannel";
         ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
         String reqStr = gson.toJson(new TargetSpec(identityProvider.getProbeId(oneMandatory), Collections.singletonList(new InputField("mandatory",
-            "mandatory", Optional.empty())), Optional.of(communicationBindingChannel)));
+            "mandatory", Optional.empty())), Optional.of(communicationBindingChannel), "System"));
         probeStore.registerNewProbe(oneMandatory, transport);
         MvcResult result = mockMvc.perform(post("/target")
             .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
@@ -996,7 +997,18 @@ public class TargetControllerTest {
         Assert.assertEquals(2, targetStore.getAll().size());
         Assert.assertEquals(target1.getId(), (long)resultTarget.getTargetId());
         final Target newTarget = targetStore.getTarget(target1.getId()).get();
-        Assert.assertEquals(newTargetSpec, newTarget.getNoSecretDto().getSpec());
+        assertSpecs(newTargetSpec, newTarget.getNoSecretDto().getSpec());
+    }
+
+    private void assertSpecs(final TopologyProcessorDTO.TargetSpec existedSpec,
+            final TopologyProcessorDTO.TargetSpec retrievedSpec) {
+        Assert.assertEquals(existedSpec.getProbeId(), retrievedSpec.getProbeId());
+        Assert.assertTrue(CollectionUtils.isEqualCollection(existedSpec.getAccountValueList(),
+                retrievedSpec.getAccountValueList()));
+        Assert.assertTrue(CollectionUtils.isEqualCollection(existedSpec.getDerivedTargetIdsList(),
+                retrievedSpec.getDerivedTargetIdsList()));
+        Assert.assertEquals(existedSpec.getCommunicationBindingChannel(),
+                retrievedSpec.getCommunicationBindingChannel());
     }
 
     /**
@@ -1014,7 +1026,7 @@ public class TargetControllerTest {
         requestModifyTarget(targetBeforeOperation.getId(), new TargetSpec(newTargetSpec))
                 .andExpect(status().isOk()).andReturn();
         final Target targetAfterOperation = targetStore.getTarget(targetBeforeOperation.getId()).get();
-        Assert.assertEquals(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
+        assertSpecs(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
     }
 
     /**
@@ -1184,7 +1196,7 @@ public class TargetControllerTest {
     private ResultActions requestModifyTarget(long targetId, List<InputField> inputFields,
                                               final Optional<String> communicationChannel)
         throws Exception {
-        final String reqStr = new Gson().toJson(new TargetInputFields(inputFields, communicationChannel));
+        final String reqStr = new Gson().toJson(new TargetInputFields(inputFields, communicationChannel, null));
         return mockMvc.perform(MockMvcRequestBuilders.put("/target/" + targetId)
             .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
             .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
@@ -1218,7 +1230,7 @@ public class TargetControllerTest {
         }
 
         TargetSpec buildSpec() {
-            return new TargetSpec(probeId, accountFields, Optional.empty());
+            return new TargetSpec(probeId, accountFields, Optional.empty(), null);
         }
 
         TargetInfo postAndExpect(HttpStatus expectStatus) throws Exception {

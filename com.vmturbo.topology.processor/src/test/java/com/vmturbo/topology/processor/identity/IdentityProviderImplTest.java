@@ -102,7 +102,8 @@ public class IdentityProviderImplTest {
      */
     @Test
     public void testGetTargetId() throws Exception {
-        TargetSpec targetSpec = new TargetSpec(0L, Collections.emptyList(), Optional.empty());
+        TargetSpec targetSpec = new TargetSpec(0L, Collections.emptyList(), Optional.empty(),
+                "System");
         assertNotEquals(identityProvider.getTargetId(targetSpec.toDto()),
                 identityProvider.getTargetId(targetSpec.toDto()));
     }

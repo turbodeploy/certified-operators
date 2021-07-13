@@ -171,7 +171,7 @@ public class V_01_01_03__Target_IsProxySecure_Flag extends AbstractMigration {
             final TopologyProcessorDTO.AccountValue secureProxy =
                     createSecureProxyAccountValue(secure.getStringValue());
             targetStore.updateTarget(target.getId(), Collections.singletonList(secureProxy),
-                Optional.empty());
+                    Optional.empty(), target.getNoSecretDto().getSpec().getLastEditingUser());
         }
     }
 

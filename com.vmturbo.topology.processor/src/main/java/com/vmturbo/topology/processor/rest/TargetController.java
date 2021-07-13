@@ -284,7 +284,7 @@ public class TargetController {
                 Objects.requireNonNull(targetInputFields);
                 target = targetStore.updateTarget(targetId, targetInputFields.getInputFields().stream()
                     .map(InputField::toAccountValue).collect(Collectors.toList()),
-                    targetInputFields.getCommunicationBindingChannel());
+                    targetInputFields.getCommunicationBindingChannel(), targetInputFields.getEditingUser());
                 final TargetInfo targetInfo = targetToTargetInfo(target);
                 return new ResponseEntity<>(targetInfo, HttpStatus.OK);
             } else {
@@ -383,7 +383,10 @@ public class TargetController {
         final LocalDateTime lastValidated = latestFinished.map(Operation::getCompletionTime).orElse(null);
         boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
         final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected);
-        return success(target, isProbeConnected, status, lastValidated);
+        final String lastEditingUser = target.getNoSecretDto().getSpec().hasLastEditingUser() ? target.getNoSecretDto().getSpec().getLastEditingUser() : null;
+        final Long lastEditTime = target.getNoSecretDto().getSpec().hasLastEditTime() ? target.getNoSecretDto().getSpec().getLastEditTime() : null;
+        return success(target, isProbeConnected, status, lastValidated, lastEditingUser,
+                lastEditTime);
     }
 
     /**
@@ -443,19 +446,20 @@ public class TargetController {
 
     private static TargetInfo error(final Long targetId, @Nonnull final String err) {
         String error = Objects.requireNonNull(err);
-        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null);
+        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null, null, null);
     }
 
     private static TargetInfo error(@Nonnull final List<String> errors) {
-        return new TargetInfo(null, null, errors, null, null, null, null);
+        return new TargetInfo(null, null, errors, null, null, null, null, null, null);
     }
 
     public static TargetInfo success(@Nonnull final Target target, final boolean probeConnected,
-            @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation) {
+            @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation,
+            @Nullable final String lastEditingUser, @Nullable final Long lastEditTime) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(targetStatus);
         return new TargetInfo(target.getId(), target.getDisplayName(), null,
                 new TargetSpec(target.getNoSecretDto().getSpec()), probeConnected,
-                targetStatus, lastValidation);
+                targetStatus, lastValidation, lastEditingUser, lastEditTime);
     }
 }

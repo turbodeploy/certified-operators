@@ -93,7 +93,7 @@ public class V_01_01_06__Target_Common_Proxy_Settings_AdditionalTest {
                         .setStringValue(PROXY_PORT)
                         .build())
                 .build();
-        return new Target(0L, probeStore, spec, true);
+        return new Target(0L, probeStore, spec, true, true);
     }
 
     private void testIntersightMigrationCommon(SDKProbeType type) throws Exception {

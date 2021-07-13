@@ -108,7 +108,7 @@ public class ActionUpdateStateServiceTest {
                 .addTargetIdentifierField("id")
                 .build();
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
-        final Target target = new Target(TGT_ID, probeStore, targetSpec, false);
+        final Target target = new Target(TGT_ID, probeStore, targetSpec, false, true);
         Mockito.when(targetStore.getTarget(TGT_ID)).thenReturn(Optional.of(target));
         Mockito.when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
 

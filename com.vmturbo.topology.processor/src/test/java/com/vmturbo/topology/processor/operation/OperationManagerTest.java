@@ -235,7 +235,7 @@ public class OperationManagerTest {
         probeStore.registerNewProbe(probeInfo, transport);
         final TargetSpec targetSpec = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId",
             "123",
-            Optional.empty())), Optional.empty());
+            Optional.empty())), Optional.empty(), "System");
         target = targetStore.createTarget(targetSpec.toDto());
         targetId = target.getId();
 
@@ -318,7 +318,7 @@ public class OperationManagerTest {
                                                                      new InputField("targetId",
                                                                                     "321",
                                                                                     Optional.empty())),
-                                                     Optional.empty());
+                                                     Optional.empty(), "System");
         targetWithLicense = targetStore.createTarget(targetSpec.toDto());
         targetIdWithLicense = targetWithLicense.getId();
 
@@ -775,7 +775,7 @@ public class OperationManagerTest {
                                                                      new InputField("targetId",
                                                                                     "321",
                                                                                     Optional.empty())),
-                                                     Optional.empty());
+                                                     Optional.empty(), "System");
         targetWithLicense = targetStore.createTarget(targetSpec.toDto());
         targetIdWithLicense = targetWithLicense.getId();
 

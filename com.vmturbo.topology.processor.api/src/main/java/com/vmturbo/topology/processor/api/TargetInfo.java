@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.api;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -73,4 +72,20 @@ public interface TargetInfo extends TargetData {
      * @return List of the derived target IDs associated with this target.
      */
     List<Long> getDerivedTargetIds();
+
+    /**
+     * Return the last editing user.
+     *
+     * @return the last editing user
+     */
+    @Nullable
+    String getLastEditingUser();
+
+    /**
+     * Return the last edit time.
+     *
+     * @return the last edit time
+     */
+    @Nullable
+    Long getLastEditTime();
 }

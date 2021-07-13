@@ -81,12 +81,13 @@ public interface TopologyProcessor {
      *
      * @param targetId target id to change
      * @param newData new target data to set for the specified target
+     * @return updated target info
      * @throws CommunicationException if persistent communication exception occurred
      * @throws TopologyProcessorException if target with specified id does not exist or new data is
      * not applicable.
      * @throws IllegalArgumentException if specified target id or target data is {@code null}
      */
-    void modifyTarget(long targetId, @Nonnull TargetInputFields newData)
+    TargetInfo modifyTarget(long targetId, @Nonnull TargetInputFields newData)
             throws CommunicationException, TopologyProcessorException;
 
     /**

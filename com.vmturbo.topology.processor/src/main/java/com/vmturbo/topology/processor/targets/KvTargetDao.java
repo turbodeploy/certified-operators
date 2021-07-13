@@ -24,8 +24,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
-import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
-import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target.InternalTargetInfo;
@@ -66,11 +64,10 @@ public class KvTargetDao implements TargetDao {
                 try {
                     final InternalTargetInfo internalInfo = GSON.fromJson(entry.getValue(), InternalTargetInfo.class);
                     final Target newTarget = new Target(internalInfo, probeStore);
-                    addAccountDefEntryList(newTarget);
                     logger.debug("Retrieved existing target '{}' ({}) for probe {}.", newTarget.getDisplayName(),
                         newTarget.getId(), newTarget.getProbeId());
                     return newTarget;
-                } catch (JsonSyntaxException | TargetDeserializationException e) {
+                } catch (JsonSyntaxException e) {
                     // It may make sense to delete the offending key here,
                     // but choosing not to do that for now to keep
                     // the constructor read-only w.r.t. the keyValueStore.
@@ -93,22 +90,6 @@ public class KvTargetDao implements TargetDao {
     @Override
     public void remove(final long targetId) {
         keyValueStore.removeKeysWithPrefix(TargetStore.TARGET_KV_STORE_PREFIX + Long.toString(targetId));
-    }
-
-    /**
-     * When deserializing a target, we need to add the {@link AccountDefEntry} from the related
-     * probe as this is need by the target to determine if group scope is needed when returning
-     * the list of {@link com.vmturbo.platform.common.dto.Discovery.AccountValue}s.
-     *
-     * @param newTarget the {@link Target} that we just deserialized.
-     * @throws TargetStoreException if the {@link ProbeInfo} is not in the probe store.
-     */
-    private void addAccountDefEntryList(final Target newTarget) throws TargetStoreException {
-        ProbeInfo probeInfo = probeStore.getProbe(newTarget.getProbeId())
-            .orElseThrow(() ->
-                new TargetStoreException("Probe information not found for target with id "
-                    + newTarget.getProbeId()));
-        newTarget.setAccountDefEntryList(probeInfo.getAccountDefinitionList());
     }
 
     @VisibleForTesting

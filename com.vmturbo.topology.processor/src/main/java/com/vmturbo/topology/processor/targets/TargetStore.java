@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
@@ -13,6 +14,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -115,13 +117,15 @@ public interface TargetStore extends RequiresDataInitialization {
      * @param targetId target id to change
      * @param updatedFields new data for the target
      * @param communicationBindingChannel the channel over which the target will communicate.
+     * @param editingUser the last editing user
      * @return new changed target
      * @throws InvalidTargetException if target validation failed.
      * @throws TargetNotFoundException if target to be modified is absent in the store.
      * @throws IdentityStoreException if target spec update failed.
      */
     @Nonnull
-    Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields, Optional<String> communicationBindingChannel)
+    Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields,
+            Optional<String> communicationBindingChannel, @Nullable String editingUser)
                     throws InvalidTargetException, TargetNotFoundException,
                         IdentityStoreException, IdentifierConflictException;
 

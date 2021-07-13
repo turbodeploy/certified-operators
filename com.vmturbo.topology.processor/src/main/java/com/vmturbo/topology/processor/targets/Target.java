@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.targets;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -12,6 +15,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
@@ -30,6 +34,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo.Builder;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TargetInfoProtobufWrapper;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
@@ -80,7 +85,7 @@ public class Target implements ProbeStoreListener {
      * @throws InvalidTargetException if probe not found in probe store
      */
     public Target(@Nonnull final InternalTargetInfo internalTargetInfo,
-                  @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
+            @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
         this.id = internalTargetInfo.targetInfo.getId();
         this.probeId = internalTargetInfo.targetInfo.getSpec().getProbeId();
 
@@ -95,7 +100,8 @@ public class Target implements ProbeStoreListener {
         mediationAccountVals = accountValBuilder.build();
 
         refreshProbeInfo(probeInfo, true, internalTargetInfo.targetInfo.getSpec());
-        this.serializedIdentifyingFields = generateSerializedIdentifiers(internalTargetInfo, probeInfo);
+        this.serializedIdentifyingFields = generateSerializedIdentifiers(internalTargetInfo,
+                probeInfo);
     }
 
     /**
@@ -113,13 +119,13 @@ public class Target implements ProbeStoreListener {
      * @param probeStore The probe store instance.
      * @param inputSpec The target spec which contain information of the target.
      * @param validateAccountValues Boolean to know if we need to validate the account value.
-     *
+     * @param updateLastEditTime Boolean to know if we need to update last edit time for the target or not.
      * @throws InvalidTargetException If creating target failed.
      */
-    public Target(long targetId,
-           final @Nonnull ProbeStore probeStore,
-           final @Nonnull TargetSpec inputSpec,
-           boolean validateAccountValues) throws InvalidTargetException {
+    public Target(long targetId, final @Nonnull ProbeStore probeStore,
+            final @Nonnull TargetSpec inputSpec, boolean validateAccountValues,
+            final boolean updateLastEditTime)
+            throws InvalidTargetException {
         Objects.requireNonNull(probeStore);
         Objects.requireNonNull(inputSpec);
 
@@ -138,10 +144,22 @@ public class Target implements ProbeStoreListener {
 
         mediationAccountVals = accountValBuilder.build();
 
-
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
             .addAllAccountValue(inputSpec.getAccountValueList())
             .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
+
+        if (updateLastEditTime) {
+            targetSpec.setLastEditTime(LocalDateTime.now(Clock.systemUTC())
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli());
+        } else if (inputSpec.hasLastEditTime()) {
+            targetSpec.setLastEditTime(inputSpec.getLastEditTime());
+        }
+
+        if (inputSpec.hasLastEditingUser()) {
+            targetSpec.setLastEditingUser(inputSpec.getLastEditingUser());
+        }
+
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
         if (inputSpec.hasCommunicationBindingChannel()) {
@@ -176,6 +194,14 @@ public class Target implements ProbeStoreListener {
             .setIsHidden(targetInfo.getSpec().getIsHidden())
             .setReadOnly(targetInfo.getSpec().getReadOnly())
             .addAllDerivedTargetIds(derivedTargetsIds);
+
+        if (targetInfo.getSpec().hasLastEditingUser()) {
+            targetSpec.setLastEditingUser(targetInfo.getSpec().getLastEditingUser());
+        }
+        if (targetInfo.getSpec().hasLastEditTime()) {
+            targetSpec.setLastEditTime(targetInfo.getSpec().getLastEditTime());
+        }
+
         return updateBindingChannel(optionalChannel, targetInfo, targetSpec);
     }
 
@@ -219,11 +245,6 @@ public class Target implements ProbeStoreListener {
                     customAcctDefEntry.hasEntityScope());
     }
 
-    public void setAccountDefEntryList(final List<Discovery.AccountDefEntry> accountDefEntryList) {
-        this.accountDefEntryList = accountDefEntryList;
-        hasGroupScope = checkForGroupScope(accountDefEntryList);
-    }
-
     /**
      * Create a new {@link Target} with its fields updated according to the collection
      * of updated fields. Fields not present are retained from this target.
@@ -235,7 +256,8 @@ public class Target implements ProbeStoreListener {
      * @throws InvalidTargetException When the updated target is invalid.
      */
     public Target withUpdatedFields(@Nonnull final Collection<TopologyProcessorDTO.AccountValue> updatedFields,
-                                    @Nonnull final ProbeStore probeStore, Optional<String> communicationBindingChannel)
+            @Nonnull final ProbeStore probeStore, Optional<String> communicationBindingChannel,
+            @Nullable final String lastEditingUser)
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
         ProbeInfo probeInfo = probeStore.getProbe(targetInfo.getSpec().getProbeId())
@@ -259,10 +281,14 @@ public class Target implements ProbeStoreListener {
                 .collect(Collectors.toList());
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                filteredMergedAccountVals,
-                targetInfo.getSpec().getDerivedTargetIdsList(), communicationBindingChannel
-        );
-        return new Target(getId(), probeStore, newSpec.build(), true);
+                filteredMergedAccountVals, targetInfo.getSpec().getDerivedTargetIdsList(),
+                communicationBindingChannel);
+        if (lastEditingUser != null) {
+            newSpec.setLastEditingUser(lastEditingUser);
+        }
+        // if we update derive target then we don't need to populate/update last edit time
+        final boolean updateLastEditTime = newSpec.hasLastEditTime();
+        return new Target(getId(), probeStore, newSpec.build(), true, updateLastEditTime);
     }
 
     /**
@@ -279,9 +305,8 @@ public class Target implements ProbeStoreListener {
         TargetInfo targetInfo = info.targetInfo;
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds,
-            Optional.empty());
-        return new Target(getId(), probeStore, newSpec.build(), true);
+                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds, Optional.empty());
+        return new Target(getId(), probeStore, newSpec.build(), true, false);
     }
 
     public com.vmturbo.topology.processor.api.TargetInfo createTargetInfo() {
@@ -543,8 +568,7 @@ public class Target implements ProbeStoreListener {
         final Set<String> secretFields;
 
         InternalTargetInfo(@Nonnull final TargetInfo targetInfo,
-                           @Nonnull final Set<String> secretFields) {
-            TargetInfo.Builder builder = targetInfo.toBuilder();
+                @Nonnull final Set<String> secretFields) {
             this.targetInfo = targetInfo;
             this.secretFields = secretFields;
         }
@@ -643,8 +667,7 @@ public class Target implements ProbeStoreListener {
      * @param targetSpec The {@link TargetSpec}.
      */
     private void refreshProbeInfo(@Nonnull final ProbeInfo probeInfo,
-                                  final boolean validateAccountValues,
-                                  @Nonnull final TargetSpec targetSpec) {
+            final boolean validateAccountValues, @Nonnull final TargetSpec targetSpec) {
         this.probeInfo = probeInfo;
         accountDefEntryList = probeInfo.getAccountDefinitionList();
 
@@ -661,13 +684,14 @@ public class Target implements ProbeStoreListener {
         final Set<String> secretFields = secretFieldBuilder.build();
 
         final String targetDisplayName = computeDisplayName(this.probeInfo,
-            targetSpec.getAccountValueList(), secretFields);
+                targetSpec.getAccountValueList(), secretFields);
 
-        final TargetInfo targetInfo = TargetInfo.newBuilder()
-            .setId(id)
-            .setSpec(targetSpec)
-            .setDisplayName(targetDisplayName)
-            .build();
+        final Builder targetInfoBuilder = TargetInfo.newBuilder()
+                .setId(id)
+                .setSpec(targetSpec)
+                .setDisplayName(targetDisplayName);
+
+        final TargetInfo targetInfo = targetInfoBuilder.build();
 
         noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
         noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);

@@ -366,7 +366,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .withTargetId(targetId)
             .withProbeId(probeId).withTime(12345).withProbeInfo(probeInfo)
             .setUpTargetDependentMocks()
-            .withTarget(new Target(targetId, probeStore, targetSpec, true));
+            .withTarget(new Target(targetId, probeStore, targetSpec, true, true));
 
         targets.add(withSecretFields.target);
 

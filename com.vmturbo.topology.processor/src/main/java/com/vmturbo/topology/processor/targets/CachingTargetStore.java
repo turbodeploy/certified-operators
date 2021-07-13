@@ -17,6 +17,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -104,12 +105,12 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      * Create a new {@link CachingTargetStore} instance.
      *
      * @param targetDao The {@link TargetDao} to actually persist targets.
-     * @param probeStore The {@link ProbeStore} containing information about registered probes.
+     * @param probeStore The {@link ProbeStore} containing information about registered
+     *         probes.
      * @param identityStore The {@link IdentityStore} used to assign ids to targets.
      */
-    public CachingTargetStore(@Nonnull final TargetDao targetDao,
-                              @Nonnull final ProbeStore probeStore,
-                              @Nonnull final IdentityStore<TargetSpec> identityStore) {
+    public CachingTargetStore(@Nonnull final TargetDao targetDao, @Nonnull final ProbeStore probeStore,
+            @Nonnull final IdentityStore<TargetSpec> identityStore) {
         this.targetDao = targetDao;
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);
@@ -193,7 +194,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             if (!newItems.isEmpty()) {
                 final long newTargetId = newItems.values().iterator().next();
-                final Target retTarget = new Target(newTargetId, probeStore, spec, true);
+                final Target retTarget = new Target(newTargetId, probeStore, spec, true, true);
                 registerTarget(retTarget);
                 return retTarget;
             } else if (!oldItems.isEmpty()) {
@@ -207,7 +208,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 } else {
                     // If the target does not exist, but the ID mapping exists, create a new
                     // target with the same ID.
-                    final Target retTarget = new Target(existingTargetId, probeStore, spec, true);
+                    final Target retTarget = new Target(existingTargetId, probeStore, spec, true,
+                            true);
                     registerTarget(retTarget);
                     return retTarget;
                 }
@@ -227,7 +229,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
     public Target restoreTarget(long targetId, @Nonnull final TargetSpec spec)
         throws InvalidTargetException {
         synchronized (storeLock) {
-            final Target retTarget = new Target(targetId, probeStore, Objects.requireNonNull(spec), false);
+            final Target retTarget = new Target(targetId, probeStore, Objects.requireNonNull(spec),
+                    false, false);
             registerTarget(retTarget);
             return retTarget;
         }
@@ -273,7 +276,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                                     Optional.of(parentTarget.get().getSpec().getCommunicationBindingChannel());
                             }
                             updateTarget(oldId, spec.getAccountValueList(),
-                                communicationBindingChannel);
+                                    communicationBindingChannel, null);
                             existingDerivedTargetIds.remove(oldId);
                         } catch (InvalidTargetException | TargetNotFoundException |
                             IdentityStoreException | IdentifierConflictException e) {
@@ -290,7 +293,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 targetsToAdd.forEach((spec, oid) -> {
                     try {
                         final Target retTarget = new Target(oid, probeStore,
-                            Objects.requireNonNull(spec), true);
+                            Objects.requireNonNull(spec), true, false);
                         addDerivedTargetParent(parentTargetId, oid, Optional.of(spec));
                         registerTarget(retTarget);
                     } catch (InvalidTargetException e) {
@@ -463,12 +466,15 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         final List<AccountValue> accountValues = spec.map(TargetSpec::getAccountValueList)
             .orElse(oldTarget.getSpec().getAccountValueList());
         Optional<String> communicationBindingChannel;
+        String editingUser;
         if (spec.isPresent()) {
             communicationBindingChannel = getOptionalCommunicationChannel(spec.get());
+            editingUser = spec.get().getLastEditingUser();
         } else {
             communicationBindingChannel = getOptionalCommunicationChannel(oldTarget.getSpec());
+            editingUser = oldTarget.getNoSecretDto().getSpec().getLastEditingUser();
         }
-        return updateTarget(targetId, accountValues, communicationBindingChannel);
+        return updateTarget(targetId, accountValues, communicationBindingChannel, editingUser);
     }
 
     /**
@@ -501,7 +507,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      */
     @Override
     public Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields,
-                               Optional<String> communicationBindingChannel)
+            Optional<String> communicationBindingChannel, @Nullable String lastEditingUser)
         throws InvalidTargetException, TargetNotFoundException,
         IdentityStoreException, IdentifierConflictException {
         final Target retTarget;
@@ -526,7 +532,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 return oldTarget;
             }
             retTarget =
-                oldTarget.withUpdatedFields(updatedFields, probeStore, communicationBindingChannel)
+                oldTarget.withUpdatedFields(updatedFields, probeStore, communicationBindingChannel, lastEditingUser)
                     .withUpdatedDerivedTargetIds(
                         new ArrayList<>(getDerivedTargetIds(targetId)),
                         probeStore);

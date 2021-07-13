@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.api;
 import static org.mockito.Matchers.any;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -127,9 +128,10 @@ public abstract class AbstractApiCallsTest {
         final List<InputField> fields = target.getMediationAccountVals(groupScopeResolver).stream()
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
         final TargetSpec spec =
-                        new TargetSpec(target.getProbeId(), fields, Optional.empty());
-        return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec, true, "Validated",
-                LocalDateTime.now());
+                        new TargetSpec(target.getProbeId(), fields, Optional.empty(), "System");
+        return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec,
+                true, "Validated", LocalDateTime.now(), "Me",
+                LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli());
     }
 
     private static InputField convertToRest(@Nonnull final AccountValue src) {

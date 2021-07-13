@@ -10,6 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -106,6 +107,8 @@ public class TargetRESTApi {
         private final List<String> errors;
         private final String status;
         private final LocalDateTime lastValidationTime;
+        private final String lastEditingUser;
+        private final Long lastEditTime;
 
         protected TargetInfo() {
             targetId = null;
@@ -115,10 +118,12 @@ public class TargetRESTApi {
             errors = null;
             status = null;
             lastValidationTime = null;
+            lastEditingUser = null;
+            lastEditTime = null;
         }
 
         public TargetInfo(final Long id, String displayName, final List<String> errors, final TargetSpec spec,
-                        final Boolean probeConnected, String status, LocalDateTime lastValidationTime) {
+                        final Boolean probeConnected, String status, LocalDateTime lastValidationTime, final String lastEditingUser, final Long lastEditTime) {
             this.targetId = id;
             this.displayName = displayName;
             this.spec = spec;
@@ -126,6 +131,8 @@ public class TargetRESTApi {
             this.errors = errors;
             this.status = status;
             this.lastValidationTime = lastValidationTime;
+            this.lastEditingUser = lastEditingUser;
+            this.lastEditTime = lastEditTime;
         }
 
         @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
@@ -183,6 +190,7 @@ public class TargetRESTApi {
         public boolean isHidden() {
             return spec.getIsHidden();
         }
+
         @Override
         public boolean isReadOnly() {
             return spec.getReadOnly();
@@ -191,6 +199,18 @@ public class TargetRESTApi {
         @Override
         public List<Long> getDerivedTargetIds() {
             return spec.getDerivedTargetIds();
+        }
+
+        @Nullable
+        @Override
+        public String getLastEditingUser() {
+            return lastEditingUser;
+        }
+
+        @Nullable
+        @Override
+        public Long getLastEditTime() {
+            return lastEditTime;
         }
 
         @Override
@@ -226,10 +246,9 @@ public class TargetRESTApi {
             derivedTargetIds = Lists.newArrayList();
         }
 
-        public TargetSpec(@Nonnull final Long probeId,
-                          @Nonnull final List<InputField> accountFields,
-                          Optional<String> communicationBindingChannel) {
-            super(accountFields, communicationBindingChannel);
+        public TargetSpec(@Nonnull final Long probeId, @Nonnull final List<InputField> accountFields,
+                Optional<String> communicationBindingChannel, @Nullable final String editingUser) {
+            super(accountFields, communicationBindingChannel, editingUser);
             this.probeId = Objects.requireNonNull(probeId);
             this.isHidden = false;
             this.readOnly = false;
@@ -241,7 +260,7 @@ public class TargetRESTApi {
                             .map(InputField::new)
                             .collect(Collectors.toList()),
                 Optional.ofNullable(targetSpec.hasCommunicationBindingChannel() ?
-                    targetSpec.getCommunicationBindingChannel() : null));
+                    targetSpec.getCommunicationBindingChannel() : null), targetSpec.getLastEditingUser());
             this.probeId = targetSpec.getProbeId();
             this.isHidden = targetSpec.getIsHidden();
             this.readOnly = targetSpec.getReadOnly();
@@ -280,6 +299,9 @@ public class TargetRESTApi {
                             .addAllAccountValue(getInputFields().stream()
                                             .map(InputField::toAccountValue)
                                             .collect(Collectors.toList()));
+            if (getEditingUser() != null) {
+                builder.setLastEditingUser(getEditingUser());
+            }
             getCommunicationBindingChannel().ifPresent(builder::setCommunicationBindingChannel);
             return builder.build();
         }

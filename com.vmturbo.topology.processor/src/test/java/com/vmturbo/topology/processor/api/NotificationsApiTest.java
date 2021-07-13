@@ -201,7 +201,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         getTopologyProcessor().addTargetListener(listener);
 
         targetStore.updateTarget(target.getId(),
-                        createTargetSpec(probeId, "2").getAccountValueList(), Optional.empty());
+                        createTargetSpec(probeId, "2").getAccountValueList(), Optional.empty(), "admin");
 
         final ArgumentCaptor<TargetInfo> targetCaptor = ArgumentCaptor.forClass(TargetInfo.class);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1))

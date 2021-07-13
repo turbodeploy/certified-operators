@@ -20,6 +20,10 @@ message TargetSpec {
     // This field is used to constrain a target to communicate over a single channel. A target with
     // a channel can only be discovered by probes on the same channel.
     optional string communicationBindingChannel = 7;
+    // The last editing user.
+    optional string last_editing_user = 8;
+    // The last edit time.
+    optional int64 last_edit_time = 9;
 }
 
 message TargetInfo {

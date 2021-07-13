@@ -162,9 +162,9 @@ public class TopologyProcessorClient extends
     }
 
     @Override
-    public void modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
+    public TargetInfo modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
                     throws CommunicationException, TopologyProcessorException {
-        restClient.modifyTarget(targetId, newData);
+        return restClient.modifyTarget(targetId, newData);
     }
 
     @Override

@@ -78,7 +78,7 @@ public class AbstractTargetsService {
                 .addAccountValue(
                         AccountValue.newBuilder().setKey(ID).setStringValue("tgt-" + targetId))
                 .build();
-        final Target target = new Target(targetId, probeStore, targetSpec, false);
+        final Target target = new Target(targetId, probeStore, targetSpec, false, true);
         targets.put(targetId, target);
         return targetId;
     }
