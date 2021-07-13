@@ -92,7 +92,7 @@ public class GroupConfig {
      */
     @Bean
     public GroupEnvironmentTypeResolver groupEnvironmentTypeResolver() {
-        return new GroupEnvironmentTypeResolver(thinTargetCache(), groupStore());
+        return new GroupEnvironmentTypeResolver(thinTargetCache());
     }
 
     /**

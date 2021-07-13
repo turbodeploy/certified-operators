@@ -1,5 +1,6 @@
 package com.vmturbo.group.pipeline;
 
+import static com.vmturbo.group.GroupMockUtil.mockEnvironment;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -30,7 +31,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
-import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.service.CachingMemberCalculator;
 import com.vmturbo.group.service.MockGroupStore;
@@ -81,10 +81,10 @@ public class GroupSeverityUpdaterTest {
         final GroupSeverityUpdater updater = new GroupSeverityUpdater(memberCache,
                 groupSeverityCalculator, groupStoreMock, transactionProvider, executorService, 10);
         groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         LongOpenHashSet groupIds = new LongOpenHashSet();
         groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));
@@ -131,10 +131,10 @@ public class GroupSeverityUpdaterTest {
         final GroupSeverityUpdater updater = new GroupSeverityUpdater(memberCache,
                 groupSeverityCalculator, groupStoreMock, transactionProvider, executorService, 10);
         groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         LongOpenHashSet groupIds = new LongOpenHashSet();
         groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));
@@ -146,7 +146,7 @@ public class GroupSeverityUpdaterTest {
         when(groupSeverityCalculator.calculateSeverity(any()))
                 .thenReturn(newSeverity);
         groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         // WHEN
         final boolean result = updater.refreshGroupSeverities();
@@ -182,10 +182,10 @@ public class GroupSeverityUpdaterTest {
                 groupSeverityCalculator, groupStoreMock, mockTransactionProvider,
                 executorService, 1);
         groupStoreMock.createGroupSupplementaryInfo(group1Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         groupStoreMock.createGroupSupplementaryInfo(group2Uuid, false,
-                new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
+                mockEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD),
                 Severity.NORMAL);
         LongOpenHashSet groupIds = new LongOpenHashSet();
         groupIds.addAll(Arrays.asList(group1Uuid, group2Uuid));

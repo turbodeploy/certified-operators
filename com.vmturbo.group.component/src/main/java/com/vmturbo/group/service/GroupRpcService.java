@@ -1031,12 +1031,10 @@ public class GroupRpcService extends GroupServiceImplBase {
         final boolean isEmpty = groupEntities.size() == 0;
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
-        if (entitiesWithEnvironment == null) {
-            return null;
-        }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
-                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupStore,
+                        groupId,
                         entitiesWithEnvironment
                                 .stream()
                                 .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
@@ -1161,12 +1159,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true);
         List<PartialEntity> entitiesWithEnvironment =
                 fetchEntitiesWithEnvironment(groupEntities);
-        if (entitiesWithEnvironment == null) {
-            return null;
-        }
         // calculate environment type based on members environment type
         GroupEnvironment groupEnvironment =
-                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupStore,
+                        groupId,
                         entitiesWithEnvironment
                                 .stream()
                                 .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
@@ -1190,8 +1186,9 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param entities the entities to query for
      * @return A list of {@link PartialEntity} containing
      *         {@link PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets} for the entities
-     *         provided, or null if there was an error communicating with the repository.
+     *         provided, or empty if there was an error communicating with the repository.
      */
+    @Nonnull
     private List<PartialEntity> fetchEntitiesWithEnvironment(Set<Long> entities) {
         List<PartialEntity> entitiesWithEnvironment = new ArrayList<>();
         if (entities.isEmpty()) {
@@ -1209,7 +1206,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         } catch (StatusRuntimeException e) {
             logger.warn(
                     "Request for entities failed. Group supplementary info cannot be updated.");
-            return null;
+            return entitiesWithEnvironment;
         }
         return entitiesWithEnvironment;
     }
@@ -1417,11 +1414,16 @@ public class GroupRpcService extends GroupServiceImplBase {
                         .forEach(memberTypes::add);
                  break;
             case GROUP_FILTERS:
-                // If the group type is dynamic group of groups we currently cannot determine the type
-                // expected in the group so we return empty list
+                // We cannot determine the type expected in the group in the general case
+                // because we would need to resolve the query now, and every time we add a new group.
                 //
-                // Note - we could do this by querying existing groups, but to be 100% accurate we
-                // would need to re-run this query every time we add a new group.
+                // However, if the group definition includes a filter on group type then we DO know
+                // that the group will only have member groups of this type.
+                groupDefinition.getGroupFilters().getGroupFilterList().stream()
+                        .map(GroupFilter::getGroupType)
+                        .distinct()
+                        .map(groupType -> MemberType.newBuilder().setGroup(groupType).build())
+                        .forEach(memberTypes::add);
                 break;
             case SELECTIONCRITERIA_NOT_SET:
                 logger.error("Member selection criteria has not been set in group definition `{}`",

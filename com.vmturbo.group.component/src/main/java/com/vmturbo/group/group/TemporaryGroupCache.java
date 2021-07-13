@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -13,11 +12,9 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.ArrayListMultimap;
-
-import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -78,43 +75,33 @@ public class TemporaryGroupCache {
     public Grouping create(@Nonnull final GroupDefinition groupDefinition,
             @Nonnull final GroupDTO.Origin origin,
             Collection<MemberType> expectedTypes,
-            List<PartialEntity> entitiesWithEnvironment) {
+            @Nonnull final List<PartialEntity> entitiesWithEnvironment) {
         final long oid = identityProvider.next();
         final GroupEnvironment calculatedGroupEnvironment;
         final Severity groupSeverity;
 
         // Calculate information derived from entities
-        if (entitiesWithEnvironment != null) {
             // calculate environment type based on members environment type
-            calculatedGroupEnvironment =
-                    groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(oid,
-                            entitiesWithEnvironment.stream()
-                                    .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
-                                    .filter(Objects::nonNull)
-                                    .collect(Collectors.toSet()), ArrayListMultimap.create());
-            // calculate severity based on members severity
-            groupSeverity = groupSeverityCalculator.calculateSeverity(
-                    entitiesWithEnvironment
-                            .stream()
-                            .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
-                            .filter(Objects::nonNull)
-                            .map(EntityWithOnlyEnvironmentTypeAndTargets::getOid)
-                            .collect(Collectors.toSet()));
-        } else {
-            // if we can't calculate supplementary info, fall back to defaults
-            calculatedGroupEnvironment = new GroupEnvironment();
-            groupSeverity = Severity.NORMAL;
-        }
+        calculatedGroupEnvironment =
+                groupEnvironmentTypeResolver.calculateEnvironmentTypeFromEntities(oid,
+                        entitiesWithEnvironment.stream()
+                                .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                                .collect(Collectors.toSet()));
+        // calculate severity based on members severity
+        groupSeverity = groupSeverityCalculator.calculateSeverity(
+                entitiesWithEnvironment
+                        .stream()
+                        .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                        .map(EntityWithOnlyEnvironmentTypeAndTargets::getOid)
+                        .collect(Collectors.toSet()));
         // If environment type is explicitly specified (e.g. by the ui due to specific
         // conventions), use this instead of the calculated one.
-        final GroupEnvironment groupEnvironment;
+        final EnvironmentType environmentType;
         if (groupDefinition.hasOptimizationMetadata()
                 && groupDefinition.getOptimizationMetadata().hasEnvironmentType()) {
-            groupEnvironment = new GroupEnvironment(
-                    groupDefinition.getOptimizationMetadata().getEnvironmentType(),
-                    calculatedGroupEnvironment.getCloudType());
+            environmentType = groupDefinition.getOptimizationMetadata().getEnvironmentType();
         } else {
-            groupEnvironment = calculatedGroupEnvironment;
+            environmentType = calculatedGroupEnvironment.getEnvironmentType();
         }
 
         final Grouping group = Grouping.newBuilder()
@@ -123,8 +110,8 @@ public class TemporaryGroupCache {
                         .setDefinition(groupDefinition)
                         .addAllExpectedTypes(expectedTypes)
                         .setSupportsMemberReverseLookup(false)
-                        .setEnvironmentType(groupEnvironment.getEnvironmentType())
-                        .setCloudType(groupEnvironment.getCloudType())
+                        .setEnvironmentType(environmentType)
+                        .setCloudType(calculatedGroupEnvironment.getCloudType())
                         .setSeverity(groupSeverity)
                         .build();
 

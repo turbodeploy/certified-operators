@@ -5,7 +5,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.common.CloudTypeEnum;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 
 /**
  * Wrapper class for group's environment. Holds environment type & cloud type.
@@ -26,24 +28,17 @@ public class GroupEnvironment {
      */
     private final Set<CloudTypeEnum.CloudType> cloudTypes;
 
-    /**
-     * Basic constructor.
-     */
-    public GroupEnvironment() {
-        this.environmentTypes = EnumSet.noneOf(EnvironmentTypeEnum.EnvironmentType.class);
-        this.cloudTypes = EnumSet.noneOf(CloudTypeEnum.CloudType.class);
-    }
+    private final boolean hasAppOrContainerEnvironmentTarget;
 
     /**
-     * Constructor with initial values.
+     * Basic constructor.
      *
-     * @param envType initial value for environment type
-     * @param cloudType initial value for cloud type
+     * @param hasAppOrContainerEnvironmentTarget If the environment has an app or container target.
      */
-    public GroupEnvironment(final EnvironmentTypeEnum.EnvironmentType envType,
-            final CloudTypeEnum.CloudType cloudType) {
-        this.environmentTypes = EnumSet.of(envType);
-        this.cloudTypes = EnumSet.of(cloudType);
+    public GroupEnvironment(final boolean hasAppOrContainerEnvironmentTarget) {
+        this.hasAppOrContainerEnvironmentTarget = hasAppOrContainerEnvironmentTarget;
+        this.environmentTypes = EnumSet.noneOf(EnvironmentTypeEnum.EnvironmentType.class);
+        this.cloudTypes = EnumSet.noneOf(CloudTypeEnum.CloudType.class);
     }
 
     /**
@@ -68,6 +63,17 @@ public class GroupEnvironment {
      *         HYBRID.
      */
     public EnvironmentTypeEnum.EnvironmentType getEnvironmentType() {
+        EnvironmentType envType = extractEnvironmentType();
+        // Fix the case where a group of non-cloud entities would report HYBRID env type.
+        if (envType == EnvironmentType.HYBRID && getCloudType() == CloudType.UNKNOWN_CLOUD && !hasAppOrContainerEnvironmentTarget) {
+            return EnvironmentType.ON_PREM;
+        } else {
+            return envType;
+        }
+
+    }
+
+    private EnvironmentTypeEnum.EnvironmentType extractEnvironmentType() {
         if (environmentTypes.isEmpty()) {
             return EnvironmentTypeEnum.EnvironmentType.UNKNOWN_ENV;
         } else if (environmentTypes.size() == 1) {
