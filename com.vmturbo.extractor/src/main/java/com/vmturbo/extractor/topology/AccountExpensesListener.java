@@ -42,6 +42,7 @@ public class AccountExpensesListener implements CostNotificationListener {
     private final DbEndpoint dbEndpoint;
     private final ExecutorService pool;
     private final WriterConfig config;
+    private final boolean isBillingCostReportingEnabled;
 
     /**
      * Create a new instance.
@@ -50,13 +51,15 @@ public class AccountExpensesListener implements CostNotificationListener {
      * @param dbEndpoint   access to extractor database
      * @param pool         thread pool
      * @param config       writer config
+     * @param isBillingCostReportingEnabled whether billing cost is enabled for reporting
      */
     public AccountExpensesListener(DataProvider dataProvider, final DbEndpoint dbEndpoint,
-            final ExecutorService pool, WriterConfig config) {
+            final ExecutorService pool, WriterConfig config, boolean isBillingCostReportingEnabled) {
         this.dataProvider = dataProvider;
         this.dbEndpoint = dbEndpoint;
         this.pool = pool;
         this.config = config;
+        this.isBillingCostReportingEnabled = isBillingCostReportingEnabled;
         logger.info("Created account expenses listener for endpoint {}.", dbEndpoint);
     }
 
@@ -74,14 +77,13 @@ public class AccountExpensesListener implements CostNotificationListener {
             MultiStageTimer timer = new MultiStageTimer(logger);
 
             logger.info("Received AccountExpenses available notification, fetching top-down costs."
-                    + "Billing cost reporting enabled? {}",
-                    dataProvider.getExtractorFeatureFlags().isBillingCostReportingEnabled());
+                    + "Billing cost reporting enabled? {}", isBillingCostReportingEnabled);
             // Trigger fetch of the latest billing data from cost component. We need to do this
             // if either extractor is enabled or embedded reporting billing costs flag is enabled.
             dataProvider.fetchTopDownCostData(timer);
 
             // Only write data if embedded reporting billing flag is enabled.
-            if (dataProvider.getExtractorFeatureFlags().isBillingCostReportingEnabled()) {
+            if (isBillingCostReportingEnabled) {
                 try {
                     timer.start("Write account expenses");
 

@@ -196,7 +196,8 @@ public class TopologyListenerConfig {
         if (extractorFeatureFlags.isExtractionEnabled()
                 || extractorFeatureFlags.isBillingCostReportingEnabled()) {
             final AccountExpensesListener aeListener = new AccountExpensesListener(
-                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig());
+                    dataProvider(), dbConfig.ingesterEndpoint(), pool(), writerConfig(),
+                    extractorFeatureFlags.isBillingCostReportingEnabled());
             costNotificationProcessor().addCostNotificationListener(aeListener);
             return aeListener;
         }
@@ -403,14 +404,18 @@ public class TopologyListenerConfig {
     }
 
     /**
-     * The {@link ClusterStatsFetcherFactory} for the {@link DataProvider}.
+     * The {@link ClusterStatsFetcherFactory} for the {@link DataProvider}, only initialized if
+     * reporting is enabled.
      *
      * @return The {@link ClusterStatsFetcherFactory}.
      */
     @Bean
     public ClusterStatsFetcherFactory clusterStatsFetcherFactory() {
-        return new ClusterStatsFetcherFactory(statsHistoryServiceBlockingStub(),
-                dbConfig.ingesterEndpoint(), headroomCheckIntervalHrs, TimeUnit.HOURS);
+        if (extractorGlobalConfig.featureFlags().isReportingEnabled()) {
+            return new ClusterStatsFetcherFactory(statsHistoryServiceBlockingStub(),
+                    dbConfig.ingesterEndpoint(), headroomCheckIntervalHrs, TimeUnit.HOURS);
+        }
+        return null;
     }
 
     /**
@@ -456,8 +461,7 @@ public class TopologyListenerConfig {
                 topDownCostFetcherFactory(),
                 bottomUpCostFetcherFactory(),
                 targetCache(),
-                riCoverageFetcherFactory(),
-                extractorGlobalConfig.featureFlags());
+                riCoverageFetcherFactory());
     }
 
     /**

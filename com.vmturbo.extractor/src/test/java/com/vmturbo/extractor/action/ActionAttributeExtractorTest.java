@@ -60,6 +60,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.action.commodity.ActionCommodityData;
 import com.vmturbo.extractor.action.commodity.ActionCommodityDataRetriever;
+import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionImpactedCosts;
@@ -627,8 +628,7 @@ public class ActionAttributeExtractorTest {
         assertThat(deleteInfo.getFilePath(), is("foo/bar"));
         assertThat(deleteInfo.getFileSize(), is(2.0));
         assertThat(deleteInfo.getUnit(), is("MB"));
-        assertThat(deleteInfo.getLastModifiedTimestamp(), is(NOW.toString()));
-        //todo
+        assertThat(deleteInfo.getLastModifiedTimestamp(), is(ExportUtils.getFormattedDate(NOW.toInstant().toEpochMilli())));
     }
 
     /**

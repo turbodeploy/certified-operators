@@ -1,8 +1,5 @@
 package com.vmturbo.extractor.action;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -503,10 +500,8 @@ public class ActionAttributeExtractor {
             deleteInfo.setFilePath(delete.getFilePath());
         }
         if (deleteExplanation.hasModificationTimeMs()) {
-            final long timestamp = deleteExplanation.getModificationTimeMs();
-            final OffsetDateTime offsetDateTime =
-                OffsetDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneOffset.UTC);
-            deleteInfo.setLastModifiedTimestamp(offsetDateTime.toString());
+            deleteInfo.setLastModifiedTimestamp(ExportUtils.getFormattedDate(
+                    deleteExplanation.getModificationTimeMs()));
         }
 
         Long volumeOid = delete.getTarget().getId();

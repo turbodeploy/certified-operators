@@ -75,7 +75,7 @@ public class ClusterStatsFetcherFactory {
      * @param topologyCreationTime the creation time of the current topology
      * @return an instance of a {@link ClusterStatsFetcher}
      */
-    public ClusterStatsFetcher getClusterStatsFetcher(@Nonnull Consumer<List<EntityStats>> consumer,  @Nonnull long topologyCreationTime) {
+    public ClusterStatsFetcher getClusterStatsFetcher(@Nonnull Consumer<List<EntityStats>> consumer, long topologyCreationTime) {
         try {
             final int clusterStatsInitializationTimeoutSeconds = 300;
             initializationTask.get(clusterStatsInitializationTimeoutSeconds, TimeUnit.SECONDS);
