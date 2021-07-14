@@ -139,7 +139,7 @@ public class SettingsServiceTest {
             .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
-                settingsService.getSettingsSpecs(null, null, null, false);
+                settingsService.getSettingsSpecs(null, null, false);
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
 
@@ -160,7 +160,7 @@ public class SettingsServiceTest {
         when(settingsMapper.toManagerDto(any(), any(), eq(mgrId), any()))
             .thenReturn(Optional.of(mgrDto));
         List<SettingsManagerApiDTO> result =
-                settingsService.getSettingsSpecs(mgrId, null, null, false);
+                settingsService.getSettingsSpecs(mgrId, null, false);
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
         verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()), eq(mgrId), any());
@@ -178,13 +178,11 @@ public class SettingsServiceTest {
                 .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
-                settingsService.getSettingsSpecs(null, "Container", null, false);
+                settingsService.getSettingsSpecs(null, "Container", false);
         verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.of("Container")),
             any());
         assertTrue(specCaptor.getValue().isEmpty());
     }
-
-    //TODO make a similar test for the category filter
 
     @Test
     public void testSettingMatchEntityType() {

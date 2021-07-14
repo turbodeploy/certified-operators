@@ -417,7 +417,6 @@ public class SettingsService implements ISettingsService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsSpecs(final String managerUuid,
                                                         final String entityType,
-                                                        final String category,
                                                         final boolean isPlan) {
         final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.searchSettingSpecs(
                 SearchSettingSpecsRequest.getDefaultInstance());

@@ -111,7 +111,7 @@ public class SettingsMapperIntegrationTest {
                         mapper, settingsManagerMapping, settingsPoliciesService);
 
         final List<SettingsManagerApiDTO> settingSpecs =
-                settingService.getSettingsSpecs(null, null, null, false);
+                settingService.getSettingsSpecs(null, null, false);
         final Set<String> visibleSettings = settingSpecs.stream()
                 .map(SettingsManagerApiDTO::getSettings)
                 .flatMap(List::stream)
