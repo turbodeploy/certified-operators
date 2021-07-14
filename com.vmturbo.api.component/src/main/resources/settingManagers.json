@@ -360,8 +360,9 @@
         "telemetryTermsAccepted"
       ]
     },
-    "healthcheckmanager" : {
-      "displayName": "Health Check Settings",
+    "targethealthmanager" : {
+      "displayName": "Target health check settings",
+      "defaultCategory": "HealthCheck",
       "settings": [
         "failedDiscoveryCountThreshold"
       ]
