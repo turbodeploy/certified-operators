@@ -9,6 +9,7 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -86,6 +87,8 @@ public class ConvertToTopologyDTOTest {
         virtualMachineInfoRepoDTO.setGuestOsInfo(new GuestOSRepoDTO(OSType.UNKNOWN_OS,
             OSType.UNKNOWN_OS.name()));
         virtualMachineInfoRepoDTO.setTenancy(Tenancy.DEDICATED.name());
+        final int coresPerSocketRatio = 3;
+        virtualMachineInfoRepoDTO.setCoresPerSocketRatio(coresPerSocketRatio);
 
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(virtualMachineInfoRepoDTO);
         // act
@@ -101,6 +104,8 @@ public class ConvertToTopologyDTOTest {
         final IpAddress ipAddress = ipAddressese.iterator().next();
         assertThat(ipAddress.getIpAddress(), equalTo(repoIpAddressDTO.getIpAddress()));
         assertThat(ipAddress.getIsElastic(), equalTo(repoIpAddressDTO.getElastic()));
+        Assert.assertThat(virtualMachineInfo.getCoresPerSocketRatio(), CoreMatchers.is(
+                        coresPerSocketRatio));
         // tenancy
     }
 

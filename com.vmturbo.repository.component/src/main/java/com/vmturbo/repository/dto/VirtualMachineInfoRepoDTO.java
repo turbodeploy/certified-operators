@@ -36,6 +36,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Integer numCpus;
 
+    private Integer coresPerSocketRatio;
+
     private LicenseModel licenseModel;
 
     private List<String> connectedNetworks;
@@ -81,6 +83,8 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                         ipAddrInfo.getIsElastic()))
                 .collect(Collectors.toList()));
         setNumCpus(vmInfo.hasNumCpus() ? vmInfo.getNumCpus() : null);
+        setCoresPerSocketRatio(
+                        vmInfo.hasCoresPerSocketRatio() ? vmInfo.getCoresPerSocketRatio() : null);
         setLicenseModel(vmInfo.getLicenseModel());
 
         setConnectedNetworks(vmInfo.getConnectedNetworksList());
@@ -122,6 +126,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getNumCpus() != null) {
             vmBuilder.setNumCpus(getNumCpus());
+        }
+        final Integer coresPerSocketRatio = getCoresPerSocketRatio();
+        if (coresPerSocketRatio != null) {
+            vmBuilder.setCoresPerSocketRatio(coresPerSocketRatio);
         }
         if (getConnectedNetworks() != null) {
             vmBuilder.addAllConnectedNetworks(getConnectedNetworks());
@@ -242,6 +250,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.billingType = billingType;
     }
 
+    public Integer getCoresPerSocketRatio() {
+        return coresPerSocketRatio;
+    }
+
+    public void setCoresPerSocketRatio(Integer coresPerSocketRatio) {
+        this.coresPerSocketRatio = coresPerSocketRatio;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -257,13 +273,15 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 Objects.equals(hasEnaDriver, that.hasEnaDriver) &&
                 Objects.equals(architecture, that.architecture) &&
                 Objects.equals(virtualizationType, that.virtualizationType) &&
-                Objects.equals(billingType, that.billingType);
+                Objects.equals(billingType, that.billingType) &&
+                Objects.equals(coresPerSocketRatio, that.coresPerSocketRatio);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, licenseModel,
-                connectedNetworks, hasNVMeDriver, hasEnaDriver, architecture, virtualizationType, billingType);
+                connectedNetworks, hasNVMeDriver, hasEnaDriver, architecture, virtualizationType,
+                        billingType, coresPerSocketRatio);
     }
 
     @Override
@@ -280,6 +298,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", architecture=" + architecture +
                 ", virtualizationType=" + virtualizationType +
                 ", billingType=" + billingType +
+                ", coresPerSocketRatio=" + coresPerSocketRatio +
                 '}';
     }
 }

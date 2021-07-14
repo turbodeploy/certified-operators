@@ -5,18 +5,22 @@ import static junit.framework.TestCase.assertNull;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ApplicationInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualVolumeInfoRepoDTO;
 
 /**
@@ -113,5 +117,33 @@ public class ConvertToRepoDTOTest {
         final VirtualVolumeInfoRepoDTO virtualVolumeInfoRepoDTO = repoDTO.getVirtualVolumeInfoRepoDTO();
         assertNotNull(virtualVolumeInfoRepoDTO);
         assertNull(virtualVolumeInfoRepoDTO.getRedundancyType());
+    }
+
+    /**
+     * Checks that virtual machine info converted into repo DTO will contain information about cores
+     * per socket ratio.
+     */
+    @Test
+    public void checkConvertVirtualMachineInfoToRepoDTO() {
+        // arrange
+        final int coresPerSocketRatio = 3;
+        final VirtualMachineInfo vmInfo =
+                        VirtualMachineInfo.newBuilder().setCoresPerSocketRatio(coresPerSocketRatio)
+                                        .build();
+        final TopologyEntityDTO.Builder virtualVolumeEntityDTOBuilder =
+                        TopologyEntityDTO.newBuilder().setOid(TEST_OID)
+                                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                                        .setVirtualMachine(vmInfo));
+
+        // act
+        final ServiceEntityRepoDTO repoDTO = TopologyEntityDTOConverter
+                        .convertToServiceEntityRepoDTO(virtualVolumeEntityDTOBuilder.build());
+        // assert
+        Assert.assertThat(repoDTO, CoreMatchers.notNullValue());
+        final VirtualMachineInfoRepoDTO vmInfoRepoDto = repoDTO.getVirtualMachineInfoRepoDTO();
+        Assert.assertThat(vmInfoRepoDto, CoreMatchers.notNullValue());
+        Assert.assertThat(vmInfoRepoDto.getCoresPerSocketRatio(), CoreMatchers.is(
+                        coresPerSocketRatio));
     }
 }
