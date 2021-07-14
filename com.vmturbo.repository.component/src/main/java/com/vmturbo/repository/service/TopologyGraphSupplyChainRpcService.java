@@ -397,6 +397,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                                     .map(entity -> LeafEntity
                                         .newBuilder()
                                         .setOid(entity.getOid())
+                                        .setDisplayName(entity.getDisplayName())
                                         .setEntityType(EntityType.forNumber(entity.getEntityType()))
                                         .build())
                                     .collect(Collectors.toSet()))
@@ -436,6 +437,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                         .map(entity -> LeafEntity
                                 .newBuilder()
                                 .setOid(entity.getOid())
+                                .setDisplayName(entity.getDisplayName())
                                 .setEntityType(EntityType.forNumber(entity.getEntityType()))
                                 .build())
                         .collect(Collectors.toList()));
