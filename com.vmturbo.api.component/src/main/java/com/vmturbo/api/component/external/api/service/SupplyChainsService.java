@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
@@ -299,6 +300,14 @@ public class SupplyChainsService implements ISupplyChainsService {
             .map(supplyChainStatMapper::supplyChainStatToApi)
             .collect(Collectors.toList()));
         return Collections.singletonList(snapshot);
+    }
+
+    @Override
+    public List<BaseApiDTO> getLeafEntities(@Nonnull List<Long> uuids,
+                                            @Nullable List<String> filterOutClasses,
+                                            @Nullable String cursor,
+                                            @Nullable Integer limit) {
+        return supplyChainFetcherFactory.fetchLeafEntities(uuids, filterOutClasses, cursor, limit);
     }
 
     /**
