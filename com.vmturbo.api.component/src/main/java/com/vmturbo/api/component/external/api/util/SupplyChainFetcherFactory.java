@@ -41,7 +41,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
@@ -62,7 +61,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -74,8 +72,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -93,7 +89,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -1593,66 +1588,5 @@ public class SupplyChainFetcherFactory {
         public Set<Integer> getDerivedTypes() {
             return derivedTypes;
         }
-    }
-
-    /**
-     * Get leaf entities (entities that have no consumers).
-     *
-     * @param uuids seed UUIDs of the supply chain.
-     * @param filterOutClasses entity types to filter out.
-     * @param cursor pagination cursor.
-     * @param limit pagination limit.
-     * @return a list of entities.
-     */
-    @Nonnull
-    public List<BaseApiDTO> fetchLeafEntities(@Nonnull List<Long> uuids,
-                                              @Nullable List<String> filterOutClasses,
-                                              @Nullable String cursor,
-                                              @Nullable Integer limit) {
-        // Ensure that the entity oids are resolved (i.e. we know if its an entity).
-        List<ApiId> idList = uuids.stream()
-                        .map(uuidMapper::fromOid)
-                        .collect(Collectors.toList());
-        uuidMapper.bulkResolveEntities(idList);
-
-        if (idList.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        final LeafEntitiesRequest.Builder builder = LeafEntitiesRequest.newBuilder();
-        builder.addAllSeeds(idList.stream().map(ApiId::oid).collect(Collectors.toList()));
-        if (filterOutClasses != null && !filterOutClasses.isEmpty()) {
-            builder.addAllFilterOutClasses(filterOutClasses.stream()
-                    .map(cls -> ApiEntityType.fromString(cls).typeNumber())
-                    .map(EntityType::forNumber)
-                    .collect(Collectors.toSet()));
-            if (builder.getFilterOutClassesList().contains(EntityType.UNKNOWN)) {
-                throw new IllegalArgumentException("Filter out classes contain unknown class.");
-            }
-        }
-        if (cursor != null || limit != null) {
-            final PaginationParameters.Builder paginationBuilder
-                            = PaginationParameters.newBuilder();
-            if (cursor != null) {
-                paginationBuilder.setCursor(cursor);
-            }
-            if (limit != null) {
-                paginationBuilder.setLimit(limit);
-            }
-            builder.setPaginationParams(paginationBuilder.build());
-        }
-        final LeafEntitiesResponse response = supplyChainRpcService
-                        .getLeafEntities(builder.build());
-        return response.getLeavesList()
-                .stream()
-                .map(leafEntity -> {
-                    BaseApiDTO dto = new BaseApiDTO();
-                    dto.setUuid(String.valueOf(leafEntity.getOid()));
-                    dto.setClassName(ApiEntityType.fromType(leafEntity.getEntityType()
-                                                             .getNumber()).displayName());
-                    dto.setDisplayName(leafEntity.getDisplayName());
-                    return dto;
-                })
-                .collect(Collectors.toList());
     }
 }

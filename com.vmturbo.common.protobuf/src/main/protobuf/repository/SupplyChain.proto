@@ -276,7 +276,6 @@ message LeafEntitiesResponse {
     message LeafEntity {
         required int64 oid = 1;
         required .common_dto.EntityDTO.EntityType entityType = 2;
-        required string displayName = 3;
     }
     repeated LeafEntity leaves = 3;
     optional common.PaginationResponse pagination_response = 4;

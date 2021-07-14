@@ -13,7 +13,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,7 +58,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainTestUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
-import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
@@ -82,7 +80,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -101,9 +98,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse.LeafEntity;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -523,7 +517,7 @@ public class SupplyChainFetcherFactoryTest {
                 supplyChainEntryDTOs.iterator().next().getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
 
-        verify(costServiceMole, never()).getCloudCostStats(
+        verify(costServiceMole, Mockito.times(0)).getCloudCostStats(
                 any(GetCloudCostStatsRequest.class));
         final Float costPrice = serviceEntityApiDTOMap.values().iterator().next().getCostPrice();
         assertNull(costPrice);
@@ -553,7 +547,7 @@ public class SupplyChainFetcherFactoryTest {
                 supplyChainEntryDTOs.iterator().next().getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
 
-        verify(costServiceMole, never()).getCloudCostStats(
+        verify(costServiceMole, Mockito.times(0)).getCloudCostStats(
                 any(GetCloudCostStatsRequest.class));
         final Float costPrice = serviceEntityApiDTOMap.values().iterator().next().getCostPrice();
         assertNull(costPrice);
@@ -1430,107 +1424,5 @@ public class SupplyChainFetcherFactoryTest {
             builder.setSeverity(severity);
         }
         return builder.build();
-    }
-
-    /**
-     * Verify that grpc request will not be called if the 'seeds' variable is empty.
-     */
-    @Test
-    public void getLeafEntitiesTestEmptySeeds() {
-        List<Long> seeds = Collections.emptyList();
-        List<BaseApiDTO> dtos = supplyChainFetcherFactory.fetchLeafEntities(seeds, null, null, null);
-        Assert.assertTrue(dtos.isEmpty());
-        verify(supplyChainServiceBackend, never()).getLeafEntities(Mockito.any());
-    }
-
-    @Nonnull
-    private LeafEntitiesRequest verifyFilteredClass(@Nonnull String className) {
-        long id = 1L;
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
-        List<Long> seeds = Collections.singletonList(id);
-        Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
-                .thenReturn(LeafEntitiesResponse.newBuilder().build());
-        ArgumentCaptor<LeafEntitiesRequest> reqCaptor = ArgumentCaptor.forClass(LeafEntitiesRequest.class);
-        supplyChainFetcherFactory.fetchLeafEntities(seeds, Collections.singletonList(className), null, null);
-        verify(supplyChainServiceBackend).getLeafEntities(reqCaptor.capture());
-        return reqCaptor.getValue();
-    }
-
-    /**
-     * Verify handling of expected class name.
-     */
-    @Test
-    public void getLeafEntitiesTestFilterClasses() {
-        LeafEntitiesRequest request = verifyFilteredClass("BusinessApplication");
-        Assert.assertFalse(request.getFilterOutClassesList().isEmpty());
-        Assert.assertEquals(EntityType.BUSINESS_APPLICATION, request.getFilterOutClassesList().get(0));
-    }
-
-    /**
-     * Verify throwing an exception if the provided class is unknown.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void getLeafEntitiesTestFilterClassesUnexpected() {
-        verifyFilteredClass("__||__");
-    }
-
-    /**
-     * Verify handling of pagination parameters while getting leaf entities.
-     */
-    @Test
-    public void getLeafEntitiesPaginationTest() {
-        final String cursor = "10";
-        final Integer limit = 100;
-
-        long id = 1L;
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
-
-        Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
-                .thenReturn(LeafEntitiesResponse.newBuilder().build());
-        ArgumentCaptor<LeafEntitiesRequest> reqCaptor = ArgumentCaptor.forClass(LeafEntitiesRequest.class);
-        supplyChainFetcherFactory.fetchLeafEntities(Collections.singletonList(id), null, cursor, limit);
-        verify(supplyChainServiceBackend).getLeafEntities(reqCaptor.capture());
-        final LeafEntitiesRequest request = reqCaptor.getValue();
-        Assert.assertTrue(request.hasPaginationParams());
-        PaginationParameters paginationParameters = request.getPaginationParams();
-        Assert.assertEquals(cursor, paginationParameters.getCursor());
-        Assert.assertEquals(limit.intValue(), paginationParameters.getLimit());
-    }
-
-    /**
-     * Verify the parsing of {@link LeafEntity} instances.
-     */
-    @Test
-    public void getLeafEntitiesParsingTest() {
-        final long id = 1L;
-        final long entityId = 100L;
-        final EntityType type = EntityType.APPLICATION_COMPONENT;
-        final String displayName = "DISPLAY_NAME";
-        LeafEntitiesResponse response = LeafEntitiesResponse
-                .newBuilder()
-                .addLeaves(LeafEntity
-                        .newBuilder()
-                        .setEntityType(type)
-                        .setOid(entityId)
-                        .setDisplayName(displayName)
-                        .build())
-                .build();
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
-        Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
-                        .thenReturn(response);
-        List<BaseApiDTO> dtos = supplyChainFetcherFactory
-                .fetchLeafEntities(Collections.singletonList(id), null, null, null);
-        Assert.assertEquals(1, dtos.size());
-        BaseApiDTO dto = dtos.get(0);
-        Assert.assertEquals(entityId, Long.parseLong(dto.getUuid()));
-        Assert.assertEquals(displayName, dto.getDisplayName());
-        Assert.assertEquals(ApiEntityType.fromType(type.getNumber()).displayName(),
-                            dto.getClassName());
     }
 }

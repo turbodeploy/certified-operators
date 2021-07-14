@@ -30,12 +30,6 @@
         <db.schema>group_component_build_${maven.build.timestamp}</db.schema><!-- group is a keyword in SQL, so name it group_component-->
         <db.outputSchema>group_component</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
-        <integration-test-phase>integration-test</integration-test-phase>
-        <dockerImageName>turbonomic/robot-docker</dockerImageName>
-        <dockerImageVersion>1.0.1-SNAPSHOT</dockerImageVersion>
-        <turborepo>registry.turbonomic.com</turborepo>
-        <dockerRobotImage>${turborepo}/${dockerImageName}:${dockerImageVersion}</dockerRobotImage>
-        <robotCommand>'cd /usr/src/project/target; robot --name ${project.artifactId} --outputdir integrationTest ../src/it'</robotCommand>
     </properties>
 
     <dependencies>
@@ -367,54 +361,9 @@
                 </executions>
             </plugin>
             <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <configuration>
-                    <skip>${skipITs}</skip>
-                </configuration>
-                <executions>
-                    <!-- Execute the Integration Tests. -->
-                    <execution>
-                      <id>integration-test</id>
-                      <phase>${integration-test-phase}</phase>
-                      <goals>
-                          <goal>exec</goal>
-                      </goals>
-                      <configuration>
-                        <executable>docker</executable>
-                        <arguments>
-                          <argument>run</argument>
-                          <!-- Set environment variables -->
-                          <argument>--env</argument>
-                          <argument>PROJECT_VERSION=${project.version}</argument>
-                          <!-- Automatically remove the container when it exits -->
-                          <argument>--rm</argument>
-                          <!-- Bind mount a volume -->
-                          <argument>--volume</argument>
-                          <argument>${project.basedir}:/usr/src/project</argument>
-                          <argument>-v</argument>
-                          <argument>/var/run/docker.sock:/var/run/docker.sock</argument>
-                          <!-- The image to run -->
-                          <argument>${dockerRobotImage}</argument>
-                          <argument>/bin/bash</argument>
-                          <argument>-c</argument>
-                          <argument>'${robotCommand}'</argument>
-                        </arguments>
-                        <workingDirectory>${project.basedir}</workingDirectory>
-                        <excludes>
-                          <exclude>none</exclude>
-                        </excludes>
-                        <includeScope>compile</includeScope>
-                      </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
-
-
 </project>
