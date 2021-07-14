@@ -126,6 +126,10 @@ public class RawMaterials implements Serializable {
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 
             Trader supplier = shoppingList.getSupplier();
+            if (supplier == null) {
+                logger.debug("The supplier is null for buyer " + buyer.getOid());
+                continue;
+            }
             Basket basketBought = shoppingList.getBasket();
             for (int index = 0; index < typeOfCommsBought.getMaterials().length; index++) {
                 int boughtIndex = basketBought.indexOfBaseType(typeOfCommsBought.getMaterials()[index]);
