@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -184,7 +185,36 @@ public class SettingsServiceTest {
         assertTrue(specCaptor.getValue().isEmpty());
     }
 
-    //TODO make a similar test for the category filter
+    /**
+     * Verify the filtering of settings specs by category.
+     */
+    @Test
+    public void testGetSingleCategorySettingsSpecs() {
+        List<SettingsManagerApiDTO> settingsManagersDTOs = new ArrayList<>(3);
+
+        String healthCheckCategory = "HealthCheck";
+        String targetHealthCheckManagerUUID = "targethealthmanager";
+        final SettingsManagerApiDTO hcMgrDto = new SettingsManagerApiDTO();
+        hcMgrDto.setUuid(targetHealthCheckManagerUUID);
+        hcMgrDto.setCategory(healthCheckCategory);
+        settingsManagersDTOs.add(hcMgrDto);
+        final SettingsManagerApiDTO csMgrDto = new SettingsManagerApiDTO();
+        csMgrDto.setUuid("testCS");
+        csMgrDto.setCategory("Cloud Savings");
+        settingsManagersDTOs.add(csMgrDto);
+        final SettingsManagerApiDTO noCategoryMgrDto = new SettingsManagerApiDTO();
+        noCategoryMgrDto.setUuid("testNoCategory");
+        settingsManagersDTOs.add(noCategoryMgrDto);
+
+        when(settingsMapper.toManagerDtos(anyCollectionOf(SettingSpec.class), any(), any()))
+            .thenReturn(settingsManagersDTOs);
+
+        List<SettingsManagerApiDTO> result = settingsService.getSettingsSpecs(
+                        null, null, healthCheckCategory, false);
+        assertEquals(1, result.size());
+        assertEquals(healthCheckCategory, result.get(0).getCategory());
+        assertEquals(targetHealthCheckManagerUUID, result.get(0).getUuid());
+    }
 
     @Test
     public void testSettingMatchEntityType() {
