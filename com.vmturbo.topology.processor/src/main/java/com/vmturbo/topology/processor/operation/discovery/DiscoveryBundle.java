@@ -87,16 +87,22 @@ public class DiscoveryBundle {
     public String toString() {
         StringBuilder builder =  new StringBuilder();
         if (discovery != null) {
-            builder.append("Discovery: " + discovery.toString());
+            builder.append("Discovery: ")
+                    .append(discovery);
         }
         if (discoveryRequest != null) {
-            builder.append("  DiscoveryRequest: " + discoveryRequest.toString());
+            builder.append("  DiscoveryRequest: Probe Type - ")
+                    .append(discoveryRequest.getProbeType())
+                    .append(" Discovery Type - ")
+                    .append(discoveryRequest.getDiscoveryType().name());
         }
         if (discoveryMessageHandler != null) {
-            builder.append("  DiscoveryMessageHandler: " + discoveryMessageHandler.toString());
+            builder.append("  DiscoveryMessageHandler: ")
+                    .append(discoveryMessageHandler);
         }
         if (exception != null) {
-            builder.append("  Exception: " + exception.toString());
+            builder.append("  Exception: ")
+                    .append(exception);
         }
         return builder.toString();
     }
