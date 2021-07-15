@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.DashboardSpec;
 import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
@@ -70,8 +69,6 @@ public class Grafanon implements RequiresDataInitialization {
 
     private final DashboardsOnDisk dashboardsOnDisk;
 
-    private final ExtractorFeatureFlags extractorFeatureFlags;
-
     protected final DbEndpoint dbEndpoint;
 
     private final LicenseCheckClient licenseCheckClient;
@@ -81,13 +78,11 @@ public class Grafanon implements RequiresDataInitialization {
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
             @Nonnull final GrafanaClient grafanaClient,
-            @Nonnull final ExtractorFeatureFlags extractorFeatureFlags,
             @Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.grafanonConfig = grafanonConfig;
         this.dashboardsOnDisk = dashboardsOnDisk;
         this.grafanaClient = grafanaClient;
-        this.extractorFeatureFlags = extractorFeatureFlags;
         this.dbEndpoint = dbEndpoint;
         this.licenseCheckClient = licenseCheckClient;
         licenseCheckClient.getUpdateEventStream().subscribe(licenseSummary -> {
@@ -109,10 +104,6 @@ public class Grafanon implements RequiresDataInitialization {
 
     @Override
     public void initialize() {
-        // do not initialize if reporting is not enabled
-        if (!extractorFeatureFlags.isReportingEnabled()) {
-            return;
-        }
         // We initialize asynchronously, with retries.
         new Thread(() -> {
             boolean initialized = false;

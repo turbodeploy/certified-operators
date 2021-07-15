@@ -81,24 +81,26 @@ public class GrafanaConfig {
     private LicenseCheckClientConfig licenseCheckClientConfig;
 
     /**
-     * The one that drives the grafana refresh.
+     * The one that drives the grafana refresh. Only initialize if reporting is enabled.
      *
      * @return The {@link Grafanon}.
      */
     @Bean
     public Grafanon grafanon() {
-        GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
-                .setTimescaleDisplayName(datasourceName)
-                .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS)
-                .setEditorDisplayName(grafanaEditorDisplayName)
-                .setEditorUsername(grafanaEditorUsername)
-                .setEditorPassword(grafanaEditorPassword);
-        return new Grafanon(config,
-                dashboardsOnDisk(),
-                grafanaClient(),
-                extractorGlobalConfig.featureFlags(),
-                extractorDbConfig.grafanaQueryEndpoint(),
-                licenseCheckClientConfig.licenseCheckClient());
+        if (extractorGlobalConfig.featureFlags().isReportingEnabled()) {
+            GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
+                    .setTimescaleDisplayName(datasourceName)
+                    .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS)
+                    .setEditorDisplayName(grafanaEditorDisplayName)
+                    .setEditorUsername(grafanaEditorUsername)
+                    .setEditorPassword(grafanaEditorPassword);
+            return new Grafanon(config,
+                    dashboardsOnDisk(),
+                    grafanaClient(),
+                    extractorDbConfig.grafanaQueryEndpoint(),
+                    licenseCheckClientConfig.licenseCheckClient());
+        }
+        return null;
     }
 
     /**

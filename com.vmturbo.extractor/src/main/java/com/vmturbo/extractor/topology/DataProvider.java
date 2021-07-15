@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
@@ -75,7 +74,6 @@ public class DataProvider {
     private final TopDownCostFetcherFactory topDownCostFetcherFactory;
     private final BottomUpCostFetcherFactory bottomUpCostFetcherFactory;
     private final RICoverageFetcherFactory riCoverageFetcherFactory;
-    private final ExtractorFeatureFlags extractorFeatureFlags;
     private final ThinTargetCache targetCache;
 
     DataProvider(GroupServiceBlockingStub groupService,
@@ -83,15 +81,13 @@ public class DataProvider {
             TopDownCostFetcherFactory topDownCostFetcherFactory,
             BottomUpCostFetcherFactory bottomUpCostFetcherFactory,
             ThinTargetCache targetCache,
-            RICoverageFetcherFactory riCoverageFetcherFactory,
-            ExtractorFeatureFlags extractorFeatureFlags) {
+            RICoverageFetcherFactory riCoverageFetcherFactory) {
         this.groupService = groupService;
         this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
         this.topDownCostFetcherFactory = topDownCostFetcherFactory;
         this.bottomUpCostFetcherFactory = bottomUpCostFetcherFactory;
         this.targetCache = targetCache;
         this.riCoverageFetcherFactory = riCoverageFetcherFactory;
-        this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
     private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap<>();
@@ -175,7 +171,7 @@ public class DataProvider {
         final List<DataFetcher<?>> dataFetchers = new ArrayList<>();
         dataFetchers.add(new GroupFetcher(groupService, timer, this::setGroupData));
         dataFetchers.add(new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain));
-        if (extractorFeatureFlags.isReportingEnabled()) {
+        if (clusterStatsFetcherFactory != null) {
             dataFetchers.add(clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats,
                     topologyCreationTime));
         }
@@ -671,15 +667,5 @@ public class DataProvider {
      */
     public SupplyChain getSupplyChain() {
         return supplyChain;
-    }
-
-    /**
-     * Gets feature flags for extractor.
-     *
-     * @return Extractor feature flags.
-     */
-    @Nonnull
-    public ExtractorFeatureFlags getExtractorFeatureFlags() {
-        return extractorFeatureFlags;
     }
 }

@@ -40,7 +40,6 @@ import reactor.core.publisher.Flux;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.FolderInput;
@@ -64,7 +63,6 @@ public class GrafanonTest {
     private final int reportEditorCount = 2;
 
     private DashboardsOnDisk dashboardsOnDiskMock = mock(DashboardsOnDisk.class);
-    private ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
 
     /**
      * Test setup.
@@ -81,7 +79,7 @@ public class GrafanonTest {
 
         Flux<LicenseSummary> fakeStream = Flux.empty();
         when(licenseCheckClient.getUpdateEventStream()).thenReturn(fakeStream);
-        grafanon = new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+        grafanon = new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, dbendpointMock, licenseCheckClient);
     }
 
     /**
@@ -104,7 +102,7 @@ public class GrafanonTest {
         verifyZeroInteractions(grafanaClientMock);
 
         // ACT
-        new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+        new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, dbendpointMock, licenseCheckClient);
 
         // ASSERT
         ArgumentCaptor<UserInput> inputCaptor = ArgumentCaptor.forClass(UserInput.class);
