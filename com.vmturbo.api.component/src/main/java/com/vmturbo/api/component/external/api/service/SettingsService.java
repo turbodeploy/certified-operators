@@ -425,7 +425,7 @@ public class SettingsService implements ISettingsService {
         final List<SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
                 .filter(spec -> settingMatchEntityType(spec, entityType))
                 .collect(Collectors.toList());
-        final List<SettingsManagerApiDTO> retMgrs;
+        List<SettingsManagerApiDTO> retMgrs;
 
         if (managerUuid != null) {
             retMgrs = settingsMapper.toManagerDto(specs, Optional.ofNullable(entityType),
@@ -434,6 +434,11 @@ public class SettingsService implements ISettingsService {
                     .orElse(Collections.emptyList());
         } else {
             retMgrs = settingsMapper.toManagerDtos(specs, Optional.ofNullable(entityType), isPlan);
+        }
+
+        if (category != null && !category.isEmpty()) {
+            retMgrs = retMgrs.stream().filter(dto -> category.equalsIgnoreCase(dto.getCategory()))
+                            .collect(Collectors.toList());
         }
 
         return isPlan ? settingsManagerMapping.convertToPlanSettingSpecs(retMgrs) : retMgrs;
