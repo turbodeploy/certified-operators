@@ -138,6 +138,16 @@ public class RawMaterials implements Serializable {
                 }
                 CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                         .get(boughtIndex));
+                if (commSoldBySeller == null) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("The commodity {} is not sold by supplier {} to {}",
+                                     () -> basketBought.get(boughtIndex)
+                                                     .getDebugInfoNeverUseInCode(),
+                                     () -> supplier,
+                                     () -> buyer);
+                    }
+                    continue;
+                }
                 // if the commSold is resold, traverse down the supplychain to identify the actual provider.
                 if (commSoldBySeller.getSettings().isResold()) {
                     Pair<CommoditySold, Trader> resource = findResoldRawMaterialOnSeller(economy, supplier,
