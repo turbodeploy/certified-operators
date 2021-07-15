@@ -132,7 +132,7 @@ public class EntityFilterMapper {
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
 
-    public static final String ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE = "businessAccountCloudProvider";
+    public static final String ACCOUNT_PROBE_TYPE_FILTER = "businessAccountProbeType";
 
     private static final String MEMBER_OF = "MemberOf";
 
