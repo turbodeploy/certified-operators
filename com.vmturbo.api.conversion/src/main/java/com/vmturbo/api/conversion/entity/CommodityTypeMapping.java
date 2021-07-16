@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class provides mapping between SDK commodity types and API commodity types.
@@ -27,12 +28,14 @@ public class CommodityTypeMapping {
 
 
     /**
-     * Set of CPU commodity types to use "millicore" as unit.
+     * Set of CPU commodity types to use "mCores" (millicores) as unit.
      */
     private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
         CommodityType.VCPU_REQUEST_VALUE);
-    // Millicore unit for container CPU commodity types.
-    private static final String MILLICORE_UNIT = "millicore";
+    /**
+     * Millicore unit shown as "mCores" for CPU commodity types of related cloud native entities.
+     */
+    public static final String CPU_MILLICORE = "mCores";
 
     // Unit type for vCPU on VMs.
     private static final String VCPU_UNIT = "vCPU";
@@ -118,9 +121,9 @@ public class CommodityTypeMapping {
             .put(CommodityType.TRANSACTION, CommodityInfo.of("Transaction", "Transaction", "TPS"))
             .put(CommodityType.TRANSACTION_LOG, CommodityInfo.of("TransactionLog", "TransactionLog", "MB"))
             .put(CommodityType.VCPU, CommodityInfo.of("VCPU", "VCPU", "MHz"))
-            .put(CommodityType.VCPU_LIMIT_QUOTA, CommodityInfo.of("VCPULimitQuota", "VCPULimitQuota", "MHz"))
-            .put(CommodityType.VCPU_REQUEST, CommodityInfo.of("VCPURequest", "VCPURequest", "MHz"))
-            .put(CommodityType.VCPU_REQUEST_QUOTA, CommodityInfo.of("VCPURequestQuota", "VCPURequestQuota", "MHz"))
+            .put(CommodityType.VCPU_LIMIT_QUOTA, CommodityInfo.of("VCPULimitQuota", "VCPULimitQuota", CPU_MILLICORE))
+            .put(CommodityType.VCPU_REQUEST, CommodityInfo.of("VCPURequest", "VCPURequest", CPU_MILLICORE))
+            .put(CommodityType.VCPU_REQUEST_QUOTA, CommodityInfo.of("VCPURequestQuota", "VCPURequestQuota", CPU_MILLICORE))
             .put(CommodityType.VDC, CommodityInfo.of("VDCCommodity", "VDCCommodity", ""))
             .put(CommodityType.VMEM, CommodityInfo.of("VMem", "VMem", "KB"))
             .put(CommodityType.VMEM_LIMIT_QUOTA, CommodityInfo.of("VMemLimitQuota", "VMemLimitQuota", "KB"))
@@ -166,6 +169,26 @@ public class CommodityTypeMapping {
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 
+    /**
+     * Map of entity type to map of commodity type with secondary unit. This map is used to
+     * differentiate the commodity unit for the same commodity type from different entity types.
+     * For example, VCPU unit is 'mCores' for entities defined in this map, while VCPU unit is
+     * default 'MHz' for other entities like AppComponent, VM, host, etc.
+     */
+    public static final Map<Integer, Map<Integer, String>> ENTITY_TYPE_TO_COMMODITY_TYPES_WITH_SECONDARY_UNIT =
+        ImmutableMap.<Integer, Map<Integer, String>>builder()
+            .put(EntityType.CONTAINER_VALUE,
+                Collections.singletonMap(CommodityType.VCPU_VALUE, CPU_MILLICORE))
+            .put(EntityType.CONTAINER_POD_VALUE,
+                Collections.singletonMap(CommodityType.VCPU_VALUE, CPU_MILLICORE))
+            .put(EntityType.CONTAINER_SPEC_VALUE,
+                Collections.singletonMap(CommodityType.VCPU_VALUE, CPU_MILLICORE))
+            .put(EntityType.NAMESPACE_VALUE,
+                Collections.singletonMap(CommodityType.VCPU_VALUE, CPU_MILLICORE))
+            .put(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE,
+                Collections.singletonMap(CommodityType.VCPU_VALUE, CPU_MILLICORE))
+            .build();
+
     private static final Map<String, CommodityType> MIXED_NAME_TO_COMMODITY_TYPE =
         Collections.unmodifiableMap(
             COMMODITY_TYPE_TO_API_STRING.entrySet()
@@ -206,6 +229,24 @@ public class CommodityTypeMapping {
         } else {
             return "Unknown";
         }
+    }
+
+    /**
+     * Get commodity unit based on given entity type and commodity type.
+     *
+     * @param entityType    Given entity type.
+     * @param commodityType Given commodity type.
+     * @return Commodity unit.
+     */
+    @Nullable
+    public static String getUnitForEntityCommodityType(int entityType, int commodityType) {
+        Map<Integer, String> commodityTypes =
+            ENTITY_TYPE_TO_COMMODITY_TYPES_WITH_SECONDARY_UNIT.getOrDefault(entityType, Collections.emptyMap());
+        String unit = commodityTypes.get(commodityType);
+        if (unit == null) {
+            return getUnitForCommodityType(commodityType);
+        }
+        return unit;
     }
 
     /**
@@ -295,17 +336,15 @@ public class CommodityTypeMapping {
                                                @Nullable Integer atomicResizeTargetEntityTypeInt) {
         final CommodityType commodityType = CommodityType.forNumber(commodityTypeInt);
         try {
-            String units = getUnitForCommodityType(commodityType);
-            // Action translation converts vCPU resizes from "Mhz", which is how we represent
-            // vCPU stats, to vCPUs/millicores. We need to account for that here.
-            if (CPU_COMMODITY_TYPES.contains(commodityTypeInt)) {
-                // If resize info is container CPU commodity, set unit as "millicore".
-                if (atomicResizeTargetEntityTypeInt != null
-                    && atomicResizeTargetEntityTypeInt == CommonDTO.EntityDTO.EntityType.CONTAINER_SPEC_VALUE) {
-                    units = MILLICORE_UNIT;
-                } else {
-                    units = VCPU_UNIT;
-                }
+            String units = atomicResizeTargetEntityTypeInt != null
+                ? getUnitForEntityCommodityType(atomicResizeTargetEntityTypeInt, commodityTypeInt)
+                : getUnitForCommodityType(commodityTypeInt);
+            // Action translation converts vCPU resizes from "Mhz" to "vCPUs" if given action is not
+            // atomic resize on ContainerSpec.
+            if (CPU_COMMODITY_TYPES.contains(commodityTypeInt)
+                && (atomicResizeTargetEntityTypeInt == null
+                    || atomicResizeTargetEntityTypeInt != CommonDTO.EntityDTO.EntityType.CONTAINER_SPEC_VALUE)) {
+                units = VCPU_UNIT;
             }
             return StringUtils.isEmpty(units) ? Optional.empty() : Optional.of(units);
         } catch (IllegalArgumentException e) {

@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -697,6 +698,11 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                 }
                 continue;
             }
+
+            // This conversion is very specific to the top most and bottom most cloud native
+            // entities in the supply chain. The cloud native entities represent VCPU commodity in millicores
+            // whereas entities above them (viz Application) or below them (viz VM) represent the same in Mhz.
+            capacity =  TopologyDTOUtil.convertCapacity(entityDTO, commType, capacity);
 
             // set the values specific to each row and persist each
             double used = commodityBoughtDTO.getUsed();

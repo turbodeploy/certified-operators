@@ -52,7 +52,9 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.CntStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.snapshots.ProducerIdVisitor;
@@ -714,6 +716,126 @@ public class StatSnapshotCreatorTest {
                         .getCapacity()
                         .getTotal()));
         Assert.assertThat(CAPACITY, Matchers.is(statRecord.getCapacity().getTotal()));
+    }
+
+    /**
+     * Test commodity unit of container VCPU stat record.
+     */
+    @Test
+    public void testCommodityUnitOfContainerVCPUStatRecord() {
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+            CommodityRequest.newBuilder().setCommodityName(StringConstants.VCPU).build());
+        final CntStatsLatestRecord containerRecord = new CntStatsLatestRecord();
+        containerRecord.setSnapshotTime(SNAPSHOT_TIME);
+        containerRecord.setPropertyType(StringConstants.VCPU);
+
+        Collection<StatSnapshot> statSnapshots =
+            snapshotCreator.createStatSnapshots(Collections.singletonList(containerRecord),
+                false, commodityRequests)
+            .map(StatSnapshot.Builder::build)
+            .collect(Collectors.toList());
+        assertEquals(1, statSnapshots.size());
+        StatSnapshot statSnapshot = statSnapshots.iterator().next();
+        assertEquals(1, statSnapshot.getStatRecordsCount());
+        assertEquals("mCores", statSnapshot.getStatRecords(0).getUnits());
+    }
+
+    /**
+     * Test commodity unit of container VCPU stat record with histUtilizationRecord.
+     */
+    @Test
+    public void testCommodityUnitOfContainerVCPUStatWithHisUtilizationRecord() {
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+            CommodityRequest.newBuilder().setCommodityName(StringConstants.VCPU).build());
+        final CntStatsLatestRecord containerStatsRecord = new CntStatsLatestRecord();
+        containerStatsRecord.setSnapshotTime(SNAPSHOT_TIME);
+        containerStatsRecord.setPropertyType(StringConstants.VCPU);
+        containerStatsRecord.setPropertySubtype(USED);
+        containerStatsRecord.setRelation(COMMODITIES);
+
+        final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
+        percentileRecord.setPropertyTypeId(UICommodityType.VCPU.typeNumber());
+        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
+        percentileRecord.setCapacity(1000D);
+        percentileRecord.setCommodityKey("percentileCommodityKey");
+        percentileRecord.setPropertySlot(0);
+        percentileRecord.setValueType(HistoryUtilizationType.Percentile.ordinal());
+        percentileRecord.setProducerOid(0L);
+
+        Collection<StatSnapshot> statSnapshots =
+            snapshotCreator.createStatSnapshots(Arrays.asList(containerStatsRecord, percentileRecord),
+                false, commodityRequests)
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+        assertEquals(1, statSnapshots.size());
+        StatSnapshot statSnapshot = statSnapshots.iterator().next();
+        assertEquals(1, statSnapshot.getStatRecordsCount());
+        StatRecord statRecord = statSnapshot.getStatRecords(0);
+        // StatRecord has HistUtilization value.
+        assertEquals(1, statRecord.getHistUtilizationValueCount());
+        // VCPU unit of this container StatRecord is still "mCores".
+        assertEquals("mCores", statRecord.getUnits());
+    }
+
+    /**
+     * Test commodity unit of VM VCPU stat record.
+     */
+    @Test
+    public void testCommodityUnitOfVMVCPUStatRecord() {
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+            CommodityRequest.newBuilder().setCommodityName(StringConstants.VCPU).build());
+        final VmStatsLatestRecord vmRecord = new VmStatsLatestRecord();
+        vmRecord.setSnapshotTime(SNAPSHOT_TIME);
+        vmRecord.setPropertyType(StringConstants.VCPU);
+
+        final Collection<StatSnapshot> statSnapshots =
+            snapshotCreator.createStatSnapshots(Collections.singletonList(vmRecord),
+                false, commodityRequests)
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+        assertEquals(1, statSnapshots.size());
+        StatSnapshot statSnapshot = statSnapshots.iterator().next();
+        assertEquals(1, statSnapshot.getStatRecordsCount());
+        assertEquals("MHz", statSnapshot.getStatRecords(0).getUnits());
+    }
+
+    /**
+     * Test commodity units from full market stats record with VM and container VCPU statRecords.
+     */
+    @Test
+    public void testCommodityUnitsFromFullMarketStats() {
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+            CommodityRequest.newBuilder().setCommodityName(StringConstants.VCPU)
+                .addGroupBy(StringConstants.RELATED_ENTITY).build());
+
+        final MarketStatsLatestRecord cntMarketStatsLatestRecord = new MarketStatsLatestRecord();
+        cntMarketStatsLatestRecord.setSnapshotTime(SNAPSHOT_TIME);
+        cntMarketStatsLatestRecord.setEntityType(StringConstants.VIRTUAL_MACHINE);
+        cntMarketStatsLatestRecord.setPropertyType(StringConstants.VCPU);
+        cntMarketStatsLatestRecord.setRelation(COMMODITIES);
+
+        final MarketStatsLatestRecord vmMarketStatsLatestRecord = new MarketStatsLatestRecord();
+        vmMarketStatsLatestRecord.setSnapshotTime(SNAPSHOT_TIME);
+        vmMarketStatsLatestRecord.setEntityType(StringConstants.CONTAINER);
+        vmMarketStatsLatestRecord.setPropertyType(StringConstants.VCPU);
+        cntMarketStatsLatestRecord.setRelation(COMMODITIES);
+
+        final Collection<StatSnapshot> statSnapshots =
+            snapshotCreator.createStatSnapshots(Arrays.asList(cntMarketStatsLatestRecord, vmMarketStatsLatestRecord),
+                true, commodityRequests)
+                .map(StatSnapshot.Builder::build)
+                .collect(Collectors.toList());
+        assertEquals(1, statSnapshots.size());
+        StatSnapshot statSnapshot = statSnapshots.iterator().next();
+        assertEquals(2, statSnapshot.getStatRecordsCount());
+        final List<StatRecord> expectedStatRecords = Lists.newArrayList(
+            expectedStatRecord(StringConstants.VCPU, 1f, COMMODITIES, StringConstants.VIRTUAL_MACHINE, "MHz"),
+            expectedStatRecord(StringConstants.VCPU, 1f, COMMODITIES, StringConstants.CONTAINER, "mCores"));
+        assertStringPropertiesEqual(statSnapshot.getStatRecordsList(), expectedStatRecords,
+            StatRecord::getRelatedEntityType);
+        assertStringPropertiesEqual(statSnapshot.getStatRecordsList(), expectedStatRecords,
+            StatRecord::getUnits);
     }
 
     @Test

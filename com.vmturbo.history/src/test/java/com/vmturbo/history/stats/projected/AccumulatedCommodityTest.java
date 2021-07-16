@@ -47,14 +47,14 @@ public class AccumulatedCommodityTest {
     @Test
     public void testAccumulatedSoldCommodityEmpty() {
         final AccumulatedSoldCommodity commodity =
-                new AccumulatedSoldCommodity("commodity", null);
+                new AccumulatedSoldCommodity("commodity", null, null);
         assertFalse(commodity.toStatRecord().isPresent());
     }
 
     @Test
     public void testAccumulatedSoldCommodity() {
         final AccumulatedSoldCommodity commodity =
-                new AccumulatedSoldCommodity(COMMODITY, null);
+                new AccumulatedSoldCommodity(COMMODITY, null, null);
         SoldCommodity soldCommodity = new SoldCommodity(CommoditySoldDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
@@ -97,7 +97,7 @@ public class AccumulatedCommodityTest {
     @Test
     public void testAccumulatedBoughtCommodity() {
         final AccumulatedBoughtCommodity commodity =
-                new AccumulatedBoughtCommodity(COMMODITY);
+                new AccumulatedBoughtCommodity(COMMODITY, null);
 
         final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
@@ -139,7 +139,7 @@ public class AccumulatedCommodityTest {
     @Test
     public void testAccumulatedBoughtCommodityWithoutProvider() {
         final AccumulatedBoughtCommodity commodity =
-            new AccumulatedBoughtCommodity(COMMODITY);
+            new AccumulatedBoughtCommodity(COMMODITY, null);
 
         final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
             .setCommodityType(MEM_COMMODITY_TYPE)
@@ -176,7 +176,7 @@ public class AccumulatedCommodityTest {
     @Test
     public void testBoughtCommoditySingleProvider() {
         final AccumulatedBoughtCommodity commodity =
-                new AccumulatedBoughtCommodity(COMMODITY);
+                new AccumulatedBoughtCommodity(COMMODITY, null);
 
         final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)

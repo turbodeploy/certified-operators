@@ -13,8 +13,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
@@ -34,6 +36,7 @@ import com.vmturbo.components.common.utils.DataPacks.CommodityTypeDataPack;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.MemReporter;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
@@ -55,16 +58,22 @@ class SoldCommoditiesInfo implements MemReporter {
      * anyway.
      */
     private final Map<Integer, Map<Integer, List<Integer>>> soldCommodities;
+    /**
+     * Map from entity OID to entity type.
+     */
+    private final Map<Integer, Integer> entityIdToTypeMap;
     private final IDataPack<Long> oidPack;
     private final IDataPack<SoldCommodity> scPack;
     private final IDataPack<String> keyPack;
 
     private SoldCommoditiesInfo(
             @Nonnull final Map<Integer, Map<Integer, List<Integer>>> soldCommodities,
+            @Nonnull final Map<Integer, Integer> entityIdToTypeMap,
             @Nonnull final IDataPack<Long> oidPack,
             @Nonnull final IDataPack<String> keyPack,
             @Nonnull final IDataPack<SoldCommodity> scPack) {
         this.soldCommodities = Collections.unmodifiableMap(soldCommodities);
+        this.entityIdToTypeMap = entityIdToTypeMap;
         this.oidPack = oidPack;
         this.keyPack = keyPack;
         this.scPack = scPack;
@@ -147,7 +156,10 @@ class SoldCommoditiesInfo implements MemReporter {
                             })
                             .filter(Objects::nonNull)
                             .collect(Collectors.toList());
-            accumulateCommoditiesByKey(soldCommodityValues, commodityName, accumulatedSoldCommodities);
+            final String entityType =
+                EntityType.fromSdkEntityType(entityIdToTypeMap.getOrDefault(targetIndex, -1))
+                    .map(EntityType::getName).orElse(null);
+            accumulateCommoditiesByKey(entityType, soldCommodityValues, commodityName, accumulatedSoldCommodities);
         });
         return accumulatedSoldCommodities.values()
                 .stream()
@@ -160,18 +172,21 @@ class SoldCommoditiesInfo implements MemReporter {
     /**
      * Accumulate sold commodities with the same name by key.
      *
+     * @param entityType Given entity type to determine commodity unit.
      * @param commoditySoldList sold commodity list
      * @param commodityName commodity name
      * @param accumulatedSoldCommodities the map to collect accumulated commodities by key
      */
-    private void accumulateCommoditiesByKey(Collection<SoldCommodity> commoditySoldList, String commodityName,
-            Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities) {
+    private void accumulateCommoditiesByKey(@Nullable final String entityType,
+                                            @Nonnull final Collection<SoldCommodity> commoditySoldList,
+                                            @Nonnull final String commodityName,
+                                            @Nonnull final Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities) {
         commoditySoldList.forEach(commoditySold -> {
             final String commodityKey = commoditySold.getKey(keyPack);
             AccumulatedSoldCommodity accumulatedSoldCommodity =
                     accumulatedSoldCommodities.computeIfAbsent(
                             commodityKey == null ? "empty_key" : commodityKey,
-                            k -> new AccumulatedSoldCommodity(commodityName, commodityKey));
+                            k -> new AccumulatedSoldCommodity(commodityName, commodityKey, entityType));
             accumulatedSoldCommodity.recordSoldCommodity(commoditySold);
         });
     }
@@ -276,6 +291,10 @@ class SoldCommoditiesInfo implements MemReporter {
         // commodity type -> seller oid -> sold Commodities
         private final Map<Integer, Map<Integer, List<Integer>>> soldCommodities =
                 new Int2ObjectOpenHashMap<>();
+        /**
+         * Map from entity OID to entity type.
+         */
+        private final Map<Integer, Integer> entityIdToTypeMap = new Int2IntOpenHashMap();
 
         /**
          * Track duplicate commodities sold by the same seller. We keep this map separate from the
@@ -301,6 +320,7 @@ class SoldCommoditiesInfo implements MemReporter {
 
         @Nonnull
         Builder addEntity(@Nonnull final TopologyEntityDTO entity) {
+            entityIdToTypeMap.put(oidPack.toIndex(entity.getOid()), entity.getEntityType());
             entity.getCommoditySoldListList().forEach(commoditySold -> {
                 // Enforce commodity exclusions.
                 final int commType = commoditySold.getCommodityType().getType();
@@ -328,7 +348,7 @@ class SoldCommoditiesInfo implements MemReporter {
                     .forEach(list -> ((IntArrayList)list).trim());
             scPack.freeze(true);
             commodityTypePack.clear();
-            return new SoldCommoditiesInfo(soldCommodities, oidPack, keyPack, scPack);
+            return new SoldCommoditiesInfo(soldCommodities, entityIdToTypeMap, oidPack, keyPack, scPack);
         }
 
         /**

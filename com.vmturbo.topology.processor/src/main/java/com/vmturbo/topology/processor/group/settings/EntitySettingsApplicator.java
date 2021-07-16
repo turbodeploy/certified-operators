@@ -1128,63 +1128,15 @@ public class EntitySettingsApplicator {
                     Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodity.getCommodityType().getType());
                     Set<ConfigurableActionSettings> validActionModeSettings = actionModeSettingsMapping.get(commodity.getCommodityType().getType());
                     if (CPU_COMMODITY_TYPES.contains(commodity.getCommodityType().getType())) {
-                        // User configured VCPU/VCPURequest thresholds are in millicores and market
-                        // analysis needs CPU commodity in MHz, convert the value in millicores to MHz
-                        // based on CPU speed.
-                        // Calculate CPU speed by dividing number of CPUs of the provider VM by VM
-                        // CPU capacity in MHz.
-                        Optional<TopologyEntity> containerPod = graph.getProviders(entity.getOid())
-                            .filter(provider -> provider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-                            .findFirst();
-                        if (!containerPod.isPresent()) {
-                            // Set log level to debug because there could be proxy containers discovered from
-                            // application targets like AppDynamics. Proxy containers have no pods and not
-                            // able to be resized.
-                            logger.debug("Failed to set {} commodity threshold for container {} because provider container pod is not found.",
-                                () -> CommodityType.forNumber(commodity.getCommodityType().getType()), entity::getDisplayName);
-                            return;
-                        }
-                        Optional<TopologyEntity> vm = graph.getProviders(containerPod.get().getOid())
-                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                                .findFirst();
-                        if (!vm.isPresent()) {
-                            logger.error("Failed to set {} commodity threshold for container {} because provider VM is not found.",
-                                CommodityType.forNumber(commodity.getCommodityType().getType()), entity.getDisplayName());
-                            return;
-                        }
-                        double cpuSpeedPerMillicore = vmToCPUSpeedPerMillicoreMap.computeIfAbsent(vm.get().getOid(),
-                            k -> getCpuSpeedPerMillicoreFromVM(vm.get().getTopologyEntityDtoBuilder(), entity, commodity));
-                        if (cpuSpeedPerMillicore > 0) {
-                            // Only set thresholds if cpuSpeedPerMillicore is larger than 0.
-                            setThresholds(entity, validSpecs, validActionModeSettings, settings, commodity, cpuSpeedPerMillicore);
-                        }
+                        // As container VCPU/VCPURequest commodities capacity values are in millicores
+                        // sent from kubeturbo and given CPU related setting values are in millicores
+                        // as well, we don't need to translate setting values and just use multiplier
+                        // as 1.
+                        setThresholds(entity, validSpecs, validActionModeSettings, settings, commodity, 1);
                     } else if (MEM_COMMODITY_TYPES.contains(commodity.getCommodityType().getType())) {
                         setThresholds(entity, validSpecs, validActionModeSettings, settings, commodity, conversionFactor);
                     }
                 });
-        }
-
-        private double getCpuSpeedPerMillicoreFromVM(@Nonnull TopologyEntityDTO.Builder vm,
-                                                     @Nonnull TopologyEntityDTO.Builder container,
-                                                     @Nonnull CommoditySoldDTO.Builder commodity) {
-            if (vm.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
-                int numCPUCores = vm.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
-                Optional<CommoditySoldDTO> cpuComm = vm.getCommoditySoldListList().stream()
-                    .filter(comm -> comm.getCommodityType().getType() == CommodityType.VCPU_VALUE)
-                    .findFirst();
-                if (!cpuComm.isPresent()) {
-                    logger.error("Failed to set {} commodity threshold for container {} because provider VM {} has no VCPU commodity.",
-                        CommodityType.forNumber(commodity.getCommodityType().getType()), container.getDisplayName(), vm.getDisplayName());
-                    return 0;
-                }
-                // VCPU/VCPURequest threshold settings for containers are in millicores, so
-                // use CPU speed per millicore as multiplier when setting thresholds.
-                return cpuComm.get().getCapacity() / (numCPUCores * 1000);
-            } else {
-                logger.error("Failed to set {} commodity threshold for container {} because numCPUs is not found from VM {}.",
-                    CommodityType.forNumber(commodity.getCommodityType().getType()), container.getDisplayName(), vm.getDisplayName());
-                return 0;
-            }
         }
 
         /**

@@ -21,7 +21,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -127,62 +126,6 @@ public class ResizeInterpreterTest {
         assertThat(resize.get().getCommodityType(), is(topologyCommType));
         assertThat(resize.get().getNewCapacity(), is(21.0f));
         assertThat(resize.get().getOldCapacity(), is(10.0f));
-    }
-
-    /**
-     * Interpret a container VCPURequest resize. Convert MhZ to cores using information on the associated VM.
-     */
-    @Test
-    public void testInterpretContainerVcpuResize() {
-        CommoditySpecificationTO commSpec = CommoditySpecificationTO.newBuilder()
-                .setType(UICommodityType.VCPU_REQUEST.typeNumber())
-                .setBaseType(UICommodityType.VCPU_REQUEST.typeNumber())
-                .build();
-        CommodityType topologyCommType = CommodityType.newBuilder()
-                .setType(UICommodityType.VCPU.typeNumber())
-                .build();
-        when(commodityConverter.marketToTopologyCommodity(commSpec)).thenReturn(Optional.of(topologyCommType));
-        final long vmId = 7;
-        addEntity(vmId, ApiEntityType.VIRTUAL_MACHINE, eBldr -> {
-            eBldr.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setNumCpus(10)
-                            .build())
-                    .build());
-            eBldr.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(topologyCommType)
-                    // 100 mhz per CPU core
-                    // 0.1 mhz per CPU millicore
-                    .setCapacity(1000)
-                    .build());
-        }, t -> { });
-        final long containerPodId = 8;
-        addEntity(containerPodId, ApiEntityType.CONTAINER_POD, eBldr -> {
-            eBldr.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(vmId)
-                    .setProviderEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                    .build());
-        }, t -> { });
-        final long containerId = 9;
-        addEntity(containerId, ApiEntityType.CONTAINER, eBldr -> {
-            eBldr.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(containerPodId)
-                    .setProviderEntityType(ApiEntityType.CONTAINER_POD.typeNumber())
-                    .build());
-        }, t -> { });
-        when(commodityIndex.getCommSold(containerId, topologyCommType)).thenReturn(Optional.empty());
-        ResizeTO resizeTO = ResizeTO.newBuilder()
-                .setSellingTrader(containerId)
-                .setOldCapacity(10)
-                .setNewCapacity(20)
-                .setSpecification(commSpec)
-                .build();
-
-        final Optional<Resize> resize = resizeInterpreter.interpret(resizeTO, projectedTopology);
-        assertThat(resize.get().getCommodityType(), is(topologyCommType));
-        // 10mhz -> 20 mhz is 100 millicores to 200 millicores
-        assertThat(resize.get().getOldCapacity(), is(100.0f));
-        assertThat(resize.get().getNewCapacity(), is(200.0f));
     }
 
     /**

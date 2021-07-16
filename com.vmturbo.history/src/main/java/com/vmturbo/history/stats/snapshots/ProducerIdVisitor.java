@@ -154,7 +154,8 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
          * @param newProviderId provider id to record
          */
         public void newProviderId(Long newProviderId) {
-            isMultiple = !isEmpty && !Objects.equals(providerId, newProviderId);
+            // Make sure isMultiple is properly updated when given records have multiple providerId.
+            isMultiple = isMultiple || !isEmpty && !Objects.equals(providerId, newProviderId);
             isEmpty = false;
             providerId = newProviderId;
         }

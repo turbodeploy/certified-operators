@@ -4,6 +4,8 @@
 
 package com.vmturbo.history.stats.snapshots;
 
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
@@ -14,11 +16,13 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
+import org.jooq.TableField;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.Builder;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor.PropertyInformation;
 
 /**
@@ -89,7 +93,38 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                                 ? null
                                 : RecordVisitor.getFieldValue(
                                         record, StringConstants.COMMODITY_KEY, String.class);
-        state.newRecord(propertyTypeToString.apply(rawValue), key);
+        state.newRecord(getEntityType(record), propertyTypeToString.apply(rawValue), key);
+    }
+
+    /**
+     * Get entity type from given record.
+     *
+     * @param record Given DB record.
+     * @return Entity type related to the given record.
+     */
+    @Nullable
+    private String getEntityType(@Nonnull Record record) {
+        // If isFullMarket is true, the given record could be from `market_stats` table and get
+        // entity type value from the entity_type field.
+        // Return null if entity_type field doesn't exist. In this case, the record could be from
+        // `hist_utilization` table.
+        if (isFullMarket) {
+            return RecordVisitor.getFieldValue(record, StringConstants.ENTITY_TYPE, String.class);
+        }
+        // Otherwise, the given record could be from entity stats table and get entity type from the
+        // stats table name.
+        // Return null if entity type cannot be retrieved based on table name. In this case, the
+        // record could be from `hist_utilization` table.
+        return Arrays.stream(record.fields())
+            .filter(TableField.class::isInstance)
+            .map(TableField.class::cast)
+            .map(TableField::getTable)
+            .map(EntityType::fromTable)
+            .filter(Optional::isPresent)
+            .findFirst()
+            .map(Optional::get)
+            .map(EntityType::getName)
+            .orElse(null);
     }
 
     @Override
@@ -135,7 +170,8 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                 if (whetherToSet(builder.hasName(), record)) {
                     builder.setName(propertyType);
                 }
-                final String commodityTypeUnits = getCommodityTypeUnits(propertyType);
+                final String commodityTypeUnits =
+                    getCommodityTypeUnits(propertyInformation.getRelatedEntityType(), propertyType);
                 if (commodityTypeUnits != null && (whetherToSet(builder.hasUnits(), record))) {
                     builder.setUnits(commodityTypeUnits);
                 }
@@ -149,9 +185,10 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
         }
 
         @Nullable
-        private static String getCommodityTypeUnits(@Nonnull String propertyType) {
+        private static String getCommodityTypeUnits(@Nullable final String entityType,
+                                                    @Nonnull final String propertyType) {
             final String commodityTypeUnits =
-                            CommodityTypeUnits.unitFromString(propertyType);
+                            CommodityTypeUnits.unitFromEntityAndCommodityType(entityType, propertyType, false);
             if (commodityTypeUnits != null) {
                 return commodityTypeUnits;
             }
@@ -163,7 +200,7 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                  */
                 final String removedCurrentPrefix = propertyType.substring(
                                 StringConstants.STAT_PREFIX_CURRENT.length());
-                return CommodityTypeUnits.unitFromStringIgnoreCase(removedCurrentPrefix);
+                return CommodityTypeUnits.unitFromEntityAndCommodityType(entityType, removedCurrentPrefix, true);
             }
             return null;
         }
@@ -180,6 +217,7 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
 
         private boolean isEmpty = true;
         private boolean multipleKeys = false;
+        private String relatedEntityType;
         private String propertyType;
         private String key;
 
@@ -193,21 +231,24 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
          * Create a {@link PropertyInformation} object and pass it a property type
          * and (possibly) a key.
          *
+         * @param relatedEntityType Related entity type.
          * @param propertyType property type
          * @param key optional commodity key
          */
-        public PropertyInformation(@Nonnull String propertyType, @Nullable String key) {
-            newRecord(propertyType, key);
+        public PropertyInformation(@Nullable String relatedEntityType, @Nonnull String propertyType, @Nullable String key) {
+            newRecord(relatedEntityType, propertyType, key);
         }
 
         /**
          * Record one commodity name and a key.
          *
+         * @param relatedEntityType Related entity type.
          * @param propertyType property type
          * @param key key
          */
-        public void newRecord(@Nonnull String propertyType, @Nullable String key) {
+        public void newRecord(@Nullable String relatedEntityType, @Nonnull String propertyType, @Nullable String key) {
             if (isEmpty) {
+                this.relatedEntityType = relatedEntityType;
                 this.propertyType = propertyType;
                 this.key = key;
                 isEmpty = false;
@@ -226,6 +267,16 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                 this.key = null;
             }
 
+        }
+
+        /**
+         * Get related entity type of this PropertyInformation.
+         *
+         * @return Related entity type of this PropertyInformation. Return null if not exists.
+         */
+        @Nullable
+        public String getRelatedEntityType() {
+            return relatedEntityType;
         }
 
         /**

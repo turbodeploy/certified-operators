@@ -31,6 +31,11 @@ abstract class AccumulatedCommodity {
 
     private final String commodityName;
     private final String commodityKey;
+    /**
+     * Entity type for this AccumulatedCommodity if it's from entities of same entity type. This is
+     * used to determine commodity unit when building StatRecord.
+     */
+    private final String entityType;
 
     private boolean empty = true;
 
@@ -39,10 +44,13 @@ abstract class AccumulatedCommodity {
      *
      * @param commodityName commodity name
      * @param commodityKey commodity key
+     * @param entityType Given entity type.
      */
-    protected AccumulatedCommodity(@Nonnull final String commodityName, @Nullable final String commodityKey) {
+    protected AccumulatedCommodity(@Nonnull final String commodityName, @Nullable final String commodityKey,
+                                   @Nullable final String entityType) {
         this.commodityName = commodityName;
         this.commodityKey = commodityKey;
+        this.entityType = entityType;
     }
 
     @Nonnull
@@ -78,7 +86,8 @@ abstract class AccumulatedCommodity {
                 .setUsage(statValue).setCapacity(capacityStatValue)
                 .build());
 
-        final String commodityTypeUnit = CommodityTypeUnits.unitFromString(commodityName);
+        final String commodityTypeUnit =
+            CommodityTypeUnits.unitFromEntityAndCommodityType(entityType, commodityName, false);
         if (commodityTypeUnit != null) {
             builder.setUnits(commodityTypeUnit);
         }
@@ -122,8 +131,8 @@ abstract class AccumulatedCommodity {
          */
         private Set<Long> providers = new HashSet<>();
 
-        AccumulatedBoughtCommodity(@Nonnull final String commodityName) {
-            super(commodityName, null);
+        AccumulatedBoughtCommodity(@Nonnull final String commodityName, @Nullable final String entityType) {
+            super(commodityName, null, entityType);
         }
 
         /**
@@ -167,9 +176,9 @@ abstract class AccumulatedCommodity {
      */
     static class AccumulatedSoldCommodity extends AccumulatedCommodity {
 
-        AccumulatedSoldCommodity(@Nonnull final String commodityName,
-                @Nullable final String commodityKey) {
-            super(commodityName, commodityKey);
+        AccumulatedSoldCommodity(@Nonnull final String commodityName, @Nullable final String commodityKey,
+                                 @Nullable final String entityType) {
+            super(commodityName, commodityKey, entityType);
         }
 
         /**
@@ -204,7 +213,7 @@ abstract class AccumulatedCommodity {
 
         AccumulatedCalculatedCommodity(@Nonnull final String commodityName,
                 @Nullable final String commodityKey) {
-            super(commodityName, commodityKey);
+            super(commodityName, commodityKey, null);
         }
 
         /**

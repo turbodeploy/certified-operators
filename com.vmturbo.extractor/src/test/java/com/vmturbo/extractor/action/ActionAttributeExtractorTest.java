@@ -382,7 +382,7 @@ public class ActionAttributeExtractorTest {
 
         assertThat(resizeInfo2.getFrom(), is(500f));
         assertThat(resizeInfo2.getTo(), is(400f));
-        assertThat(resizeInfo2.getUnit(), is("millicore"));
+        assertThat(resizeInfo2.getUnit(), is("mCores"));
         assertThat(resizeInfo2.getTarget().getOid(), is(containerSpec1));
         assertThat(resizeInfo2.getAttribute(), is(CommodityAttribute.CAPACITY.name()));
     }
@@ -739,7 +739,7 @@ public class ActionAttributeExtractorTest {
 
         assertThat(change2.getFrom(), is(500F));
         assertThat(change2.getTo(), is(400F));
-        assertThat(change2.getUnit(), is("millicore"));
+        assertThat(change2.getUnit(), is("mCores"));
         assertThat(change2.getAttribute(), is("CAPACITY"));
         assertThat(change2.getTarget().getOid(), is(containerSpec1));
         assertThat(change2.getTarget().getName(), is(String.valueOf(containerSpec1)));

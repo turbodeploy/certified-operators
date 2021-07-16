@@ -15,10 +15,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.protobuf.TextFormat;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
@@ -37,6 +39,7 @@ import com.vmturbo.components.common.utils.DataPacks;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.IDataPack;
 import com.vmturbo.components.common.utils.MemReporter;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -79,12 +82,18 @@ class BoughtCommoditiesInfo implements MemReporter {
     // data pack of entity oids
     private final IDataPack<Long> oidPack;
     private final IDataPack<BoughtCommodity> cbPack;
+    /**
+     * Map of packed entity ID to entity type.
+     */
+    private final Map<Integer, Integer> entityIdToTypeMap;
 
     private BoughtCommoditiesInfo(@Nonnull final SoldCommoditiesInfo soldCommoditiesInfo,
             @Nonnull final Map<Integer, Map<Integer, List<Long>>> boughtCommodities,
-            IDataPack<Long> oidPack, @Nonnull final IDataPack<BoughtCommodity> cbPack) {
+            @Nonnull final Map<Integer, Integer> entityIdToTypeMap,
+            @Nonnull final IDataPack<Long> oidPack, @Nonnull final IDataPack<BoughtCommodity> cbPack) {
         this.boughtCommodities = Collections.unmodifiableMap(boughtCommodities);
         this.soldCommoditiesInfo = soldCommoditiesInfo;
+        this.entityIdToTypeMap = entityIdToTypeMap;
         this.oidPack = oidPack;
         this.cbPack = cbPack;
     }
@@ -141,9 +150,10 @@ class BoughtCommoditiesInfo implements MemReporter {
         final int commodityTypeNo = UICommodityType.fromString(commodityName).sdkType().getNumber();
         final Map<Integer, List<Long>> boughtByEntities =
                 boughtCommodities.get(commodityTypeNo);
+        final String entityType = getEntityType(targetEntities);
         // allocate return record; it'll be returned with zeros if there are no buys
         final AccumulatedBoughtCommodity overallCommoditiesBought =
-                new AccumulatedBoughtCommodity(commodityName);
+                new AccumulatedBoughtCommodity(commodityName, entityType);
         if (boughtByEntities != null) {
             Collection<Integer> targetIndexes = targetEntities.isEmpty() ? boughtByEntities.keySet()
                     : getEntityIndexes(targetEntities);
@@ -181,6 +191,27 @@ class BoughtCommoditiesInfo implements MemReporter {
             }
         }
         return overallCommoditiesBought.toStatRecord();
+    }
+
+    /**
+     * Get entity type from given set of target entity IDs. Return the entity type if given entities
+     * have same entity type; otherwise return null. The entity type will be used to determine
+     * commodity unit for a given commodity type. For example, VM VCPU commodity unit is "MHz",
+     * while container VCPU commodity unit is "mCores".
+     *
+     * @param targetEntities Given set of target entity IDs.
+     * @return Entity type if all entities have same type, otherwise return null.
+     */
+    @Nullable
+    private String getEntityType(@Nonnull final Set<Long> targetEntities) {
+        final Set<Integer> entityTypes = targetEntities.stream()
+            .map(oidPack::toIndex)
+            .map(entityIdToTypeMap::get)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        return entityTypes.size() == 1
+            ? EntityType.fromSdkEntityType(entityTypes.iterator().next()).map(EntityType::getName).orElse(null)
+            : null;
     }
 
     private List<Integer> getEntityIndexes(Collection<Long> providerOids) {
@@ -263,6 +294,11 @@ class BoughtCommoditiesInfo implements MemReporter {
         private final Set<Integer> excludedCommodityTypeNos;
         IDataPack<BoughtCommodity> bcPack = new DataPack<>();
 
+        /**
+         * Map of packed entity ID to entity type.
+         */
+        private final Map<Integer, Integer> entityIdToTypeMap = new Int2IntOpenHashMap();
+
         private Builder(Set<CommodityType> excludedCommodityTypes,
                 IDataPack<String> commodityNamePack, IDataPack<Long> oidPack) {
             this.excludedCommodityTypeNos = excludedCommodityTypes.stream()
@@ -286,6 +322,7 @@ class BoughtCommoditiesInfo implements MemReporter {
             // buy from the same provider.
             entity.getCommoditiesBoughtFromProvidersList()
                     .forEach(cbfp -> addCBFP(cbfp, entity));
+            entityIdToTypeMap.put(oidPack.toIndex(entity.getOid()), entity.getEntityType());
             return this;
         }
 
@@ -351,7 +388,8 @@ class BoughtCommoditiesInfo implements MemReporter {
             bcPack.freeze(true);
             duplicateCommoditiesBought.clear();
             ((Int2ObjectOpenHashMap<?>)duplicateCommoditiesBought).trim();
-            return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities, oidPack, bcPack);
+            return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities,
+                entityIdToTypeMap, oidPack, bcPack);
         }
 
         @Override

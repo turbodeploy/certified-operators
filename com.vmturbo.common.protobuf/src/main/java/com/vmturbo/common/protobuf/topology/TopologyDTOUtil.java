@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -556,10 +557,8 @@ public final class TopologyDTOUtil {
             case VIRTUAL_MACHINE:
                 VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
                 return createActionVmInfo(vmInfo)
-                        .map(actionVmInfo -> {
-                            getCPUCoreMhz(topologyEntity).ifPresent(actionVmInfo::setCpuCoreMhz);
-                            return ActionEntityTypeSpecificInfo.newBuilder().setVirtualMachine(actionVmInfo);
-                        });
+                        .map(actionVmInfo -> ActionEntityTypeSpecificInfo.newBuilder()
+                                .setVirtualMachine(actionVmInfo));
             case PHYSICAL_MACHINE:
                 if (typeSpecificInfo.getPhysicalMachine().hasCpuCoreMhz()) {
                     return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
@@ -609,7 +608,7 @@ public final class TopologyDTOUtil {
      * @param topologyEntity Given topology entity DTO or builder of VM.
      * @return CPU speed in MHz/core for given VM.
      */
-    private static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
+    public static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
         if (topologyEntity.getEntityState() != EntityState.UNKNOWN
             && topologyEntity.hasTypeSpecificInfo()
             && topologyEntity.getTypeSpecificInfo().hasVirtualMachine()
@@ -700,5 +699,35 @@ public final class TopologyDTOUtil {
      */
     public static String formatPlanLogPrefix(long planId) {
         return String.format("|%s|: ", planId);
+    }
+
+    /**
+     * Helper to convert the capacity values between millicore and Mhz depending on the typeSpecificInfo.
+     *
+     * @param entityDTO the entity for which to convert capacity
+     * @param commType the type of commodity being processed
+     * @param value the value to convert from millicore to Mhz or Mhz to millicore based
+     *              on typeSpecificInfo
+     * @return the converted value
+     */
+    public static double convertCapacity(@Nonnull final TopologyEntityDTO entityDTO,
+                                         int commType, double value) {
+        if ((commType != CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE)
+                || ((entityDTO.getEntityType() != CommonDTO.EntityDTO.EntityType.APPLICATION_COMPONENT_VALUE)
+                && (entityDTO.getEntityType() != CommonDTO.EntityDTO.EntityType.CONTAINER_POD_VALUE))
+                || !entityDTO.hasTypeSpecificInfo()) {
+            return value;
+        }
+
+        // The capacity values comes from Container sold commodity (millicore) for Application
+        // and VM sold commodity (Mhz) for ContainerPod.
+        if (entityDTO.getTypeSpecificInfo().hasApplication() && entityDTO.getTypeSpecificInfo()
+                .getApplication().hasHostingNodeCpuFrequency()) {
+            value = value * entityDTO.getTypeSpecificInfo().getApplication().getHostingNodeCpuFrequency() / 1000;
+        } else if (entityDTO.getTypeSpecificInfo().hasContainerPod() && entityDTO.getTypeSpecificInfo()
+                .getContainerPod().hasHostingNodeCpuFrequency()) {
+            value = value * 1000 / entityDTO.getTypeSpecificInfo().getContainerPod().getHostingNodeCpuFrequency();
+        }
+        return value;
     }
 }

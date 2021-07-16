@@ -304,11 +304,47 @@ public class ProjectedContainerClusterPostProcessor extends ProjectedEntityPostP
                     int commodityType = comm.getCommodityType().getType();
                     AggregatedResourceData aggregatedResource =
                         aggregatedResources.computeIfAbsent(commodityType, v -> new AggregatedResourceData());
-                    aggregatedResource.setUsed(aggregatedResource.getUsed() + comm.getUsed());
-                    aggregatedResource.setCapacity(aggregatedResource.getCapacity() + comm.getCapacity());
+
+                    if (commodityType == CommodityType.VCPU_VALUE) {
+                        // For VCPU commodity, VM VCPU capacity and used values are in MHz, while
+                        // we need to show millicore values for projected ContainerCluster to be
+                        // consistent with current CPU values in millicores discovered from kubeturbo
+                        // probe.
+                        // Aggregate number of CPUs in millicores from VMs as projected VCPU capacity
+                        // and calculate used VCPU from MHz to millicores based on VM CPU speed.
+                        getVMCPUCapacityInMillicores(projectedVM).ifPresent(vmCPUMillicores -> {
+                            // VM CPU speed MHz/millicore
+                            double vmCPUSpeed = comm.getCapacity() / vmCPUMillicores;
+                            aggregatedResource.setUsed(aggregatedResource.getUsed() + comm.getUsed() / vmCPUSpeed);
+                            aggregatedResource.setCapacity(aggregatedResource.getCapacity() + vmCPUMillicores);
+                        });
+                    } else {
+                        aggregatedResource.setUsed(aggregatedResource.getUsed() + comm.getUsed());
+                        aggregatedResource.setCapacity(aggregatedResource.getCapacity() + comm.getCapacity());
+                    }
                 });
         }
         return aggregatedResources;
+    }
+
+    /**
+     * Get VM CPU capacity in millicores from given projected VM. The value will be aggregated as
+     * projected VCPU capacity in millicoroes for projected ContainerCluster.
+     * <p/>
+     * Note that numCpus value is always in cores from VM type-specific info and VM type-specific
+     * info is just copied from original VM to projected one. It's still correct to use original
+     * numCpus value as projected VCPU capacity because VMs that host containers are not resizable.
+     *
+     * @param projectedVM Given projected VM.
+     * @return Optional of VM CPU capacity in millicores.
+     */
+    private Optional<Integer> getVMCPUCapacityInMillicores(@Nonnull final ProjectedTopologyEntity projectedVM) {
+        if (projectedVM.getEntity().hasTypeSpecificInfo()
+            && projectedVM.getEntity().getTypeSpecificInfo().hasVirtualMachine()
+            && projectedVM.getEntity().getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+            return Optional.of(projectedVM.getEntity().getTypeSpecificInfo().getVirtualMachine().getNumCpus() * 1000);
+        }
+        return Optional.empty();
     }
 
     @VisibleForTesting

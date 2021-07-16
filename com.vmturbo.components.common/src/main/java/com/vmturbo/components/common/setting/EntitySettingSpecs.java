@@ -24,6 +24,7 @@ import org.apache.commons.lang3.EnumUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -90,20 +91,23 @@ public enum EntitySettingSpecs {
     /**
      * The minimum number of VCPU request millicores which is the threshold to decide automation mode.
      */
-    ResizeVcpuRequestMinThreshold("resizeVcpuRequestMinThreshold", "VCPU Request Resize Min Threshold (in millicores)",
+    ResizeVcpuRequestMinThreshold("resizeVcpuRequestMinThreshold",
+        String.format("VCPU Request Resize Min Threshold (in %s)", CommodityTypeMapping.CPU_MILLICORE),
         Collections.emptyList(), SettingTiebreaker.BIGGER,
         EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 10), true),
     /**
      * The minimum number of VCPU limit millicores which is the threshold to decide automation mode.
      */
-    ResizeVcpuLimitMinThreshold("resizeVcpuLimitMinThreshold", "VCPU Limit Resize Min Threshold (in millicores)",
+    ResizeVcpuLimitMinThreshold("resizeVcpuLimitMinThreshold",
+        String.format("VCPU Limit Resize Min Threshold (in %s)", CommodityTypeMapping.CPU_MILLICORE),
         Collections.emptyList(), SettingTiebreaker.BIGGER,
         EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 500), true),
 
     /**
      * The maximum number of VCPU limit millicores which is the threshold to decide automation mode.
      */
-    ResizeVcpuLimitMaxThreshold("resizeVcpuLimitMaxThreshold", "VCPU Limit Resize Max Threshold (in millicores)",
+    ResizeVcpuLimitMaxThreshold("resizeVcpuLimitMaxThreshold",
+        String.format("VCPU Limit Resize Max Threshold (in %s)", CommodityTypeMapping.CPU_MILLICORE),
         Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 64000), true),
 
@@ -581,7 +585,9 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment for containers.
      */
-    ContainerSpecVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU Limit and VCPU Request [MHz]",
+    ContainerSpecVcpuIncrement("usedIncrement_Container_VCPU",
+        String.format("Increment constant for VCPU Limit and VCPU Request [%s]",
+            CommodityTypeMapping.CPU_MILLICORE),
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER_SPEC),
             numeric(0.0f, 1000000.0f, 100.0f), true),

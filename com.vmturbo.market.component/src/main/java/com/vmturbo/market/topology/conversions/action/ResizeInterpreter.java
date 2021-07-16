@@ -1,25 +1,19 @@
 package com.vmturbo.market.topology.conversions.action;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -38,19 +32,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Resize, ResizeExplanation> {
 
     private final Map<Long, TopologyEntityDTO> originalTopology;
-
-    /**
-     * Entity types that support CPU resize translation.
-     */
-    private static final Set<Integer> ENTITY_TYPES = ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE,
-                                                                     EntityType.CONTAINER_VALUE);
-
-    /**
-     * CPU commodity types that support translation from MHz to number of CPUs.
-     */
-    private static final Set<Integer> CPU_COMMODITY_TYPES =
-            ImmutableSet.of(CommodityDTO.CommodityType.VCPU_VALUE,
-                            CommodityDTO.CommodityType.VCPU_REQUEST_VALUE);
 
     /**
      * Create a new interpreter in the context of a specific topology.
@@ -92,25 +73,17 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
         double oldCapacity = TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
         double newCapacity = TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(), originalCommoditySold, CommoditySoldDTO::getScalingFactor);
 
-        // Convert from MHz to cores or millicores when needed
-        if (ENTITY_TYPES.contains(projectedEntity.getEntityType())
-                && CPU_COMMODITY_TYPES.contains(topologyCommodityType.getType())) {
+        // Convert VCPU from MHz to cores for virtual machine
+        if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && topologyCommodityType.getType() == CommodityDTO.CommodityType.VCPU_VALUE) {
             final TopologyEntityDTO originalEntity = originalTopology.get(entityId);
             if (originalEntity == null) {
                 return Optional.empty();
             }
-            double cpuSpeedMhz;
-            if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
-                // We don't have to find the sold commodities on the original entities, because it
-                // should be identical to the "old" capacity.
-                final int numCores = Math.max(originalEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus(), 1);
-                cpuSpeedMhz = oldCapacity / numCores;
-            } else {
-                // TODO: Remove this when switching container vCPU to millicores end-to-end.
-                TopologyEntityDTO vm = getVmFromContainer(originalEntity);
-                // Containers are in millicores, which is number of cores / 1000.
-                cpuSpeedMhz = getVmCpuSpeedMhz(vm) / 1000;
-            }
+            // We don't have to find the sold commodities on the original entities, because it
+            // should be identical to the "old" capacity.
+            final int numCores = Math.max(originalEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus(), 1);
+            final double cpuSpeedMhz = oldCapacity / numCores;
             if (cpuSpeedMhz == 0.0) {
                 // If we can't get the CPU speed we can't interpret the resize, so discard it.
                 return Optional.empty();
@@ -265,35 +238,5 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                     resizeBuilder.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
                 }
             });
-    }
-
-    @Nullable
-    private TopologyEntityDTO getVmFromContainer(final TopologyEntityDTO container) {
-        return container.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(c -> c.getProviderEntityType() == ApiEntityType.CONTAINER_POD.typeNumber())
-            .map(boughtFromPod -> originalTopology.get(boughtFromPod.getProviderId()))
-            .filter(Objects::nonNull)
-            .flatMap(containerPod -> containerPod.getCommoditiesBoughtFromProvidersList().stream())
-            .filter(c -> c.getProviderEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .map(boughtFromVm -> originalTopology.get(boughtFromVm.getProviderId()))
-            .filter(Objects::nonNull)
-            .findFirst()
-            .orElse(null);
-    }
-
-    private double getVmCpuSpeedMhz(@Nullable final TopologyEntityDTO vm) {
-        if (vm == null) {
-            return 0.0;
-        }
-
-        return vm.getCommoditySoldListList().stream()
-            .filter(commoditySoldDTO -> commoditySoldDTO.getCommodityType().getType() == UICommodityType.VCPU .typeNumber())
-            .findFirst()
-            .map(vcpuSold -> {
-                // The total vCPU capacity in MhZ / num vCPUS = MhZ per vCPU.
-                final double capacityMhz = vcpuSold.getCapacity();
-                final int numCores = Math.max(vm.getTypeSpecificInfo().getVirtualMachine().getNumCpus(), 1);
-                return capacityMhz / numCores;
-            }).orElse(0.0);
     }
 }

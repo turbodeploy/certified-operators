@@ -27,16 +27,18 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -45,6 +47,8 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.CloudNativeVMCpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.HostCpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 public class CpuScalingFactorPostStitchingOperationTest {
@@ -58,8 +62,10 @@ public class CpuScalingFactorPostStitchingOperationTest {
     private static final String TEST_CPU_MODEL = "cpu-model-1";
 
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
-    private final CpuScalingFactorPostStitchingOperation operation =
-            spy(new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, true));
+    private final HostCpuScalingFactorPostStitchingOperation hostOperation =
+        spy(new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore, true));
+    private final CloudNativeVMCpuScalingFactorPostStitchingOperation vmOperation =
+        spy(new CloudNativeVMCpuScalingFactorPostStitchingOperation(true));
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -162,7 +168,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
 
         // Act
         final TopologicalChangelog<TopologyEntity> changeLog =
-                operation.performOperation(Stream.of(pm1.build(), vm1.build(), app1.build()),
+                hostOperation.performOperation(Stream.of(pm1.build(), vm1.build(), app1.build()),
                         settingsMock, resultBuilder);
         changeLog.getChanges().forEach(change -> change.applyChange(journal));
         // Assert
@@ -219,7 +225,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO expectedPodVcpuComm = vcpuComm.toBuilder()
             .build();
 
-        operation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostOperation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
         assertEquals(1, containerCommSoldList.size());
@@ -307,7 +313,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
                 .setScalingFactor(CPU_SCALE_FACTOR)
                 .build();
 
-        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostOperation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         assertSelling(container, expectedVcpuComm, expectedVcpuRequestComm);
         assertBuying(container, expectedVcpuBoughtComm, expectedVcpuRequestBoughtComm);
@@ -381,16 +387,16 @@ public class CpuScalingFactorPostStitchingOperationTest {
         });
 
         final LongOpenHashSet visited = new LongOpenHashSet();
-        operation.updateScalingFactorForEntity(pod1.build(), 2.0, visited);
-        operation.updateScalingFactorForEntity(pod2.build(), 3.0, visited);
-        operation.updateScalingFactorForEntity(pod3.build(), 1.0, visited);
+        hostOperation.updateScalingFactorForEntity(pod1.build(), 2.0, visited);
+        hostOperation.updateScalingFactorForEntity(pod2.build(), 3.0, visited);
+        hostOperation.updateScalingFactorForEntity(pod3.build(), 1.0, visited);
         assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(3.0).build());
 
         // Verify that we do not propagate multiple updates back to the pods or workload
         // controllers. Doing so can cause a big performance hit in large topologies
         // with lots of container entities.
         Stream.of(pod1, wc1, pod2, wc2, pod3, wc3).forEach(entity -> {
-            verify(operation, times(1))
+            verify(hostOperation, times(1))
                 .updateScalingFactorForEntity(eq(entity.build()), anyDouble(), any());
         });
     }
@@ -437,7 +443,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         // exit after the first update.
         final LongOpenHashSet visited = new LongOpenHashSet();
         final CpuScalingFactorPostStitchingOperation disabledOperation =
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, false);
+            new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore, false);
         visited.clear();
         disabledOperation.updateScalingFactorForEntity(wc1.build(), 2.0, visited);
         disabledOperation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
@@ -470,11 +476,129 @@ public class CpuScalingFactorPostStitchingOperationTest {
         pod.addProvider(wc);
         pod.addProvider(vm);
 
-        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        hostOperation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
         // WorkloadController scalingFactor is updated because it's a supported provider of ContainerPod.
         assertSelling(wc, vcpuLimitQuotaComm.toBuilder().setScalingFactor(CPU_SCALE_FACTOR).build());
         // VM scalingFactor is not updated because it's not a supported provider to update from ContainerPod.
         assertSelling(vm, vcpuComm);
+    }
+
+    /**
+     * Test {@link CloudNativeVMCpuScalingFactorPostStitchingOperation#performOperation} with only
+     * on-prem VM.
+     */
+    @Test
+    public void testCloudNativeVMPerformOperationWithOnPremOnly() {
+        TopologyEntity vm = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentType.ON_PREM))
+            .build();
+        final TopologicalChangelog<TopologyEntity> changeLog =
+            vmOperation.performOperation(Stream.of(vm),settingsMock, resultBuilder);
+        // No changes needs to be applied in changeLog.
+        assertEquals(0, changeLog.getChanges().size());
+    }
+
+    /**
+     * Test {@link CloudNativeVMCpuScalingFactorPostStitchingOperation#performOperation} with cloud
+     * and hybrid VMs.
+     */
+    @Test
+    public void testCloudNativeVMPerformOperationWithCloudAndHybrid() {
+        TopologyEntity vm1 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentType.CLOUD))
+            .build();
+        TopologyEntity vm2 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentType.HYBRID))
+            .build();
+        final TopologicalChangelog<TopologyEntity> changeLog =
+            vmOperation.performOperation(Stream.of(vm1, vm2),settingsMock, resultBuilder);
+        // The changes of 2 VMs are included in changeLog.
+        assertEquals(2, changeLog.getChanges().size());
+    }
+
+    /**
+     * Test {@link CpuScalingFactorPostStitchingOperation#updateScalingFactorForEntity} for cloud
+     * native entities.
+     */
+    @Test
+    public void testUpdateScalingFactorForCloudNativeEntities() {
+        final CommoditySoldDTO vCPUSold = makeCommoditySold(CommodityType.VCPU, 4000);
+        final CommoditySoldDTO vCPURequestSold = makeCommoditySold(CommodityType.VCPU_REQUEST, 4000);
+        final CommodityBoughtDTO vCPUBought = makeCommodityBought(CommodityType.VCPU);
+
+        TopologyEntity.Builder containerCluster = makeTopologyEntityBuilder(1L,
+            EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE,
+            Lists.newArrayList(vCPUSold, vCPURequestSold),
+            Collections.emptyList());
+
+        TopologyEntity.Builder vm = makeTopologyEntityBuilder(2L,
+            EntityType.VIRTUAL_MACHINE_VALUE,
+            Lists.newArrayList(vCPUSold, vCPURequestSold),
+            Lists.newArrayList(vCPUBought));
+        vm.addAggregator(containerCluster);
+        vm.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                .setNumCpus(2)));
+
+        // VM has 2 consumers in different entity types.
+        // ContainerPod will have millicoreScalingFactor updated,
+        // while AppComponent won't have any scaling factor updated because it's not cloud native entity.
+        //
+        // VM --> ContainerPod
+        //  |
+        //  --->  ApplicationComponent
+        final CommodityBoughtDTO vCPURequestBought = makeCommodityBought(CommodityType.VCPU);
+        TopologyEntity.Builder containerPod = makeTopologyEntityBuilder(3L,
+            EntityType.CONTAINER_POD_VALUE,
+            Collections.emptyList(),
+            Lists.newArrayList(vCPUBought, vCPURequestBought));
+        vm.addConsumer(containerPod);
+
+        TopologyEntity.Builder appComponent = makeTopologyEntityBuilder(3L,
+            EntityType.APPLICATION_COMPONENT_VALUE,
+            Collections.emptyList(),
+            Lists.newArrayList(vCPUBought));
+        vm.addConsumer(appComponent);
+
+        vmOperation.updateScalingFactorForEntity(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        // VM VCPU commodity bought has CPU_SCALE_FACTOR updated
+        assertBuying(vm, vCPUBought.toBuilder().setScalingFactor(CPU_SCALE_FACTOR).build());
+        // VM VCPU commodity sold has CPU_SCALE_FACTOR updated
+        // VM VCPURequest commodity sold has millicore scalingFactor updated, which is
+        // cpuSpeed (in MHz/millicore: 4000 / 2 / 1000 = 2) * CPU_SCALE_FACTOR
+        assertSelling(vm, vCPUSold.toBuilder().setScalingFactor(CPU_SCALE_FACTOR).build(),
+            vCPURequestSold.toBuilder().setScalingFactor(2 * CPU_SCALE_FACTOR).build());
+        // ContainerPod VCPU and VCPURequest commodities have millicore scalingFactor updated, which is
+        // cpuSpeed (in MHz/millicore: 4000 / 2 / 1000 = 2) * CPU_SCALE_FACTOR
+        assertBuying(containerPod, vCPUBought.toBuilder().setScalingFactor(2 * CPU_SCALE_FACTOR).build(),
+            vCPURequestBought.toBuilder().setScalingFactor(2 * CPU_SCALE_FACTOR).build());
+        // AppComponent commodity won't have scalingFactor updated because it's not cloud native entity.
+        assertBuying(appComponent, vCPUBought);
+    }
+
+    /**
+     * Test {@link CpuScalingFactorPostStitchingOperation#updateScalingFactorForEntity} for cloud
+     * entity which is not cloud native entity.
+     */
+    @Test
+    public void testUpdateScalingFactorForNonCloudNativeCloudEntity() {
+        final CommoditySoldDTO vCPUSold = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+        TopologyEntity.Builder vm = makeTopologyEntityBuilder(1L,
+            EntityType.VIRTUAL_MACHINE_VALUE,
+            Lists.newArrayList(vCPUSold),
+            Collections.emptyList());
+        vm.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+
+        final CommodityBoughtDTO vCPUBought = makeCommodityBought(CommodityType.VCPU);
+        TopologyEntity.Builder app = makeTopologyEntityBuilder(2L,
+            EntityType.APPLICATION_COMPONENT_VALUE,
+            Collections.emptyList(),
+            Lists.newArrayList(vCPUBought));
+        app.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        vm.addConsumer(app);
+        vmOperation.updateScalingFactorForEntity(vm.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
+        // Commodity of cloud AppComponent commodity doesn't have scalingFactor set up.
+        assertBuying(app, vCPUBought.toBuilder().build());
     }
 
     private static void assertSelling(@Nonnull final TopologyEntity.Builder entity,

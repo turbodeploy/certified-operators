@@ -13,13 +13,15 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.stitching.poststitching.CloudNativeAppCPUFrequencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.NamespaceConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.VirtualMachineConsistentScalingFactorPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.CloudNativeVMCpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.HostCpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DisableActionForHxControllerVmAndDsOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.GuestLoadAppPostStitchingOperation;
@@ -125,12 +127,15 @@ public class PostStitchingOperationLibrary {
             new UseHypervisorVmemForResizingPostStitchingOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore,
+            new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore,
+                enableConsistentScalingOnHeterogeneousProviders),
+            new CloudNativeVMCpuScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
             new VirtualMachineConsistentScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
             new NamespaceConsistentScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
+            new CloudNativeAppCPUFrequencyPostStitchingOperation(),
             new ServiceResponseTimePostStitchingOperation(),
             // Set capacity from settings for entities coming from public cloud
             new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.SERVICE,

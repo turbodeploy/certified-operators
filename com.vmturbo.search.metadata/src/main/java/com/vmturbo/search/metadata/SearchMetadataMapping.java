@@ -33,6 +33,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.search.metadata.utils.MetadataMappingUtils;
@@ -397,6 +399,12 @@ public enum SearchMetadataMapping {
     COMMODITY_VCPU_USED("attrs", "vcpu_used",
         CommodityType.VCPU, CommodityAttribute.USED,
         CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.VCPU),
+        Type.NUMBER),
+
+    /** vCPU used in millicores for CloudNative related entities */
+    COMMODITY_VCPU_MCORES_USED("attrs", "vcpu_mcores_used",
+        CommodityType.VCPU, CommodityAttribute.USED,
+        CommodityTypeMapping.getUnitForEntityCommodityType(EntityDTO.EntityType.CONTAINER_VALUE, CommodityDTO.CommodityType.VCPU_VALUE),
         Type.NUMBER),
 
     /** vCPU percentile historical utilization. */
