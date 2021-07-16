@@ -50,6 +50,11 @@ public class GroupFilterMapper {
     public static final String CLUSTERS_BY_TAGS_FILTER_TYPE = "clustersByTag";
 
     /**
+     * The filter used in API when filtering PMs based on cluster tags.
+     */
+    public static final String PMS_BY_CLUSTER_TAGS_FILTER_TYPE = "pmsByClusterTag";
+
+    /**
      * The filter used in API when filtering based on storage cluster display name.
      */
     public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
@@ -129,6 +134,7 @@ public class GroupFilterMapper {
                     .put(VIRTUALMACHINE_CLUSTERS_FILTER_TYPE, GroupFilterMapper::convertDisplayNameFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_NAME_FILTER_TYPE, GroupFilterMapper::convertDisplayNameFilterApiToPropertyFilterFunction)
                     .put(CLUSTERS_BY_TAGS_FILTER_TYPE, GroupFilterMapper::convertTagFilterApiToPropertyFilterFunction)
+                    .put(PMS_BY_CLUSTER_TAGS_FILTER_TYPE, GroupFilterMapper::convertTagFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_TAG_FILTER_TYPE, GroupFilterMapper::convertTagFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_OWNER_FILTER_TYPE, GroupFilterMapper::convertMultiValueFilterApiToPropertyFilterFunction)
                     .put(RESOURCE_GROUP_BY_ID_FILTER_TYPE, GroupFilterMapper::convertMultiValueFilterApiToPropertyFilterFunction)
