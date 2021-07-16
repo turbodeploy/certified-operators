@@ -1,19 +1,30 @@
 package com.vmturbo.action.orchestrator.stats.aggregator;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.HashMultimap;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
 
 import io.grpc.Channel;
-import io.grpc.StatusRuntimeException;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
+
+import org.apache.commons.lang3.mutable.MutableInt;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
@@ -22,23 +33,26 @@ import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionV
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 
 /**
  * An {@link ActionAggregator} for clusters.
@@ -58,7 +72,7 @@ public class ClusterActionAggregator extends ActionAggregator {
 
     private final GroupServiceBlockingStub groupService;
 
-    private final SupplyChainServiceBlockingStub supplyChainService;
+    private final ActionTopologyStore actionTopologyStore;
 
     /**
      * entityId -> clusters the entity is in
@@ -67,14 +81,19 @@ public class ClusterActionAggregator extends ActionAggregator {
      * definition - as well as entities in the cluster scope with entity type in
      * {@link ClusterActionAggregator#EXPANDED_SCOPE_ENTITY_TYPES}.
      */
-    private final Multimap<Long, Long> clustersOfEntity = HashMultimap.create();
+    private final Long2ObjectMap<LongSet> clustersOfEntity = new Long2ObjectOpenHashMap<>();
+
+    private final SupplyChainCalculator supplyChainCalculator;
+    private final TraversalRulesLibrary<ActionGraphEntity> traversalRules = new TraversalRulesLibrary<>();
 
     private ClusterActionAggregator(@Nonnull final GroupServiceBlockingStub groupService,
-                            @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                            @Nonnull final LocalDateTime snapshotTime) {
+                            @Nonnull final ActionTopologyStore actionTopologyStore,
+                            @Nonnull final LocalDateTime snapshotTime,
+                            @Nonnull final SupplyChainCalculator supplyChainCalculator) {
         super(snapshotTime);
         this.groupService = Objects.requireNonNull(groupService);
-        this.supplyChainService = Objects.requireNonNull(supplyChainService);
+        this.actionTopologyStore = Objects.requireNonNull(actionTopologyStore);
+        this.supplyChainCalculator = Objects.requireNonNull(supplyChainCalculator);
     }
 
     /**
@@ -82,67 +101,68 @@ public class ClusterActionAggregator extends ActionAggregator {
      */
     @Override
     public void start() {
+        // We expect the topology to be there, because we waited for it to become available
+        // earlier in the action pipeline when constructing the entities and settings snapshot.
+        Optional<TopologyGraph<ActionGraphEntity>> topologyGraphOpt =
+                actionTopologyStore.getSourceTopology().map(ActionRealtimeTopology::entityGraph);
+        if (!topologyGraphOpt.isPresent()) {
+            logger.error("No topology graph found for cluster aggregation. Actions on related"
+                    + "entities will not count.");
+        }
+
         try (DataMetricTimer ignored = Metrics.CLUSTER_AGGREGATOR_INIT_TIME.startTimer()) {
-            final Multimap<Long, Long> entitiesInCluster = HashMultimap.create();
-            GroupProtoUtil.CLUSTER_GROUP_TYPES
-                .forEach(type -> groupService.getGroups(GetGroupsRequest.newBuilder()
-                                .setGroupFilter(GroupFilter.newBuilder()
-                                        .setGroupType(type)).build())
-                                .forEachRemaining(group ->
-                                    GroupProtoUtil.getAllStaticMembers(group.getDefinition()).forEach(memberId -> {
-                                        entitiesInCluster.put(group.getId(), memberId);
-                                        clustersOfEntity.put(memberId, group.getId());
-                                    })));
+            final MutableInt clusterCount = new MutableInt(0);
+            final Stopwatch supplychainTimer = Stopwatch.createUnstarted();
+            final AtomicReference<Exception> firstError = new AtomicReference<>(null);
+            final Set<String> failedClusterDescriptors = new HashSet<>();
 
-            // Short-circuit if there are no clusters with members.
-            if (entitiesInCluster.isEmpty()) {
-                return;
-            }
-
-            final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
-            entitiesInCluster.asMap().forEach((clusterId, clusterEntities) -> {
-                // For clusters we don't expect any hy
-                requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
-                    .setSeedOid(clusterId)
-                    .setScope(SupplyChainScope.newBuilder()
-                        .addAllStartingEntityOid(clusterEntities)
-                        .addAllEntityTypesToInclude(EXPANDED_SCOPE_ENTITY_TYPES)));
-            });
-
-            try {
-                supplyChainService.getMultiSupplyChains(requestBuilder.build())
-                    .forEachRemaining(supplyChainResponse -> {
-                        final long clusterId = supplyChainResponse.getSeedOid();
-                        if (supplyChainResponse.hasError()) {
-                            logger.error("Limited action stats will be aggregated for the" +
-                                    " cluster {}. Failed to retireve supply chain due to error: {}",
-                                clusterId, supplyChainResponse.getError());
-                        }
-                        final SupplyChain supplyChain = supplyChainResponse.getSupplyChain();
-                        final int missingEntitiesCount = supplyChain.getMissingStartingEntitiesCount();
-                        if (missingEntitiesCount > 0) {
-                            Metrics.MISSING_CLUSTER_ENTITIES_COUNTER.increment(
-                                (double)missingEntitiesCount);
-                            logger.warn("Supply chains of {} cluster members of cluster {} not found." +
-                                    " Missing members: {}", missingEntitiesCount,
-                                clusterId, supplyChain.getMissingStartingEntitiesList());
-                        }
-
-                        supplyChain.getSupplyChainNodesList().stream()
-                            .filter(node -> EXPANDED_SCOPE_ENTITY_TYPES.contains(node.getEntityType()))
-                            .flatMap(vmNode -> vmNode.getMembersByStateMap().values().stream())
-                            .flatMap(memberList -> memberList.getMemberOidsList().stream())
-                            .forEach(memberId -> clustersOfEntity.put(memberId, clusterId));
+            GroupProtoUtil.CLUSTER_GROUP_TYPES.forEach(type -> groupService.getGroups(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(type)).build())
+                .forEachRemaining(group -> {
+                    final long clusterId = group.getId();
+                    clusterCount.increment();
+                    final Set<Long> clusterMembers = GroupProtoUtil.getAllStaticMembers(group.getDefinition());
+                    clusterMembers.forEach(directMemberId -> {
+                        clustersOfEntity.computeIfAbsent(directMemberId, k -> new LongOpenHashSet())
+                                .add(clusterId);
                     });
-            } catch (StatusRuntimeException e) {
-                // We can proceed - we just won't have stats for any "related" entities in the
-                // cluster.
-                logger.error("Failed to retrieve supply chains of clusters. Will only " +
-                    "aggregate stats for hosts in the clusters. Error: {}", e.getMessage());
+                    topologyGraphOpt.ifPresent(topologyGraph -> {
+                        supplychainTimer.start();
+                        try {
+                            final Map<Integer, SupplyChainNode> nodes = supplyChainCalculator.getSupplyChainNodes(topologyGraph,
+                                    clusterMembers,
+                                    e -> true,
+                                    traversalRules);
+                            EXPANDED_SCOPE_ENTITY_TYPES.forEach(entityType -> {
+                                final SupplyChainNode node = nodes.getOrDefault(entityType,
+                                        SupplyChainNode.getDefaultInstance());
+                                RepositoryDTOUtil.getAllMemberOids(node).forEach(memberOid -> {
+                                    clustersOfEntity.computeIfAbsent(memberOid, k -> new LongOpenHashSet()).add(clusterId);
+                                });
+                            });
+                        } catch (RuntimeException e) {
+                            final String clusterDescriptor = FormattedString.format("{} (id: {})",
+                                    group.getDefinition().getDisplayName(),
+                                    group.getId());
+                            logger.debug("Failed to calculate supply chain for cluster {}.",
+                                    clusterDescriptor, e);
+                            firstError.compareAndSet(null, e);
+                            failedClusterDescriptors.add(clusterDescriptor);
+                        }
+                        supplychainTimer.stop();
+                    });
+                }));
+
+            if (!failedClusterDescriptors.isEmpty()) {
+                logger.error("Failed to calculate supply chains for clusters: {}."
+                    + " Turn on debug logging for all stack traces. First error:",
+                    failedClusterDescriptors, firstError.get());
             }
 
-            logger.info("Got {} clusters, and {} entities in scope.",
-                    entitiesInCluster.keySet().size(), clustersOfEntity.keySet().size());
+            logger.info("Got {} clusters, and {} entities in scope. Supply chain calculation took {}s",
+                    clusterCount.getValue(), clustersOfEntity.keySet().size(),
+                    supplychainTimer.elapsed(TimeUnit.SECONDS));
         }
     }
 
@@ -152,57 +172,42 @@ public class ClusterActionAggregator extends ActionAggregator {
     @Override
     public void processAction(@Nonnull final StatsActionView actionSnapshot,
                               @Nonnull final PreviousBroadcastActions previousBroadcastActions) {
-        // Collect the entities involved in the action by cluster, and entity type.
-        //
-        // Because we "expand" the scope to the VMs related to the clusters, entities will
-        // often be in the scope of several clusters at once.
-        final Map<Long, Multimap<Integer, ActionEntity>> involvedEntitiesByClusterAndType = new HashMap<>();
-        actionSnapshot.involvedEntities().forEach(entity ->
-            clustersOfEntity.get(entity.getId()).forEach(clusterId -> {
-                final Multimap<Integer, ActionEntity> entitiesByType =
-                    involvedEntitiesByClusterAndType.computeIfAbsent(clusterId,
-                        k -> HashMultimap.create());
-                entitiesByType.put(entity.getType(), entity);
-            }));
+        final ActionEntity primaryEntity = actionSnapshot.primaryEntity();
+        final int entityType = primaryEntity.getType();
 
-        if (logger.isTraceEnabled() && !involvedEntitiesByClusterAndType.isEmpty()) {
-            logger.trace("Action {} involved entities by cluster and type: {}",
-                actionSnapshot.recommendation().getId(), involvedEntitiesByClusterAndType);
-        }
-
-        involvedEntitiesByClusterAndType.forEach((clusterId, entitiesByType) -> {
-            entitiesByType.asMap().forEach((entityType, entities) -> {
-                // Note - we may end up creating a lot of these objects as we process an
-                // action plan. If it becomes a problem we can keep them saved somewhere -
-                // we only need 2 per cluster (one for PMs, and one for VMs).
-                final MgmtUnitSubgroupKey muKey = ImmutableMgmtUnitSubgroupKey.builder()
+        // Probably not going to be in multiple clusters, but generically speaking can't be sure.
+        final LongSet clusterIds = clustersOfEntity.getOrDefault(primaryEntity.getId(), LongSets.EMPTY_SET);
+        final boolean newAction = actionIsNew(actionSnapshot, previousBroadcastActions);
+        clusterIds.forEach((long clusterId) -> {
+            // Note - we may end up creating a lot of these objects as we process an
+            // action plan. If it becomes a problem we can keep them saved somewhere -
+            // we only need 2 per cluster (one for PMs, and one for VMs).
+            final MgmtUnitSubgroupKey muKey = ImmutableMgmtUnitSubgroupKey.builder()
                     .mgmtUnitId(clusterId)
                     .entityType(entityType)
                     .mgmtUnitType(getManagementUnitType())
                     // Clusters are always on prem.
                     .environmentType(EnvironmentType.ON_PREM)
                     .build();
-                final ActionStat stat = getStat(muKey, actionSnapshot.actionGroupKey());
-                stat.recordAction(actionSnapshot.recommendation(), entities,
-                    actionIsNew(actionSnapshot, previousBroadcastActions));
-            });
+            final ActionStat typeSpecificStat = getStat(muKey, actionSnapshot.actionGroupKey());
+            typeSpecificStat.recordAction(actionSnapshot.recommendation(), primaryEntity, newAction);
 
             // Add the "global" action stats record - all entities in this cluster that are
             // involved in this action.
             //
             // We can't reliably re-construct the global records from the per-entity-type records
             // because a single action may appear in a variable number of entity type records.
+            //
+            // Note - this is no longer the case for clusters.
+            // TODO (roman, Jun 14 2021): Check whether it's safe to remove the global subgroup.
             final MgmtUnitSubgroupKey globalSubgroupKey = ImmutableMgmtUnitSubgroupKey.builder()
-                .mgmtUnitId(clusterId)
-                .mgmtUnitType(getManagementUnitType())
-                // Clusters are always on prem.
-                .environmentType(EnvironmentType.ON_PREM)
-                .build();
-            final ActionStat stat = getStat(globalSubgroupKey, actionSnapshot.actionGroupKey());
-            // Not using all entities involved in the snapshot, because some of them may be out
-            // of the cluster.
-            stat.recordAction(actionSnapshot.recommendation(), entitiesByType.values(),
-                actionIsNew(actionSnapshot, previousBroadcastActions));
+                    .mgmtUnitId(clusterId)
+                    .mgmtUnitType(getManagementUnitType())
+                    // Clusters are always on prem.
+                    .environmentType(EnvironmentType.ON_PREM)
+                    .build();
+            final ActionStat globalStat = getStat(globalSubgroupKey, actionSnapshot.actionGroupKey());
+            globalStat.recordAction(actionSnapshot.recommendation(), primaryEntity, newAction);
         });
     }
 
@@ -238,19 +243,23 @@ public class ClusterActionAggregator extends ActionAggregator {
 
         private final GroupServiceBlockingStub groupServiceStub;
 
-        private final SupplyChainServiceBlockingStub supplyChainServiceStub;
+        private final ActionTopologyStore actionTopologyStore;
+
+        private final SupplyChainCalculator supplyChainCalculator;
 
         public ClusterActionAggregatorFactory(@Nonnull final Channel groupChannel,
-                                              @Nonnull final Channel repositoryChannel) {
+                @Nonnull final ActionTopologyStore actionTopologyStore,
+                @Nonnull final SupplyChainCalculator supplyChainCalculator) {
             this.groupServiceStub =
                 GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-            this.supplyChainServiceStub =
-                SupplyChainServiceGrpc.newBlockingStub(repositoryChannel);
+            this.actionTopologyStore = Objects.requireNonNull(actionTopologyStore);
+            this.supplyChainCalculator = Objects.requireNonNull(supplyChainCalculator);
         }
 
         @Override
         public ClusterActionAggregator newAggregator(@Nonnull final LocalDateTime snapshotTime) {
-            return new ClusterActionAggregator(groupServiceStub, supplyChainServiceStub, snapshotTime);
+            return new ClusterActionAggregator(groupServiceStub, actionTopologyStore,
+                    snapshotTime, supplyChainCalculator);
         }
     }
 }

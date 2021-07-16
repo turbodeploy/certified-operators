@@ -77,13 +77,9 @@ public class GlobalActionAggregatorTest {
         StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(onPremSavingsAction)
-            .addInvolvedEntities(ActionEntity.newBuilder()
+            .primaryEntity(ActionEntity.newBuilder()
                 .setId(7)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build())
-            .addInvolvedEntities(ActionEntity.newBuilder()
-                .setId(77)
-                .setType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .build())
             .build();
 
@@ -107,19 +103,10 @@ public class GlobalActionAggregatorTest {
                 .mgmtUnitId(0)
                 .build())
             .build();
-        final MgmtUnitSubgroup pmSubgroup = ImmutableMgmtUnitSubgroup.builder()
-            .id(432)
-            .key(ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .environmentType(EnvironmentType.ON_PREM)
-                .mgmtUnitType(ManagementUnitType.GLOBAL)
-                .mgmtUnitId(0)
-                .build())
-            .build();
 
         // Expect one record for VM, and one record for PM
         final Map<Integer, ActionStatsLatestRecord> recordsByMgmtUnitSubgroup = aggregator.createRecords(
-                ImmutableMap.of(globalSubgroup.key(), globalSubgroup, vmSubgroup.key(), vmSubgroup, pmSubgroup.key(), pmSubgroup),
+                ImmutableMap.of(globalSubgroup.key(), globalSubgroup, vmSubgroup.key(), vmSubgroup),
                 ImmutableMap.of(actionGroupKey, actionGroup))
             .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
 
@@ -127,12 +114,8 @@ public class GlobalActionAggregatorTest {
         assertThat(vmRecord.getTotalEntityCount(), is(1));
         assertThat(vmRecord.getTotalActionCount(), is(1));
 
-        ActionStatsLatestRecord pmRecord = recordsByMgmtUnitSubgroup.get(pmSubgroup.id());
-        assertThat(pmRecord.getTotalEntityCount(), is(1));
-        assertThat(pmRecord.getTotalActionCount(), is(1));
-
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
-        assertThat(globalRecord.getTotalEntityCount(), is(2));
+        assertThat(globalRecord.getTotalEntityCount(), is(1));
         assertThat(globalRecord.getTotalActionCount(), is(1));
         assertThat(globalRecord.getNewActionCount(), is(0));
     }
@@ -161,7 +144,7 @@ public class GlobalActionAggregatorTest {
         StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(cloudSavingsAction)
-            .addInvolvedEntities(entity)
+            .primaryEntity(entity)
             .build();
 
         aggregator.processAction(savingsSnapshot, new PreviousBroadcastActions());
@@ -245,9 +228,7 @@ public class GlobalActionAggregatorTest {
         StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(hybridAction)
-            .addInvolvedEntities(app)
-            .addInvolvedEntities(onPremVm)
-            .addInvolvedEntities(cloudVm)
+            .primaryEntity(app)
             .build();
 
         aggregator.processAction(savingsSnapshot, new PreviousBroadcastActions());
@@ -287,16 +268,12 @@ public class GlobalActionAggregatorTest {
             ImmutableMap.of(actionGroupKey, actionGroup))
             .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
 
-        ActionStatsLatestRecord vmRecord = recordsByMgmtUnitSubgroup.get(vmSubgroup.id());
-        assertThat(vmRecord.getTotalEntityCount(), is(2));
-        assertThat(vmRecord.getTotalActionCount(), is(1));
-
         ActionStatsLatestRecord appRecord = recordsByMgmtUnitSubgroup.get(appCompSubgroup.id());
         assertThat(appRecord.getTotalEntityCount(), is(1));
         assertThat(appRecord.getTotalActionCount(), is(1));
 
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
-        assertThat(globalRecord.getTotalEntityCount(), is(3));
+        assertThat(globalRecord.getTotalEntityCount(), is(1));
         assertThat(globalRecord.getTotalActionCount(), is(1));
         assertThat(globalRecord.getNewActionCount(), is(0));
     }

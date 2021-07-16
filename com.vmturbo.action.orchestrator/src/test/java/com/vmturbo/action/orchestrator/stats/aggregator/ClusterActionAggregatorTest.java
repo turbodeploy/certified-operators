@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
@@ -41,6 +43,9 @@ import com.vmturbo.action.orchestrator.stats.groups.ImmutableActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -68,6 +73,8 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 public class ClusterActionAggregatorTest {
 
@@ -84,11 +91,9 @@ public class ClusterActionAggregatorTest {
 
     private GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
 
-    private SupplyChainServiceMole supplyChainServiceMole = Mockito.spy(new SupplyChainServiceMole());
-
     @Rule
     public GrpcTestServer grpcServer =
-            GrpcTestServer.newServer(groupServiceMole, supplyChainServiceMole);
+            GrpcTestServer.newServer(groupServiceMole);
 
     private ClusterActionAggregatorFactory aggregatorFactory;
 
@@ -214,10 +219,18 @@ public class ClusterActionAggregatorTest {
 
     private final PreviousBroadcastActions previousBroadcastActions = new PreviousBroadcastActions();
 
+    private final ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
+
+    private final SupplyChainCalculator scCalculator = mock(SupplyChainCalculator.class);
+
     @Before
     public void setup() {
         aggregatorFactory =
-            new ClusterActionAggregatorFactory(grpcServer.getChannel(), grpcServer.getChannel());
+            new ClusterActionAggregatorFactory(grpcServer.getChannel(), actionTopologyStore, scCalculator);
+        TopologyGraph<ActionGraphEntity> e = mock(TopologyGraph.class);
+        ActionRealtimeTopology realtimeTopology = mock(ActionRealtimeTopology.class);
+        when(realtimeTopology.entityGraph()).thenReturn(e);
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(realtimeTopology));
     }
 
     @Test
@@ -237,9 +250,8 @@ public class ClusterActionAggregatorTest {
 
         verify(groupServiceMole).getGroups(expectedRequest);
 
-        // Process an action snapshot involving both PMs in cluster 1.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2),
-            previousBroadcastActions);
+        // Process an action snapshot involving a PM in cluster 1.
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1), previousBroadcastActions);
 
         // Process two action snapshots involving the PM in cluster 2.
         clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_2_PM), previousBroadcastActions);
@@ -259,7 +271,7 @@ public class ClusterActionAggregatorTest {
 
         final ActionStatsLatestRecord cluster1Record =
                 recordsByMgtmtUnitSubgroup.get(CLUSTER_1_PM_SUBGROUP.id());
-        assertThat(cluster1Record.getTotalEntityCount(), is(2));
+        assertThat(cluster1Record.getTotalEntityCount(), is(1));
         assertThat(cluster1Record.getTotalActionCount(), is(1));
 
         final ActionStatsLatestRecord cluster2Record =
@@ -269,7 +281,7 @@ public class ClusterActionAggregatorTest {
 
         final ActionStatsLatestRecord cluster1GlobalRecord =
             recordsByMgtmtUnitSubgroup.get(CLUSTER_1_GLOBAL_SUBGROUP.id());
-        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(2));
+        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(1));
         assertThat(cluster1GlobalRecord.getTotalActionCount(), is(1));
 
         final ActionStatsLatestRecord cluster2GlobalRecord =
@@ -290,10 +302,7 @@ public class ClusterActionAggregatorTest {
 
         // The supply chain request returns nothing. Not realistic, but suppose that the PM's
         // have no VM's on them.
-        doReturn(Collections.singletonList(GetMultiSupplyChainsResponse.newBuilder()
-            .setSupplyChain(SupplyChain.newBuilder()
-                .addMissingStartingEntities(7))
-            .build())).when(supplyChainServiceMole).getMultiSupplyChains(any());
+        when(scCalculator.getSupplyChainNodes(any(), any(), any(), any())).thenReturn(Collections.emptyMap());
 
         clusterActionAggregator.start();
 
@@ -318,9 +327,7 @@ public class ClusterActionAggregatorTest {
 
         // The supply chain request returns nothing. Not realistic, but suppose that the PM's
         // have no VM's on them.
-        doReturn(Collections.singletonList(GetMultiSupplyChainsResponse.newBuilder()
-            .setError("my bad")
-            .build())).when(supplyChainServiceMole).getMultiSupplyChains(any());
+        when(scCalculator.getSupplyChainNodes(any(), any(), any(), any())).thenReturn(Collections.emptyMap());
 
         clusterActionAggregator.start();
 
@@ -344,8 +351,7 @@ public class ClusterActionAggregatorTest {
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
         // The supply chain request throws an exception.
-        doReturn(Optional.of(Status.UNAVAILABLE.asException()))
-            .when(supplyChainServiceMole).getMultiSupplyChainsError(any());
+        when(scCalculator.getSupplyChainNodes(any(), any(), any(), any())).thenThrow(new RuntimeException("BOO"));
 
         clusterActionAggregator.start();
 
@@ -354,7 +360,7 @@ public class ClusterActionAggregatorTest {
         verify(groupServiceMole).getGroups(expectedRequest);
 
         // Process an action snapshot involving both PMs in cluster 1.
-        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1, CLUSTER_1_PM_2),
+        clusterActionAggregator.processAction(fakeSnapshot(CLUSTER_1_PM_1),
             previousBroadcastActions);
 
         // Process two action snapshots involving the PM in cluster 2.
@@ -375,7 +381,7 @@ public class ClusterActionAggregatorTest {
 
         final ActionStatsLatestRecord cluster1Record =
             recordsByMgtmtUnitSubgroup.get(CLUSTER_1_PM_SUBGROUP.id());
-        assertThat(cluster1Record.getTotalEntityCount(), is(2));
+        assertThat(cluster1Record.getTotalEntityCount(), is(1));
         assertThat(cluster1Record.getTotalActionCount(), is(1));
 
         final ActionStatsLatestRecord cluster2Record =
@@ -385,7 +391,7 @@ public class ClusterActionAggregatorTest {
 
         final ActionStatsLatestRecord cluster1GlobalRecord =
             recordsByMgtmtUnitSubgroup.get(CLUSTER_1_GLOBAL_SUBGROUP.id());
-        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(2));
+        assertThat(cluster1GlobalRecord.getTotalEntityCount(), is(1));
         assertThat(cluster1GlobalRecord.getTotalActionCount(), is(1));
 
         final ActionStatsLatestRecord cluster2GlobalRecord =
@@ -441,28 +447,24 @@ public class ClusterActionAggregatorTest {
                         .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .addStartingEntityOid(CLUSTER_2_PM.getId())))
                 .build();
-        when(supplyChainServiceMole.getMultiSupplyChains(any()))
-            .thenReturn(Arrays.asList(
-                GetMultiSupplyChainsResponse.newBuilder()
-                    .setSeedOid(CLUSTER_1.getId())
-                    .setSupplyChain(SupplyChain.newBuilder()
-                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_1_PM_1.getId(), CLUSTER_1_PM_2.getId())), any(), any()))
+                .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                        SupplyChainNode.newBuilder()
                             .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                             .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
                                 MemberList.newBuilder()
                                     .addMemberOids(CLUSTER_1_VM_1.getId())
                                     .addMemberOids(CLUSTER_1_VM_2.getId())
-                                    .build()))))
-                    .build(),
-                GetMultiSupplyChainsResponse.newBuilder()
-                    .setSeedOid(CLUSTER_2.getId())
-                    .setSupplyChain(SupplyChain.newBuilder()
-                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                        .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
-                            MemberList.newBuilder()
-                                .addMemberOids(CLUSTER_2_VM.getId())
-                                .build()))))
+                                    .build()))
+                        .build()));
+        when(scCalculator.getSupplyChainNodes(any(), eq(Sets.newHashSet(CLUSTER_2_PM.getId())), any(), any()))
+            .thenReturn(Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                SupplyChainNode.newBuilder()
+                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
+                        MemberList.newBuilder()
+                            .addMemberOids(CLUSTER_2_VM.getId())
+                            .build()))
                     .build()));
 
         clusterActionAggregator.start();
@@ -473,10 +475,6 @@ public class ClusterActionAggregatorTest {
         // order-insensitive protobuf comparators, capture the request and check it's contents.
         ArgumentCaptor<GetMultiSupplyChainsRequest> supplyChainRequestCaptor =
                 ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
-        verify(supplyChainServiceMole).getMultiSupplyChains(supplyChainRequestCaptor.capture());
-        final GetMultiSupplyChainsRequest gotRequest = supplyChainRequestCaptor.getValue();
-        assertThat(gotRequest.getSeedsList(),
-                containsInAnyOrder(expectedSupplyChainRequest.getSeedsList().toArray()));
 
         // Process action snapshots involving a VM in cluster 1, as well as a random VM not
         // in the cluster.
@@ -508,11 +506,11 @@ public class ClusterActionAggregatorTest {
         assertThat(cluster2Record.getTotalActionCount(), is(1));
     }
 
-    private StatsActionView fakeSnapshot(@Nonnull final ActionEntity... involvedEntities) {
+    private StatsActionView fakeSnapshot(@Nonnull final ActionEntity primaryEntity) {
         final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
                 .actionGroupKey(ACTION_GROUP_KEY)
                 .recommendation(SAVINGS_ACTION);
-        actionSnapshotBuilder.addInvolvedEntities(involvedEntities);
+        actionSnapshotBuilder.primaryEntity(primaryEntity);
         return actionSnapshotBuilder.build();
     }
 }

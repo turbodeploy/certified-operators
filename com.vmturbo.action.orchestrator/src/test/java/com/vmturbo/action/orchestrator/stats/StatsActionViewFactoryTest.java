@@ -61,7 +61,7 @@ public class StatsActionViewFactoryTest {
         final StatsActionView snapshot = factory.newStatsActionView(actionView);
 
         // Assert
-        assertThat(snapshot.involvedEntities(), contains(targetEntity));
+        assertThat(snapshot.primaryEntity(), is(targetEntity));
         assertThat(snapshot.recommendation(), is(recommendation));
         assertThat(snapshot.businessAccountId(), is(Optional.of(BUSINESS_ACCOUNT_ID)));
         assertThat(snapshot.resourceGroupId(), is(Optional.of(RESOURCE_GROUP_ID)));

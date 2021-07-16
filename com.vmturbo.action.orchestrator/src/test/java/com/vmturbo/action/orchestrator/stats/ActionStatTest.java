@@ -3,8 +3,6 @@ package com.vmturbo.action.orchestrator.stats;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-import java.util.Collections;
-
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
@@ -37,15 +35,15 @@ public class ActionStatTest {
     @Test
     public void testActionRecord() {
         final ActionStat actionStat = new ActionStat();
-        actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
+        actionStat.recordAction(SAVINGS_ACTION, ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()),
+                .build(),
             true);
-        actionStat.recordAction(INVESTMENT_ACTION, Collections.singleton(ActionEntity.newBuilder()
+        actionStat.recordAction(INVESTMENT_ACTION, ActionEntity.newBuilder()
                 .setId(8)
                 .setType(10)
-                .build()),
+                .build(),
             false);
 
         final ActionStatsLatestRecord record = new ActionStatsLatestRecord();
@@ -63,16 +61,16 @@ public class ActionStatTest {
         final ActionStat actionStat = new ActionStat();
         // Note - we reuse the same action object to mean two different individual actions affecting
         // the same entity.
-        actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
+        actionStat.recordAction(SAVINGS_ACTION, ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()),
+                .build(),
             true);
         // Same ID, different action.
-        actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
+        actionStat.recordAction(SAVINGS_ACTION, ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()),
+                .build(),
             false);
 
         final ActionStatsLatestRecord record = new ActionStatsLatestRecord();
