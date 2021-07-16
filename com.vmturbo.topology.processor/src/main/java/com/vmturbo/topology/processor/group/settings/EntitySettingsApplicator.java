@@ -44,8 +44,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.components.common.setting.CoreSocketRatioPolicyEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -184,8 +186,7 @@ public class EntitySettingsApplicator {
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
-                new ResizeIncrementApplicator(EntitySettingSpecs.VmVcpuIncrement,
-                        CommodityType.VCPU),
+                new VMCPUIncrementApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.VmVmemIncrement,
                         CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ContainerSpecVcpuIncrement,
@@ -1390,6 +1391,49 @@ public class EntitySettingsApplicator {
                     .getSettingSpec()
                     .getNumericSettingValueType()
                     .getDefault();
+        }
+    }
+
+    /**
+     * Applicator for capacity resize increment settings.
+     * If the CoreSocketRatioMode for this VM is IGNORE, the VM's VCPU sold->capacityIncrement will be from VmVcpuIncrement setting.
+     * If the CoreSocketRatioMode for this VM is RESPECT, the VM's VCPU sold->capacityIncrement will be the nearest multiple of current capacityIncrement.
+     * Eg, current capacityIncrement = 5200, VmVcpuIncrement = 1800, the final capacityIncrement will be 5200.
+     * for Virtual Machine entities.
+     *
+     */
+    @ThreadSafe
+    private static class VMCPUIncrementApplicator extends MultipleSettingsApplicator {
+
+        private  VMCPUIncrementApplicator() {
+            super(Arrays.asList(EntitySettingSpecs.CoreSocketRatioMode, EntitySettingSpecs.VmVcpuIncrement));
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                @Nonnull final Collection<Setting> settings) {
+
+            CommoditySoldDTO.Builder vcpuCommodityBuilder = entity.getCommoditySoldListBuilderList().stream()
+                    .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.VCPU_VALUE).findFirst().get();
+            if (vcpuCommodityBuilder != null) {
+                CoreSocketRatioPolicyEnum csrMode = CoreSocketRatioPolicyEnum.RESPECT;
+                float vcpuIncrementSettingValue = (float)EntitySettingSpecs.VmVcpuIncrement.getNumericDefault();
+                for (Setting setting: settings) {
+                    if (setting.getSettingSpecName().equals(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())) {
+                        csrMode = CoreSocketRatioPolicyEnum.valueOf(setting.getEnumSettingValue().getValue());
+                    } else if (setting.getSettingSpecName().equals(EntitySettingSpecs.VmVcpuIncrement.getSettingName())) {
+                        vcpuIncrementSettingValue = setting.getNumericSettingValue().getValue();
+                    }
+                }
+                float vcpuIncrement = vcpuIncrementSettingValue;
+                if (csrMode == CoreSocketRatioPolicyEnum.RESPECT) {
+                    final float probeProvidedIncrement = vcpuCommodityBuilder.hasCapacityIncrement() ?
+                            vcpuCommodityBuilder.getCapacityIncrement() : 1.0f;
+                    vcpuIncrement = ResizeIncrementAdjustor.roundToProbeIncrement(vcpuIncrementSettingValue, probeProvidedIncrement);
+                }
+                logger.debug("Core Socket Ratio Policy is {}, vcpuIncrement in setting is {},  use {} as VCPU increment", csrMode, vcpuIncrementSettingValue, vcpuIncrement);
+                vcpuCommodityBuilder.setCapacityIncrement(vcpuIncrement);
+            }
         }
     }
 
