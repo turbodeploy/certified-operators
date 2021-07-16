@@ -83,7 +83,7 @@ def getValue(data, path):
             return None
         data = data[p]
 
-    return data[key]
+    return data[key] if key in data else None
 
 
 # writes yaml string tp yaml file
@@ -102,7 +102,7 @@ def run_main(input_set, yaml_str=reportingDisabledYaml, validate=False):
     old_sys_argv = sys.argv
     old_stdin = sys.stdin
     try:
-        sys.argv = ["enable_reporting_test.py", "--no-apply", "--file", customResourceFile]
+        sys.argv = ["enable_reporting_test.py", "--no-apply", "--file", customResourceFile, "--no-timescaledb"]
         if validate:
             sys.argv.append("--validate")
         sys.stdin = io.StringIO('\n'.join(input_set))
@@ -142,7 +142,6 @@ class TestEmbeddedReporting:
                 adminPassword: a;
                 grafana.ini:
                   database:
-                    type: postgres
                     password: a
               extractor:
                 enabled: false
@@ -160,7 +159,7 @@ class TestEmbeddedReporting:
         embedded_reporting = enable_reporting.EmbeddedReporting(custom_resource)
         warnings = embedded_reporting.validate()
         # Ensure we generated one warning for each thing wrong with the config.
-        assert len(warnings) == 5
+        assert len(warnings) == 7
 
     def test_reporting_already_enabled(self):
         original_copy = "{}.copy.test".format(customResourceFile)
@@ -223,3 +222,50 @@ class TestEmbeddedReporting:
         data = loadYaml(customResourceFile)
         assert getValue(data, 'spec grafana adminPassword') == grafana_password
         assert getValue(data, 'spec grafana grafana.ini database password') == grafana_database_password
+
+    def test_TimescaleDBIP_is_present(self):
+      missingTimescaleDBIPYaml = """
+          spec:
+            global:
+              externalIP: 10.0.2.15
+            grafana:
+              enabled: false
+              adminPassword: admin
+              grafana.ini:
+                database:
+                  type: postgres
+                  password: grafana
+            extractor:
+              enabled: false
+            reporting:
+              enabled: false
+            timescaledb:
+              enabled: false
+          """
+
+      input_set = [good_password, good_password]
+      run_main(input_set, missingTimescaleDBIPYaml)
+      data = loadYaml(customResourceFile)
+      assert getValue(data, 'spec global externalTimescaleDBIP') != None
+
+    def test_database_type_is_present(self):
+      missingDatabaseTypeYaml = """
+          spec:
+            grafana:
+              enabled: false
+              adminPassword: admin
+              grafana.ini:
+                database:
+                  password: grafana
+            extractor:
+              enabled: false
+            reporting:
+              enabled: false
+            timescaledb:
+              enabled: false
+          """
+
+      input_set = [good_password, good_password]
+      run_main(input_set, missingDatabaseTypeYaml)
+      data = loadYaml(customResourceFile)
+      assert getValue(data, 'spec grafana grafana.ini database type') != None
