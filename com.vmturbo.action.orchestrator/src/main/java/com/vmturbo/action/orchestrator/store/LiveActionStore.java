@@ -61,6 +61,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *
  * Stores actions mainly in memory except executed (SUCCEEDED and FAILED) actions
  * For use with actions from the live market (sometimes also called "real time").
+ *
+ * When the action plan is received, the market actions are passed through
+ * the {@link AtomicActionFactory} to be de-duplicated and aggregated into {@link AggregatedAction}.
+ * After the market actions are processed, AggregatedActions are
+ * converted to atomic action DTOs and then then to {@link Action}'s to be saved in LiveActions.
+ * 
  */
 @ThreadSafe
 public class LiveActionStore implements ActionStore {
@@ -179,69 +185,6 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
-     * {@inheritDoc}
-     *
-     * All recommendations in the {@link ActionPlan} that correspond to a READY action in the store
-     * or are new to the store will be added in the same order they share in the {@link ActionPlan}.
-     * The order of actions in the plan that correspond to an action in the store is not guaranteed.
-     * <p/>
-     * Any actions in the {@link ActionPlan} that match an action already in the store retain the ID
-     * of the recommendation in the store, rather than the new recommendation ID.
-     * <p/>
-     * All recommendations in the {@link ActionPlan} that do not match an action already in the store
-     * are added to the store as an {@link Action}.
-     * <p/>
-     * All QUEUED and IN_PROGRESS {@link Action}s are retained in the store.
-     * <p/>
-     * All CLEARED, SUCCEEDED, and FAILED {@link Action}s are removed from the store.
-     * <p/>
-     * All currently READY {@link Action}s are transitioned to CLEARED and removed from the store
-     * unless they are re-recommended in the new {@link ActionPlan}.
-     * <p/>
-     * Consider the following scenarios where the store has one plan in it and the plan has one recommendation in it:
-     * <ul>
-     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (IN_PROGRESS)</li>
-     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
-     *     <li>POST-STORE: Move VM1: HostA -> HostB (IN_PROGRESS)</li>
-     * </ul>
-     * The market re-recommended an IN_PROGRESS action. In this case, there were 0 READY actions in the
-     * store at the end of the populate call even though there was 1 ActionInfo in the plan.
-     * <ul>
-     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (SUCCEEDED)</li>
-     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
-     *     <li>POST-STORE: empty</li>
-     * </ul>
-     * The market re-recommended an action that already ran and succeeded.
-     * <ul>
-     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (READY)</li>
-     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
-     *     <li>POST-STORE: Move VM1: HostA -> HostB (READY)</li>
-     * </ul>
-     * The market re-recommended an action that was undecided.
-     * <ul>
-     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (READY)</li>
-     *     <li>PLAN:       empty</li>
-     *     <li>POST-STORE: empty</li>
-     * </ul>
-     * The market did not re-recommend a READY action in the store.
-     *
-     * When the action plan is received, the market actions are passed through
-     * the {@link AtomicActionFactory} to be de-duplicated and aggregated into {@link AggregatedAction}.
-     * After the market actions are processed, AggregatedActions are
-     * converted to atomic action DTOs and then then to {@link Action}'s
-     * and saved in the LiveActionsStore.
-     *
-     * @throws InterruptedException if current thread has been interrupted
-     */
-    @Override
-    public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan)
-            throws InterruptedException {
-        logger.error("Do not call LiveActionsStore#populateRecommendedActions. "
-            + "Instead prefer LiveActionsPipelineFactory#buildLiveMarketActionsPipeline.");
-        return false;
-    }
-
-    /**
      * Update the market actions atomically. The update includes updating things like the action description
      * for re-recommended actions, etc.
      *
@@ -344,6 +287,50 @@ public class LiveActionStore implements ActionStore {
      * RecommendationTracker, completedSinceLastPopulate, and actionsToRemove data structures.
      * The {@link ActionSource} parameter controls whether we compile market or atomic
      * actions.
+     *
+     * All recommendations in the {@link ActionPlan} that correspond to a READY action in the store
+     * or are new to the store will be added in the same order they share in the {@link ActionPlan}.
+     * The order of actions in the plan that correspond to an action in the store is not guaranteed.
+     * <p/>
+     * Any actions in the {@link ActionPlan} that match an action already in the store retain the ID
+     * of the recommendation in the store, rather than the new recommendation ID.
+     * <p/>
+     * All recommendations in the {@link ActionPlan} that do not match an action already in the store
+     * are added to the store as an {@link Action}.
+     * <p/>
+     * All QUEUED and IN_PROGRESS {@link Action}s are retained in the store.
+     * <p/>
+     * All CLEARED, SUCCEEDED, and FAILED {@link Action}s are removed from the store.
+     * <p/>
+     * All currently READY {@link Action}s are transitioned to CLEARED and removed from the store
+     * unless they are re-recommended in the new {@link ActionPlan}.
+     * <p/>
+     * Consider the following scenarios where the store has one plan in it and the plan has one recommendation in it:
+     * <ul>
+     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (IN_PROGRESS)</li>
+     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
+     *     <li>POST-STORE: Move VM1: HostA -> HostB (IN_PROGRESS)</li>
+     * </ul>
+     * The market re-recommended an IN_PROGRESS action. In this case, there were 0 READY actions in the
+     * store at the end of the populate call even though there was 1 ActionInfo in the plan.
+     * <ul>
+     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (SUCCEEDED)</li>
+     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
+     *     <li>POST-STORE: empty</li>
+     * </ul>
+     * The market re-recommended an action that already ran and succeeded.
+     * <ul>
+     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (READY)</li>
+     *     <li>PLAN:       Move VM1: HostA -> HostB</li>
+     *     <li>POST-STORE: Move VM1: HostA -> HostB (READY)</li>
+     * </ul>
+     * The market re-recommended an action that was undecided.
+     * <ul>
+     *     <li>PRE-STORE:  Move VM1: HostA -> HostB (READY)</li>
+     *     <li>PLAN:       empty</li>
+     *     <li>POST-STORE: empty</li>
+     * </ul>
+     * The market did not re-recommend a READY action in the store.
      *
      * @param recommendations The {@link RecommendationTracker} into which we put existing previous
      *                        recommendations that we may want to keep.
