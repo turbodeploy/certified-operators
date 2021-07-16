@@ -18,11 +18,11 @@ import org.springframework.security.saml2.provider.service.registration.RelyingP
 import org.springframework.security.saml2.provider.service.registration.Saml2MessageBinding;
 import org.springframework.security.saml2.provider.service.servlet.filter.Saml2WebSsoAuthenticationFilter;
 import org.springframework.security.saml2.provider.service.servlet.filter.Saml2WebSsoAuthenticationRequestFilter;
-import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
 import com.vmturbo.api.component.security.CustomSaml2WebSsoAuthenticationRequestFilter;
 import com.vmturbo.api.component.security.CustomSamlAuthenticationFilter;
+import com.vmturbo.api.component.security.CustomSavedRequestAwareAuthenticationSuccessHandler;
 import com.vmturbo.api.component.security.HeaderAuthenticationFilter;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 
@@ -55,6 +55,9 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
     // SAML SP restriction tag, e.g. turbo
     @Value("${samlSpEntityId}")
     private String samlSpEndityId;
+
+    @Value("${sessionTimeoutSeconds:1800}")
+    private int sessionTimeoutSeconds;
 
     /**
      * SAML IDP certificate.
@@ -151,9 +154,9 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
      * @return the SavedRequestAwareAuthenticationSuccessHandler
      */
     @Bean
-    public SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler() {
-        SavedRequestAwareAuthenticationSuccessHandler successRedirectHandler =
-                new SavedRequestAwareAuthenticationSuccessHandler();
+    public CustomSavedRequestAwareAuthenticationSuccessHandler successRedirectHandler() {
+        CustomSavedRequestAwareAuthenticationSuccessHandler successRedirectHandler =
+                new CustomSavedRequestAwareAuthenticationSuccessHandler(sessionTimeoutSeconds);
         successRedirectHandler.setDefaultTargetUrl(SAML_REDIRECT_URL);
         return successRedirectHandler;
     }
