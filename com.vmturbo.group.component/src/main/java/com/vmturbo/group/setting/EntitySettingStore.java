@@ -114,7 +114,8 @@ public class EntitySettingStore {
             EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName(),
             EntitySettingSpecs.ExcludedTemplates.getSettingName(),
             EntitySettingSpecs.VmVmemIncrement.getSettingName(),
-            EntitySettingSpecs.VmVcpuIncrement.getSettingName());
+            EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
+            EntitySettingSpecs.CoreSocketRatioMode.getSettingName());
 
     private static final Set<String> settingSpecsWithUnionTireBreaker =
         EntitySettingSpecs.getEntitySettingSpecByTierBreaker(SettingTiebreaker.UNION)
