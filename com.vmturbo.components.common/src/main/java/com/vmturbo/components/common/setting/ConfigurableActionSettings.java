@@ -38,7 +38,7 @@ public enum ConfigurableActionSettings {
     /**
      * Cloud database server scale action automation mode.
      */
-    CloudDBServerScale("cloudDBServerScale", "Cloud DB Server Scale",
+    CloudDBServerScale("cloudDBServerScale", "Cloud Database Server Scale",
             EnumSet.of(EntityType.DATABASE_SERVER)),
     /**
      * Cloud compute scale action automation mode.
