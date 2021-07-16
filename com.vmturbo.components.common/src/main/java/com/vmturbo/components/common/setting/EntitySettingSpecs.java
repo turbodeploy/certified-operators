@@ -146,10 +146,10 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(true), true),
 
     /**
-     * Enable Scale actions (currently it is used for Volumes only).
+     * Enable Scale actions (currently it is used for Volumes and Cloud DB Servers only).
      */
     EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER),
             new BooleanSettingDataType(true), true),
 
     /**
