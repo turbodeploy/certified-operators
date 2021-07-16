@@ -2920,6 +2920,45 @@ public class GroupRpcServiceTest {
     }
 
     /**
+     * Tests that a user cannot retrieve a group that is out of their scope.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testGetGroupOutOfScope() {
+        // GIVEN
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                OidSet.EMPTY_OID_SET, null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        GroupID groupId = GroupID
+                .newBuilder()
+                .setId(1L)
+                .build();
+
+        Grouping grouping = Grouping
+                .newBuilder()
+                .setId(groupId.getId())
+                .setDefinition(testGrouping)
+                .build();
+
+        given(temporaryGroupCache.getGrouping(groupId.getId()))
+                .willReturn(Optional.of(grouping));
+
+        final StreamObserver<GetGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        // WHEN
+        groupRpcService.getGroup(groupId, mockObserver);
+
+        // THEN
+        verify(temporaryGroupCache).getGrouping(groupId.getId());
+        verify(mockObserver).onNext(GetGroupResponse.newBuilder()
+                .setGroup(grouping)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
      * Tests the case where a user requested for for a group but they did not
      * provide the id for the group.
      * @throws Exception when something goes wrong.

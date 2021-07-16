@@ -41,7 +41,19 @@ public class GlobalExceptionHandlerTest {
         StatusRuntimeException ex =
                 Status.INVALID_ARGUMENT.withDescription("msg").asRuntimeException();
         ResponseEntity<ErrorApiDTO> entity = handler.handleStatusRuntimeException(request, ex);
-        assertEquals(entity.getStatusCode(), HttpStatus.BAD_REQUEST);
+        assertEquals(HttpStatus.BAD_REQUEST, entity.getStatusCode());
+    }
+
+    /**
+     * Tests {@link StatusRuntimeException} with {@link Status} PERMISSION_DENIED. The return status
+     * code should be HttpStatus.FORBIDDEN, so stack trace will not be printed out.
+     */
+    @Test
+    public void handleStatusRuntimeExceptionWithPermissionDeniedStatus() {
+        StatusRuntimeException ex =
+                Status.PERMISSION_DENIED.withDescription("msg").asRuntimeException();
+        ResponseEntity<ErrorApiDTO> entity = handler.handleStatusRuntimeException(request, ex);
+        assertEquals(HttpStatus.FORBIDDEN, entity.getStatusCode());
     }
 
     /**
@@ -53,6 +65,6 @@ public class GlobalExceptionHandlerTest {
         HttpServletRequest request = mock(HttpServletRequest.class);
         StatusRuntimeException ex = Status.NOT_FOUND.withDescription("msg").asRuntimeException();
         ResponseEntity<ErrorApiDTO> entity = handler.handleStatusRuntimeException(request, ex);
-        assertEquals(entity.getStatusCode(), HttpStatus.INTERNAL_SERVER_ERROR);
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, entity.getStatusCode());
     }
 }
