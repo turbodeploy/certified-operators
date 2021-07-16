@@ -54,6 +54,7 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAG
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_SWAPPING_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_TRANSACTION_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_HISTORICAL_UTILIZATION;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_MCORES_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_PERCENTILE_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_CAPACITY;
@@ -557,7 +558,7 @@ public enum SearchEntityMetadata {
             // common fields
             .putAll(Constants.ENTITY_COMMON_FIELDS)
             // commodities
-            .put(used(CommodityType.VCPU), COMMODITY_VCPU_USED)
+            .put(used(CommodityType.VCPU), COMMODITY_VCPU_MCORES_USED)
             .put(weightedHistoricalUtilization(CommodityType.VCPU), COMMODITY_VCPU_HISTORICAL_UTILIZATION)
             .put(capacity(CommodityType.VMEM), COMMODITY_VMEM_CAPACITY)
             .put(used(CommodityType.VMEM), COMMODITY_VMEM_USED)
@@ -591,7 +592,7 @@ public enum SearchEntityMetadata {
             // common fields
             .putAll(Constants.ENTITY_COMMON_FIELDS)
             // commodities
-            .put(used(CommodityType.VCPU), COMMODITY_VCPU_USED)
+            .put(used(CommodityType.VCPU), COMMODITY_VCPU_MCORES_USED)
             .put(percentileHistoricalUtilization(CommodityType.VCPU), COMMODITY_VCPU_PERCENTILE_UTILIZATION)
             .put(capacity(CommodityType.VMEM), COMMODITY_VMEM_CAPACITY)
             .put(used(CommodityType.VMEM), COMMODITY_VMEM_USED)

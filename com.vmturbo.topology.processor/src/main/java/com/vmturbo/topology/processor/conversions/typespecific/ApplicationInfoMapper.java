@@ -33,6 +33,10 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
                 .setIpAddress(appData.getIpAddress())
             );
         }
+        if (appData.hasHostingNodeCpuFrequency()) {
+           applicationInfoBuilder.setHostingNodeCpuFrequency(appData.getHostingNodeCpuFrequency());
+        }
+
         final TypeSpecificInfo.Builder appInfo = TypeSpecificInfo.newBuilder()
                 .setApplication(applicationInfoBuilder);
         // if this is a DB application, then populate the DB Info as well

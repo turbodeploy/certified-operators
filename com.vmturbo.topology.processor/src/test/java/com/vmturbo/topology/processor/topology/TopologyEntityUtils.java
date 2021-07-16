@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.TextFormat;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -37,10 +38,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.cost.RIDataUploaderTest;
 
 /**
  * Utilities for generating {@link TopologyEntity} objects for tests.
@@ -655,6 +658,24 @@ public class TopologyEntityUtils {
             throw new IllegalArgumentException("Bad input JSON file " + fileBasename, ioe);
         }
         return builder.build();
+    }
+
+    /**
+     * Load an SDK discovery txt file for a target and extract all entity DTOs.
+     *
+     * @param fileBasename basename of file to load
+     * @return the list of entity DTO builders extracted from the discovery response
+     * @throws IllegalArgumentException on read error or missing file
+     */
+    public static List<CommonDTO.EntityDTO.Builder> loadEntityDTOsFromSDKDiscoveryTextFile(
+            final String fileBasename) {
+        final DiscoveryResponse.Builder discoveryResponseBuilder = DiscoveryResponse.newBuilder();
+        try {
+            TextFormat.getParser().merge(getInputReader(fileBasename), discoveryResponseBuilder);
+        } catch (IOException ioe) {
+            throw new IllegalArgumentException("Bad input txt file: " + fileBasename, ioe);
+        }
+        return discoveryResponseBuilder.getEntityDTOBuilderList();
     }
 
     /**

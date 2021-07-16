@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPlatformClusterInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor.AggregatedResourceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -53,17 +54,18 @@ public class ProjectedContainerClusterPostProcessorTest {
     private static final long CONTAINER2_ID = 15L;
 
     private static final double DELTA = 0.01;
-    private static final double VM_VCPU_USED = 0.5;
-    private static final double VM_VCPU_CAP = 1;
+    private static final double VM_VCPU_USED = 500;
+    private static final double VM_VCPU_CAP = 2000;
+    private static final int VM_NUM_CPUS = 1;
     private static final double VM_VMEM_USED = 0.6;
     private static final double VM_VMEM_CAP = 2;
-    private static final double VM_VCPU_REQUEST_USED = 0.7;
-    private static final double VM_VCPU_REQUEST_CAP = 2;
+    private static final double VM_VCPU_REQUEST_USED = 700;
+    private static final double VM_VCPU_REQUEST_CAP = 1000;
     private static final double VM_VMEM_REQUEST_USED = 0.8;
     private static final double VM_VMEM_REQUEST_CAP = 2;
     private static final double VM_NUM_CONSUMERS_USED = 10;
     private static final double VM_NUM_CONSUMERS_CAP = 100;
-    private static final double CONTAINER_VCPU_LIMIT = 1.5;
+    private static final double CONTAINER_VCPU_LIMIT = 1500;
     private static final double CONTAINER_VMEM_LIMIT = 1;
 
     private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -112,6 +114,9 @@ public class ProjectedContainerClusterPostProcessorTest {
         .setEntity(TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(VM_ID)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setNumCpus(VM_NUM_CPUS)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(CONTAINER_CLUSTER_ID)
                 .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
@@ -147,6 +152,9 @@ public class ProjectedContainerClusterPostProcessorTest {
         .setEntity(TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(CLONED_VM_ID)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setNumCpus(VM_NUM_CPUS)))
             .setOrigin(Origin.newBuilder().setAnalysisOrigin(AnalysisOrigin.newBuilder()
                 .setOriginalEntityId(VM_ID)))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
@@ -357,14 +365,14 @@ public class ProjectedContainerClusterPostProcessorTest {
      */
     @Test
     public void testGetAggregatedContainerResources() {
-        // 1. container:       VCPU limit=1.5, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
-        // 2. clonedContainer: VCPU limit=1.5, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
-        // 3. container2:      VCPU limit=1.5, VMem limit=1, hasCpuLimit=true, hasMemLimit=false.
-        // So expected aggregated VCPU is 4.5 (1.5 + 1.5 + 1.5), and aggregated VMem is 2 (1 + 1).
+        // 1. container:       VCPU limit=1500, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
+        // 2. clonedContainer: VCPU limit=1500, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
+        // 3. container2:      VCPU limit=1500, VMem limit=1, hasCpuLimit=true, hasMemLimit=false.
+        // So expected aggregated VCPU is 4500 (1500 + 1500 + 1500), and aggregated VMem is 2 (1 + 1).
         final List<ProjectedTopologyEntity> containers = Arrays.asList(container, clonedContainer, container2);
         Map<Integer, AggregatedResourceData> aggregatedData =
             postProcessor.getAggregatedContainerResources("", CONTAINER_CLUSTER_ID, containers);
-        assertEquals(4.5, aggregatedData.get(CommodityDTO.CommodityType.VCPU_VALUE).getCapacity(), DELTA);
+        assertEquals(4500, aggregatedData.get(CommodityDTO.CommodityType.VCPU_VALUE).getCapacity(), DELTA);
         assertEquals(2, aggregatedData.get(CommodityDTO.CommodityType.VMEM_VALUE).getCapacity(), DELTA);
     }
 
@@ -373,12 +381,12 @@ public class ProjectedContainerClusterPostProcessorTest {
      */
     @Test
     public void testProcess() {
-        // 1. container:  VCPU limit=1.5, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
-        // 2. container2: VCPU limit=1.5, VMem limit=1, hasCpuLimit=true, hasMemLimit=false.
-        // 3. vm:         VCPU cap=1, VMem cap=2
+        // 1. container:  VCPU limit=1500 millicores, VMem limit=1, hasCpuLimit=true, hasMemLimit=true.
+        // 2. container2: VCPU limit=1500 millicores, VMem limit=1, hasCpuLimit=true, hasMemLimit=false.
+        // 3. vm:         VCPU cap=1000 millicores, VMem cap=2
         //
         // So
-        // expected vcpuOvercommitment = (1.5 + 1.5) / 1 = 3.0
+        // expected vcpuOvercommitment = (1500 + 1500) / 1000 = 3.0
         // expected vmemOvercommitment = 1 / 2 = 0.5
         final List<ProjectedTopologyEntity> entities =
             Arrays.asList(containerCluster, container, container2, containerPod, vm);
@@ -394,15 +402,17 @@ public class ProjectedContainerClusterPostProcessorTest {
         assertEquals(3.0, containerPlatformClusterInfo.getVcpuOvercommitment(), DELTA);
         assertEquals(0.5, containerPlatformClusterInfo.getVmemOvercommitment(), DELTA);
 
+        // ContainerCluster VCPU used = VM_VCPU_USED / VMCPUSpeed (MHz/millicore) = VM_VCPU_USED / 2
         Map<Integer, Double> expectedCommUsedMap = new HashMap<Integer, Double>() {{
-            put(CommodityDTO.CommodityType.VCPU_VALUE, VM_VCPU_USED);
+            put(CommodityDTO.CommodityType.VCPU_VALUE, VM_VCPU_USED / 2);
             put(CommodityDTO.CommodityType.VMEM_VALUE, VM_VMEM_USED);
             put(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE, VM_VCPU_REQUEST_USED);
             put(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE, VM_VMEM_REQUEST_USED);
             put(CommodityDTO.CommodityType.NUMBER_CONSUMERS_VALUE, VM_NUM_CONSUMERS_USED);
         }};
+        // ContainerCluster VCPU capacity = VM_NUM_CPUs (cores) * 1000d = numCPUs (millicores)
         Map<Integer, Double> expectedCommCapMap = new HashMap<Integer, Double>() {{
-            put(CommodityDTO.CommodityType.VCPU_VALUE, VM_VCPU_CAP);
+            put(CommodityDTO.CommodityType.VCPU_VALUE, VM_NUM_CPUS * 1000d);
             put(CommodityDTO.CommodityType.VMEM_VALUE, VM_VMEM_CAP);
             put(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE, VM_VCPU_REQUEST_CAP);
             put(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE, VM_VMEM_REQUEST_CAP);

@@ -43,11 +43,19 @@ message TypeSpecificInfo {
         NamespaceInfo namespace = 81;
         ContainerPlatformClusterInfo container_platform_cluster = 82;
         ContainerInfo container = 83;
+        ContainerPodInfo container_pod = 84;
     }
 
     message ApplicationInfo {
         // the IP Address to connect to the application
         optional IpAddress ip_address = 1;
+        // The CPU frequency of the kubernetes node hosting this application.
+        // This value as of now is needed only to be able to convert the vcpu capacity of this
+        // application in capacity and usage widgets, if its hosted on a container.
+        // We show container data in millicores but the app data in Mhz because that is
+        // more consistent for the application when stitched with APM probes or when the
+        // application is reported without the cloud native entities.
+        optional double hostingNodeCpuFrequency = 2;
     }
 
     message VirtualMachineInfo {
@@ -505,6 +513,16 @@ message TypeSpecificInfo {
         optional double vmem_overcommitment = 2;
     }
 
+    // Data specific to a ContainerPod entity.
+    message ContainerPodInfo {
+        // The CPU frequency of the kubernetes node hosting this pod.
+        // This value as of now is needed only to be able to convert the vcpu capacity of this
+        // pod in capacity and usage widgets.
+        // We show pod data in millicores but the VM data in Mhz, therefor the capacity picked
+        // from VM for VCPU bought commodity needs conversion to millicores.
+        optional double hostingNodeCpuFrequency = 1;
+    }
+
     message ContainerInfo {
         // Whether a container has CPU limits set.
         // If a container has CPU limits set, the discovered VCPU commodity capacity is the
@@ -516,6 +534,13 @@ message TypeSpecificInfo {
         // specified memory limits; otherwise, the discovered VMem commodity capacity is node (VM)
         // VMem capacity.
         optional bool has_mem_limit = 2;
+        // The CPU frequency of the kubernetes node hosting this container.
+        // This value as of now is needed only to be able to convert the vcpu capacity of this
+        // container to be used by the hosted application in capacity and usage widgets.
+        // We show container data in millicores but the app data in Mhz because that is
+        // more consistent for the application when stitched with APM probes or when the
+        // application is reported without the cloud native entities.
+        optional double hostingNodeCpuFrequency = 3;
     }
 }
 
@@ -641,7 +666,7 @@ message PartialEntity {
                 optional string locks = 3;
                 optional .topology.TypeSpecificInfo.VirtualizationType virtualization_type = 4;
                 // The CPU core MHz on the VM
-                optional double cpu_core_mhz = 5;
+                optional double cpu_core_mhz = 5 [deprecated = true];
             }
 
             message ActionPhysicalMachineInfo {

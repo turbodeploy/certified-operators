@@ -18,6 +18,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.CloudCommitmentPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.ContainerClusterPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityCustomProbePreStitchingOperation;
@@ -111,7 +112,8 @@ public class PreStitchingOperationLibrary {
                 new SharedEntityCustomProbePreStitchingOperation(),
                 // This operation should go after SharedCloudEntityPreStitchingOperation because it
                 // depends on merging shared Regions.
-                new CloudCommitmentPreStitchingOperation())
+                new CloudCommitmentPreStitchingOperation(),
+                new ContainerClusterPreStitchingOperation())
             .build();
     }
 

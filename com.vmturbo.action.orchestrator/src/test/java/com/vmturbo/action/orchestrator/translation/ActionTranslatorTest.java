@@ -70,9 +70,6 @@ public class ActionTranslatorTest {
     private static final int CPU_SPEED_MHZ = 2000;
     private static final long VM_TARGET_ID = 2;
     private static final long HOST_ID = 99;
-    private static final long CONTAINER_ID = 3;
-    private static final long CONTAINER_POD_ID = 4;
-    private static final double CONTAINER_CPU_SPEED = 2000;
 
     private static final long TOPOLOGY_CONTEXT_ID = 777777;
 
@@ -285,30 +282,5 @@ public class ActionTranslatorTest {
         when(actionFailing.getState()).thenReturn(ActionState.FAILING);
         final ActionSpec actionSpecFailing = translator.translateToSpec(actionFailing);
         assertEquals(ActionState.FAILING, actionSpecFailing.getActionState());
-    }
-
-    private TopologyGraph<ActionGraphEntity> mockTopologyGraph() {
-        TopologyGraph<ActionGraphEntity> topologyGraph = mock(TopologyGraph.class);
-        ActionGraphEntity containerPodEntity = ActionOrchestratorTestUtils.mockActionGraphEntity(CONTAINER_POD_ID, EntityType.CONTAINER_POD_VALUE);
-        when(topologyGraph.getProviders(CONTAINER_ID)).thenReturn(Stream.of(containerPodEntity));
-
-        ActionGraphEntity vmEntity = ActionOrchestratorTestUtils.mockActionGraphEntity(VM_TARGET_ID, EntityType.VIRTUAL_MACHINE_VALUE);
-        when(topologyGraph.getEntity(vmEntity.getOid())).thenReturn(Optional.of(vmEntity));
-        when(vmEntity.getActionEntityInfo()).thenReturn(ActionEntityTypeSpecificInfo.newBuilder().build());
-        when(topologyGraph.getProviders(CONTAINER_POD_ID)).thenReturn(Stream.of(vmEntity));
-        return topologyGraph;
-    }
-
-    private Action setupDefaultResizeAction() {
-        when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
-            ActionPartialEntity.newBuilder()
-                .setOid(VM_TARGET_ID)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setPrimaryProviderId(HOST_ID).build()));
-        when(mockSnapshot.getTopologyContextId()).thenReturn(actionPlanId);
-
-        return new Action(ActionOrchestratorTestUtils
-            .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ),
-            actionPlanId, actionModeCalculator, 2244L);
     }
 }

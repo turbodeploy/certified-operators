@@ -412,7 +412,7 @@ public class EntitySettingsApplicatorTest {
      */
     private static final Setting VCPU_REQUEST_MIN_SETTING = Setting.newBuilder()
         .setSettingSpecName(EntitySettingSpecs.ResizeVcpuRequestMinThreshold.getSettingName())
-        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(50))
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5))
         .build();
     private static final Setting VMEM_LIMIT_ABOVE_MAX_MODE_SETTING = Setting.newBuilder()
         .setSettingSpecName(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName())
@@ -478,11 +478,11 @@ public class EntitySettingsApplicatorTest {
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_REQUEST_VALUE))
             .setCapacity(102400))
-        // VCPU capacity 10 MHz
+        // VCPU capacity 10 millicores
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE))
             .setCapacity(10))
-        // VCPURequest capacity 10 MHz
+        // VCPURequest capacity 10 millicores
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_VALUE))
             .setCapacity(10))
@@ -786,14 +786,15 @@ public class EntitySettingsApplicatorTest {
 
     /**
      * Tests applying of VCPU, VCPURequest, VMem and VMemRequest min and max applicators for a container
-     * with 10 MHz VCPU, 10 MHz VCPURequest, 200 MB VMem and 100 MB VMemRequest with following settings:
+     * with 10 millicores VCPU, 10 millicores VCPURequest, 200 MB VMem and 100 MB VMemRequest with
+     * following settings:
      * <p/>
      * VCPU Limit Resize Above Max: DISABLED;
      * VCPU Limit Resize Max Threshold: 10,000 millicores;
      * VCPU Limit Resize Below Min: DISABLED;
      * VCPU Limit Resize Min Threshold: 100 millicores;
      * VCPU Request Resize Below Min: RECOMMEND;
-     * VCPU Request Resize Min Threshold 20 millicores;
+     * VCPU Request Resize Min Threshold 5 millicores;
      * VMem Limit Resize Above Max: DISABLED;
      * VMEM Limit Resize Max Threshold 300 MB;
      * VMem Limit Resize Below Min: DISABLED;
@@ -804,10 +805,6 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testEntityThresholdApplicatorForContainer() {
         double mbToKb = 1024;
-        // Set numCPUs to VirtualMachineInfo.
-        testVM.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(4))
-            .build());
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
             testContainer.getOid(), topologyEntityBuilder(testContainer),
@@ -826,39 +823,9 @@ public class EntitySettingsApplicatorTest {
         assertEquals(300 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
         assertEquals(100 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
         assertEquals(50 * mbToKb, vMemRequestCommoditySoldThresholds.getMin(), DELTA);
-        assertEquals(20, vCPUCommoditySoldThresholds.getMax(), DELTA);
-        assertEquals(0.2, vCPUCommoditySoldThresholds.getMin(), DELTA);
-        assertEquals(0.1, vCPURequestCommoditySoldThresholds.getMin(), DELTA);
-    }
-
-    /**
-     * Tests applying of VCPU, VCPURequest, VMem and VMemRequest min and max applicators for a container,
-     * where corresponding provider VM has no numCPUs. In this case, VCPU and VCPURequest commodities
-     * won't have thresholds set.
-     */
-    @Test
-    public void testEntityThresholdApplicatorForContainerWithoutNumCPUs() {
-        double mbToKb = 1024;
-        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
-            testContainer.getOid(), topologyEntityBuilder(testContainer),
-            testPod.getOid(), topologyEntityBuilder(testPod),
-            testVM.getOid(), topologyEntityBuilder(testVM)));
-        applySettings(TOPOLOGY_INFO, applicator, graph, testContainer.getOid(), VMEM_LIMIT_ABOVE_MAX_MODE_SETTING,
-            VMEM_LIMIT_MAX_SETTING, VMEM_LIMIT_BELOW_MIN_MODE_SETTING, VMEM_LIMIT_MIN_SETTING,
-            VMEM_REQUEST_BELOW_MIN_MODE_SETTING, VMEM_REQUEST_MIN_SETTING, VCPU_LIMIT_ABOVE_MAX_MODE_SETTING,
-            VCPU_LIMIT_MAX_SETTING, VCPU_LIMIT_BELOW_MIN_MODE_SETTING, VCPU_LIMIT_MIN_SETTING,
-            VCPU_REQUEST_BELOW_MIN_MODE_SETTING, VCPU_REQUEST_MIN_SETTING, CONTAINER_RESIZE_MODE_SETTING);
-
-        Thresholds vMemCommoditySoldThresholds = testContainer.getCommoditySoldList(0).getThresholds();
-        Thresholds vMemRequestCommoditySoldThresholds = testContainer.getCommoditySoldList(1).getThresholds();
-        assertEquals(300 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
-        assertEquals(100 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
-        assertEquals(50 * mbToKb, vMemRequestCommoditySoldThresholds.getMin(), DELTA);
-
-        CommoditySoldDTO vCPUCommoditySold = testContainer.getCommoditySoldList(2);
-        CommoditySoldDTO vCPURequestCommoditySold = testContainer.getCommoditySoldList(3);
-        assertFalse(vCPUCommoditySold.hasThresholds());
-        assertFalse(vCPURequestCommoditySold.hasThresholds());
+        assertEquals(10_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+        assertEquals(10, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        assertEquals(5, vCPURequestCommoditySoldThresholds.getMin(), DELTA);
     }
 
     /**

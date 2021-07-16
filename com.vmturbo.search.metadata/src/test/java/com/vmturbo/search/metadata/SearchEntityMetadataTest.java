@@ -1,6 +1,8 @@
 package com.vmturbo.search.metadata;
 
+import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.used;
 import static com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO.primitive;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_MCORES_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -27,6 +29,7 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
+import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -258,6 +261,21 @@ public class SearchEntityMetadataTest {
         List<String> connectedNetworksVm2 =
             (List<String>) connectedNetworksMetadata.getTopoFieldFunction().apply(vm2).get();
         Assert.assertEquals(connectedNetworksVm1, connectedNetworksVm2);
+    }
+
+    /**
+     * Test VCPU meta data mapping for Container and ContainerPod SearchMetadataMapping.
+     */
+    @Test
+    public void testCloudNativeEntityVCPUData() {
+        SearchMetadataMapping containerVCPUData =
+            SearchEntityMetadata.Container.getMetadataMappingMap().get(used(CommodityType.VCPU));
+        SearchMetadataMapping containerPodVCPUData =
+            SearchEntityMetadata.ContainerPod.getMetadataMappingMap().get(used(CommodityType.VCPU));
+        Assert.assertEquals(COMMODITY_VCPU_MCORES_USED, containerPodVCPUData);
+        Assert.assertEquals(COMMODITY_VCPU_MCORES_USED, containerVCPUData);
+        Assert.assertEquals("mCores", containerVCPUData.getUnitsString());
+        Assert.assertEquals("vcpu_mcores_used", containerVCPUData.getJsonKeyName());
     }
 
     @FunctionalInterface

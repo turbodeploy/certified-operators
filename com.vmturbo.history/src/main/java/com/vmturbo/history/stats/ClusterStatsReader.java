@@ -583,7 +583,7 @@ public class ClusterStatsReader {
                 final double usage = e.getValue();
                 final double capacity = capacities.getOrDefault(e.getKey(), 0.0);
                 final String units = ClassicEnumMapper.CommodityTypeUnits
-                                                        .unitFromStringIgnoreCase(e.getKey());
+                                                        .unitFromEntityAndCommodityType(null, e.getKey(), true);
                 resultBuilder.addStatRecords(StatRecord.newBuilder()
                                                 .setName(e.getKey())
                                                 .setUsed(makeStatValue(usage))
@@ -595,7 +595,7 @@ public class ClusterStatsReader {
             // commodities that only have one value
             for (Entry<String, Double> e : values.entrySet()) {
                 final String units = ClassicEnumMapper.CommodityTypeUnits
-                                                        .unitFromStringIgnoreCase(e.getKey());
+                                                        .unitFromEntityAndCommodityType(null, e.getKey(), true);
                 resultBuilder.addStatRecords(StatRecord.newBuilder()
                                                     .setName(e.getKey())
                                                     .setUsed(makeStatValue(e.getValue()))

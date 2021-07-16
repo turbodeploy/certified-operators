@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPodInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -315,6 +316,11 @@ public class PostStitchingTestUtilities {
 
         TopologyEntityBuilder withProperties(@Nonnull final Map<String, String> properties) {
             innerBuilder.putAllEntityPropertyMap(properties);
+            return this;
+        }
+
+        TopologyEntityBuilder withTypeSpecificInfo(@Nonnull final TypeSpecificInfo.Builder builder) {
+            innerBuilder.setTypeSpecificInfo(builder);
             return this;
         }
 

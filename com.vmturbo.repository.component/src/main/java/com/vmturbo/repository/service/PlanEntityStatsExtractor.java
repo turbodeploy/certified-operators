@@ -44,10 +44,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPlatformClusterInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**
@@ -109,6 +109,7 @@ interface PlanEntityStatsExtractor {
                                                 @Nonnull Map<String, Set<String>>
                                                             commodityNameToGroupByFields,
                                                 final long snapshotDate) {
+            final int entityType = projectedEntity.getEntity().getEntityType();
             final Set<String> commodityNames = commodityNameToProviderType.keySet();
             logger.debug("Extracting stats for commodities: {}", commodityNames);
             StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
@@ -152,7 +153,7 @@ interface PlanEntityStatsExtractor {
                     CommodityType commodityType = commodityBoughtDTOS.iterator().next().getCommodityType();
                     // Set the key only if there are not multiple commodities being aggregated
                     final String key = commodityBoughtDTOS.size() == 1 ? commodityType.getKey() : "";
-                    final Optional<Double> capacity = extractCapacityFromSoldCommodities(
+                    final Optional<Double> capacity = extractCapacityFromSoldCommodities(projectedEntity,
                         soldCommodities, commodityType);
                     final StatsAccumulator capacityAccumulator = new StatsAccumulator();
                     capacity.ifPresent(capacityAccumulator::record);
@@ -165,7 +166,7 @@ interface PlanEntityStatsExtractor {
                     final HistUtilizationValue percentileValue =
                         createPercentileUtilization(commodityBoughtDTOS, capacityValues);
                     final StatRecord statRecord =
-                        buildStatRecord(commodityType, key, usedValues, capacityValues,
+                        buildStatRecord(entityType, commodityType, key, usedValues, capacityValues,
                             providerOidString, StringConstants.RELATION_BOUGHT, percentileValue);
                     snapshot.addStatRecords(statRecord);
                 });
@@ -206,8 +207,8 @@ interface PlanEntityStatsExtractor {
                     createPercentileUtilization(commoditySoldDTOS, capacityValue);
 
                 final StatRecord statRecord =
-                    buildStatRecord(commodityType, key, usedValues, capacityValue, entityOidString,
-                        StringConstants.RELATION_SOLD, percentileValue);
+                    buildStatRecord(entityType, commodityType, key, usedValues, capacityValue,
+                        entityOidString, StringConstants.RELATION_SOLD, percentileValue);
                 snapshot.addStatRecords(statRecord);
             });
 
@@ -269,14 +270,21 @@ interface PlanEntityStatsExtractor {
         }
 
         private Optional<Double> extractCapacityFromSoldCommodities(
-            @Nullable final AbridgedSoldCommoditiesForProvider soldCommodities,
-            @Nonnull final CommodityType commodityType) {
+                @Nonnull final ProjectedTopologyEntity projectedEntity,
+                @Nullable final AbridgedSoldCommoditiesForProvider soldCommodities,
+                @Nonnull final CommodityType commodityType) {
             return Optional.ofNullable(soldCommodities)
                 .flatMap(commodities -> commodities.getSoldCommodityList().stream()
                 .filter(commodity -> commodity.getCommodityType()
                     == commodityType.getType())
                 .findAny()
-                .map(AbridgedSoldCommodity::getCapacity));
+                .map(soldCommodity -> {
+                    final double capacity = soldCommodity.getCapacity();
+                    // This conversion is very specific to the top most and bottom most cloud native
+                    // entities in the supply chain. The cloud native entities represent VCPU commodity in millicores
+                    // whereas entities above them (viz Application) or below them (viz VM) represent the same in Mhz.
+                    return TopologyDTOUtil.convertCapacity(projectedEntity.getEntity(), commodityType.getType(), capacity);
+                }));
         }
 
         private String getCommodityName(final CommodityType commodityType) {
@@ -386,6 +394,7 @@ interface PlanEntityStatsExtractor {
         /**
          * Create a new StatRecord with values populated.
          *
+         * @param entityType Given entity type to determine commodity unit.
          * @param commodityType the name of the commodity
          * @param key the key associate with the commodity, or empty if no key
          * @param used used (or current) value recorded for one sample
@@ -396,7 +405,8 @@ interface PlanEntityStatsExtractor {
          * @param histUtilizationValue historical utilization value
          * @return a new StatRecord initialized from the given values
          */
-        private StatRecord buildStatRecord(@Nonnull final CommodityType commodityType,
+        private StatRecord buildStatRecord(final int entityType,
+                                           @Nonnull final CommodityType commodityType,
                                            @Nonnull final String key,
                                            @Nonnull final StatValue used,
                                            @Nonnull final StatValue capacity,
@@ -415,7 +425,7 @@ interface PlanEntityStatsExtractor {
             if (histUtilizationValue != null) {
                 statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
             }
-            final String typeUnits = CommodityTypeMapping.getUnitForCommodityType(commodityType.getType());
+            final String typeUnits = CommodityTypeMapping.getUnitForEntityCommodityType(entityType, commodityType.getType());
             if (typeUnits != null) {
                 statRecordBuilder.setUnits(typeUnits);
             }

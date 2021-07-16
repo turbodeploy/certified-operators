@@ -1,8 +1,12 @@
 package com.vmturbo.components.common;
 
 import static com.vmturbo.api.conversion.entity.CommodityTypeMapping.COMMODITY_TYPE_TO_API_STRING;
+import static com.vmturbo.api.conversion.entity.CommodityTypeMapping.ENTITY_TYPE_TO_COMMODITY_TYPES_WITH_SECONDARY_UNIT;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 
@@ -181,6 +186,30 @@ public class ClassicEnumMapper {
         VCPU_ALLOCATION("VCPUAllocation", "MHz"),
         VMEM_ALLOCATION("VMemAllocation", "MB");
 
+        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP;
+        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
+        private static final Map<Integer, Map<String, String>> ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP;
+        private static final Map<Integer, Map<String, String>> ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP_LOWER_CASE;
+
+        static {
+            ImmutableMap.Builder<String, String> commodityTypeMapBuilder =
+                new ImmutableMap.Builder<>();
+            ImmutableMap.Builder<String, String> commodityTypeMapBuilderLowerCase =
+                new ImmutableMap.Builder<>();
+            populateCommodityUnitMap(commodityTypeMapBuilder, commodityTypeMapBuilderLowerCase);
+            COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
+            COMMODITY_TYPE_UNITS_MAP_LOWER_CASE = commodityTypeMapBuilderLowerCase.build();
+
+            // Populate ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP and
+            // ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP_LOWER_CASE map.
+            ImmutableMap.Builder<Integer, Map<String, String>> entityCommTypeSecondaryUnitMapBuilder =
+                new ImmutableMap.Builder<>();
+            ImmutableMap.Builder<Integer, Map<String, String>> entityCommTypeSecondaryUnitMapBuilderLowerCase =
+                new ImmutableMap.Builder<>();
+            populateEntityCommodityUnitMap(entityCommTypeSecondaryUnitMapBuilder, entityCommTypeSecondaryUnitMapBuilderLowerCase);
+            ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP = entityCommTypeSecondaryUnitMapBuilder.build();
+            ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP_LOWER_CASE = entityCommTypeSecondaryUnitMapBuilderLowerCase.build();
+        }
 
         private final String mixedCase;
         private final String units;
@@ -198,28 +227,57 @@ public class ClassicEnumMapper {
             return units;
         }
 
-        public static String unitFromString(String mixedCaseName) {
-            return COMMODITY_TYPE_UNITS_MAP.get(mixedCaseName);
+        /**
+         * Get matched commodity unit based on given entity type and commodity type.
+         *
+         * @param entityType              Given entity type to determine commodity unit.
+         * @param commodityName           Given commodity name.
+         * @param ignoreCommodityNameCase Whether to ignore case of given commodity name.
+         * @return Commodity unit if matched or else null.
+         */
+        @Nullable
+        public static String unitFromEntityAndCommodityType(@Nullable final String entityType,
+                                                            @Nonnull String commodityName,
+                                                            final boolean ignoreCommodityNameCase) {
+            final Map<Integer, Map<String, String>> entityCommodityTypeSecondaryUnitMap;
+            if (ignoreCommodityNameCase) {
+                entityCommodityTypeSecondaryUnitMap = ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP_LOWER_CASE;
+                commodityName = commodityName.toLowerCase();
+            } else {
+                entityCommodityTypeSecondaryUnitMap = ENTITY_COMMODITY_TYPE_SECONDARY_UNIT_MAP;
+            }
+            int entityTypeNum = ApiEntityType.fromString(entityType).typeNumber();
+            Map<String, String> commoditySecondaryUnitMap =
+                entityCommodityTypeSecondaryUnitMap.getOrDefault(entityTypeNum, Collections.emptyMap());
+            String commoditySecondaryUnit = commoditySecondaryUnitMap.get(commodityName);
+            return commoditySecondaryUnit != null
+                ? commoditySecondaryUnit
+                : unitFromCommodityType(commodityName, ignoreCommodityNameCase);
         }
 
         /**
-         * Match get unit for commodity from mixed case ignoring case.
+         * Get matched commodity unit based on given commodity name.
          *
-         * @param commodityType The mixed case.
-         * @return The unit if matched or else null
+         * @param commodityName Given commodity name.
+         * @param ignoreCase    Whether to ignore commodity name case.
+         * @return Commodity unit if matched or else null.
          */
-        public static String unitFromStringIgnoreCase(String commodityType) {
-            return COMMODITY_TYPE_UNITS_MAP_LOWER_CASE.get(commodityType.toLowerCase());
+        @Nullable
+        private static String unitFromCommodityType(@Nonnull String commodityName,
+                                                   final boolean ignoreCase) {
+            final Map<String, String> commodityTypeUnitsMap;
+            if (ignoreCase) {
+                commodityTypeUnitsMap = COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
+                commodityName = commodityName.toLowerCase();
+            } else {
+                commodityTypeUnitsMap = COMMODITY_TYPE_UNITS_MAP;
+            }
+            return commodityTypeUnitsMap.get(commodityName);
         }
 
-        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP;
-        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
-
-        static {
-            ImmutableMap.Builder<String, String> commodityTypeMapBuilder =
-                    new ImmutableMap.Builder<>();
-            ImmutableMap.Builder<String, String> commodityTypeMapBuilderLowerCase =
-                    new ImmutableMap.Builder<>();
+        private static void populateCommodityUnitMap(
+            @Nonnull final ImmutableMap.Builder<String, String> commodityTypeMapBuilder,
+            @Nonnull final ImmutableMap.Builder<String, String> commodityTypeMapBuilderLowerCase) {
             for (CommodityTypeUnits t : CommodityTypeUnits.values()) {
                 commodityTypeMapBuilder.put(t.getMixedCase(), t.getUnits());
                 commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t.getUnits());
@@ -230,9 +288,24 @@ public class ClassicEnumMapper {
                 commodityTypeMapBuilder.put(t.getMixedCase(), t.getUnits());
                 commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t.getUnits());
             }
+        }
 
-            COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
-            COMMODITY_TYPE_UNITS_MAP_LOWER_CASE = commodityTypeMapBuilderLowerCase.build();
+        private static void populateEntityCommodityUnitMap(
+            @Nonnull final ImmutableMap.Builder<Integer, Map<String, String>> entityCommTypeSecondaryUnitMapBuilder,
+            @Nonnull final ImmutableMap.Builder<Integer, Map<String, String>> entityCommTypeSecondaryUnitMapBuilderLowerCase
+        ) {
+            ENTITY_TYPE_TO_COMMODITY_TYPES_WITH_SECONDARY_UNIT.forEach((entityType, commodityTypes) -> {
+                final Map<String, String> commoditySecondaryUnitMap = commodityTypes.entrySet().stream()
+                    .collect(Collectors.toMap(commEntry ->
+                            COMMODITY_TYPE_TO_API_STRING.get(CommodityType.forNumber(commEntry.getKey())).getMixedCase(),
+                        Entry::getValue));
+                entityCommTypeSecondaryUnitMapBuilder.put(entityType, commoditySecondaryUnitMap);
+                final Map<String, String> commoditySecondaryUnitLowerCaseMap = commodityTypes.entrySet().stream()
+                    .collect(Collectors.toMap(commEntry ->
+                            COMMODITY_TYPE_TO_API_STRING.get(CommodityType.forNumber(commEntry.getKey())).getMixedCase().toLowerCase(),
+                        Entry::getValue));
+                entityCommTypeSecondaryUnitMapBuilderLowerCase.put(entityType, commoditySecondaryUnitLowerCaseMap);
+            });
         }
     }
 }

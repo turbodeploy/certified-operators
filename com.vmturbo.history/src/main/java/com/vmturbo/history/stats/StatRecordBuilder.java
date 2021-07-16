@@ -107,7 +107,8 @@ public interface StatRecordBuilder {
                         @Nullable final StatValue statValue, @Nullable final String commodityKey,
                         @Nullable final String relation) {
             final StatRecord.Builder builder = StatRecord.newBuilder();
-            propertyTypePopulator.accept(builder, new PropertyInformation(propertyType, commodityKey));
+            propertyTypePopulator.accept(builder,
+                new PropertyInformation(relatedEntityType, propertyType, commodityKey));
             usageRecordPopulator.accept(builder, new Pair<>(statValue, propertySubtype));
             relationPopulator.accept(builder, relation);
             relatedEntityTypePopulator.accept(builder, relatedEntityType);

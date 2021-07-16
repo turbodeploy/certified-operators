@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.atomic.AggregatedAction.DeDupedActions;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
@@ -86,7 +85,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
             ResizeInfoAndExplanation resizeInfoAndExplanation
                         = resizeInfoAndExplanation(entity.toString(), entity, resizeInfo.getCommodityType(),
-                                        Collections.singletonList(resizeAction), aggregatedAction.actionViews);
+                                        Collections.singletonList(resizeAction));
             if (resizeInfoAndExplanation != null) {
                 allResizeInfos.add(resizeInfoAndExplanation.resizeInfo());
                 allExplanations.add(resizeInfoAndExplanation.explanation());
@@ -105,7 +104,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         aggregatedAction.deDupedActionsMap().forEach((deDupTargetOid, deDupedActions) -> {
             // First create the resize info objects per de-dup target and commodity type
             List<ResizeInfoAndExplanation> resizeInfoAndExplanations
-                    = deDuplicatedResizeInfoAndExplanation(deDupedActions, aggregatedAction.actionViews);
+                    = deDuplicatedResizeInfoAndExplanation(deDupedActions);
 
             if (resizeInfoAndExplanations.isEmpty()) {
                 logger.debug("cannot create atomic action for de-duplication target {}", deDupedActions.targetName());
@@ -332,16 +331,13 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
       * @param resizeCommType   resize {@link CommodityType}
      * @param actionList        list of market actions belonging to different entities
      *                          and containing identical resize info
-     * @param actionViewMap     Map from action ID to {@link ActionView}, where translated resize data
-     *                          can be retrieved.
      * @return  a single {@link ResizeInfo} and explanation for this set of actions.
       */
     @Nullable
     private ResizeInfoAndExplanation resizeInfoAndExplanation(@Nonnull final String targetName,
                                                               @Nonnull final ActionEntity targetEntity,
                                                               @Nonnull final CommodityType resizeCommType,
-                                                              @Nonnull final List<Action> actionList,
-                                                              @Nonnull final Map<Long, ActionView> actionViewMap) {
+                                                              @Nonnull final List<Action> actionList) {
         logger.trace("{}::{} : creating one resizeInfo for {} actions",
                                         targetName, resizeCommType, actionList.size());
 
@@ -355,26 +351,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         Action origAction = actionList.iterator().next();
         ActionDTO.Resize origResize = origAction.getInfo().getResize();
         Explanation.ResizeExplanation resizeExplanation = origAction.getExplanation().getResize();
-        ActionView actionView = actionViewMap.get(origAction.getId());
-        float oldCapacity = origResize.getOldCapacity();
-        float newCapacity = origResize.getNewCapacity();
-        // Set oldCapacity and newCapacity to translated values from ActionView if translation is successful.
-        if (actionView != null) {
-            if (actionView.getTranslationStatus() == TranslationStatus.TRANSLATION_SUCCEEDED) {
-                Optional<Action> translatedAction = actionView.getActionTranslation().getTranslatedRecommendation();
-                if (translatedAction.isPresent()) {
-                    Resize translatedResize = translatedAction.get().getInfo().getResize();
-                    oldCapacity = translatedResize.getOldCapacity();
-                    newCapacity = translatedResize.getNewCapacity();
-                } else {
-                    logger.error("Translated recommendation is not found for the successfully translated resize {}", actionView);
-                }
-            } else if (actionView.getTranslationStatus() == TranslationStatus.TRANSLATION_FAILED) {
-                // If action translation is failed, drop the resize info and explanation from atomic
-                // action result to avoid incorrect capacity values.
-                return null;
-            }
-        }
 
         // ResizeInfo object
         ActionDTO.ResizeInfo.Builder resizeInfoBuilder =
@@ -383,8 +359,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                         .addAllSourceEntities(originalEntities)
                         .setCommodityType(resizeCommType)
                         .setCommodityAttribute(origResize.getCommodityAttribute())
-                        .setOldCapacity(oldCapacity)
-                        .setNewCapacity(newCapacity);
+                        .setOldCapacity(origResize.getOldCapacity())
+                        .setNewCapacity(origResize.getNewCapacity());
 
         ActionDTO.ResizeInfo resizeInfo = resizeInfoBuilder.build();
 
@@ -411,8 +387,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     }
 
     // Create one merged resize info and explanation for the given set of actions
-    private List<ResizeInfoAndExplanation> deDuplicatedResizeInfoAndExplanation(DeDupedActions deDupedActions,
-                                                                                final Map<Long, ActionView> actionViewMap) {
+    private List<ResizeInfoAndExplanation> deDuplicatedResizeInfoAndExplanation(DeDupedActions deDupedActions) {
 
         List<Action> actionsToDeDuplicate = deDupedActions.actions();
 
@@ -425,7 +400,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
             ResizeInfoAndExplanation resizeInfoAndExplanation
                     = resizeInfoAndExplanation(deDupedActions.targetName(),
                                                 deDupedActions.targetEntity(), resizeCommType,
-                                                actionsByCommMap.get(resizeCommType), actionViewMap);
+                                                actionsByCommMap.get(resizeCommType));
             if (resizeInfoAndExplanation != null) {
                 result.add(resizeInfoAndExplanation);
             }

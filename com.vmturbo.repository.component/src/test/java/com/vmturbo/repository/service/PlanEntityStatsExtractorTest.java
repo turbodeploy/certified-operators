@@ -1,5 +1,6 @@
 package com.vmturbo.repository.service;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU_OVERCOMMITMENT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VMEM_OVERCOMMITMENT;
 import static org.junit.Assert.assertEquals;
@@ -205,10 +206,16 @@ public class PlanEntityStatsExtractorTest {
     }
 
     /**
-     * Test {@link DefaultPlanEntityStatsExtractor#extractStats} based on given attribute names.
+     * Test {@link DefaultPlanEntityStatsExtractor#extractStats} based on given commodity/attribute names.
      */
     @Test
     public void testExtractEntityAttributeStatsRecords() {
+        final CommoditySoldDTO vcpuCommoditySold =
+            CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                .build();
+
         final double containerClusterVcpuOvercommitment = 1.5;
         final double containerClusterVmemOvercommitment = 0.4;
         final ContainerPlatformClusterInfo.Builder containerPlatformClusterInfo =
@@ -221,17 +228,18 @@ public class PlanEntityStatsExtractorTest {
                         .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
                         .setTypeSpecificInfo(
                                 TypeSpecificInfo.newBuilder()
-                                        .setContainerPlatformCluster(containerPlatformClusterInfo)))
+                                        .setContainerPlatformCluster(containerPlatformClusterInfo))
+                        .addCommoditySoldList(vcpuCommoditySold))
                 .build();
         final EntityStats containerClusterStats =
                 statsExtractor.extractStats(containerClusterEntity, StatEpoch.PLAN_SOURCE,
                         Collections.emptyMap(), ImmutableMap.of(VCPU_OVERCOMMITMENT, new HashSet<>(),
-                        VMEM_OVERCOMMITMENT, new HashSet<>()), Collections.emptyMap(),
+                        VMEM_OVERCOMMITMENT, new HashSet<>(), VCPU, new HashSet<>()), Collections.emptyMap(),
                         SNAPSHOT_DATE).build();
         assertEquals(1, containerClusterStats.getStatSnapshotsCount());
 
         StatSnapshot statsSnapshots = containerClusterStats.getStatSnapshots(0);
-        assertEquals(2, statsSnapshots.getStatRecordsCount());
+        assertEquals(3, statsSnapshots.getStatRecordsCount());
 
         Map<String, StatRecord> statRecordMap = statsSnapshots.getStatRecordsList().stream()
                 .collect(Collectors.toMap(StatRecord::getName, Function.identity()));
@@ -239,5 +247,7 @@ public class PlanEntityStatsExtractorTest {
         assertEquals(containerClusterVcpuOvercommitment, statRecordMap.get(VCPU_OVERCOMMITMENT).getCurrentValue(), DELTA);
         assertTrue(statRecordMap.containsKey(VMEM_OVERCOMMITMENT));
         assertEquals(containerClusterVmemOvercommitment, statRecordMap.get(VMEM_OVERCOMMITMENT).getCurrentValue(), DELTA);
+        assertTrue(statRecordMap.containsKey(VCPU));
+        assertEquals("mCores", statRecordMap.get(VCPU).getUnits());
     }
 }

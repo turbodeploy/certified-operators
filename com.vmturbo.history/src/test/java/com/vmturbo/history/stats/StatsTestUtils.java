@@ -474,10 +474,20 @@ public class StatsTestUtils {
                                                 final float testValue,
                                                 final RelationType relation,
                                                 final String relatedEntityType) {
+        return expectedStatRecord(commodityName, testValue, relation, relatedEntityType, "");
+    }
+
+    @Nonnull
+    public static StatRecord expectedStatRecord(final String commodityName,
+                                                final float testValue,
+                                                final RelationType relation,
+                                                final String relatedEntityType,
+                                                final String unit) {
         // testCapacity(1), testMaxValue(1), expectedStatsValue(1),
         final StatValue expectedValue = expectedStatsValue(testValue);
         return StatRecord.newBuilder()
             .setName(commodityName)
+            .setUnits(unit)
             .setCapacity(StatValue.newBuilder()
                 .setMin((float)testCapacity(testValue))
                 .setMax((float)testCapacity(testValue))
