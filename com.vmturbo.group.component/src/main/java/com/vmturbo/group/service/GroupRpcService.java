@@ -1219,7 +1219,8 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private void getGroup(@Nonnull IGroupStore groupStore, @Nonnull GroupID request,
-                          @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
+                          @Nonnull StreamObserver<GetGroupResponse> responseObserver)
+            throws StoreOperationException {
         if (!request.hasId()) {
             final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
             logger.error(errMsg);
@@ -1227,18 +1228,12 @@ public class GroupRpcService extends GroupServiceImplBase {
             return;
         }
 
+        checkUserAccessToGrouping(groupStore, request.getId());
+
         logger.debug("Attempting to retrieve group: {}", request);
 
         try {
             Optional<Grouping> group = getGroupById(groupStore, request.getId());
-            // Patrick - removing this check, as it's preventing retrieval of data for plans. We will
-            // re-enable this with OM-44360
-            /*
-            if (userSessionContext.isUserScoped() && group.isPresent()) {
-                // verify that the members of the new group would all be in scope
-                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), memberCalculator.getGroupMembers(group.get()));
-            }
-            */
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
             group.ifPresent(builder::setGroup);
             responseObserver.onNext(builder.build());

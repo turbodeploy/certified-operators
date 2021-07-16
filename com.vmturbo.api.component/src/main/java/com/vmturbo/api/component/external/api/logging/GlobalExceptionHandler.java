@@ -247,6 +247,8 @@ public class GlobalExceptionHandler {
             StatusRuntimeException ex) {
         if (ex.getStatus() != null && ex.getStatus().getCode() == Code.INVALID_ARGUMENT) {
             return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+        } else if (ex.getStatus() != null && ex.getStatus().getCode() == Code.PERMISSION_DENIED) {
+            return createErrorDTO(req, ex, HttpStatus.FORBIDDEN);
         }
         return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
     }
