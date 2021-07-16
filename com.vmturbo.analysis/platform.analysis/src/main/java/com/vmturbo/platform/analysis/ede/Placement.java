@@ -271,6 +271,10 @@ public class Placement {
             if (economy.getForceStop()) {
                 return PlacementResults.empty();
             }
+            // sl can be immovable when the underlying provider is not availableForPlacement
+            if (!shoppingList.isMovable()) {
+                return PlacementResults.empty();
+            }
             @NonNull HashSet<@NonNull Trader> sellers =
                     economy.getMarket(shoppingList).getActiveSellersAvailableForPlacementForConsumer(shoppingList);
             if (logger.isTraceEnabled()) {
@@ -281,10 +285,6 @@ public class Placement {
                                 trader.toString());
                     }
                 }
-            }
-            // sl can be immovable when the underlying provider is not availableForPlacement
-            if (!shoppingList.isMovable()) {
-                return PlacementResults.empty();
             }
             // if there are no sellers in the market, the buyer is misconfigured
             if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
