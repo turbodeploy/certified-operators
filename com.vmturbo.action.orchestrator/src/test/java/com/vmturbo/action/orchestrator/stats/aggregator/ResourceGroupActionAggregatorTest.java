@@ -132,12 +132,12 @@ public class ResourceGroupActionAggregatorTest {
         assertThat(b2Record.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
     }
 
-    private StatsActionViewFactory.StatsActionView fakeSnapshot(final long resourceGroupId, @Nonnull final ActionDTO.ActionEntity... involvedEntities) {
+    private StatsActionViewFactory.StatsActionView fakeSnapshot(final long resourceGroupId, @Nonnull final ActionDTO.ActionEntity primaryEntity) {
         final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
             .actionGroupKey(ACTION_GROUP_KEY)
             .recommendation(SAVINGS_ACTION)
             .resourceGroupId(resourceGroupId);
-        actionSnapshotBuilder.addInvolvedEntities(involvedEntities);
+        actionSnapshotBuilder.primaryEntity(primaryEntity);
         return actionSnapshotBuilder.build();
     }
 

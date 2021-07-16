@@ -68,12 +68,15 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -418,6 +421,11 @@ public class LiveActionsStatisticianTest {
                 .category(ActionCategory.PERFORMANCE_ASSURANCE)
                 .actionState(actionState)
                 .addActionRelatedRisk("Mem congestion").build())
+                .primaryEntity(ActionEntity.newBuilder()
+                    .setId(111)
+                    .setEnvironmentType(EnvironmentType.ON_PREM)
+                    .setType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .build())
             .recommendation(ActionDTO.Action.newBuilder()
                 .setId(actionId)
                 .setInfo(ActionInfo.newBuilder())

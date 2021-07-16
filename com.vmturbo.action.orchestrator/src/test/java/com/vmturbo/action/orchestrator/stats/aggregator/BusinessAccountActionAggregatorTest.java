@@ -129,12 +129,12 @@ public class BusinessAccountActionAggregatorTest {
         assertThat(b2Record.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
     }
 
-    private StatsActionView fakeSnapshot(final long accountId, @Nonnull final ActionEntity... involvedEntities) {
+    private StatsActionView fakeSnapshot(final long accountId, @Nonnull final ActionEntity primaryEntity) {
         final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
             .actionGroupKey(ACTION_GROUP_KEY)
             .recommendation(SAVINGS_ACTION)
             .businessAccountId(accountId);
-        actionSnapshotBuilder.addInvolvedEntities(involvedEntities);
+        actionSnapshotBuilder.primaryEntity(primaryEntity);
         return actionSnapshotBuilder.build();
     }
 

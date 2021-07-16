@@ -4,9 +4,6 @@ import java.time.LocalDateTime;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-
 import com.vmturbo.action.orchestrator.stats.ActionStat;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
@@ -69,30 +66,32 @@ public class GlobalActionAggregator extends ActionAggregator {
         Metrics.ENV_TYPE_ACTIONS.labels(actionEnvType.name()).increment();
 
         // Update the per-entity-type records.
-        final Multimap<Integer, ActionEntity> involvedEntitiesByType =
-                Multimaps.index(action.involvedEntities(), ActionEntity::getType);
-        involvedEntitiesByType.asMap().forEach((entityType, entities) -> {
-            final MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
+        ActionEntity primaryEntity = action.primaryEntity();
+        final MgmtUnitSubgroupKey typeSpecificKey = ImmutableMgmtUnitSubgroupKey.builder()
                 .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
                 .mgmtUnitType(getManagementUnitType())
                 .environmentType(envType)
-                .entityType(entityType)
+                .entityType(primaryEntity.getType())
                 .build();
-            final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-            stat.recordAction(action.recommendation(), entities,
+        final ActionStat typeSpecificStat = getStat(typeSpecificKey, action.actionGroupKey());
+        typeSpecificStat.recordAction(action.recommendation(), primaryEntity,
                 actionIsNew(action, previousBroadcastActions));
-        });
 
         // Update the global records.
         // We can't reliably re-construct the global records from the per-entity-type records
         // because a single action may appear in a variable number of entity type records.
-        final MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
+
+        // Note - this may no longer be the case, since a single action only has a single involved
+        // entity for stat purposes.
+        //
+        // TODO (roman, Jun 14 2021): Check whether it's safe to remove the global subgroup.
+        final MgmtUnitSubgroupKey globalKey = ImmutableMgmtUnitSubgroupKey.builder()
                 .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
                 .environmentType(envType)
                 .mgmtUnitType(getManagementUnitType())
                 .build();
-        final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-        stat.recordAction(action.recommendation(), involvedEntitiesByType.values(),
+        final ActionStat globalStat = getStat(globalKey, action.actionGroupKey());
+        globalStat.recordAction(action.recommendation(), primaryEntity,
             actionIsNew(action, previousBroadcastActions));
     }
 

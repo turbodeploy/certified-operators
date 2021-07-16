@@ -163,7 +163,7 @@ public class PropagatedActionAggregatorTest {
         final ImmutableStatsActionView actionSnapshot = ImmutableStatsActionView.builder()
                         .actionGroupKey(ACTION_GROUP_KEY)
                         .recommendation(action)
-                        .addInvolvedEntities(vm)
+                        .primaryEntity(vm)
                         .build();
 
         final PropagatedActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
@@ -234,7 +234,7 @@ public class PropagatedActionAggregatorTest {
         final ImmutableStatsActionView actionSnapshot = ImmutableStatsActionView.builder()
                         .actionGroupKey(ACTION_GROUP_KEY)
                         .recommendation(action)
-                        .addInvolvedEntities(vm)
+                        .primaryEntity(vm)
                         .build();
 
         final PropagatedActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
@@ -271,8 +271,7 @@ public class PropagatedActionAggregatorTest {
         final ImmutableStatsActionView actionSnapshot = ImmutableStatsActionView.builder()
                         .actionGroupKey(ACTION_GROUP_KEY)
                         .recommendation(action)
-                        .addInvolvedEntities(vm)
-                        .addInvolvedEntities(host)
+                        .primaryEntity(vm)
                         .build();
 
         final PropagatedActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
@@ -286,7 +285,7 @@ public class PropagatedActionAggregatorTest {
 
         final ActionStatsLatestRecord serviceRecord = records.get(subgroupService.id());
         assertThat(serviceRecord.getTotalActionCount(), is(1));
-        assertThat(serviceRecord.getTotalEntityCount(), is(2));
+        assertThat(serviceRecord.getTotalEntityCount(), is(1));
         assertThat(serviceRecord.getMgmtUnitSubgroupId(), is(subgroupService.id()));
         assertThat(serviceRecord.getActionGroupId(), is(ACTION_GROUP.id()));
         assertThat(serviceRecord.getTotalSavings().doubleValue(), closeTo(action.getSavingsPerHour().getAmount(), 0.001));
@@ -294,7 +293,7 @@ public class PropagatedActionAggregatorTest {
 
         final ActionStatsLatestRecord baRecord = records.get(subgroupBA.id());
         assertThat(baRecord.getTotalActionCount(), is(1));
-        assertThat(baRecord.getTotalEntityCount(), is(2));
+        assertThat(baRecord.getTotalEntityCount(), is(1));
         assertThat(baRecord.getMgmtUnitSubgroupId(), is(subgroupBA.id()));
         assertThat(baRecord.getActionGroupId(), is(ACTION_GROUP.id()));
         assertThat(baRecord.getTotalSavings().doubleValue(), closeTo(action.getSavingsPerHour().getAmount(), 0.001));
@@ -315,7 +314,7 @@ public class PropagatedActionAggregatorTest {
         final ImmutableStatsActionView actionSnapshot = ImmutableStatsActionView.builder()
                         .actionGroupKey(ACTION_GROUP_KEY)
                         .recommendation(action)
-                        .addInvolvedEntities(pm)
+                        .primaryEntity(pm)
                         .build();
 
         final PropagatedActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);

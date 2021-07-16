@@ -1278,10 +1278,6 @@ public class ActionPipelineStages {
             // As a result, this should not be called multiple times per market cycle.
             auditOnGeneration(actionsForAudit, entitiesAndSettingsSnapshot.get());
 
-            if (deletedActions > 0) {
-                actionStore.getEntitySeverityCache().ifPresent(cache -> cache.refresh(actionStore));
-            }
-
             return Status.success("Audit on generation for "
                 + String.format("%,d", actionsForAudit.size()) + " actions");
         }

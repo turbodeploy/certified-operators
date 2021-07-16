@@ -161,7 +161,8 @@ public class ActionStatsConfig {
 
     @Bean
     public ClusterActionAggregatorFactory clusterAggregatorFactory() {
-        return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
+        return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(),
+                tpConfig.actionTopologyStore(), new SupplyChainCalculator());
     }
 
     /**

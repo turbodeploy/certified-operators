@@ -56,7 +56,7 @@ public class StatsActionViewFactory {
                         .build())
                 .resourceGroupId(action.getAssociatedResourceGroupId())
                 .businessAccountId(action.getAssociatedAccount());
-        snapshotBuilder.addInvolvedEntities(primaryEntity);
+        snapshotBuilder.primaryEntity(primaryEntity);
         return snapshotBuilder.build();
     }
 
@@ -67,7 +67,7 @@ public class StatsActionViewFactory {
     public interface StatsActionView {
         ActionDTO.Action recommendation();
         ActionGroupKey actionGroupKey();
-        Set<ActionEntity> involvedEntities();
+        ActionEntity primaryEntity();
         Optional<Long> businessAccountId();
         Optional<Long> resourceGroupId();
     }

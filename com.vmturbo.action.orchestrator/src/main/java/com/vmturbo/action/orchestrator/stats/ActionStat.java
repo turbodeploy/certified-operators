@@ -56,7 +56,7 @@ public class ActionStat {
      * @param isActionNew true iff this action was not recommended in the prior recommendation set
      */
     public void recordAction(@Nonnull final ActionDTO.Action recommendation,
-                             @Nonnull final Collection<ActionEntity> involvedEntities,
+                             @Nonnull final ActionEntity primaryEntity,
                              final boolean isActionNew) {
         this.actionCount++;
         if (isActionNew) {
@@ -68,7 +68,7 @@ public class ActionStat {
             // Subtract, because savings is negative.
             this.investment -= recommendation.getSavingsPerHour().getAmount();
         }
-        involvedEntities.forEach(entity -> this.involvedEntities.add(entity.getId()));
+        this.involvedEntities.add(primaryEntity.getId());
     }
 
     /**

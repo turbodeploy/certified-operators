@@ -5,10 +5,6 @@ import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXP
 
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -19,7 +15,7 @@ import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -58,39 +54,24 @@ public class PropagatedActionAggregator extends ActionAggregatorFactory.ActionAg
                         = actionEnvType == ActionEnvironmentType.CLOUD
                         ? EnvironmentTypeEnum.EnvironmentType.CLOUD
                         : EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+        final ActionEntity primaryEntity = action.primaryEntity();
+        final boolean isNewAction = actionIsNew(action, previousBroadcastActions);
 
-        Map<Integer, List<ActionDTO.ActionEntity>> actionEntitiesPerEntityType = new HashMap<>();
-        EXPANSION_REQUIRED_ENTITY_TYPES.forEach(entityType -> {
-            final List<ActionDTO.ActionEntity> actionEntities = action.involvedEntities().stream()
-                            .filter(actionEntity -> involvedEntitiesExpander
-                                            .shouldPropagateAction(actionEntity.getId(),
-                                                                   Collections.singleton(
-                                                                                   entityType)))
-                            .collect(Collectors.toList());
-            if (!actionEntities.isEmpty()) {
-                actionEntitiesPerEntityType.put(entityType, actionEntities);
+        EXPANSION_REQUIRED_ENTITY_TYPES.forEach(propagatedEntityType -> {
+            if (involvedEntitiesExpander.shouldPropagateAction(primaryEntity.getId(), Collections.singleton(propagatedEntityType))) {
+                // If at least one action entity should propagate actions then create an action stats record
+                // for propagated entity types.
+                logger.trace("Found action entities which will propagate action {}",
+                        action.actionGroupKey());
+                final MgmtUnitSubgroup.MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
+                        .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
+                        .mgmtUnitType(getManagementUnitType())
+                        .environmentType(envType)
+                        .entityType(propagatedEntityType)
+                        .build();
+                final ActionStat stat = getStat(unitKey, action.actionGroupKey());
+                stat.recordAction(action.recommendation(), primaryEntity, isNewAction);
             }
-        });
-
-        if (actionEntitiesPerEntityType.isEmpty()) {
-            logger.trace("No action entities found which should propagate action {}",
-                         action.actionGroupKey());
-            return;
-        }
-        // If at least one action entity should propagate actions then create an action stats record
-        // for propagated entity types.
-        logger.trace("Found action entities which will propagate action {}",
-                     action.actionGroupKey());
-        actionEntitiesPerEntityType.forEach((propagatedEntityType, propagatedActionEntities) -> {
-            final MgmtUnitSubgroup.MgmtUnitSubgroupKey unitKey = ImmutableMgmtUnitSubgroupKey.builder()
-                            .mgmtUnitId(GLOBAL_MGMT_UNIT_ID)
-                            .mgmtUnitType(getManagementUnitType())
-                            .environmentType(envType)
-                            .entityType(propagatedEntityType)
-                            .build();
-            final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-            stat.recordAction(action.recommendation(), propagatedActionEntities,
-                              actionIsNew(action, previousBroadcastActions));
         });
     }
 
