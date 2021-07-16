@@ -11,6 +11,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -146,6 +147,8 @@ public class ActionListenerTest {
                                                            ImmutableSet.of(componentCost4),
                                                            ASSOCIATED_ENTITY_TYPE_STORAGE);
 
+    private final Clock clock = Clock.systemUTC();
+
     /**
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
@@ -170,7 +173,7 @@ public class ActionListenerTest {
                                             entityCostStore, projectedEntityCostStore,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes(), config);
+                EntitySavingsConfig.getSupportedActionTypes(), config, clock);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()

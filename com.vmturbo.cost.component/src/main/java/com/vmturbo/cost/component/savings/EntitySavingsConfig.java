@@ -190,13 +190,13 @@ public class EntitySavingsConfig {
      */
     @Bean
     public ActionListener actionListener() {
-        ActionListener actionListener =
-                                      new ActionListener(entityEventsJournal(), actionsService(),
-                                                     entityCostConfig.entityCostStore(),
-                                                     entityCostConfig.projectedEntityCostStore(),
-                                                     realtimeTopologyContextId,
-                                                     supportedEntityTypes, supportedActionTypes,
-                                                     getEntitySavingsRetentionConfig());
+        ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
+                entityCostConfig.entityCostStore(),
+                entityCostConfig.projectedEntityCostStore(),
+                realtimeTopologyContextId,
+                supportedEntityTypes, supportedActionTypes,
+                getEntitySavingsRetentionConfig(),
+                getClock());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
