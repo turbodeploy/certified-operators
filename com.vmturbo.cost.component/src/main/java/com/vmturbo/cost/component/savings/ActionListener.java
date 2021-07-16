@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -170,6 +171,8 @@ public class ActionListener implements ActionsListener {
      */
     private final EntitySavingsRetentionConfig retentionConfig;
 
+    private final Clock clock;
+
     /**
      * Constructor.
      *
@@ -181,6 +184,7 @@ public class ActionListener implements ActionsListener {
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
      * @param retentionConfig savings action retention configuration.
+     * @param clock clock
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
@@ -189,7 +193,8 @@ public class ActionListener implements ActionsListener {
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
                     @Nonnull Set<ActionType> supportedActionTypes,
-                    @Nonnull EntitySavingsRetentionConfig retentionConfig) {
+                    @Nonnull EntitySavingsRetentionConfig retentionConfig,
+                   @Nonnull final Clock clock) {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -200,6 +205,7 @@ public class ActionListener implements ActionsListener {
                 .collect(Collectors.toSet());
         this.pendingActionTypes = supportedActionTypes;
         this.retentionConfig = retentionConfig;
+        this.clock = clock;
     }
 
     /**
@@ -379,6 +385,10 @@ public class ActionListener implements ActionsListener {
         Map<Long, EntityPriceChange> entityPriceChangeMap =
                                                   getEntityCosts(newPendingEntityIdToActionsInfo);
 
+        // Use current time as the event time. We don't use the action recommendation time because
+        // the event won't be processed if the event time is before the period processing time.
+        final long eventTime = clock.millis();
+
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
         // Add new recommendation action events.
         // Compare the old and new actions and create SavingsEvents for new ActionId's.
@@ -397,11 +407,11 @@ public class ActionListener implements ActionsListener {
                         actionState, actionPriceChange.getSourceCost(),
                         actionPriceChange.getDestinationCost());
                 SavingsEvent pendingActionEvent = createActionEvent(entityId,
-                                                        newActionInfo.getRecommendationTime(),
-                                                        ActionEventType.RECOMMENDATION_ADDED,
-                                                        newActionId,
-                                                        actionPriceChange,
-                                                        newActionInfo, Optional.empty());
+                        eventTime,
+                        ActionEventType.RECOMMENDATION_ADDED,
+                        newActionId,
+                        actionPriceChange,
+                        newActionInfo, Optional.empty());
                 newPendingActionEvents.add(pendingActionEvent);
                 logger.debug("Added new pending event for action {}, entity {},"
                          + " action state {}, source oid {}, destination oid {},"
@@ -435,13 +445,12 @@ public class ActionListener implements ActionsListener {
             // For actions that are getting removed by Market, make the stale event time-stamp
             // current time, as this will make it higher than the recommendation time of
             // all the actions being removed, as they would have been recommended in a prior cycle.
-            final long currentTimeInMillis = System.currentTimeMillis();
             actionChanges.entriesOnlyOnRight().forEach((staleActionInfo, entityId) -> {
                 final Long staleActionId = staleActionInfo.getActionId();
                 if (!entitiesWithReplacedActions.contains(entityId)) {
                     SavingsEvent staleActionEvent =
                                                   createActionEvent(entityId,
-                                                            currentTimeInMillis,
+                                                            eventTime,
                                                             ActionEventType.RECOMMENDATION_REMOVED,
                                                             staleActionId,
                                                             null,

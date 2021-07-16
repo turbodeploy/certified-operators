@@ -107,7 +107,7 @@ public class EntitySavingsTracker {
         List<SavingsEvent> events =
                 entityEventsJournal.removeEventsBetween(0, TimeUtil.localDateTimeToMilli(startTime, clock));
         if (events.size() > 0) {
-            logger.warn("There are {} in the events journal that have timestamps before period start time of {}.",
+            logger.warn("There are {} events in the events journal that have timestamps before period start time of {}.",
                     events.size(), startTime);
         }
 
