@@ -216,30 +216,27 @@ public class EntityFilterMapper {
     }
 
     private static List<SearchFilter> getTagProcessor(SearchFilterContext context) {
-      //TODO: the expression value coming from the UI is currently unsanitized.
+        //TODO: the expression value coming from the UI is currently unsanitized.
         // It is assumed that the tag keys and values do not contain characters such as = and |.
         // This is reported as a JIRA issue OM-39039.
+        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(getTagsFilter(context)));
+    }
+
+    @Nonnull
+    private static PropertyFilter getTagsFilter(@Nonnull final SearchFilterContext context) {
         final String operator = context.getFilter().getExpType();
         final boolean positiveMatch = isPositiveMatchingOperator(operator);
         if (!context.isExactMatching()) {
             // regex match is required
-            final PropertyFilter tagsFilter =
-                mapPropertyFilterForMultimapsRegex(StringConstants.TAGS_ATTR,
-                                                   context.getFilter().getExpVal(),
-                                                   positiveMatch);
-            return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
+            return mapPropertyFilterForMultimapsRegex(StringConstants.TAGS_ATTR,
+                            context.getFilter().getExpVal(),
+                            positiveMatch);
         } else {
             // exact match is required
-            final PropertyFilter tagsFilter =
-                    mapPropertyFilterForMultimapsExact(
+            return mapPropertyFilterForMultimapsExact(
                             StringConstants.TAGS_ATTR,
                             context.getFilter().getExpVal(),
                             positiveMatch);
-            if (tagsFilter != null) {
-                return Collections.singletonList(SearchProtoUtil.searchFilterProperty(tagsFilter));
-            } else {
-                return Collections.emptyList();
-            }
         }
     }
 
@@ -268,12 +265,17 @@ public class EntityFilterMapper {
         final FilterApiDTO filter = context.getFilter();
         final boolean isPositiveMatch = isPositiveMatchingOperator(filter.getExpType());
         final String propertyName = translateToken(context.getIterator().next());
-        final PropertyFilter groupSpecifier = context.isExactMatching() ?
-                SearchProtoUtil.stringPropertyFilterExact(propertyName,
-                        Arrays.asList(filter.getExpVal().split("\\|")), isPositiveMatch,
-                        filter.getCaseSensitive()) :
-                SearchProtoUtil.stringPropertyFilterRegex(propertyName, filter.getExpVal(),
-                        isPositiveMatch, filter.getCaseSensitive());
+        PropertyFilter groupSpecifier;
+        if (StringConstants.TAGS_ATTR.equals(propertyName)) {
+            groupSpecifier = getTagsFilter(context);
+        } else {
+            groupSpecifier = context.isExactMatching() ?
+                    SearchProtoUtil.stringPropertyFilterExact(propertyName,
+                            Arrays.asList(filter.getExpVal()), isPositiveMatch,
+                            filter.getCaseSensitive()) :
+                    SearchProtoUtil.stringPropertyFilterRegex(propertyName, filter.getExpVal(),
+                            isPositiveMatch, filter.getCaseSensitive());
+        }
 
         final GroupFilter groupFilter = GroupFilter.newBuilder()
                 .setGroupSpecifier(groupSpecifier)

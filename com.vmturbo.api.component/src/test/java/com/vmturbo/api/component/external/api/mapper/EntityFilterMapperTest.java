@@ -2,9 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
@@ -930,6 +928,56 @@ public class EntityFilterMapperTest {
         assertEquals(1, specifierStringFilter.getOptionsCount());
         assertEquals("asdf", specifierStringFilter.getOptions(0));
         assertFalse(specifierStringFilter.getPositiveMatch());
+    }
+
+    /**
+     * Test search by tags within group with positive match.
+     *
+     * @throws OperationFailedException - in case conversion fails
+     */
+    @Test
+    public void testGroupFilterWithTagsPositive() throws OperationFailedException {
+        final List<FilterApiDTO> criteriaList = Collections.singletonList(
+                filterDTO(EntityFilterMapper.EQUAL, "Category\\=1=tagWith\\|strangeCharact\\=ers", "pmsByClusterTag"));
+        final Collection<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+                criteriaList, ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        verifyTagSearchResultsSingleValue(result, GroupType.COMPUTE_HOST_CLUSTER, SearchableProperties.TAGS_TYPE_PROPERTY_NAME,
+                "Category=1", "tagWith|strangeCharact=ers", true);
+    }
+
+    /**
+     * Test search by tags within group with negative match.
+     *
+     * @throws OperationFailedException - in case conversion fails
+     */
+    @Test
+    public void testGroupFilterWithTagsNegative() throws OperationFailedException {
+        final List<FilterApiDTO> criteriaList = Collections.singletonList(
+                filterDTO(EntityFilterMapper.NOT_EQUAL, "Category\\=1=tagWith\\|strangeCharact\\=ers", "pmsByClusterTag"));
+        final Collection<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
+                criteriaList, ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        verifyTagSearchResultsSingleValue(result, GroupType.COMPUTE_HOST_CLUSTER, SearchableProperties.TAGS_TYPE_PROPERTY_NAME,
+                "Category=1", "tagWith|strangeCharact=ers", false);
+    }
+
+    private static void verifyTagSearchResultsSingleValue(final Collection<SearchParameters> result,
+           final GroupType groupType, final String propertyName, final String tagKey, final String tagValue,
+                                                   boolean isPositiveMatch) {
+        assertEquals(1, result.size());
+        final SearchParameters params = result.iterator().next();
+        final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
+        assertEquals(groupType, memFilter.getGroupType());
+        assertEquals(propertyName, memFilter.getGroupSpecifier().getPropertyName());
+        final MapFilter mapFilter = memFilter.getGroupSpecifier().getMapFilter();
+        assertNotNull(mapFilter);
+        assertEquals(tagKey, mapFilter.getKey());
+        assertEquals(1, mapFilter.getValuesCount());
+        assertEquals(tagValue, mapFilter.getValuesList().get(0));
+        if (isPositiveMatch) {
+            assertTrue(mapFilter.getPositiveMatch());
+        } else {
+            assertFalse(mapFilter.getPositiveMatch());
+        }
     }
 
 }

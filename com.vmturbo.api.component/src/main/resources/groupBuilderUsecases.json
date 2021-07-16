@@ -82,7 +82,8 @@
             {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.vendor", "filterCategory": "property", "filterType": "pmsByVendorName"},
             {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.cpuModel", "filterCategory": "property", "filterType": "pmsByCPUModel"},
             {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.model", "filterCategory": "property", "filterType": "pmsByModel"},
-            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.timezone", "filterCategory": "property", "filterType": "pmsByTimezone"}
+            {"inputType": "*", "elements": "physicalMachineInfoRepoDTO.timezone", "filterCategory": "property", "filterType": "pmsByTimezone"},
+            {"inputType": "s|*", "elements": "MemberOf:Cluster:tags", "filterCategory": "entity", "filterType": "pmsByClusterTag", "loadOptions": true}
         ]
     },
 
