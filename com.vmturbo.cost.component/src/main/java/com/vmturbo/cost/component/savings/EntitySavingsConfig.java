@@ -227,7 +227,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
         return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                getClock(), cloudTopologyFactory(), repositoryClient,
+                getClock(), cloudTopologyFactory(), repositoryClient, getDslContext(),
                 realtimeTopologyContextId, persistEntityCostChunkSize);
     }
 

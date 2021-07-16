@@ -12,17 +12,20 @@ import com.vmturbo.commons.TimeFrame;
 
 /**
  * Interface for read/write of entity savings/investments related hourly/daily/monthly statistics.
+ *
+ * @param <T> object used for transaction management (e.g. jooq DSLContext)
  */
-public interface EntitySavingsStore {
+public interface EntitySavingsStore<T> {
 
     /**
      * Stores records to hourly stats table.
      *
-     * @param hourlyStats Set of stats to store. Each is of a particular stats type, has a timestamp,
+     * @param hourlyStat Set of stats to store. Each is of a particular stats type, has a timestamp,
      *  and the entityId that the stats belongs to.
+     * @param transaction object used for transaction management
      * @throws EntitySavingsException Thrown on write error.
      */
-    void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
+    void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStat, T transaction)
             throws EntitySavingsException;
 
     /**

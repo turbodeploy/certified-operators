@@ -631,9 +631,9 @@ public class ActionListener implements ActionsListener {
                 AtomicReference<Double> atomicSum = new AtomicReference<>(0.0);
                 cost.getComponentCostList().forEach(componentCost -> {
                     // Consider only the Cost Categories relevant for an Entity Type.
-                    if (costCategoriesByEntityType.get(entityIdToActionInfoMap
-                                    .get(entityId).getEntityType())
-                                    .contains(componentCost.getCategory())
+                    if (entityIdToActionInfoMap.get(entityId) != null
+                            && costCategoriesByEntityType.get(entityIdToActionInfoMap
+                            .get(entityId).getEntityType()).contains(componentCost.getCategory())
                         && componentCost.hasAmount()) {
                         logger.debug("Entity {} {} --> CostSource {} : {} : {}",
                                      entityId, costDescription,

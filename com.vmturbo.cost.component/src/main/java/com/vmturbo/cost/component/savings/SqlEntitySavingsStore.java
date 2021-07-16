@@ -37,7 +37,6 @@ import org.jooq.Result;
 import org.jooq.SelectJoinStep;
 import org.jooq.Table;
 import org.jooq.TableField;
-import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
@@ -50,7 +49,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Implementation of store that accesses savings hourly/daily/monthly DB tables.
  */
-public class SqlEntitySavingsStore implements EntitySavingsStore {
+public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     /**
      * Minimal info logging.
      */
@@ -148,7 +147,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     }
 
     @Override
-    public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
+    public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats, DSLContext dsl)
             throws EntitySavingsException {
         try {
             // Create insert statement.
@@ -160,31 +159,27 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
                     .set(ENTITY_SAVINGS_BY_HOUR.STATS_VALUE, 0d)
                     .onDuplicateKeyIgnore();
 
-            // Put all records within a single transaction, irrespective of the chunk size.
-            dsl.transaction(transaction -> {
-                final DSLContext transactionContext = DSL.using(transaction);
-                final BatchBindStep batch = transactionContext.batch(insert);
+            final BatchBindStep batch = dsl.batch(insert);
 
-                // Add to batch and bind in chunks based on chunk size.
-                Iterators.partition(hourlyStats.iterator(), chunkSize)
-                        .forEachRemaining(chunk ->
-                                chunk.forEach(stats ->
-                                        batch.bind(stats.getEntityId(),
-                                                SavingsUtil.getLocalDateTime(
-                                                        stats.getTimestamp(), clock),
-                                                stats.getType().getNumber(),
-                                                stats.getValue())));
-                if (batch.size() > 0) {
-                    int[] insertCounts = batch.execute();
-                    int totalInserted = IntStream.of(insertCounts).sum();
-                    if (totalInserted < batch.size()) {
-                        logger.warn("Hourly entity savings stats: Could only insert {} out of "
-                                        + "batch size of {}. Total input stats count: {}. "
-                                        + "Chunk size: {}", totalInserted, batch.size(),
-                                hourlyStats.size(), chunkSize);
-                    }
+            // Add to batch and bind in chunks based on chunk size.
+            Iterators.partition(hourlyStats.iterator(), chunkSize)
+                    .forEachRemaining(chunk ->
+                            chunk.forEach(stats ->
+                                    batch.bind(stats.getEntityId(),
+                                            SavingsUtil.getLocalDateTime(
+                                                    stats.getTimestamp(), clock),
+                                            stats.getType().getNumber(),
+                                            stats.getValue())));
+            if (batch.size() > 0) {
+                int[] insertCounts = batch.execute();
+                int totalInserted = IntStream.of(insertCounts).sum();
+                if (totalInserted < batch.size()) {
+                    logger.warn("Hourly entity savings stats: Could only insert {} out of "
+                                    + "batch size of {}. Total input stats count: {}. "
+                                    + "Chunk size: {}", totalInserted, batch.size(),
+                            hourlyStats.size(), chunkSize);
                 }
-            });
+            }
         } catch (Exception e) {
             throw new EntitySavingsException("Could not add " + hourlyStats.size()
                     + " hourly entity savings stats to DB.", e);

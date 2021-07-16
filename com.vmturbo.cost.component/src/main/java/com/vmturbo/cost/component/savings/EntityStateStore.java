@@ -11,8 +11,10 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 
 /**
  * Interface for read/write of entity states.
+ *
+ * @param <T> object used for transaction management (e.g. jooq DSLContext)
  */
-public interface EntityStateStore {
+public interface EntityStateStore<T> {
 
     /**
      * Get a map of entity states given a set of entity IDs.
@@ -39,27 +41,31 @@ public interface EntityStateStore {
     /**
      * Set the updated_by_event values to zeroes.
      *
+     * @param transaction object used for transaction management
      * @throws EntitySavingsException error during operation
      */
-    void clearUpdatedFlags() throws EntitySavingsException;
+    void clearUpdatedFlags(T transaction) throws EntitySavingsException;
 
     /**
      * Delete entity states given a set of entity IDs.
      *
      * @param entityIds a set of entity IDs
+     * @param transaction object used for transaction management
      * @throws EntitySavingsException error during operation
      */
-    void deleteEntityStates(@Nonnull Set<Long> entityIds) throws EntitySavingsException;
+    void deleteEntityStates(@Nonnull Set<Long> entityIds, T transaction) throws EntitySavingsException;
 
     /**
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
      * @param entityStateMap entity ID mapped to entity state
      * @param cloudTopology cloud topology
+     * @param transaction object used for transaction management
      * @throws EntitySavingsException error during operation
      */
     void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap,
-                            @Nonnull TopologyEntityCloudTopology cloudTopology)
+                            @Nonnull TopologyEntityCloudTopology cloudTopology,
+                            T transaction)
             throws EntitySavingsException;
 
     /**

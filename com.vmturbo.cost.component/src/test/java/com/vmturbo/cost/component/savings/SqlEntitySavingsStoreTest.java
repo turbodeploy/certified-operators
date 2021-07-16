@@ -156,7 +156,7 @@ public class SqlEntitySavingsStoreTest {
         setStatsValues(hourlyStats, vm2Id, timeExact3PM, 50, null); // VM2 at 3PM.
 
         // Write it.
-        store.addHourlyStats(hourlyStats);
+        store.addHourlyStats(hourlyStats, dsl);
 
         final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
                 .values()).collect(Collectors.toSet());
@@ -245,7 +245,7 @@ public class SqlEntitySavingsStoreTest {
         final long dayRangeEnd = TimeUtil.localDateTimeToMilli(timeExact1PM.plusDays(7), clock);
         final long monthRangeEnd = SavingsUtil.getMonthEndTime(timeExact1PM.plusMonths(2), clock);
 
-        store.addHourlyStats(hourlyStats);
+        store.addHourlyStats(hourlyStats, dsl);
         rollupProcessor.process(hourlyTimes);
 
         final LastRollupTimes newLastTimes = store.getLastRollupTimes();
@@ -329,7 +329,7 @@ public class SqlEntitySavingsStoreTest {
             hourlyTimes.add(timestamp);
         } while (timestamp < endTimeMillis);
 
-        store.addHourlyStats(hourlyStats);
+        store.addHourlyStats(hourlyStats, dsl);
         rollupProcessor.process(hourlyTimes);
 
         final LastRollupTimes newLastTimes = store.getLastRollupTimes();
@@ -529,7 +529,7 @@ public class SqlEntitySavingsStoreTest {
                 EntitySavingsStatsType.REALIZED_SAVINGS, 10d));
         hourlyStats.add(new EntitySavingsStats(entityOid2, TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 EntitySavingsStatsType.REALIZED_SAVINGS, 20d));
-        store.addHourlyStats(hourlyStats);
+        store.addHourlyStats(hourlyStats, dsl);
 
         // 1. Query by account ID
         // Both VMs are in the same account. Realized savings value equal to the same of the 2.

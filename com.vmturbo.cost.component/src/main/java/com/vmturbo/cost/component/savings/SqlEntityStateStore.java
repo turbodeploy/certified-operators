@@ -37,7 +37,7 @@ import com.vmturbo.group.api.GroupAndMembers;
 /**
  * Implementation of EntityStateStore that persists data in entity_savings_state table.
  */
-public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore {
+public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore<DSLContext> {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -106,7 +106,7 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Override
-    public void clearUpdatedFlags() throws EntitySavingsException {
+    public void clearUpdatedFlags(@Nonnull DSLContext dsl) throws EntitySavingsException {
         try {
             dsl.update(ENTITY_SAVINGS_STATE)
                     .set(ENTITY_SAVINGS_STATE.UPDATED, (byte)0)
@@ -118,7 +118,7 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     }
 
     @Override
-    public void deleteEntityStates(@Nonnull final Set<Long> entityIds) throws EntitySavingsException {
+    public void deleteEntityStates(@Nonnull final Set<Long> entityIds, @Nonnull DSLContext dsl) throws EntitySavingsException {
         try {
             dsl.deleteFrom(ENTITY_SAVINGS_STATE)
                     .where(ENTITY_SAVINGS_STATE.ENTITY_OID.in(entityIds))
@@ -130,7 +130,8 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
 
     @Override
     public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
-                                   @Nonnull final TopologyEntityCloudTopology cloudTopology)
+                                   @Nonnull final TopologyEntityCloudTopology cloudTopology,
+                                   @Nonnull DSLContext dsl)
             throws EntitySavingsException {
         // State records requires the corresponding scope record is already present in the scope table.
         // Only create state records that have a scope record.

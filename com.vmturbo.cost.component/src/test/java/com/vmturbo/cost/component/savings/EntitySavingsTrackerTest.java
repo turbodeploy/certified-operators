@@ -1,7 +1,12 @@
 package com.vmturbo.cost.component.savings;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -13,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,14 +26,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -35,22 +45,28 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Verify operation of the entity savings tracker.
  */
 public class EntitySavingsTrackerTest {
-    private static EntitySavingsStore entitySavingsStore;
+    private static EntitySavingsStore<DSLContext> entitySavingsStore;
+
+    private EntityStateStore<DSLContext> entityStateStore;
 
     private static EntityEventsJournal entityEventsJournal;
 
@@ -97,6 +113,23 @@ public class EntitySavingsTrackerTest {
 
     private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
+    /**
+     * Config providing access to DB. Also ClassRule to init Db and upgrade to latest.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to clean up temp test DB.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    /**
+     * Context to execute DB queries and inserts.
+     */
+    private final DSLContext dsl = dbConfig.getDslContext();
+
     @Captor
     private ArgumentCaptor<Set<EntitySavingsStats>> statsCaptor;
 
@@ -120,13 +153,13 @@ public class EntitySavingsTrackerTest {
         when(entityEventsJournal.removeEventsBetween(time0900amMillis, time1000amMillis)).thenReturn(eventsByPeriod.get(time0900am));
         when(entityEventsJournal.removeEventsBetween(time1000amMillis, time1100amMillis)).thenReturn(eventsByPeriod.get(time1000am));
         when(entityEventsJournal.removeEventsBetween(time1100amMillis, time1200pmMillis)).thenReturn(eventsByPeriod.get(time1100am));
-        entitySavingsStore = mock(EntitySavingsStore.class);
-        EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
+        entitySavingsStore = new SqlEntitySavingsStore(dsl, clock, 5);
+        entityStateStore = mock(SqlEntityStateStore.class);
 
         setupRepositoryClient();
         tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
                 entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
-                repositoryClient, realtimeTopologyContextId, 2));
+                repositoryClient, dsl, realtimeTopologyContextId, 2));
 
         Set<EntityState> stateSet = ImmutableSet.of(
                 createEntityState(vm1Id, 2d, null, null, null),
@@ -254,7 +287,7 @@ public class EntitySavingsTrackerTest {
         final long startTimeMillis = TimeUtil.localDateTimeToMilli(time0900am, clock);
         final long endTimeMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
         verify(entityEventsJournal).removeEventsBetween(startTimeMillis, endTimeMillis);
-        verify(tracker).generateStats(startTimeMillis);
+        verify(tracker).generateStats(eq(startTimeMillis), any(DSLContext.class));
         List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
         verify(repositoryClient).getAllBusinessAccountOidsInScope(new HashSet<>(vmIds));
         verify(repositoryClient).getEntitiesByType(Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER));
@@ -267,6 +300,10 @@ public class EntitySavingsTrackerTest {
         Assert.assertTrue(capturedEntityLists.get(1).containsAll(Arrays.asList(vm1Id, vm2Id,
                 region1Id, region2Id, availabilityZone1Id, account1Id, account2Id, serviceProvider1Id,
                 serviceProvider2Id)));
+
+        // Assert that data is inserted into entity_savings_by_hour table.
+        List<AggregatedSavingsStats> statsReadBack = getSavingsStats();
+        assertTrue(statsReadBack.size() > 0);
     }
 
     /**
@@ -282,10 +319,46 @@ public class EntitySavingsTrackerTest {
         final long time1100amMillis = TimeUtil.localDateTimeToMilli(time1100am, clock);
         tracker.processEvents(time0900am, time1100am);
         verify(entityEventsJournal).removeEventsBetween(time0900amMillis, time1000amMillis);
-        verify(tracker).generateStats(time0900amMillis);
+        verify(tracker).generateStats(eq(time0900amMillis), any(DSLContext.class));
         verify(entityEventsJournal).removeEventsBetween(time1000amMillis, time1100amMillis);
-        verify(tracker).generateStats(time1000amMillis);
-        verify(tracker, times(2)).generateStats(anyLong());
+        verify(tracker).generateStats(eq(time1000amMillis), any(DSLContext.class));
+        verify(tracker, times(2)).generateStats(anyLong(), any(DSLContext.class));
+
+        // Assert that data is inserted into entity_savings_by_hour table.
+        List<AggregatedSavingsStats> statsReadBack = getSavingsStats();
+        assertTrue(statsReadBack.size() > 0);
+    }
+
+    /**
+     * If any database exception is thrown when updating entity_savings_by_hour or entity_savings_state
+     * tables, all database updates will be rolled back.
+     *
+     * @throws Exception any exceptions
+     */
+    @Test
+    public void testDatabaseRollback() throws Exception {
+        doThrow(EntitySavingsException.class).when(entityStateStore)
+                .deleteEntityStates(anySetOf(Long.class), any(DSLContext.class));
+        List<Long> hourlyStatsTimes = tracker.processEvents(time0900am, time1000am);
+        List<AggregatedSavingsStats> statsReadBack = getSavingsStats();
+
+        // There should be no data in the entity_savings_by_hour table because a rollback occurred.
+        assertEquals(0, statsReadBack.size());
+        assertEquals(0, hourlyStatsTimes.size());
+
+        // Events should be added back to the journal after the failure.
+        verify(entityEventsJournal).addEvents(any(List.class));
+    }
+
+    private List<AggregatedSavingsStats> getSavingsStats() throws EntitySavingsException {
+        final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
+                .values()).collect(Collectors.toSet());
+        Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
+        List<AggregatedSavingsStats> statsReadBack = entitySavingsStore.getHourlyStats(allStatsTypes,
+                TimeUtil.localDateTimeToMilli(time0900am, clock),
+                TimeUtil.localDateTimeToMilli(time1000am, clock),
+                ImmutableSet.of(vm1Id, vm2Id, vm3Id, vm4Id), entityTypes, new HashSet<>(), new HashSet<>());
+        return statsReadBack;
     }
 
     /**
@@ -296,13 +369,17 @@ public class EntitySavingsTrackerTest {
     @Test
     public void testGenerateStats() throws Exception {
         final long time1000amMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
-        tracker.generateStats(time1000amMillis);
+        EntitySavingsStore<DSLContext> entitySavingsStore = mock(EntitySavingsStore.class);
+        EntitySavingsTracker tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
+                entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
+                repositoryClient, dsl, realtimeTopologyContextId, 2));
+        tracker.generateStats(eq(time1000amMillis), any(DSLContext.class));
 
         // addHourlyStats is called three times.
         // First 2 states will generate 2 stats records => 1 call
         // Third state will generate 4 stats records => 1 call
         // Forth state will generate 1 stats (less than 1 page) and flushed at the end => 1 call
-        verify(entitySavingsStore, times(3)).addHourlyStats(statsCaptor.capture());
+        verify(entitySavingsStore, times(3)).addHourlyStats(statsCaptor.capture(), any(DSLContext.class));
     }
 
     private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,

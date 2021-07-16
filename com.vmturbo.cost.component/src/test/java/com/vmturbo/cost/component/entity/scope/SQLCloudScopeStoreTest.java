@@ -89,7 +89,7 @@ public class SQLCloudScopeStoreTest {
     /**
      * Entity State Store.
      */
-    private final EntityStateStore entityStateStore = new SqlEntityStateStore(dsl, 100);;
+    private final EntityStateStore<DSLContext> entityStateStore = new SqlEntityStateStore(dsl, 100);
 
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
@@ -228,7 +228,7 @@ public class SQLCloudScopeStoreTest {
         Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1));
         TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology(1000L);
         entityStateStore.updateEntityStates(stateSet.stream().collect(
-                Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology);
+                Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology, dsl);
 
         // Delete datapoint A from entity_compute_tier_allocation table.
         computeTierAllocationStore.deleteAllocations(deleteFilter);

@@ -18,6 +18,8 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -38,11 +40,11 @@ public class EntitySavingsTracker {
      */
     private final Logger logger = LogManager.getLogger();
 
-    private final EntitySavingsStore entitySavingsStore;
+    private final EntitySavingsStore<DSLContext> entitySavingsStore;
 
     private final EntityEventsJournal entityEventsJournal;
 
-    private final EntityStateStore entityStateStore;
+    private final EntityStateStore<DSLContext> entityStateStore;
 
     private final SavingsCalculator savingsCalculator;
 
@@ -56,6 +58,8 @@ public class EntitySavingsTracker {
 
     private final Clock clock;
 
+    private final DSLContext dsl;
+
     /**
      * Constructor.
      *
@@ -65,15 +69,17 @@ public class EntitySavingsTracker {
      * @param clock clock
      * @param cloudTopologyFactory cloud topology factory
      * @param repositoryClient repository client
+     * @param dsl Jooq DSL Context
      * @param realtimeTopologyContextId realtime topology context ID
      * @param chunkSize chunkSize for database batch operations
      */
-    EntitySavingsTracker(@Nonnull EntitySavingsStore entitySavingsStore,
+    EntitySavingsTracker(@Nonnull EntitySavingsStore<DSLContext> entitySavingsStore,
                          @Nonnull EntityEventsJournal entityEventsJournal,
-                         @Nonnull EntityStateStore entityStateStore,
+                         @Nonnull EntityStateStore<DSLContext> entityStateStore,
                          @Nonnull final Clock clock,
                          @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                          @Nonnull RepositoryClient repositoryClient,
+                         @Nonnull final DSLContext dsl,
                          long realtimeTopologyContextId,
                          final int chunkSize) {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
@@ -85,6 +91,7 @@ public class EntitySavingsTracker {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = repositoryClient;
         this.chunkSize = chunkSize;
+        this.dsl = dsl;
     }
 
     /**
@@ -118,7 +125,7 @@ public class EntitySavingsTracker {
                 final long startTimeMillis = TimeUtil.localDateTimeToMilli(periodStartTime, clock);
                 final long endTimeMillis = TimeUtil.localDateTimeToMilli(periodEndTime, clock);
 
-                // Read from entity event journal.
+                // Remove events from entity event journal.
                 events = entityEventsJournal.removeEventsBetween(startTimeMillis, endTimeMillis);
 
                 // Get all entity IDs from the events
@@ -137,40 +144,53 @@ public class EntitySavingsTracker {
                         .getForcedUpdateEntityStates(periodEndTime);
                 entityStates.putAll(forcedEntityStates);
 
-                // Clear the updated_by_event flags
-                entityStateStore.clearUpdatedFlags();
-
                 // Invoke calculator
                 savingsCalculator.calculate(entityStates, forcedEntityStates.values(), events,
                         startTimeMillis, endTimeMillis);
 
-                // Update entity states. Also insert new states to track new entities.
-                entityStateStore.updateEntityStates(entityStates, createCloudTopology(entityStates.keySet()));
+                // Group all database operations into a transaction. If an exception is thrown from
+                // any of the data store methods, the transaction will be rolled back and processing
+                // will stop. When the tracker is executed again in the next hour, we will start
+                // from the hour that failed last time.
+                dsl.transaction(transaction -> {
+                    // DSL context to be used within the transaction scope. Use this dsl context
+                    // in data store operations within this transaction.
+                    DSLContext dsl = DSL.using(transaction);
 
-                try {
+                    // Clear the updated_by_event flags
+                    entityStateStore.clearUpdatedFlags(dsl);
+
+                    // Update entity states. Also insert new states to track new entities.
+                    entityStateStore.updateEntityStates(entityStates,
+                            createCloudTopology(entityStates.keySet()), dsl);
+
                     // create stats records from state map for this period.
-                    generateStats(startTimeMillis);
-                    hourlyStatsTimes.add(startTimeMillis);
-                } catch (EntitySavingsException e) {
-                    logger.error("Error occurred when Entity Savings Tracker writes stats to entity savings store. "
-                            + "Start time: {} End time: {}", startTime, endTime, e);
-                    // Stop processing and don't update the last period end time.
-                    break;
-                }
-                // We delete inactive entity state after the stats for the entity have been flushed
-                // a final time.
-                Set<Long> statesToRemove = entityStates.values().stream()
-                        .filter(EntityState::isDeletePending)
-                        .map(EntityState::getEntityId)
-                        .collect(Collectors.toSet());
-                entityStateStore.deleteEntityStates(statesToRemove);
+                    generateStats(startTimeMillis, dsl);
+
+                    // We delete inactive entity state after the stats for the entity have been flushed
+                    // a final time.
+                    Set<Long> statesToRemove = entityStates.values().stream()
+                            .filter(EntityState::isDeletePending)
+                            .map(EntityState::getEntityId)
+                            .collect(Collectors.toSet());
+                    entityStateStore.deleteEntityStates(statesToRemove, dsl);
+                });
+
+                // Add start time to list to indicate this hour's data is ready for rollup.
+                hourlyStatsTimes.add(startTimeMillis);
 
                 // Advance time period by 1 hour.
                 periodStartTime = periodStartTime.plusHours(1);
                 periodEndTime = periodEndTime.plusHours(1);
             }
-        } catch (EntitySavingsException e) {
-            logger.error("Operation error in entity state store.", e);
+        } catch (Exception e) {
+            // Add events back to the events journal.
+            entityEventsJournal.addEvents(events);
+
+            // Catching any exceptions here. Not only catching EntitySavingsException because
+            // we can get DataAccessException when a rollback happens in the transaction, which is
+            // a RuntimeException.
+            logger.error("Operation error in entity savings tracker.", e);
         }
 
         logger.debug("Savings/investment processing complete for {} hourly times.",
@@ -182,10 +202,11 @@ public class EntitySavingsTracker {
      * Generate savings stats records from the state map.
      *
      * @param statTime Timestamp of the stats records which is the start time of a period.
+     * @param dsl jooq DSL Context
      * @throws EntitySavingsException Error occurred when inserting the DB records.
      */
     @VisibleForTesting
-    void generateStats(long statTime) throws EntitySavingsException {
+    void generateStats(long statTime, @Nonnull DSLContext dsl) throws EntitySavingsException {
         Set<EntitySavingsStats> stats = new HashSet<>();
         // Use try with resource here because the stream implementation uses an open cursor that
         // need to be closed.
@@ -194,7 +215,7 @@ public class EntitySavingsTracker {
                 stats.addAll(stateToStats(state, statTime));
                 if (stats.size() >= chunkSize) {
                     try {
-                        entitySavingsStore.addHourlyStats(stats);
+                        entitySavingsStore.addHourlyStats(stats, dsl);
                     } catch (EntitySavingsException e) {
                         // Wrap exception in RuntimeException and rethrow because it is within a lambda.
                         throw new RuntimeException(e);
@@ -204,13 +225,8 @@ public class EntitySavingsTracker {
             });
             if (!stats.isEmpty()) {
                 // Flush partial chunk
-                entitySavingsStore.addHourlyStats(stats);
+                entitySavingsStore.addHourlyStats(stats, dsl);
             }
-        } catch (RuntimeException e) {
-            if (e.getCause() instanceof EntitySavingsException) {
-                throw new EntitySavingsException("Error occurred when adding stats to database.", e.getCause());
-            }
-            throw e;
         }
     }
 

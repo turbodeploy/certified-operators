@@ -107,6 +107,7 @@ class EntitySavingsProcessor {
             logger.info("Invoking RollupSavingsProcessor to process rollup.");
             rollupProcessor.process(hourlyStatsTimes);
 
+            logger.info("Invoking data retention processor.");
             dataRetentionProcessor.process(false);
 
             logger.info("END: Processing savings/investment. {} Hourly stats.",

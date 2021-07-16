@@ -61,7 +61,7 @@ public class SqlEntityStateStoreTest {
     /**
      * Entity State Store.
      */
-    private EntityStateStore store;
+    private EntityStateStore<DSLContext> store;
 
     /**
      * Config providing access to DB. Also ClassRule to init Db and upgrade to latest.
@@ -110,7 +110,7 @@ public class SqlEntityStateStoreTest {
 
         TopologyEntityCloudTopology cloudTopology = getCloudTopology(1000L);
         store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology);
+                cloudTopology, dsl);
 
         // Get states by IDs.
         Set<Long> entityIds = ImmutableSet.of(3L, 4L, 5L, 100L);
@@ -125,7 +125,7 @@ public class SqlEntityStateStoreTest {
         Set<Long> entitiesToDelete = ImmutableSet.of(1L, 2L);
         stateMap = store.getEntityStates(entitiesToDelete);
         assertEquals(2, stateMap.size());
-        store.deleteEntityStates(entitiesToDelete);
+        store.deleteEntityStates(entitiesToDelete, dsl);
         stateMap = store.getEntityStates(entitiesToDelete);
         assertEquals(0, stateMap.size());
 
@@ -147,7 +147,7 @@ public class SqlEntityStateStoreTest {
         entity3.setActionList(Arrays.asList(1d, 2d, 3d, 4d, 5d));
         stateSetToUpdate.add(entity3);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology);
+                cloudTopology, dsl);
         Set<Long> entitiesUpdated = ImmutableSet.of(3L, 11L);
         stateMap = store.getEntityStates(entitiesUpdated);
         assertEquals(2, stateMap.size());
@@ -168,7 +168,7 @@ public class SqlEntityStateStoreTest {
         stateSetToUpdate = new HashSet<>();
         stateSetToUpdate.add(updatedState);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology);
+                cloudTopology, dsl);
         updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
         assertEquals(1, updated.size());
         // the updated flag should not be serialized with the state object, so state is false
@@ -176,7 +176,7 @@ public class SqlEntityStateStoreTest {
         updated.values().forEach(state -> assertFalse(state.isUpdated()));
 
         // Clear the updated flags
-        store.clearUpdatedFlags();
+        store.clearUpdatedFlags(dsl);
         updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
         assertEquals(0, updated.size());
     }
@@ -204,7 +204,7 @@ public class SqlEntityStateStoreTest {
                 12345L, 12345L, 12345L, 12345L, 12345L);
         dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r1).execute();
         store.updateEntityStates(stateSet.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())),
-                cloudTopology);
+                cloudTopology, dsl);
 
         List<EntityState> states = store.getAllEntityStates().collect(Collectors.toList());
         assertEquals(11, states.size());

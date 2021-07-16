@@ -130,7 +130,7 @@ public class DataRetentionProcessorTest {
 
         long timestampEnd = TimeUtil.localDateTimeToMilli(timeEnd, clock);
 
-        statsSavingsStore.addHourlyStats(ImmutableSet.of(stats1, stats2));
+        statsSavingsStore.addHourlyStats(ImmutableSet.of(stats1, stats2), dsl);
 
         List<AggregatedSavingsStats> hourlyStats = fetchHourlyStats(timestampOld, timestampEnd);
         assertNotNull(hourlyStats);
