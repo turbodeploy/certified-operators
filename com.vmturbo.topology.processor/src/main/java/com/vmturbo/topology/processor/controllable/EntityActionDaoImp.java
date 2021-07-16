@@ -25,6 +25,18 @@ import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
+/**
+Note: For any database transactions (those that aquire locks), the order
+      in which locks are acquired is important and should follow this order:
+
+      0: ACTION_ID
+      1: ENTITY_ID
+      2: STATUS
+      3: UPDATE_TIME
+      4. ACTION_TYPE
+
+    This is to prevent deadlocks: https://stackoverflow.com/a/2423921.
+ */
 public class EntityActionDaoImp implements EntityActionDao {
     private final Logger logger = LogManager.getLogger();
 
@@ -91,7 +103,7 @@ public class EntityActionDaoImp implements EntityActionDao {
                     EntityActionRecord actionRecord = existingRecord.get();
                     actionRecord.setStatus(initialEntityStatus);
                     actionRecord.setUpdateTime(now);
-                    transactionDsl.batchUpdate(actionRecord).execute();
+                    transactionDsl.executeUpdate(actionRecord);
                 } else {
                     // Insert a new row for this aciton/entity combination.
                     logger.info("Insert new action in entity actions table. actionId: {}, entityId: {}",
@@ -99,9 +111,9 @@ public class EntityActionDaoImp implements EntityActionDao {
                     transactionDsl.insertInto(ENTITY_ACTION)
                         .set(ENTITY_ACTION.ACTION_ID, actionId)
                         .set(ENTITY_ACTION.ENTITY_ID, entityId)
-                        .set(ENTITY_ACTION.ACTION_TYPE, getActionType(actionType))
                         .set(ENTITY_ACTION.STATUS, initialEntityStatus)
                         .set(ENTITY_ACTION.UPDATE_TIME, now)
+                        .set(ENTITY_ACTION.ACTION_TYPE, getActionType(actionType))
                         .execute();
                 }
             }
@@ -305,8 +317,8 @@ public class EntityActionDaoImp implements EntityActionDao {
                 .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime));
 
             transactionDsl.deleteFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_TYPE.eq(actionType)
-                    .and(queuedOrInProgressCondition.or(failedCondition).or(succeedCondition)))
+                .where(failedCondition.or(queuedOrInProgressCondition).or(succeedCondition))
+                    .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType))
                 .execute();
 
             // after deleted expired records, the rest of 'succeed' or 'in progress' or 'queued' status
