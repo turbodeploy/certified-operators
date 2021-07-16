@@ -227,7 +227,6 @@ public class SearchService implements ISearchService {
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
-                .put("discoveredBy:probeType", (a, b, c) -> getProbeTypeOptions())
                 .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_NAME, (a, b, c) -> getResourceGroupsNameOptions())
                 .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
@@ -888,7 +887,7 @@ public class SearchService implements ISearchService {
     private FilterApiDTO createCloudProbeMatcher(List<String> probesToMatch) {
         final FilterApiDTO providerFilter = new FilterApiDTO();
         providerFilter.setCaseSensitive(false);
-        providerFilter.setFilterType(EntityFilterMapper.ACCOUNT_PROBE_TYPE_FILTER);
+        providerFilter.setFilterType(EntityFilterMapper.ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE);
         providerFilter.setExpType(EntityFilterMapper.EQUAL);
         providerFilter.setExpVal(String.join(GroupFilterMapper.OR_DELIMITER, probesToMatch));
         return providerFilter;
@@ -1330,20 +1329,6 @@ public class SearchService implements ISearchService {
                 .map(providerType -> {
                     final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
                     crOpt.setValue(providerType);
-                    return crOpt;
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Nonnull
-    private List<CriteriaOptionApiDTO> getProbeTypeOptions() {
-        return targetsService.getProbes()
-                .stream()
-                .map(probe -> probe.getType())
-                .distinct()
-                .map(probeType -> {
-                    final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                    crOpt.setValue(probeType);
                     return crOpt;
                 })
                 .collect(Collectors.toList());

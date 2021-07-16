@@ -25,13 +25,24 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
  *
  * No interface is provided to directly remove actions from the store.
  * Actions that are no longer active (CLEARED, SUCCEEDED, or FAILED) are passively
- * removed from the store as a side effect of the LiveActionPipelineFactory processing.
+ * removed from the store as a side effect of {@link #populateRecommendedActions(ActionPlan)}
  *
  * The {@link ActionStore} makes no guarantees about the order in which actions are returned.
  *
  * Actions in a store should be associated with a particular topology context.
  */
 public interface ActionStore {
+    /**
+     * Updates the {@link ActionStore} with a new set of recommendations.
+     * The particulars of the behavior of the store depend on the type of store
+     * being populated.
+     *
+     * @param actionPlan The list of actions with which to populate the store.
+     * @return If the store was successfully populated with actions from the plan.
+     * @throws InterruptedException if current thread interrupted
+     */
+    boolean populateRecommendedActions(@Nonnull ActionPlan actionPlan) throws InterruptedException;
+
     /**
      * Return the number of elements in the store.
      *

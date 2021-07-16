@@ -226,14 +226,14 @@ public class LiveActionPipelineFactory {
         return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
             .initialContextMember(ActionPipelineContextMembers.CURRENT_ACTION_PLAN_COUNTS, newCountsSupplier)
             .initialContextMember(ActionPipelineContextMembers.PREVIOUS_ACTION_PLAN_COUNTS, previousCountsSupplier)
+            .addStage(new GetOrCreateLiveActionStoreStage(actionStorehouse))
             .addStage(new GetInvolvedEntityIdsStage())
             .addStage(new PrepareAggregatedActionsStage(atomicActionFactory))
-            .addStage(new GetOrCreateLiveActionStoreStage(actionStorehouse))
             .addStage(new GetEntitiesAndSettingsSnapshotStage(entitiesAndSettingsSnapshotFactory))
             // The PopulateLiveActionsSegment holds a shared lock during the lifetime of its execution
             // so only one of these can be executed at a time.
-            .addStage(new PopulateLiveActionsSegment(sharedLiveActionsLock, liveActionsLockWaitTimeMinutes,
-                    SegmentDefinition.addStage(new ActionPlanSummaryStage())
+            .addStage(new PopulateLiveActionsSegment(sharedLiveActionsLock, liveActionsLockWaitTimeMinutes, SegmentDefinition
+                .addStage(new ActionPlanSummaryStage())
                 .addStage(new RefreshProbeCapabilitiesStage(probeCapabilityCache))
                 .addStage(new CreateLastExecutedRecommendationsTrackerStage(actionHistoryDao, actionFactory, clock, queryTimeWindowForLastExecutedActionsMins))
                 // MarketActionsSegment for processing market actions

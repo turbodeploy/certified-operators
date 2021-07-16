@@ -104,8 +104,7 @@ public class MarketConfig {
      */
     @Bean
     public PlanActionPipelineFactory planActionPipelineFactory() {
-        return new PlanActionPipelineFactory(actionStoreConfig.actionStorehouse(),
-                                             actionStoreConfig.planAtomicActionFactory());
+        return new PlanActionPipelineFactory(actionStoreConfig.actionStorehouse());
     }
 
     /**

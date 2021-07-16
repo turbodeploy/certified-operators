@@ -12,8 +12,6 @@ import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,7 +37,6 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -87,8 +84,6 @@ public class PlanActionStoreTransactionTest {
 
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private PlanActionStore actionStore;
-    private static ActionPipelineStages.AtomicActionsPlan emptyAtomicActionsPlan;
-    private static List<ActionDTO.Action> emptyMergedActions;
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
@@ -102,10 +97,6 @@ public class PlanActionStoreTransactionTest {
                     ImmutableActionTargetInfo.builder()
                             .targetId(100L).supportingLevel(ActionDTO.Action.SupportLevel.SUPPORTED).build()));
         });
-
-        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(),
-                Collections.emptyList());
-        emptyMergedActions = new ArrayList<>();
     }
 
     public void setEntitiesOIDs() {
@@ -135,11 +126,10 @@ public class PlanActionStoreTransactionTest {
             licenseCheckClient);
 
         // The first call does not clear because there is nothing in the store yet.
-        assertTrue(actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions));
+        assertTrue(actionStore.populateRecommendedActions(actionPlan));
 
         // The second call will call clear and should trigger transaction rollback.
-        assertFalse(actionStore.populateRecommendedAndAtomicActions(actionPlan.toBuilder().setId(1234L).build(),
-                                                                    emptyAtomicActionsPlan, emptyMergedActions));
+        assertFalse(actionStore.populateRecommendedActions(actionPlan.toBuilder().setId(1234L).build()));
 
         // The store should have failed to populate and planId should continue to be null.
         assertEquals(initialPlanId, (long)actionStore.getActionPlanId(ActionPlanType.MARKET).get());
@@ -153,7 +143,7 @@ public class PlanActionStoreTransactionTest {
             licenseCheckClient);
 
         // The attempt to store actions should fail.
-        assertFalse(actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions));
+        assertFalse(actionStore.populateRecommendedActions(actionPlan));
 
         // And the plan ID should not get set.
         assertFalse(actionStore.getActionPlanId(ActionPlanType.MARKET).isPresent());
@@ -184,7 +174,7 @@ public class PlanActionStoreTransactionTest {
             licenseCheckClient);
 
         // The first call does not clear because there is nothing in the store yet.
-        assertTrue(actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions));
+        assertTrue(actionStore.populateRecommendedActions(actionPlan));
 
         // Calling clear will clear records, which should trigger the failure
         assertFalse(actionStore.clear());

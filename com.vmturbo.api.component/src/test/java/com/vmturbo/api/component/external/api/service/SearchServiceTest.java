@@ -1041,7 +1041,7 @@ public class SearchServiceTest {
         assertEquals(1, actualFilterList.size());
         final FilterApiDTO filterDTO = actualFilterList.iterator().next();
         assertFalse(filterDTO.getCaseSensitive());
-        assertEquals(EntityFilterMapper.ACCOUNT_PROBE_TYPE_FILTER, filterDTO.getFilterType());
+        assertEquals(EntityFilterMapper.ACCOUNT_CLOUD_PROVIDER_FILTER_TYPE, filterDTO.getFilterType());
         assertEquals(EntityFilterMapper.EQUAL, filterDTO.getExpType());
         assertEquals(probeType1 + GroupFilterMapper.OR_DELIMITER + probeType2, filterDTO.getExpVal());
     }

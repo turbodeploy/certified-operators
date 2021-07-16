@@ -53,7 +53,6 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.ActionSource;
 import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
-import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.store.atomic.AggregatedAction;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory.AtomicActionResult;
@@ -91,6 +90,32 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  */
 public class ActionPipelineStages {
     /**
+     * Stores an action plan in a store created in the ActionStorehouse. Returns the
+     * {@link ActionStore} where the actions in the {@link ActionPlan} were stored.
+     */
+    public static class PopulateActionStoreStage extends Stage<ActionPlan, ActionStore> {
+        private final ActionStorehouse storehouse;
+
+        /**
+         * Create a new {@link PopulateActionStoreStage}.
+         *
+         * @param storehouse The {@link ActionStorehouse}.
+         */
+        public PopulateActionStoreStage(@Nonnull final ActionStorehouse storehouse) {
+            this.storehouse = Objects.requireNonNull(storehouse);
+        }
+
+        @Nonnull
+        @Override
+        public StageResult<ActionStore> executeStage(@Nonnull final ActionPlan actionPlan) throws InterruptedException {
+            final ActionStore actionStore = storehouse.storeActions(actionPlan);
+
+            return StageResult.withResult(actionStore)
+                .andStatus(Status.success());
+        }
+    }
+
+    /**
      * Get or create an appropriate {@link ActionStore} for an {@link ActionPlan} from the ActionStorehouse.
      */
     public static class GetOrCreateLiveActionStoreStage extends Stage<ActionPlan, ActionPlanAndStore> {
@@ -126,41 +151,9 @@ public class ActionPipelineStages {
     }
 
     /**
-     * Get or create an appropriate {@link PlanActionStore} for an {@link ActionPlan} from the ActionStorehouse.
-     */
-    public static class GetOrCreatePlanActionStoreStage extends Stage<AtomicActionsAndActionPlan, ActionPlanAndPlanStore> {
-        private final ActionStorehouse storehouse;
-
-        /**
-         * Create a new {@link PopulateActionStoreStage}.
-         *
-         * @param storehouse The {@link ActionStorehouse}.
-         */
-        public GetOrCreatePlanActionStoreStage(@Nonnull final ActionStorehouse storehouse) {
-            this.storehouse = Objects.requireNonNull(storehouse);
-        }
-
-        @Nonnull
-        @Override
-        public StageResult<ActionPlanAndPlanStore> executeStage(@Nonnull final AtomicActionsAndActionPlan actionPlan)
-                throws PipelineStageException {
-            final ActionStore actionStore = storehouse.measurePlanAndGetOrCreateStore(actionPlan.getActionPlan());
-            if (actionStore instanceof PlanActionStore) {
-                return StageResult
-                        .withResult(new ActionPlanAndPlanStore(actionPlan.getActionPlan(), actionPlan.atomicActions,
-                                                                (PlanActionStore)actionStore))
-                        .andStatus(Status.success());
-            } else {
-                throw new PipelineStageException("Unsupported action store type "
-                        + actionStore.getClass().getSimpleName() + " for plan action pipeline.");
-            }
-        }
-    }
-
-    /**
      * Get the IDs of the entities involved in the actions in an {@link ActionPlan}.
      */
-    public static class GetInvolvedEntityIdsStage extends RequiredPassthroughStage<ActionPlan> {
+    public static class GetInvolvedEntityIdsStage extends RequiredPassthroughStage<ActionPlanAndStore> {
         // The set of involved entity ids. This set gets replaced with a new set computed
         // during the execution of the stage.
         private Set<Long> involvedEntityIds = Collections.emptySet();
@@ -175,8 +168,8 @@ public class ActionPipelineStages {
 
         @Nonnull
         @Override
-        public Status passthrough(ActionPlan input) {
-            involvedEntityIds = ActionDTOUtil.getInvolvedEntityIds(input.getActionList());
+        public Status passthrough(ActionPlanAndStore input) {
+            involvedEntityIds = ActionDTOUtil.getInvolvedEntityIds(input.actionPlan.getActionList());
             return Status.success();
         }
 
@@ -189,13 +182,12 @@ public class ActionPipelineStages {
     /**
      * Prepare aggregated action data for use later in the action processing pipeline.
      */
-    public static class PrepareAggregatedActionsStage extends RequiredPassthroughStage<ActionPlan> {
+    public static class PrepareAggregatedActionsStage extends RequiredPassthroughStage<ActionPlanAndStore> {
         private final AtomicActionFactory atomicActionFactory;
 
         private final FromContext<Set<Long>> involvedEntityIds =
             requiresFromContext(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS);
         private Map<Long, AggregatedAction> aggregatedActions = Collections.emptyMap();
-        // Map of the original action oid to the AggregateAction it will be part of
         private final Map<Long, AggregatedAction> actionIdToAggregateAction;
 
         /**
@@ -216,13 +208,13 @@ public class ActionPipelineStages {
 
         @Nonnull
         @Override
-        public Status passthrough(ActionPlan input) {
+        public Status passthrough(ActionPlanAndStore input) {
             // First the market actions are processed to create AggregatedAction.
             // Check if the atomic action factory contains specs to create atomic actions
             // for the actions received, create atomic actions if the specs are received
             // from the topology processor
             if (atomicActionFactory.canMerge()) {
-                final ActionPlan actionPlan = input;
+                final ActionPlan actionPlan = input.actionPlan;
 
                 // First aggregate the market actions that should be de-duplicated and merged
                 aggregatedActions = atomicActionFactory.aggregate(actionPlan.getActionList());
@@ -286,7 +278,7 @@ public class ActionPipelineStages {
     }
 
     /**
-     * Log a simple summary of the actions in the {@link ActionPlan} being processed.
+     * Log a simple sumary of the actions in the {@link ActionPlan} being processed.
      */
     public static class ActionPlanSummaryStage extends RequiredPassthroughStage<ActionPlanAndStore> {
 
@@ -651,97 +643,39 @@ public class ActionPipelineStages {
         @Nonnull
         @Override
         protected StageResult<ActionDTOsAndStore> executeStage(@Nonnull LiveActionStore input) {
-            final AtomicActionsPlan atomicActionsPlan = atomicActions(atomicActionFactory,
-                    aggregatedActions.get(), logger);
-            final StringBuilder stringBuilder = new StringBuilder();
+            // First create the action DTOs for the atomic actions
+            final List<AtomicActionResult> atomicActionResults =
+                atomicActionFactory.atomicActions(aggregatedActions.get());
 
-            return StageResult.withResult(new ActionDTOsAndStore(atomicActionsPlan.getAtomicActionDTOs(), input))
-                    .andStatus(Status.success(stringBuilder.append("Atomic Actions: ")
-                            .append(atomicActionsPlan.atomicActionsCount())
-                            .append("\nExecutable Aggregated Atomic Actions: ")
-                            .append(atomicActionsPlan.aggreagatedAtomicActionsCount())
-                            .append("\nNon-executable DeDuplicated Actions: ")
-                            .append(atomicActionsPlan.deDuplicatedAtomicActionsCount())
-                            .toString()));
-        }
-    }
-
-    /**
-     * The {@link CreatePlanAtomicActionsStage} takes information from the {@link PrepareAggregatedActionsStage}
-     * as well as the {@link MarketActionsSegment} in order to merge actions together to create
-     * atomic actions. Atomic actions are created to combine the actions the market generated for
-     * individual service entity replicas that are controlled or managed by a single, shared configuration
-     * (ie individual Container replicas which are controlled via WorkloadControllers).
-     */
-    public static class CreatePlanAtomicActionsStage extends Stage<ActionPlan, AtomicActionsAndActionPlan> {
-        private static final Logger logger = LogManager.getLogger();
-
-        private final FromContext<Map<Long, AggregatedAction>> aggregatedActions =
-                requiresFromContext(ActionPipelineContextMembers.AGGREGATED_ACTIONS);
-
-        private final AtomicActionFactory atomicActionFactory;
-
-        /**
-         * Create the {@link CreatePlanAtomicActionsStage}.
-         *
-         * @param atomicActionFactory The {@link AtomicActionFactory} for creating atomic actions.
-         */
-        public CreatePlanAtomicActionsStage(@Nonnull final AtomicActionFactory atomicActionFactory) {
-            this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
-        }
-
-        @Nonnull
-        @Override
-        protected StageResult<AtomicActionsAndActionPlan> executeStage(@Nonnull ActionPlan input) {
-            final AtomicActionsPlan atomicActionsPlan = atomicActions(atomicActionFactory,
-                                                                        aggregatedActions.get(), logger);
-            final StringBuilder stringBuilder = new StringBuilder();
-
-            return StageResult.withResult(new AtomicActionsAndActionPlan(atomicActionsPlan, input))
-                    .andStatus(Status.success(stringBuilder.append("Atomic Actions: ")
-                            .append(atomicActionsPlan.atomicActionsCount())
-                            .append("\nAggregated Atomic Actions: ")
-                            .append(atomicActionsPlan.aggreagatedAtomicActionsCount())
-                            .append("\nDeDuplicated Actions: ")
-                            .append(atomicActionsPlan.deDuplicatedAtomicActionsCount())
-                            .toString()));
-        }
-    }
-
-    /**
-     * Create atomic actions given the AggregatedAction map.
-     *
-     * @param atomicActionFactory   atomic action factory
-     * @param aggregatedActionMap map containing AggregatedActions
-     * @param logger    logger
-     * @return  {@link AtomicActionsPlan} containing the executable and non-executable atomic action DTOs
-     */
-    private static AtomicActionsPlan atomicActions(AtomicActionFactory atomicActionFactory,
-                                                         Map<Long, AggregatedAction> aggregatedActionMap,
-                                                         Logger logger) {
-        // First create the action DTOs for the atomic actions
-        final List<AtomicActionResult> atomicActionResults =
-                atomicActionFactory.atomicActions(aggregatedActionMap);
-
-        // List of all the Action DTOs for the atomic actions that will be created
-        // The aggregated atomic actions that will be executed by the aggregation target
-        final List<ActionDTO.Action> executableAtomicActions = atomicActionResults.stream()
+            // List of all the Action DTOs for the atomic actions that will be created
+            // The aggregated atomic actions that will be executed by the aggregation target
+            final List<ActionDTO.Action> atomicActions = atomicActionResults.stream()
                 .filter(atomicActionResult -> atomicActionResult.atomicAction().isPresent())
                 .map(atomicActionResult -> atomicActionResult.atomicAction().get())
                 .collect(Collectors.toList());
-        final int executableAtomicActionsCount = executableAtomicActions.size();
+            final int executableAtomicActionsCount = atomicActions.size();
 
-        // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
-        // These actions are non-executable
-        final List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
+            // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
+            // These actions are non-executable
+            final List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
                 .flatMap(atomicActionResult -> atomicActionResult.deDuplicatedActions().keySet().stream())
                 .collect(Collectors.toList());
 
-        int totalAtomicActions = executableAtomicActionsCount + deDupedAtomicActions.size();
-        logger.info("Created {} atomic actions, including {} executable atomic actions and {} "
-                        + "non-executable deDuplicated actions",
-                totalAtomicActions, executableAtomicActionsCount, deDupedAtomicActions.size());
-        return new AtomicActionsPlan(executableAtomicActions, deDupedAtomicActions);
+            atomicActions.addAll(deDupedAtomicActions);
+            logger.info("Created {} atomic actions, including {} executable atomic actions and {} "
+                    + "non-executable deDuplicated actions",
+                atomicActions.size(), executableAtomicActionsCount, deDupedAtomicActions.size());
+            final StringBuilder stringBuilder = new StringBuilder();
+
+            return StageResult.withResult(new ActionDTOsAndStore(atomicActions, input))
+                .andStatus(Status.success(stringBuilder.append("Atomic Actions: ")
+                    .append(atomicActions.size())
+                    .append("\nExecutable Atomic Actions: ")
+                    .append(executableAtomicActionsCount)
+                    .append("\nNon-executable DeDuplicated Actions: ")
+                    .append(deDupedAtomicActions.size())
+                    .toString()));
+        }
     }
 
     /**
@@ -1468,46 +1402,6 @@ public class ActionPipelineStages {
     }
 
     /**
-     * The {@link PopulatePlanActionsStage} populates plan actions.
-     */
-    public static class PopulatePlanActionsStage extends Stage<ActionPlanAndPlanStore, ActionStore> {
-        private static final Logger logger = LogManager.getLogger();
-        // Map of the original action oid to the AggregateAction it will be merged into
-        private final FromContext<Map<Long, AggregatedAction>> actionIdToAggregateAction =
-                requiresFromContext(ActionPipelineContextMembers.ACTION_ID_TO_AGGREGATE_ACTION);
-        List<ActionDTO.Action> mergedMarketActions = new ArrayList<>();
-
-        /**
-         * Create a new {@link PopulatePlanActionsStage}.
-         *
-         */
-        public PopulatePlanActionsStage() {
-        }
-
-        @Nonnull
-        @Override
-        protected StageResult<ActionStore> executeStage(@Nonnull ActionPlanAndPlanStore input) {
-            // Map containing the original action OIDs that were merged as keys
-            final Map<Long, AggregatedAction> actionsToAggregateActions = actionIdToAggregateAction.get();
-            for (ActionDTO.Action planAction : input.getActionPlan().getActionList()) {
-                if (actionsToAggregateActions.containsKey(planAction.getId())) {
-                    mergedMarketActions.add(planAction);
-                }
-            }
-
-            boolean result = input.actionStore.populateRecommendedAndAtomicActions(input.getActionPlan(),
-                    input.getAtomicActionPlan(), mergedMarketActions);
-            if (result) {
-               return StageResult.withResult(input.getActionStore())
-                       .andStatus(Status.success());
-            } else {
-               return StageResult.withResult(input.getActionStore())
-                       .andStatus(Status.failed("Failure in plan actions"));
-            }
-        }
-    }
-
-    /**
      * A class that gathers helpful statistics about action processing from the pipeline.
      */
     public static class ActionProcessingInfoStage extends Stage<ActionStore, ActionProcessingInfo> {
@@ -1592,72 +1486,6 @@ public class ActionPipelineStages {
          */
         public ActionPlan getActionPlan() {
             return actionPlan;
-        }
-
-        /**
-         * Get the action store.
-         *
-         * @return the action store.
-         */
-        public ActionStore getActionStore() {
-            return actionStore;
-        }
-    }
-
-    /**
-     * Bundles an {@link ActionPlan}, {@link AtomicActionsPlan} and {@link PlanActionStore}
-     * in a small helper object.
-     */
-    public static class ActionPlanAndPlanStore {
-        /**
-         * The atomic action plan being processed.
-         */
-        @Nonnull
-        private final AtomicActionsPlan atomicActionsPlan;
-
-        /**
-         * The action plan being processed.
-         */
-        @Nonnull
-        private final ActionPlan actionPlan;
-
-        /**
-         * The {@link PlanActionStore}.
-         */
-        @Nonnull
-        private final PlanActionStore actionStore;
-
-        /**
-         * Create a new {@link ActionPlanAndStore}.
-         *
-         * @param actionPlan The action plan
-         * @param atomicActionsPlan  The atomic actions plan
-         * @param actionStore The {@link PlanActionStore}
-         */
-        public ActionPlanAndPlanStore(@Nonnull final ActionPlan actionPlan,
-                                  final AtomicActionsPlan atomicActionsPlan,
-                                  @Nonnull final PlanActionStore actionStore) {
-            this.atomicActionsPlan = Objects.requireNonNull(atomicActionsPlan);
-            this.actionPlan = Objects.requireNonNull(actionPlan);
-            this.actionStore = Objects.requireNonNull(actionStore);
-        }
-
-        /**
-         * Get the action plan.
-         *
-         * @return the action plan
-         */
-        public ActionPlan getActionPlan() {
-            return actionPlan;
-        }
-
-        /**
-         * Get the atomic action plan.
-         *
-         * @return the atomic action plan
-         */
-        public AtomicActionsPlan getAtomicActionPlan() {
-            return atomicActionsPlan;
         }
 
         /**
@@ -1786,119 +1614,6 @@ public class ActionPipelineStages {
         @VisibleForTesting
         List<ActionDTO.Action> getActionDTOs() {
             return actionDTOs;
-        }
-    }
-
-    /**
-     * An helper class that bundles all the Atomic actions related information.
-     */
-    public static class AtomicActionsPlan {
-        /**
-         * The aggregated atomic actions.
-         * These actions are executable in real time topology but non-executable in plan topology.
-         */
-        @Nonnull
-        private final List<ActionDTO.Action> aggregatedAtomicActions;
-
-        /**
-         * The de-duplicated atomic actions.
-         * These actions are non-executable in real time and plan topologies.
-         */
-        @Nonnull
-        private final List<ActionDTO.Action> deDuplicatedAtomicActions;
-
-        private List<ActionDTO.Action> atomicActions;
-
-        /**
-         * Constructor for AtomicActionsPlan.
-         * @param aggregatedAtomicActions       aggregated atomic actions
-         * @param deDuplicatedAtomicActions    de-duplicated atomic actions
-         */
-        public AtomicActionsPlan(@Nonnull final List<ActionDTO.Action> aggregatedAtomicActions,
-                                 @Nonnull final List<ActionDTO.Action> deDuplicatedAtomicActions) {
-            this.aggregatedAtomicActions = aggregatedAtomicActions;
-            this.deDuplicatedAtomicActions = deDuplicatedAtomicActions;
-
-            atomicActions = new ArrayList<>(aggregatedAtomicActions);
-            atomicActions.addAll(deDuplicatedAtomicActions);
-        }
-
-        /**
-         * Return the total count of atomic actions.
-         * @return total number of atomic actions
-         */
-        public int atomicActionsCount() {
-            return atomicActions.size();
-        }
-
-        /**
-         * Return the list of atomic actions.
-         * @return  the list of atomic actions
-         */
-        public List<ActionDTO.Action> getAtomicActionDTOs() {
-            return atomicActions;
-        }
-
-        /**
-         * Return the list of aggregated atomic actions.
-         * @return  the list of aggregated atomic actions
-         */
-        public int aggreagatedAtomicActionsCount() {
-            return aggregatedAtomicActions.size();
-        }
-
-        /**
-         * Return the list of de-duplicated atomic actions.
-         * @return  the list of de-duplicated atomic actions
-         */
-        public int deDuplicatedAtomicActionsCount() {
-            return deDuplicatedAtomicActions.size();
-        }
-    }
-
-    /**
-     * Small helper class bundling a list of atomic {@link ActionDTO.Action}s together with a
-     * {@link PlanActionStore} for use as the input/output of several stages.
-     */
-    public static class AtomicActionsAndActionPlan {
-        /**
-         * The actions.
-         */
-        @Nonnull
-        private final AtomicActionsPlan atomicActions;
-
-        /**
-         * The action plan being processed.
-         */
-        @Nonnull
-        private final ActionPlan actionPlan;
-
-        /**
-         * Create a new {@link ActionDTOsAndStore}.
-         *
-         * @param atomicActions The atomic actions.
-         * @param actionPlan The action plan
-         */
-        public AtomicActionsAndActionPlan(@Nonnull final AtomicActionsPlan atomicActions,
-                                  @Nonnull final ActionPlan actionPlan
-                                          ) {
-            this.atomicActions = Objects.requireNonNull(atomicActions);
-            this.actionPlan = actionPlan;
-        }
-
-        @Nonnull
-        @VisibleForTesting
-        List<ActionDTO.Action> getAtomicActionDTOs() {
-            return atomicActions.getAtomicActionDTOs();
-        }
-
-        /**
-         * Get the action plan.
-         *
-         * @return the action plan.
-         */
-        public ActionPlan getActionPlan() {
-            return actionPlan;
         }
     }
 

@@ -45,16 +45,18 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for AtomicResizeBuilder.
  */
 public class AtomicResizeBuilderTest {
+    private AtomicResizeMerger merger;
+
     private AtomicActionSpecsCache atomicActionSpecsCache;
 
-    protected AtomicActionEntity aggregateEntity1;
-    protected AtomicActionEntity aggregateEntity3;
-    protected AtomicActionEntity deDupEntity1;
-    protected AtomicActionEntity deDupEntity2;
-    protected ActionEntity container1;
-    protected ActionEntity container2;
-    protected ActionEntity container7;
-    protected ActionEntity container8;
+    private AtomicActionEntity aggregateEntity1;
+    private AtomicActionEntity aggregateEntity3;
+    private AtomicActionEntity deDupEntity1;
+    private AtomicActionEntity deDupEntity2;
+    private ActionEntity container1;
+    private ActionEntity container2;
+    private ActionEntity container7;
+    private ActionEntity container8;
 
     private TopologyDTO.CommodityType vcpuType;
     private TopologyDTO.CommodityType vmemType;
@@ -153,31 +155,32 @@ public class AtomicResizeBuilderTest {
         mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
         atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
         Map<Long, AtomicActionSpec> resizeSpecsMap = atomicActionSpecsCache.getAtomicActionsSpec(ActionType.RESIZE);
+        merger = new AtomicResizeMerger(resizeSpecsMap);
 
         createResizeActions();
     }
 
-    protected ActionDTO.Action resize1;
-    protected ActionDTO.Action resize2;
-    protected ActionDTO.Action resize12;
-    protected ActionDTO.Action resize22;
-    protected ActionDTO.Action resize4;
-    protected ActionDTO.Action resize5;
-    protected ActionDTO.Action resize7;
-    protected ActionDTO.Action resize8;
-    protected ActionDTO.Action resize72;
-    protected ActionDTO.Action resize82;
+    private ActionDTO.Action resize1;
+    private ActionDTO.Action resize2;
+    private ActionDTO.Action resize12;
+    private ActionDTO.Action resize22;
+    private ActionDTO.Action resize4;
+    private ActionDTO.Action resize5;
+    private ActionDTO.Action resize7;
+    private ActionDTO.Action resize8;
+    private ActionDTO.Action resize72;
+    private ActionDTO.Action resize82;
 
-    protected com.vmturbo.action.orchestrator.action.Action view1;
-    protected com.vmturbo.action.orchestrator.action.Action view2;
-    protected com.vmturbo.action.orchestrator.action.Action view12;
-    protected com.vmturbo.action.orchestrator.action.Action view22;
-    protected com.vmturbo.action.orchestrator.action.Action view4;
-    protected com.vmturbo.action.orchestrator.action.Action view5;
-    protected com.vmturbo.action.orchestrator.action.Action view7;
-    protected com.vmturbo.action.orchestrator.action.Action view8;
-    protected com.vmturbo.action.orchestrator.action.Action view72;
-    protected com.vmturbo.action.orchestrator.action.Action view82;
+    private com.vmturbo.action.orchestrator.action.Action view1;
+    private com.vmturbo.action.orchestrator.action.Action view2;
+    private com.vmturbo.action.orchestrator.action.Action view12;
+    private com.vmturbo.action.orchestrator.action.Action view22;
+    private com.vmturbo.action.orchestrator.action.Action view4;
+    private com.vmturbo.action.orchestrator.action.Action view5;
+    private com.vmturbo.action.orchestrator.action.Action view7;
+    private com.vmturbo.action.orchestrator.action.Action view8;
+    private com.vmturbo.action.orchestrator.action.Action view72;
+    private com.vmturbo.action.orchestrator.action.Action view82;
 
     private void createResizeActions() {
         resize1 = createResizeAction(1, 11, 40, CommodityType.VCPU);

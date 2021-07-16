@@ -8,9 +8,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.ActionProcessingInfoStage;
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetOrCreatePlanActionStoreStage;
+import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateActionStoreStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.UpdateSeverityCacheStage;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -29,18 +28,14 @@ public class PlanActionPipelineFactory {
     private final ActionStorehouse actionStorehouse;
 
     private long actionPlanCount = 0;
-    private final AtomicActionFactory atomicActionFactory;
 
     /**
      * Create a new {@link PlanActionPipelineFactory}.
      *
      * @param actionStorehouse The {@link ActionStorehouse}.
-     * @param atomicActionFactory The {@link AtomicActionFactory}
      */
-    public PlanActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse,
-                                     @Nonnull final AtomicActionFactory atomicActionFactory) {
+    public PlanActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
-        this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
     }
 
     /**
@@ -67,16 +62,10 @@ public class PlanActionPipelineFactory {
             TopologyType.PLAN,
             actionPlan.getInfo());
 
-
         return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
-                    .addStage(new ActionPipelineStages.GetInvolvedEntityIdsStage())
-                    .addStage(new ActionPipelineStages.PrepareAggregatedActionsStage(atomicActionFactory))
-                    .addStage(new ActionPipelineStages.CreatePlanAtomicActionsStage(atomicActionFactory))
-                    .addStage(new GetOrCreatePlanActionStoreStage(actionStorehouse))
-                    .addStage(new ActionPipelineStages.PopulatePlanActionsStage())
-                    .addStage(new UpdateSeverityCacheStage())
-                    .finalStage(new ActionProcessingInfoStage())
-                );
-
+            .addStage(new PopulateActionStoreStage(actionStorehouse))
+            .addStage(new UpdateSeverityCacheStage())
+            .finalStage(new ActionProcessingInfoStage())
+        );
     }
 }

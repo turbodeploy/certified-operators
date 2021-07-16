@@ -162,7 +162,7 @@ public class EntitiesSnapshotFactoryTest {
                 Sets.newHashSet(host.getOid(), vm.getOid()), planContextId);
         assertThat(snapshot.getTopologyType(), is(TopologyType.PROJECTED));
         // Assert that the host is not in the snapshot.
-        assertThat(snapshot.getEntityMap().keySet(), containsInAnyOrder(vm.getOid(), host.getOid()));
+        assertThat(snapshot.getEntityMap().keySet(), containsInAnyOrder(vm.getOid()));
         // Assert that the ownership graph was constructed correctly.
         assertThat(snapshot.getOwnershipGraph().getOwners(vm.getOid()).get(0).getOid(), is(ba.getOid()));
     }

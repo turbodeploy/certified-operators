@@ -26,8 +26,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.store.atomic.PlanAtomicActionFactory;
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages;
 import io.prometheus.client.Summary;
 
 import org.apache.commons.collections4.MapUtils;
@@ -192,48 +190,25 @@ public class PlanActionStore implements ActionStore {
     }
 
     /**
-     * Action Plan + atomic actions.
-     * Replaces all actions in the store with the recommendations in the new {@link ActionPlan}
-     * and the atomic actions created by the {@link PlanAtomicActionFactory}.
+     * {@inheritDoc}
+     *
+     * Replaces all actions in the store with the recommendations in the new {@link ActionPlan}.
      * All prior recommendations matching the topologyContextId in the plan are removed from
      * persistent storage and all recommendations in the new plan are saved to persistent storage
      * where they can be retrieved in the future.
-     * @param actionPlan action plan from the market
-     * @param atomicActionsPlan atomic actions created using the action plan
-     * @param mergedMarketActions list of original Market actions that were merged to create the atomic actions.
-     *                            These actions should be removed from the action store because we retain
-     *                            the atomic actions in favor of the original market actions
-     *
-     * @return true if no errors, else false
      */
-    public boolean populateRecommendedAndAtomicActions(@Nonnull final ActionPlan actionPlan,
-                                                       @Nonnull final ActionPipelineStages.AtomicActionsPlan atomicActionsPlan,
-                                                       @Nonnull final List<ActionDTO.Action> mergedMarketActions) {
+    @Override
+    public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
         if (ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo()) != topologyContextId) {
             throw new IllegalArgumentException("Attempt to set store with topologyContextId " + topologyContextId +
-                    " with information from an action plan with topologyContextId " + actionPlan);
+                " with information from an action plan with topologyContextId " + actionPlan);
         }
         if (actionPlan.hasInfo() && actionPlan.getInfo().hasMarket()
                 && actionPlan.getInfo().getMarket().hasSourceTopologyInfo()) {
             topologyInfo = actionPlan.getInfo().getMarket().getSourceTopologyInfo();
         }
-
-        logger.info("Received {} actions in action plan, {} actions were merged to {} atomic actions",
-                actionPlan.getActionCount(), mergedMarketActions.size(), atomicActionsPlan.atomicActionsCount());
-
-        List<ActionDTO.Action> actions = new ArrayList<>(actionPlan.getActionList());
-
-        // Add atomic actions that were created
-        actions.addAll(atomicActionsPlan.getAtomicActionDTOs());
-
-        // Remove the original market actions that were merged to atomic actions
-        actions.removeAll(mergedMarketActions);
-
-        // Translate and save all actions in DB
-        logger.info("Replace/Translate actions {} including {} atomic resizes",
-                actions.size(), atomicActionsPlan.atomicActionsCount());
-        return replaceAllActions(actions,
-                actionPlanData(actionPlan, LocalDateTime.now()));
+        return replaceAllActions(actionPlan.getActionList(),
+            actionPlanData(actionPlan, LocalDateTime.now()));
     }
 
     @Override
@@ -314,7 +289,6 @@ public class PlanActionStore implements ActionStore {
                 action.getDescription(),
                 action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()))
             .collect(Collectors.toMap(Action::getId, Function.identity()));
-
         return actions;
     }
 
@@ -411,15 +385,15 @@ public class PlanActionStore implements ActionStore {
     }
 
     /**
-     * Implements the logic for populating the store with recommended actions and atomic actions.
-     * (see {@link #populateRecommendedAndAtomicActions(ActionPlan, ActionPipelineStages.AtomicActionsPlan, List<Action>)}.
+     * Implements the logic for populating the store with recommended actions
+     * (see {@link #populateRecommendedActions(ActionPlan)}.
      *
      * @param actions The {@link ActionPlan} whose actions should be stored.
      * @param planData Data for the plan whose actions are being populated.
      *                 If empty, does not attempt to write new action information.
      * @return Whether actions were successfully replaced with those in the list of actions.
      */
-     private boolean replaceAllActions(@Nonnull final List<ActionDTO.Action> actions,
+    private boolean replaceAllActions(@Nonnull final List<ActionDTO.Action> actions,
                                       @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         try {
             final List<ActionAndInfo> translatedActionsToAdd = translatePlanActions(actions, planData);

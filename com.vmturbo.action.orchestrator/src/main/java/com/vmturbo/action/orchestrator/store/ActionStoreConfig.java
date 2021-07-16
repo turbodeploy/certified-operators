@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.store.atomic.PlanAtomicActionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -200,16 +199,6 @@ public class ActionStoreConfig {
     @Bean
     public AtomicActionFactory atomicActionFactory() {
         return new AtomicActionFactory(actionMergeSpecsCache());
-    }
-
-    /**
-     * Create atomic action factory for plans
-     *
-     * @return @link PlanAtomicActionFactory}
-     */
-    @Bean
-    public PlanAtomicActionFactory planAtomicActionFactory() {
-        return new PlanAtomicActionFactory(actionMergeSpecsCache());
     }
 
     @Bean

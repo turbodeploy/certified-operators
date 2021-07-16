@@ -26,10 +26,10 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
     /**
      * We will try to send chunks of this size.
      *
-     * <p>The default is 10MB. This performs considerably better for topology consumption than
-     * the prevoius default of 124KB, but it probably deserves some additional experimentation.</p>
+     * <p>The default is 124KB. Some preliminary reading suggests this is a reasonable size for high
+     * throughput, but we should do more experiments to tweak.
      */
-    @Value("${kafkaRecommendedRequestSizeBytes:10485760}")
+    @Value("${kafkaRecommendedRequestSizeBytes:126976}")
     private int recommendedRequestSizeBytes;
 
     /**

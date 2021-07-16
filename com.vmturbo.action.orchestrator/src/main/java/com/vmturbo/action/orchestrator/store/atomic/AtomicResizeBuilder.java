@@ -45,7 +45,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     private final Logger logger = LogManager.getLogger();
 
     // Class representing the aggregated/de-duplicated actions and the assoicated execution target
-    protected AggregatedAction aggregatedAction;
+    private AggregatedAction aggregatedAction;
 
     /**
      * Constructor for a new builder.
@@ -65,12 +65,8 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
      */
     @Override
     public Optional<AtomicActionResult> build() {
-        // Map of de-duplicated atomic action and the corresponding list of original resize actions
-        // for which the atomic action was created
         Map<Action, List<Action>> deDupedAtomicActionsMap = new HashMap<>();
 
-        // Components of the Aggregated atomic action
-        // resize info and explanation for each de-duplicated action
         List<ActionDTO.ResizeInfo> allResizeInfos = new ArrayList<>();
         List<ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity>
                 allExplanations = new ArrayList<>();
@@ -103,7 +99,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
             .map(Entry::getKey)
             .collect(Collectors.toSet());
 
-        // ---- First step of de-duplication
         // For actions that are to be de-duplicated, create a resize info per de-dup target
         // and commodity type. Also create a corresponding non-executable atomic action.
         aggregatedAction.deDupedActionsMap().forEach((deDupTargetOid, deDupedActions) -> {
@@ -116,10 +111,13 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                 return;
             }
 
-            List<ActionDTO.ResizeInfo> resizeInfos = resizeInfos(resizeInfoAndExplanations);
-
+            List<ActionDTO.ResizeInfo> resizeInfos = resizeInfoAndExplanations.stream()
+                    .map(ResizeInfoAndExplanation::resizeInfo)
+                    .collect(Collectors.toList());
             List<ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity>
-                    explanations = explanations(resizeInfoAndExplanations);
+                    explanations = resizeInfoAndExplanations.stream()
+                    .map(ResizeInfoAndExplanation::explanation)
+                    .collect(Collectors.toList());
 
             // ---- atomic action for this de-duplication target (for displaying in the UI only)
             // comprises of the resizes for all the commodity type
@@ -135,10 +133,10 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                     deDupedAction.getInfo().getAtomicResize().getResizesCount());
 
             deDupedAtomicActionsMap.put(deDupedAction.build(), mergedActions);
-
-            // Select resize infos and explanations that will be allowed to be aggregated to the top level atomic action
-            selectDeduplicatedResizesForAggregation(deDupedActions, resizeInfoAndExplanations,
-                                                    allResizeInfos, allExplanations, allTargets);
+            // Add non recommended resize infos and explanations to allResizeInfos and allExplanations
+            // to be merged to atomic actions.
+            addNonRecommendedResizeInfoAndExplanation(nonRecommendedActionIds, deDupedActions,
+                resizeInfoAndExplanations, allResizeInfos, allExplanations, allTargets);
         });
 
         if (allResizeInfos.isEmpty()) {
@@ -154,7 +152,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
             return Optional.of(atomicActionResult);
         }
 
-        // ---- Second step of aggregation
         // ---- Primary atomic action
         // One atomic resize per aggregate target
         Action.Builder mergedAction = createAtomicResizeAction(aggregatedAction.targetName(),
@@ -232,32 +229,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
     }
 
     /**
-     *  Select the de-duplicated resize infos and explanations for aggregation.
-     *  Only the selected de-duplicated resizes will be aggregated to the top level aggregated atomic action.
-     *
-     *  <p>For real time topologies, only the deduplicated resizes for resize actions that are
-     *  <em>not</em> in recommend mode are aggregated to the top level atomic action.
-     *
-     * @param deDupedActions            {@link AggregatedAction.DeDupedActions} which comprise of all resize actions
-     *                                  that will be de-duplicated to a single de-duplication target entity
-     * @param resizeInfoAndExplanations List of {@link ResizeInfoAndExplanation} for the single de-duplicate target entity
-     * @param allResizeInfos            List of resize infos that will be aggregated to the top level atomic action
-     * @param allExplanations           List of resize explanations that will be aggregated to the top level atomic action
-     * @param allTargets                Set of all target entities in the top level aggregated atomic action
-     */
-    void selectDeduplicatedResizesForAggregation(@Nonnull DeDupedActions deDupedActions,
-                                                   @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations,
-                                                   @Nonnull List<ActionDTO.ResizeInfo> allResizeInfos,
-                                                   @Nonnull List<ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity>
-                                                           allExplanations,
-                                                   @Nonnull Set<Long> allTargets) {
-        Set<Long> nonRecommendedActionIds = getNonRecommendModeActionIds();
-        addNonRecommendedResizeInfoAndExplanation(nonRecommendedActionIds,
-                                                    deDupedActions, resizeInfoAndExplanations,
-                                                    allResizeInfos, allExplanations, allTargets);
-    }
-
-    /**
      * Add list of de-duplicated resize infos and explanations to allResizeInfos and allExplanations
      * to be aggregated to atomic actions, where corresponding resize actions are not in recommend mode.
      * <p/>
@@ -278,7 +249,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
      *                                  This includes only explanations of non recommended resize actions.
      * @param allTargets                Set of all target entities of non recommended resize actions.
      */
-     private void addNonRecommendedResizeInfoAndExplanation(@Nonnull Set<Long> nonRecommendedActionIds,
+    private void addNonRecommendedResizeInfoAndExplanation(@Nonnull Set<Long> nonRecommendedActionIds,
                                                            @Nonnull DeDupedActions deDupedActions,
                                                            @Nonnull List<ResizeInfoAndExplanation> resizeInfoAndExplanations,
                                                            @Nonnull List<ActionDTO.ResizeInfo> allResizeInfos,
@@ -292,17 +263,21 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         List<ResizeInfoAndExplanation> nonRecommendedResizeInfoAndExplanation =
             getNonRecommendedResizeInfoAndExplanation(nonRecommendedActionIds, deDupedActions, resizeInfoAndExplanations);
         if (nonRecommendedResizeInfoAndExplanation.size() > 0) {
-            List<ActionDTO.ResizeInfo> nonRecommendedResizeInfos = resizeInfos(nonRecommendedResizeInfoAndExplanation);
-
+            List<ActionDTO.ResizeInfo> nonRecommendedResizeInfos = nonRecommendedResizeInfoAndExplanation.stream()
+                .map(ResizeInfoAndExplanation::resizeInfo)
+                .collect(Collectors.toList());
             List<ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity>
-                nonRecommendedExplanations = explanations(nonRecommendedResizeInfoAndExplanation);
-
+                nonRecommendedExplanations = nonRecommendedResizeInfoAndExplanation.stream()
+                .map(ResizeInfoAndExplanation::explanation)
+                .collect(Collectors.toList());
             allResizeInfos.addAll(nonRecommendedResizeInfos);
             allExplanations.addAll(nonRecommendedExplanations);
             allTargets.add(deDupedActions.targetEntity().getId());
 
-            final EntityType deDeupedActionsTargetEntityType = getDeDupedActionTargetEntityType(deDupedActions);
-            final EntityType aggregatedActionTargetEntityType = getAggregateActionTargetEntityType();
+            final EntityType deDeupedActionsTargetEntityType =
+                EntityType.forNumber(deDupedActions.targetEntity().getType());
+            final EntityType aggregatedActionTargetEntityType =
+                EntityType.forNumber(aggregatedAction.targetEntity().getType());
             logger.debug("{} {}: merges {} resizes after de-dup to {} {}", aggregatedActionTargetEntityType,
                 aggregatedAction.targetName(), nonRecommendedResizeInfos.size(), deDeupedActionsTargetEntityType,
                 deDupedActions.targetName());
@@ -346,39 +321,6 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
         // Explanation for the resize
         ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity explanation();
-    }
-
-    /**
-     * Return the set of action IDs of the original resizes that are not in recommend mode.
-     * @return the set of action IDs of non-recommend mode resize actions
-     */
-    Set<Long> getNonRecommendModeActionIds() {
-        // Set of action ID of individual container resizes not in recommend mode.
-        return aggregatedAction.actionViews.entrySet().stream()
-                .filter(entry -> entry.getValue().getMode() != ActionMode.RECOMMEND)
-                .map(Entry::getKey)
-                .collect(Collectors.toSet());
-    }
-
-     List<ActionDTO.ResizeInfo> resizeInfos(List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
-        return  resizeInfoAndExplanations.stream()
-                .map(ResizeInfoAndExplanation::resizeInfo)
-                .collect(Collectors.toList());
-    }
-
-    List<ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity> explanations(
-            List<ResizeInfoAndExplanation> resizeInfoAndExplanations) {
-        return resizeInfoAndExplanations.stream()
-                .map(ResizeInfoAndExplanation::explanation)
-                .collect(Collectors.toList());
-    }
-
-    EntityType getAggregateActionTargetEntityType() {
-        return EntityType.forNumber(aggregatedAction.targetEntity().getType());
-    }
-
-    EntityType getDeDupedActionTargetEntityType(DeDupedActions deDupedActions) {
-        return EntityType.forNumber(deDupedActions.targetEntity().getType());
     }
 
     /**

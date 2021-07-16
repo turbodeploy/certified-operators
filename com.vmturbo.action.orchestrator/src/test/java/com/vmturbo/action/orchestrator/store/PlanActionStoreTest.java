@@ -17,8 +17,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.function.Function;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -29,9 +34,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.commons.collections4.ListUtils;
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -116,8 +118,7 @@ public class PlanActionStoreTest {
                                     @Nullable final Long associatedAccountId,
                                     @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId,
-                    IdentityGenerator.next()));
+                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId, 2244L));
         }
     }
 
@@ -135,25 +136,6 @@ public class PlanActionStoreTest {
 
     private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
-    private static ActionDTO.Action resize1;
-    private static ActionDTO.Action resize2;
-    private static ActionDTO.Action atomicAction;
-    private static ActionDTO.Action dedupAction1;
-    private static ActionPipelineStages.AtomicActionsPlan atomicActionsPlan;
-    private static List<ActionDTO.Action> mergedActions;
-    private static ActionPipelineStages.AtomicActionsPlan emptyAtomicActionsPlan;
-    private static List<ActionDTO.Action> emptyMergedActions;
-    private static int container1 = 21;
-    private static int container2 = 22;
-    private static int dedup1 = 23;
-    private static int dedup2 = 24;
-    private static int aggregate = 25;
-    private static long resizeActionId1 = 101l;
-    private static long resizeActionId2 = 102l;
-    private static long dedupActionId1 = 103l;
-    private static long dedupActionId2 = 104l;
-    private static long atomicActionId = 105l;
-
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
@@ -168,143 +150,15 @@ public class PlanActionStoreTest {
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator,  "Move VM from H1 to H2", 321L, 121L,
-                        IdentityGenerator.next());
+                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L, 2244L);
             });
         setEntitiesOIDs();
-
         when(actionTargetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
                 ImmutableActionTargetInfo.builder()
                     .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
         });
-
-        setUpAtomicActionsPlan();
-    }
-
-    private void setUpAtomicActionsPlan() {
-        resize1 = createResizeAction(resizeActionId1, container1, EntityType.CONTAINER_VALUE, CommonDTO.CommodityDTO.CommodityType.VCPU);
-        resize2 = createResizeAction(resizeActionId2, container2, EntityType.CONTAINER_VALUE, CommonDTO.CommodityDTO.CommodityType.VCPU);
-
-        mergedActions = new ArrayList<>();
-        mergedActions.add(resize1);
-        mergedActions.add(resize2);
-
-        emptyMergedActions = new ArrayList<>();
-
-        dedupAction1 = createDedupAtomicAction(dedupActionId1, dedup1);
-        atomicAction = createAtomicAction(atomicActionId);
-
-        atomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Arrays.asList(atomicAction),
-                                                                        Arrays.asList(dedupAction1));
-
-        emptyAtomicActionsPlan = new ActionPipelineStages.AtomicActionsPlan(Collections.emptyList(),
-                                                                             Collections.emptyList());
-    }
-
-    private static ActionDTO.Action createResizeAction(long actionId,
-                                                       long entityId, int entityType,
-                                                       CommonDTO.CommodityDTO.CommodityType commType) {
-        ActionDTO.Explanation.ResizeExplanation resizeExplanation = ActionDTO.Explanation.ResizeExplanation.newBuilder()
-                .setDeprecatedStartUtilization(20)
-                .setDeprecatedEndUtilization(90)
-                .build();
-
-        ActionDTO.Action resize = ActionDTO.Action.newBuilder()
-                .setId(actionId)
-                .setDeprecatedImportance(0)
-                .setInfo(ActionDTO.ActionInfo.newBuilder()
-                        .setResize(ActionDTO.Resize.newBuilder()
-                                .setTarget(ActionDTO.ActionEntity.newBuilder()
-                                        .setId(entityId).setType(entityType))
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(commType.getNumber())))
-                )
-                .setExplanation(ActionDTO.Explanation.newBuilder()
-                        .setResize(resizeExplanation))
-                .build();
-        return resize;
-    }
-
-    private static ActionDTO.Action createDedupAtomicAction(long actionId, int dedupEntity) {
-        ActionDTO.ActionInfo actionInfo = ActionDTO.ActionInfo.newBuilder()
-                .setAtomicResize(ActionDTO.AtomicResize.newBuilder()
-                        .setExecutionTarget(createActionEntity(dedupEntity, EntityType.CONTAINER_SPEC))
-                        .addResizes(createResizeInfo(dedupEntity, EntityType.CONTAINER_SPEC,
-                                                    CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber()))
-                        .build())
-                .build();
-        final ActionDTO.Action dedupAction =ActionDTO.Action.newBuilder()
-                .setId(actionId)
-                .setDeprecatedImportance(0)
-                .setInfo(actionInfo)
-                .setExplanation(ActionDTO.Explanation.newBuilder()
-                        .setAtomicResize(ActionDTO.Explanation.AtomicResizeExplanation.newBuilder()
-                                .setMergeGroupId("dedup1")
-                                .addEntityIds(container1)
-                                .addPerEntityExplanation(
-                                        ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity
-                                                .newBuilder()
-                                                .setTargetId(container1)
-                                                .addResizeEntityIds(container1))
-                        )
-                )
-                .build();
-
-        return dedupAction;
-    }
-
-    private static ActionDTO.Action createAtomicAction(long actionId) {
-        ActionDTO.ActionInfo actionInfo = ActionDTO.ActionInfo.newBuilder()
-                .setAtomicResize(ActionDTO.AtomicResize.newBuilder()
-                        .setExecutionTarget(createActionEntity(aggregate, EntityType.WORKLOAD_CONTROLLER))
-                        .addResizes(createResizeInfo(dedup1, EntityType.CONTAINER_SPEC,
-                                                        CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber()))
-                        .addResizes(createResizeInfo(dedup2, EntityType.CONTAINER_SPEC,
-                                                        CommonDTO.CommodityDTO.CommodityType.VCPU.getNumber()))
-                        .build())
-                .build();
-
-        final ActionDTO.Action atomicAction = ActionDTO.Action.newBuilder()
-                .setId(actionId)
-                .setDeprecatedImportance(0)
-                .setInfo(actionInfo)
-                .setExplanation(ActionDTO.Explanation.newBuilder()
-                        .setAtomicResize(ActionDTO.Explanation.AtomicResizeExplanation.newBuilder()
-                                .setMergeGroupId("aggregate")
-                                .addEntityIds(dedup1)
-                                .addEntityIds(dedup2)
-                                .addPerEntityExplanation(
-                                        ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity
-                                                .newBuilder()
-                                                .setTargetId(dedup1)
-                                                .addResizeEntityIds(dedup1))
-                                .addPerEntityExplanation(
-                                        ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity
-                                                .newBuilder()
-                                                .setTargetId(dedup2)
-                                                .addResizeEntityIds(dedup2))
-                        ))
-                .build();
-
-        return atomicAction;
-    }
-
-    private static ActionDTO.ResizeInfo.Builder createResizeInfo(long id, EntityType entityType, int commType) {
-        return ActionDTO.ResizeInfo.newBuilder()
-                .setTarget(createActionEntity(id, entityType))
-                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(commType))
-                .setCommodityAttribute(TopologyDTO.CommodityAttribute.CAPACITY)
-                .setOldCapacity(124).setNewCapacity(456);
-    }
-
-    private static ActionDTO.ActionEntity createActionEntity(long oid, EntityType entityType) {
-        return ActionDTO.ActionEntity.newBuilder()
-                .setId(oid)
-                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
-                .setType(entityType.getNumber())
-                .build();
     }
 
     public void setEntitiesOIDs() {
@@ -316,13 +170,6 @@ public class PlanActionStoreTest {
         }
         createMockEntity(hostA,EntityType.PHYSICAL_MACHINE.getNumber());
         createMockEntity(hostB,EntityType.PHYSICAL_MACHINE.getNumber());
-        for (long i=1; i<2;i++) {
-            createMockEntity(20*i,EntityType.CONTAINER.getNumber());
-        }
-        createMockEntity(dedup1, EntityType.CONTAINER_SPEC.getNumber());
-        createMockEntity(dedup2, EntityType.CONTAINER_SPEC.getNumber());
-        createMockEntity(aggregate, EntityType.WORKLOAD_CONTROLLER.getNumber());
-
     }
 
     private void createMockEntity(long id, int type) {
@@ -334,39 +181,27 @@ public class PlanActionStoreTest {
     @Test
     public void testPopulateRecommendedActionsFromEmpty() throws Exception {
         assertEquals(0, allMarketActions().size());
-        List<ActionDTO.Action> actionList = actionListWithResizeActions(3);
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
 
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(firstPlanId, firstContextId, actionList),
-               atomicActionsPlan, mergedActions);
-
-        assertEquals(5, allMarketActions().size());
-        assertEquals(5, marketActionsForContext(firstContextId).size());
+        assertEquals(3, allMarketActions().size());
+        assertEquals(3, marketActionsForContext(firstContextId).size());
         assertEquals(0, marketActionsForContext(secondContextId).size());
     }
 
     @Test
     public void testPopulateRecommendedActionsOverwrite() throws Exception {
         assertEquals(0, allMarketActions().size());
-        List<ActionDTO.Action> actionList = actionListWithResizeActions(3);
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(firstPlanId, firstContextId, actionList),
-                atomicActionsPlan, mergedActions);
-        assertEquals(5, allMarketActions().size());
-
-        List<ActionDTO.Action> actionList2 = actionListWithResizeActions(1);
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(firstPlanId, firstContextId, actionList2),
-                atomicActionsPlan, mergedActions);
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
         assertEquals(3, allMarketActions().size());
+
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(1)));
+        assertEquals(1, allMarketActions().size());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testPopulateRecommendedActionsWithDifferentContext() throws Exception {
-        List<ActionDTO.Action> actionList1 = actionListWithResizeActions(3);
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(firstPlanId, firstContextId, actionList1),
-                                                        atomicActionsPlan, mergedActions);
-
-        List<ActionDTO.Action> actionList2 = actionListWithResizeActions(4);
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(secondPlanId, secondContextId, actionList2),
-                                                        atomicActionsPlan, mergedActions);
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
+        actionStore.populateRecommendedActions(marketActionPlan(secondPlanId, secondContextId, actionList(4)));
     }
 
     @Test
@@ -376,10 +211,8 @@ public class PlanActionStoreTest {
 
     @Test
     public void testSizeAfterPopulate() throws Exception {
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan(firstPlanId, firstContextId,
-                actionListWithResizeActions(3)),
-                atomicActionsPlan, mergedActions);
-        assertEquals(5, actionStore.size());
+        actionStore.populateRecommendedActions(marketActionPlan(firstPlanId, firstContextId, actionList(3)));
+        assertEquals(3, actionStore.size());
     }
 
     @Test
@@ -390,27 +223,19 @@ public class PlanActionStoreTest {
     @Test
     public void testGetActionViews() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
-        List<ActionDTO.Action> actions = new ArrayList<>(Collections.singleton(action));
-        actions.addAll(mergedActions);
-
-        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actions);
-        actionStore.populateRecommendedAndAtomicActions(actionPlan, atomicActionsPlan, mergedActions);
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
+        actionStore.populateRecommendedActions(actionPlan);
 
         Collection<ActionView> actionViews = actionStore.getActionViews().getAll().collect(Collectors.toList());
-        Map<Long, ActionView> actionViewsMap = actionViews.stream()
-                .collect(Collectors.toMap(ActionView::getId, Function.identity()));
-
-        assertEquals(3, actionViews.size());
-        assertEquals(action, actionViewsMap.get(action.getId()).getRecommendation());
-        assertEquals(atomicAction, actionViewsMap.get(atomicAction.getId()).getRecommendation());
-        assertEquals(dedupAction1, actionViewsMap.get(dedupAction1.getId()).getRecommendation());
+        assertEquals(1, actionViews.size());
+        assertEquals(action, actionViews.iterator().next().getRecommendation());
     }
 
     @Test
     public void testGetActionView() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
-        actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(actionPlan);
 
         final ActionView actionView = actionStore.getActionView(1).get();
         assertEquals(action, actionView.getRecommendation());
@@ -435,7 +260,7 @@ public class PlanActionStoreTest {
     public void testGetAction() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
-        actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
             actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
@@ -463,31 +288,17 @@ public class PlanActionStoreTest {
     @Test
     public void testGetActions() throws Exception {
         final List<ActionDTO.Action> actionList = actionList(3);
-        List<ActionDTO.Action> actionListWithResizes = new ArrayList<>(actionList);
-        actionListWithResizes.addAll(mergedActions);
-
-        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actionListWithResizes);
-        actionStore.populateRecommendedAndAtomicActions(actionPlan, atomicActionsPlan, mergedActions);
+        final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actionList);
+        actionStore.populateRecommendedActions(actionPlan);
 
         Map<Long, Action> actionsMap = actionStore.getActions();
-        actionsMap.keySet().stream().forEach(id -> System.out.println("action id: " + id));
-        // Check action views for action that were merged
-        actionList.forEach(action -> {
+        actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
-                    actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
-                            null, null),
-                    actionsMap.get(action.getId()));
-        });
-
-        // Check that the resize action that were merged are not available as merged actions
-        assertFalse(actionsMap.containsKey(resize1.getId()));
-        assertFalse(actionsMap.containsKey(resize2.getId()));
-
-        // Check the actions views for the atomic actions
-        ActionOrchestratorTestUtils.assertActionsEqual(
-                actionFactory.newPlanAction(atomicAction, actionRecommendationTime, firstPlanId, "",
-                        null, null),
-                actionsMap.get(atomicAction.getId()));
+                actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
+                    null, null),
+                actionsMap.get(action.getId())
+            )
+        );
     }
 
     /**
@@ -522,9 +333,8 @@ public class PlanActionStoreTest {
     public void testOverwriteActions() throws Exception {
         final ActionPlan actionPlan1 = marketActionPlan(firstPlanId, firstContextId, actionList(4));
         final ActionPlan actionPlan2 = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
-        actionStore.populateRecommendedAndAtomicActions(actionPlan1, emptyAtomicActionsPlan, emptyMergedActions);
-
-        actionStore.populateRecommendedAndAtomicActions(actionPlan2, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(actionPlan1);
+        actionStore.populateRecommendedActions(actionPlan2);
 
         final int numOverwriteActions = 2;
         final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
@@ -560,7 +370,7 @@ public class PlanActionStoreTest {
     @Test
     public void testClear() {
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
-        actionStore.populateRecommendedAndAtomicActions(actionPlan, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(actionPlan);
 
         assertEquals(2, actionStore.size());
         assertEquals(firstPlanId, (long) actionStore.getActionPlanId(ActionPlanType.MARKET).get());
@@ -593,9 +403,8 @@ public class PlanActionStoreTest {
         // Setup first planActionStore. This has 2 Market actions and 3 Buy RI Actions
         final ActionPlan marketActionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
         final ActionPlan buyRIActionPlan = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan, emptyAtomicActionsPlan, emptyMergedActions);
-        actionStore.populateRecommendedAndAtomicActions(buyRIActionPlan, emptyAtomicActionsPlan, emptyMergedActions);
-
+        actionStore.populateRecommendedActions(marketActionPlan);
+        actionStore.populateRecommendedActions(buyRIActionPlan);
         expectedActionStores.put(firstContextId, actionStore);
 
         // Setup second planActionStore. This has 9 Buy RI Actions
@@ -603,8 +412,7 @@ public class PlanActionStoreTest {
         PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
             entitiesSnapshotFactory, actionTranslator, realtimeId,
             actionTargetSelector, licenseCheckClient);
-        actionStore2.populateRecommendedAndAtomicActions(buyRIActionPlan2, emptyAtomicActionsPlan, emptyMergedActions);
-
+        actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
@@ -634,9 +442,8 @@ public class PlanActionStoreTest {
         final ActionPlan marketActionPlan = marketActionPlan(firstPlanId, firstContextId, actionList(2));
         final ActionPlan buyRIActionPlan = buyRIActionPlan(secondPlanId, firstContextId, actionList(3));
 
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan, emptyAtomicActionsPlan, emptyMergedActions);
-
-        actionStore.populateRecommendedAndAtomicActions(buyRIActionPlan, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(marketActionPlan);
+        actionStore.populateRecommendedActions(buyRIActionPlan);
 
         Map<ActionPlanType, Collection<Action>> actionsByActionPlanType = actionStore.getActionsByActionPlanType();
         assertEquals(2, actionsByActionPlanType.get(ActionPlanType.MARKET).size());
@@ -650,12 +457,11 @@ public class PlanActionStoreTest {
         final ActionPlan marketActionPlan1 = marketActionPlan(firstPlanId, firstContextId, actionList(2));
         final ActionPlan marketActionPlan2 = marketActionPlan(secondPlanId, firstContextId, actionList(3));
 
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan1, emptyAtomicActionsPlan, emptyMergedActions);
-
+        actionStore.populateRecommendedActions(marketActionPlan1);
         assertEquals(2, actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size());
         assertEquals(firstPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
 
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan2, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(marketActionPlan2);
         assertEquals(3, actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size());
         assertEquals(secondPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
     }
@@ -694,7 +500,7 @@ public class PlanActionStoreTest {
             Arrays.asList(longAction, shortAction));
 
         // ACT
-        actionStore.populateRecommendedAndAtomicActions(marketActionPlan, emptyAtomicActionsPlan, emptyMergedActions);
+        actionStore.populateRecommendedActions(marketActionPlan);
 
         // ASSERT
         assertThat(actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size(),
@@ -711,15 +517,6 @@ public class PlanActionStoreTest {
         List<ActionDTO.Action> actions =  IntStream.range(0, numActions)
             .mapToObj(i -> ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(),i+1,hostA,14,hostB,14))
             .collect(Collectors.toList());
-
-        return actions;
-    }
-
-    private static List<ActionDTO.Action> actionListWithResizeActions(final int numActions) {
-        List<ActionDTO.Action> actions = actionList(numActions);
-        actions.add(resize1);
-        actions.add(resize2);
-
         return actions;
     }
 
