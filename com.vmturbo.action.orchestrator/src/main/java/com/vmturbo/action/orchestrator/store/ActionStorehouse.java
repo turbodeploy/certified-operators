@@ -77,33 +77,6 @@ public class ActionStorehouse {
     }
 
     /**
-     * Store the actions in the actionPlan into a {@link ActionStore}.
-     * If an existing {@link ActionStore} exists for the topology context,
-     * that store will be reused. If no such store exists, a new one will be created.
-     *
-     * Also refresh the corresponding {@link EntitySeverityCache}'s knowledge of entity severities
-     * to reflect the new actions in the store.
-     *
-     * @param actionPlan The plan whose actions should be stored in a Store in the StoreHouse.
-     * @return The store used to store the actions.
-     * @throws IllegalArgumentException If the input is invalid.
-     * @throws InterruptedException if current thread has been interrupted
-     */
-    @Nonnull
-    public ActionStore storeActions(@Nonnull final ActionPlan actionPlan)
-            throws InterruptedException {
-        final ActionStore store = measurePlanAndGetOrCreateStore(actionPlan);
-
-        DataMetricTimer populationTimer = STORE_POPULATION_SUMMARY
-            .labels(store.getStoreTypeName())
-            .startTimer();
-        store.populateRecommendedActions(actionPlan);
-        populationTimer.observe();
-
-        return store;
-    }
-
-    /**
      * Measure and log statistics about an {@link ActionPlan} and get or create its associated {@link ActionStore}.
      * If an existing {@link ActionStore} exists for the topology context,
      * that store will be reused. If no such store exists, a new one will be created.

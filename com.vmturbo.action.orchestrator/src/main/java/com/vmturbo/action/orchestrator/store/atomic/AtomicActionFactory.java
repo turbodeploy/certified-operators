@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 /**
  * Builds new ActionDTOs by merging ActionDTOs for different entities
  * based on the {@link AtomicActionSpec}.
- * When a new action plan is received by the Action Orchestrator, {@link LiveActionStore} will
+ * When a new action plan is received by the Action Orchestrator, {@link LiveActionPipelineFactory} will
  * invoke the AtomicActionFactory to create atomic action DTOs by merging a group of actions
  * for entities controlled by the same execution target.
  *
@@ -57,7 +57,7 @@ public class AtomicActionFactory {
     private final AtomicActionSpecsCache atomicActionSpecsCache;
 
     // Second step - to create Atomic action DTOs
-    private final AtomicActionBuilderFactory atomicActionBuilderFactory;
+    private final IAtomicActionBuilderFactory atomicActionBuilderFactory;
 
     /**
      * Constructor.
@@ -65,7 +65,11 @@ public class AtomicActionFactory {
      */
     public AtomicActionFactory(@Nonnull final AtomicActionSpecsCache atomicActionSpecsCache) {
         this.atomicActionSpecsCache = atomicActionSpecsCache;
-        atomicActionBuilderFactory = new AtomicActionBuilderFactory();
+        this.atomicActionBuilderFactory = newAtomicActionBuilderFactory();
+    }
+
+    protected IAtomicActionBuilderFactory newAtomicActionBuilderFactory() {
+        return new AtomicActionBuilderFactory();
     }
 
     /**
@@ -84,9 +88,23 @@ public class AtomicActionFactory {
     }
 
     /**
+     * Factory interface to create {@link AtomicActionBuilder}.
+     */
+    public interface IAtomicActionBuilderFactory {
+        /**
+         * AtomicActionBuilder that will create the {@link Action} for the given AggregatedAction.
+         *
+         * @param aggregatedAction the {@link AggregatedAction}
+         * @return AtomicActionBuilder to build {@link Action} for the aggregated action
+         */
+        @Nullable
+        AtomicActionBuilder getActionBuilder(@Nonnull AggregatedAction aggregatedAction);
+    }
+
+    /**
      * Factory to create {@link AtomicActionBuilder}.
      */
-    private static class AtomicActionBuilderFactory {
+    private static class AtomicActionBuilderFactory implements IAtomicActionBuilderFactory {
 
         AtomicActionBuilderFactory() { }
 
@@ -97,7 +115,7 @@ public class AtomicActionFactory {
          * @return AtomicActionBuilder to build {@link Action} for the aggregated action
          */
         @Nullable
-        AtomicActionBuilder getActionBuilder(@Nonnull final AggregatedAction aggregatedAction) {
+        public AtomicActionBuilder getActionBuilder(@Nonnull final AggregatedAction aggregatedAction) {
             ActionTypeCase actionTypeCase = aggregatedAction.getActionTypeCase();
             switch (actionTypeCase) {
                 case ATOMICRESIZE:

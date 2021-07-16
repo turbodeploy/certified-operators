@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -88,7 +87,7 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
 
     private final TraversalRulesLibrary<ActionGraphEntity> traversalRules = new TraversalRulesLibrary<>();
 
-    private final Map<Long, CompletableFuture<PlanSnapshot>> planSnapshotRequests = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, CompletableFuture<PlanTopologySnapshot>> planSnapshotRequests = Collections.synchronizedMap(new HashMap<>());
 
     EntitiesSnapshotFactory(@Nonnull final ActionTopologyStore actionTopologyStore,
             final long realtimeTopologyContextId,
@@ -145,11 +144,11 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
         synchronized (planSnapshotRequests) {
             final int startingSize = planSnapshotRequests.size();
             final long earliestValidTime = clock.millis() - timeToWaitUnit.toMillis(timeToWaitForTopology);
-            final Iterator<Entry<Long, CompletableFuture<PlanSnapshot>>> reqIt = planSnapshotRequests.entrySet().iterator();
+            final Iterator<Entry<Long, CompletableFuture<PlanTopologySnapshot>>> reqIt = planSnapshotRequests.entrySet().iterator();
             while (reqIt.hasNext()) {
-                final Entry<Long, CompletableFuture<PlanSnapshot>> nextReq = reqIt.next();
+                final Entry<Long, CompletableFuture<PlanTopologySnapshot>> nextReq = reqIt.next();
                 try {
-                    final PlanSnapshot snapshot = nextReq.getValue().getNow(null);
+                    final PlanTopologySnapshot snapshot = nextReq.getValue().getNow(null);
                     if (snapshot != null) {
                         if (snapshot.creationTime.toEpochMilli() < earliestValidTime) {
                             logger.warn("Expiring plan snapshot for id {} created at {}", nextReq.getKey(), snapshot.creationTime);
@@ -167,10 +166,17 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
 
     @Nonnull
     private EntitiesSnapshot getPlanEntitiesSnapshot(@Nonnull final Set<Long> entities, final long planId) {
-        final CompletableFuture<PlanSnapshot> snapshotFuture = planSnapshotRequests.computeIfAbsent(planId,
+        final CompletableFuture<PlanTopologySnapshot> snapshotFuture = planSnapshotRequests.computeIfAbsent(planId,
                 k -> new CompletableFuture<>());
         try (DataMetricTimer timer = Metrics.PLAN_SNAPSHOT_WAIT_SUMMARY.startTimer()) {
-            final EntitiesSnapshot snapshot = snapshotFuture.get(timeToWaitForTopology, timeToWaitUnit).getSnapshot();
+            final TopologyGraph<ActionGraphEntity> entityGraph =
+                    snapshotFuture.get(timeToWaitForTopology, timeToWaitUnit).getTopologyGraph();
+            logger.info("Got plan entities graph for plan {} with {} entities ({} requested) after waiting {} seconds",
+                    planId, entityGraph.size(), entities.size(), timer.getTimeElapsedSecs());
+
+            final EntitiesSnapshot snapshot = snapshotFromGraph(entities,
+                                                                entityGraph, TopologyType.PROJECTED);
+
             logger.info("Got plan entities snapshot for plan {} with {} entities ({} requested) after waiting {} seconds",
                     planId, snapshot.getEntityMap().size(), entities.size(), timer.getTimeElapsedSecs());
             return snapshot;
@@ -206,7 +212,6 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
             return getPlanEntitiesSnapshot(entities, topologyContextId);
         }
     }
-
 
     @Nonnull
     private OwnershipGraph<EntityWithConnections> retrieveRealtimeOwnershipGraph(@Nonnull final Set<Long> entities,
@@ -264,7 +269,7 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
             return;
         }
 
-        final CompletableFuture<PlanSnapshot> requestedSnapshot =
+        final CompletableFuture<PlanTopologySnapshot> requestedSnapshot =
                 planSnapshotRequests.computeIfAbsent(sourceTopologyInfo.getTopologyContextId(),
                         k -> new CompletableFuture<>());
 
@@ -276,17 +281,14 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
                     topologyGraphCreator.addEntity(new ActionGraphEntity.Builder(projectedEntity.getEntity()));
                 });
             }
-            final EntitiesSnapshot snapshot = snapshotFromGraph(
-                    new HashSet<>(metadata.getEntitiesInvolvedInActionsList()),
-                    topologyGraphCreator.build(),
-                    TopologyType.PROJECTED);
-            requestedSnapshot.complete(new PlanSnapshot(snapshot, clock, null));
+
+            requestedSnapshot.complete(new PlanTopologySnapshot(topologyGraphCreator.build(), clock, null));
         } catch (CommunicationException | TimeoutException | RuntimeException e) {
-            requestedSnapshot.complete(new PlanSnapshot(null, clock,
+            requestedSnapshot.complete(new PlanTopologySnapshot(null, clock,
                 new PlanSnapshotConstructionException("Failed to construct snapshot from graph.", e)));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            requestedSnapshot.complete(new PlanSnapshot(null, clock,
+            requestedSnapshot.complete(new PlanTopologySnapshot(null, clock,
                     new PlanSnapshotConstructionException("Thread interrupted while constructing snapshot.")));
         } finally {
             RemoteIteratorDrain.drainIterator(topology,
@@ -329,31 +331,31 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
     }
 
     /**
-     * Wrapper around an {@link EntitiesSnapshot} or a {@link PlanSnapshotConstructionException} encountered
+     * Wrapper around an {@link TopologyGraph} or a {@link PlanSnapshotConstructionException} encountered
      * trying to construct the snapshot, and the time it was created.
      */
     @Immutable
-    private static class PlanSnapshot {
+    private static class PlanTopologySnapshot {
         private final Instant creationTime;
-        private final EntitiesSnapshot snapshot;
+        private final TopologyGraph<ActionGraphEntity> topologyGraph;
         private final PlanSnapshotConstructionException exception;
 
-        PlanSnapshot(@Nullable final EntitiesSnapshot snapshot,
-                @Nonnull final Clock clock,
-                @Nullable final PlanSnapshotConstructionException exception) {
+        PlanTopologySnapshot(@Nonnull final TopologyGraph<ActionGraphEntity> topologyGraph,
+                             @Nonnull final Clock clock,
+                             @Nullable final PlanSnapshotConstructionException exception) {
             this.creationTime = clock.instant();
-            this.snapshot = snapshot;
+            this.topologyGraph = topologyGraph;
             this.exception = exception;
         }
 
         @Nonnull
-        public EntitiesSnapshot getSnapshot() throws PlanSnapshotConstructionException {
+        public TopologyGraph<ActionGraphEntity> getTopologyGraph() throws PlanSnapshotConstructionException {
             if (exception != null) {
                 throw exception;
-            } else if (snapshot == null) {
+            } else if (topologyGraph == null) {
                 throw new PlanSnapshotConstructionException("Unexpected null snapshot.");
             }
-            return snapshot;
+            return topologyGraph;
         }
     }
 
