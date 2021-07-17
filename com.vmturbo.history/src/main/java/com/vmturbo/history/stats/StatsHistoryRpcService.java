@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -111,6 +112,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.SharedMetrics;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
@@ -422,14 +424,28 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
                 final List<EntityStats> entityStats = new ArrayList<>(
                     recordPage.getNextPageRecords().size());
+                final Set<Long> entityOids = new HashSet(recordPage.getNextPageRecords().keySet());
+                final Map<Long, EntityDTO.EntityType> entityIdToTypeMap = historydbIO.getEntityIdToEntityTypeMap(entityOids);
                 recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
-                    final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
-                        .setOid(entityOid);
-                    // organize the stats DB records for this entity into StatSnapshots and add to response
-                    statSnapshotCreator.createStatSnapshots(recordList, false,
-                        request.getFilter().getCommodityRequestsList())
-                        .forEach(statsForEntity::addStatSnapshots);
-                    entityStats.add(statsForEntity.build());
+                    try {
+                        final EntityType requestedEntityType = historydbIO
+                                        .getEntityTypeFromEntityStatsScope(scope);
+                        final EntityDTO.EntityType sdkEntityType = Optional.ofNullable(requestedEntityType)
+                                        .flatMap(EntityType::getSdkEntityType)
+                                        .orElse(null);
+                        if (sdkEntityType == entityIdToTypeMap.get(entityOid)) {
+                            final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                                            .setOid(entityOid);
+                            // organize the stats DB records for this entity into StatSnapshots and add to response
+                            statSnapshotCreator.createStatSnapshots(recordList, false,
+                                                                    request.getFilter()
+                                                                                    .getCommodityRequestsList())
+                                            .forEach(statsForEntity::addStatSnapshots);
+                            entityStats.add(statsForEntity.build());
+                        }
+                    } catch (Exception e) {
+                        logger.error("Exception creating stats snapshots for entity {}", entityOid, e);
+                    }
                 });
 
                 final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
@@ -1391,7 +1407,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             GetEntityIdToEntityTypeMappingResponse response =
                     GetEntityIdToEntityTypeMappingResponse.newBuilder()
                         .putAllEntityIdToEntityTypeMap(
-                                historydbIO.getEntityIdToEntityTypeMap())
+                                historydbIO.getEntityIdToEntityTypeMap(Collections.EMPTY_SET))
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
