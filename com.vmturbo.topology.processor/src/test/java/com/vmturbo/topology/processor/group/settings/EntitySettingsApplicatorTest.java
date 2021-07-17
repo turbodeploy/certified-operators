@@ -68,6 +68,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Physica
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.components.common.setting.CoreSocketRatioPolicyEnum;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -224,6 +225,28 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(ConfigurableActionSettings.StorageMove.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
             .build();
+
+    private static final Setting CORE_SOCKET_RATIO_MODE_DEFAULT = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(
+                    EntitySettingSpecs.CoreSocketRatioMode.getSettingSpec().getEnumSettingValueType().getDefault()))
+            .build();
+
+    private static final Setting CORE_SOCKET_RATIO_MODE_RESPECT = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.CoreSocketRatioMode.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(CoreSocketRatioPolicyEnum.RESPECT
+                    .name()))
+            .build();
+
+    private static final Setting VM_VCPU_INCREMENT_DEFAULT = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(
+                    EntitySettingSpecs.VmVcpuIncrement
+                            .getSettingSpec()
+                            .getNumericSettingValueType()
+                            .getDefault()))
+            .build();
+
 
     private static final Setting VM_VSTORAGE_INCREMENT_DEFAULT = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.VstorageIncrement.getSettingName())
@@ -508,7 +531,7 @@ public class EntitySettingsApplicatorTest {
     private static final int INSTANCE_DISK_SIZE_GB = 10;
     private static final double NUM_DISKS = 3D;
 
-    private EntitySettingsApplicator applicator;
+    private static EntitySettingsApplicator applicator;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.getDefaultInstance();
 
@@ -1702,7 +1725,7 @@ public class EntitySettingsApplicatorTest {
         return builder;
     }
 
-    private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
+    private static TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
             @Nonnull CommodityType commodityType) {
         final TopologyEntityDTO.Builder builder =
                 TopologyEntityDTO.newBuilder().setEntityType(entityType.getNumber()).setOid(1);
@@ -1851,6 +1874,36 @@ public class EntitySettingsApplicatorTest {
         // Since there is no desired state settings set, leave effective capacity as is.
         Assert.assertEquals(80.0f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
+    }
+
+    @Test
+    public void testVCPUIncrementApplicatorDefault() {
+        //coreSocketRatio default is ignore, so use default vmCpuIncrement
+        testVCPUIncrementApplicator(1800, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+    }
+
+    @Test
+    public void testVCPUIncrementApplicatorNonDefault() {
+        testVCPUIncrementApplicator(5200, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT);
+
+    }
+
+    /**
+     *  If there is No CSR setting(e.g. containers), should work as if settinng = RESPECT.
+     */
+    @Test
+    public void testVCPUIncrementApplicatorNoCSRSetting() {
+
+        testVCPUIncrementApplicator(5200, VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    private static void testVCPUIncrementApplicator(int expectedVCPUIncrenemt, Setting... settings) {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, CommodityType.VCPU);
+        builder.getCommoditySoldListBuilder(0).setCapacityIncrement(5200);
+        applySettings(TOPOLOGY_INFO, builder, settings);
+        assertEquals(expectedVCPUIncrenemt, builder.getCommoditySoldListBuilder(0).getCapacityIncrement(), 0);
+
     }
 
     @Test
@@ -2143,7 +2196,7 @@ public class EntitySettingsApplicatorTest {
      * @param entity entity to apply settings to
      * @param settings settings to be applied
      */
-    private void applySettings(@Nonnull final TopologyInfo topologyInfo,
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
                                @Nonnull TopologyEntityDTO.Builder entity,
                                @Nonnull Setting... settings) {
         final long entityId = entity.getOid();

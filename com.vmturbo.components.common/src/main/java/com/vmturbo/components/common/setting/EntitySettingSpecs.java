@@ -575,6 +575,14 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
+     * Core Socket Ratio Policy for virtual machines.
+     */
+    CoreSocketRatioMode("coreSocketRatioMode", "Cores to sockets ratio mode",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(CoreSocketRatioPolicyEnum.IGNORE, CoreSocketRatioPolicyEnum.class), true),
+
+    /**
      * Virtual Memory Increment for virtual machines.
      */
     VmVmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
