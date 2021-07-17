@@ -9,6 +9,7 @@
  import static org.hamcrest.Matchers.contains;
  import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
  import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.assertFalse;
  import static org.junit.Assert.assertNotNull;
  import static org.junit.Assert.assertThat;
  import static org.junit.Assert.fail;
@@ -43,7 +44,9 @@
 
  import javax.annotation.Nonnull;
 
+ import com.google.common.collect.ImmutableList;
  import com.google.common.collect.ImmutableMap;
+ import com.google.common.collect.ImmutableSet;
  import com.google.common.collect.Lists;
  import com.google.common.collect.Sets;
 
@@ -109,6 +112,7 @@
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
  import com.vmturbo.components.common.setting.SettingDTOUtil;
+ import com.vmturbo.history.db.EntityType;
  import com.vmturbo.history.db.HistorydbIO;
  import com.vmturbo.history.db.VmtDbException;
  import com.vmturbo.history.db.bulk.BulkLoader;
@@ -123,6 +127,7 @@
  import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
  import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
  import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
+ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -724,8 +729,16 @@ public class StatsHistoryRpcServiceTest {
                                                    anyObject(), any());
     }
 
+    /**
+     * Test getting entity stats for any entity type with an entity type specified in scope.
+     */
     @Test
     public void testGetEntityStats() throws VmtDbException {
+        final EntityDTO.EntityType entityType = EntityType
+                        .fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE)
+                        .get()
+                        .getSdkEntityType()
+                        .get();
         final EntityStatsScope scope = EntityStatsScope.newBuilder()
                 .setEntityList(EntityList.newBuilder()
                         .addEntities(1L))
@@ -739,6 +752,10 @@ public class StatsHistoryRpcServiceTest {
         final String retCursor = "bar";
         final Integer totalRecordCount = 100;
 
+        // Mocks returning some entityType (Here VIRTUAL_MACHINE).
+        final Map<Long, EntityDTO.EntityType> entityIdToTypeMap = ImmutableMap.of(1L, EntityDTO.EntityType.VIRTUAL_MACHINE);
+        when(historyDbio.getEntityIdToEntityTypeMap(ImmutableSet.of(1L))).thenReturn(entityIdToTypeMap);
+        when(historyDbio.getEntityTypeFromEntityStatsScope(scope)).thenReturn(EntityType.fromSdkEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE).get());
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
         final StatRecordPage statRecordPage = mock(StatRecordPage.class);
@@ -763,6 +780,82 @@ public class StatsHistoryRpcServiceTest {
         assertThat(response.getEntityStatsList(), contains(EntityStats.newBuilder()
                 .setOid(1L)
                 .addStatSnapshots(statSnapshotBuilder)
+                .build()));
+        assertThat(response.getPaginationResponse().getNextCursor(), is(retCursor));
+        assertThat(response.getPaginationResponse().getTotalRecordCount(), is(totalRecordCount));
+    }
+
+    /**
+     * Test getting entity stats for PhysicalMachines with an entity type specified in scope.
+     *
+     * Since PM and DC stats are stored in the same table, we need to make sure only PM stats are
+     * retrieved when requesting PM stats.
+     */
+    @Test
+    public void testGetEntityStatsForPhysicalMachine() throws VmtDbException {
+        final List<Long> entityOids = ImmutableList.of(1L, 2L);
+        final EntityDTO.EntityType entityType = EntityType
+                        .fromSdkEntityType(EntityDTO.EntityType.PHYSICAL_MACHINE)
+                        .get()
+                        .getSdkEntityType()
+                        .get();
+
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                        .setEntityList(EntityList.newBuilder()
+                                        .addAllEntities(entityOids))
+                        .setEntityType(entityType.ordinal())
+                        .build();
+        final StatsFilter filter = StatsFilter.newBuilder()
+                .setStartDate(100L)
+                .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                .setCursor("foo")
+                .build();
+        final String retCursor = "bar";
+        final Integer totalRecordCount = 100;
+
+        final Map<Long, EntityDTO.EntityType> entityIdToTypeMap = ImmutableMap.of(1L, EntityDTO.EntityType.PHYSICAL_MACHINE,
+                                                                                  2L, EntityDTO.EntityType.DATACENTER);
+        when(historyDbio.getEntityIdToEntityTypeMap(ImmutableSet.of(1L, 2L))).thenReturn(entityIdToTypeMap);
+        when(historyDbio.getEntityTypeFromEntityStatsScope(scope)).thenReturn(EntityType
+                        .fromSdkEntityType(EntityDTO.EntityType.PHYSICAL_MACHINE).get());
+        final EntityStatsPaginationParams paginationParams =
+                                                           mock(EntityStatsPaginationParams.class);
+        when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
+        final StatRecordPage statRecordPage = mock(StatRecordPage.class);
+        // PM and DC entities are stored in the same pm_stats* tables, hence we need
+        // to make sure we're only returning entities of the requested type, which in this case is PhysicalMachine.
+        final Record record1 = mock(Record.class);
+        final Record record2 = mock(Record.class);
+        final Map<Long, List<Record>> recordPage = ImmutableMap.of(1L, ImmutableList.of(record1),
+                                                                   2L, ImmutableList.of(record2));
+        when(statRecordPage.getNextPageRecords()).thenReturn(recordPage);
+        when(statRecordPage.getNextCursor()).thenReturn(Optional.of(retCursor));
+        when(statRecordPage.getTotalRecordCount()).thenReturn(Optional.of(totalRecordCount));
+
+        when(mockLivestatsreader.getPaginatedStatsRecords(scope, filter, paginationParams))
+                .thenReturn(statRecordPage);
+        final StatSnapshot.Builder statSnapshotBuilder1 = StatSnapshot.newBuilder()
+                .setSnapshotDate(1L);
+        final StatSnapshot.Builder statSnapshotBuilder2 = StatSnapshot.newBuilder()
+                        .setSnapshotDate(2L);
+        doReturn(Stream.of(statSnapshotBuilder1)).when(statSnapshotCreatorSpy)
+                .createStatSnapshots(ImmutableList.of(record1), false, Collections.emptyList());
+        doReturn(Stream.of(statSnapshotBuilder2)).when(statSnapshotCreatorSpy)
+        .createStatSnapshots(ImmutableList.of(record2), false, Collections.emptyList());
+
+        final GetEntityStatsResponse response = clientStub.getEntityStats(GetEntityStatsRequest.newBuilder()
+                .setScope(scope)
+                .setFilter(filter)
+                .setPaginationParams(paginationParameters)
+                .build());
+        assertThat(response.getEntityStatsList(), contains(EntityStats.newBuilder()
+                .setOid(1L)
+                .addStatSnapshots(statSnapshotBuilder1)
+                .build()));
+        assertFalse(response.getEntityStatsList().contains(EntityStats.newBuilder()
+                .setOid(2L)
+                .addStatSnapshots(statSnapshotBuilder1)
                 .build()));
         assertThat(response.getPaginationResponse().getNextCursor(), is(retCursor));
         assertThat(response.getPaginationResponse().getTotalRecordCount(), is(totalRecordCount));
