@@ -710,11 +710,11 @@ public class ExplanationComposer {
                                 .filter(commExp -> commExp.getCommodityType().equals(resize.getCommodityType()))
                                 .findFirst();
 
-                CommodityType reason = resize.getCommodityType();
-                if (commodityExp.isPresent() && commodityExp.get().hasReason()) {
-                    reason = commodityExp.get().getReason();
-                }
                 if (resize.getNewCapacity() > resize.getOldCapacity()) {
+                    CommodityType reason = resize.getCommodityType();
+                    if (commodityExp.isPresent() && commodityExp.get().hasReason()) {
+                        reason = commodityExp.get().getReason();
+                    }
                     String explanation = MessageFormat.format(
                             PER_COMMODITY_ATOMIC_RESIZE_CONGESTION_EXPLANATION,
                             beautifyAtomicActionsCommodityType(reason));
@@ -723,7 +723,7 @@ public class ExplanationComposer {
                 } else {
                     String explanation = MessageFormat.format(
                             PER_COMMODITY_ATOMIC_RESIZE_UNDERUTILIZATION_EXPLANATION,
-                            beautifyAtomicActionsCommodityType(reason));
+                            beautifyAtomicActionsCommodityType(resize.getCommodityType()));
 
                     explanations.add(explanation);
                 }

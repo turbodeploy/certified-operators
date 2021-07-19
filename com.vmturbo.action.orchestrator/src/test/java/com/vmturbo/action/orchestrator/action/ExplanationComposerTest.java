@@ -778,7 +778,15 @@ public class ExplanationComposerTest {
                                         .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
                                         .setCommodityAttribute(CommodityAttribute.CAPACITY)
                                         .setOldCapacity(123)
-                                        .setNewCapacity(456))))
+                                        .setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(3)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(456)
+                                        .setNewCapacity(123))))
                 .setExplanation(Explanation.newBuilder()
                         .setAtomicResize(AtomicResizeExplanation.newBuilder()
                                 .setMergeGroupId("bar")
@@ -810,10 +818,18 @@ public class ExplanationComposerTest {
                                                 .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
                                                 .build())
                                         .build())
+                                .addPerEntityExplanation(ResizeExplanationPerEntity.newBuilder()
+                                        .setTargetId(3)
+                                        .setPerCommodityExplanation(ResizeExplanationPerCommodity.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                                .setReason(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE))
+                                                .build())
+                                        .build())
                         ));
         setupTopologyGraph(entity(0, "Harry", EntityType.WORKLOAD_CONTROLLER_VALUE));
         setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
         setupTopologyGraph(entity(2, "John", EntityType.CONTAINER_SPEC_VALUE));
+        setupTopologyGraph(entity(3, "Kelly", EntityType.CONTAINER_SPEC_VALUE));
 
         String explanation = ExplanationComposer.composeExplanation(action.build());
         assertTrue(explanation.contains("Underutilized VMem Limit, "
@@ -822,6 +838,8 @@ public class ExplanationComposerTest {
         assertTrue(explanation.contains("VCPU Limit Congestion, "
                 + "Underutilized VMem Limit"
                 + " in Container Spec {entity:1:displayName:}"));
+        assertTrue(explanation.contains("Underutilized VCPU Limit"
+                + " in Container Spec {entity:3:displayName:}"));
 
         String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null);
@@ -831,6 +849,8 @@ public class ExplanationComposerTest {
         assertTrue(translatedExplanation.contains("VCPU Limit Congestion, "
                 + "Underutilized VMem Limit"
                 + " in Container Spec Irene"));
+        assertTrue(translatedExplanation.contains("Underutilized VCPU Limit"
+                + " in Container Spec Kelly"));
     }
 
     @Test
