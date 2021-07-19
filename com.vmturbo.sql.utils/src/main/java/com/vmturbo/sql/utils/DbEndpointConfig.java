@@ -32,6 +32,8 @@ public class DbEndpointConfig {
     private String rootPassword;
     private Boolean rootAccessEnabled;
     private Map<String, String> driverProperties;
+    private Integer minPoolSize;
+    private Integer maxPoolSize;
     private Boolean secure;
     private String migrationLocations;
     private FlywayCallback[] flywayCallbacks;
@@ -234,6 +236,38 @@ public class DbEndpointConfig {
 
     public void setShouldProvisionUser(final Boolean shouldProvisionUser) {
         this.shouldProvisionUser = shouldProvisionUser;
+    }
+
+    /**
+     * Gets the minimum pool size for database connections.
+     *
+     * @return the minimum pool size for database connections.
+     */
+    public Integer getMinPoolSize() {
+        return minPoolSize;
+    }
+
+    /**
+     * Sets the minimum pool size for database connections.
+     */
+    public void setMinPoolSize(int minPoolSize) {
+        this.minPoolSize = minPoolSize;
+    }
+
+    /**
+     * Gets the maximum pool size for database connections.
+     *
+     * @return the maximum pool size for database connections.
+     */
+    public Integer getMaxPoolSize() {
+        return maxPoolSize;
+    }
+
+    /**
+     * Sets the maximum pool size for database connections.
+     */
+    public void setMaxPoolSize(int maxPoolSize) {
+        this.maxPoolSize = maxPoolSize;
     }
 
     @Override

@@ -337,4 +337,26 @@ public class DbEndpointBuilder {
         config.setTemplate(templateSupplier);
         return this;
     }
+
+    /**
+     * Specify a min connection pool size property value for this endpoint.
+     *
+     * @param minPoolSize minimum number of connections to maintain in the pool
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withMinPoolSize(int minPoolSize) {
+        config.setMinPoolSize(minPoolSize);
+        return this;
+    }
+
+    /**
+     * Specify a max connection pool size property value for this endpoint.
+     *
+     * @param maxPoolSize maximum number of connections to maintain in the pool
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withMaxPoolSize(int maxPoolSize) {
+        config.setMaxPoolSize(maxPoolSize);
+        return this;
+    }
 }

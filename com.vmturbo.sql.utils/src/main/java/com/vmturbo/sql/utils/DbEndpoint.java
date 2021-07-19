@@ -119,6 +119,10 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  *     database names, schema names, user names, etc. This can be set during tests, for example,
  *     to cause the endpoint to create, provision, and provide access to a temporary database,
  *     rather the database normally accessed by that endpoint.</dd>
+ *     <dt>conPoolInitialSize</dt>
+ *     <dd>The initial & minimum number of connections in the database connection pool.</dd>
+ *     <dt>conPoolMaxActive</dt>
+ *     <dd>The maximum number of connections in the database connection pool.</dd>
  * </dl>
  *
  * <p>Endpoints are constructed using a builder pattern where values for selected properties can be
