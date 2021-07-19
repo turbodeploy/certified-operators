@@ -32,6 +32,7 @@ import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
 import org.mariadb.jdbc.MariaDbDataSource;
+import org.mariadb.jdbc.MariaDbPoolDataSource;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -86,6 +87,18 @@ public abstract class SQLDatabaseConfig {
     @Value("${dbRootPassword:}")
     private String dbRootPassword;
 
+    /**
+     * DB connection pool initial and minimum size. Defaults to 5.
+     */
+    @Value("${conPoolInitialSize:5}")
+    private int dbMinPoolSize;
+
+    /**
+     * DB connection pool maximum size. Defaults to 10.
+     */
+    @Value("${conPoolMaxActive:10}")
+    private int dbMaxPoolSize;
+
     @Value("${sqlDialect}")
     private String sqlDialectName;
 
@@ -126,7 +139,8 @@ public abstract class SQLDatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, getDBRootPassword(false));
+        return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
+                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize);
     }
 
     /**
@@ -139,12 +153,19 @@ public abstract class SQLDatabaseConfig {
      */
     @Nonnull
     protected DataSource dataSource(@Nonnull String dbUrl, @Nonnull String dbUsername,
-                                    @Nonnull String dbPassword) {
-        MariaDbDataSource dataSource = new MariaDbDataSource();
+                                    @Nonnull String dbPassword, final int minPoolSize,
+                                    final int maxPoolSize) {
+        MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
         try {
+            // Should be logged only once, on container startup
+            logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}",
+                    minPoolSize,
+                    maxPoolSize);
             dataSource.setUrl(dbUrl);
             dataSource.setUser(dbUsername);
             dataSource.setPassword(dbPassword);
+            dataSource.setMinPoolSize(minPoolSize);
+            dataSource.setMaxPoolSize(maxPoolSize);
             return dataSource;
         } catch (SQLException e) {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
@@ -290,7 +311,8 @@ public abstract class SQLDatabaseConfig {
     public DataSource dataSourceConfig(@Nonnull final String schemaName,
             @Nonnull final String dbUsername, @Nonnull final String dbPassword,
             final boolean isPasswordInjected) {
-        DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword);
+        DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword,
+                dbMinPoolSize, dbMaxPoolSize);
         try {
             // Test DB connection first to the schema under given user credentials.
             dataSource.getConnection().close();
@@ -309,7 +331,8 @@ public abstract class SQLDatabaseConfig {
         }
         final String dbRootPassword = getDBRootPassword(false);
         DataSource rootDataSource =
-                dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, dbRootPassword);
+                dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, dbRootPassword,
+                        dbMinPoolSize, dbMaxPoolSize);
         try (Connection rootConnection = rootDataSource.getConnection()) {
             if (hasGrantPrivilege(rootConnection, dbRootUsername, dbRootPassword, schemaName)) {
                 // explicitly create the needed database if it doesn't exist, so we can run

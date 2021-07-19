@@ -83,6 +83,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
+        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMaxPoolSize(), is(10));
     }
 
     /**
@@ -116,6 +118,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
+        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMaxPoolSize(), is(10));
     }
 
     /**
@@ -149,6 +153,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
+        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMaxPoolSize(), is(10));
     }
 
     /**
@@ -183,6 +189,10 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getMinPoolSize(), is(1));
+        // Should be set to the absolute maximum pool size (currently 500), since we configured it
+        // higher than the maximum.
+        assertThat(config.getMaxPoolSize(), is(500));
     }
 
     /**
@@ -218,6 +228,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getMinPoolSize(), is(3));
+        assertThat(config.getMaxPoolSize(), is(7));
     }
 
     /**
@@ -256,6 +268,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(true));
         assertThat(config.getTemplate(), is(base));
         assertThat(config.getUserName(), is("u-xxxx"));
+        assertThat(config.getMinPoolSize(), is(3));
+        assertThat(config.getMaxPoolSize(), is(7));
     }
 
     /**
@@ -281,6 +295,8 @@ public class DbEndpointResolverTest {
         assertThat(config.getUserName(), is("u-xxxx"));
         assertThat(config.getDatabaseName(), is("middle-xxxx"));
         assertThat(config.getSchemaName(), is("last-xxxx"));
+        assertThat(config.getMinPoolSize(), is(3));
+        assertThat(config.getMaxPoolSize(), is(7));
     }
 
     /**
@@ -438,6 +454,8 @@ public class DbEndpointResolverTest {
         configMap.put(prefix + "shouldProvisionDatabase", "true");
         configMap.put(prefix + "shouldProvisionUser", "true");
         configMap.put(prefix + "userName", "u");
+        configMap.put(prefix + "conPoolInitialSize", "3");
+        configMap.put(prefix + "conPoolMaxActive", "7");
     }
 
     /**
@@ -466,6 +484,10 @@ public class DbEndpointResolverTest {
                 .withShouldProvisionDatabase(true)
                 .withShouldProvisionUser(true)
                 .withUserName("u")
+                .withMinPoolSize(1)
+                // Intentionally setting this higher than the absolute max to ensure we are
+                // enforcing the absolute max.
+                .withMaxPoolSize(2525)
                 .build();
     }
 }

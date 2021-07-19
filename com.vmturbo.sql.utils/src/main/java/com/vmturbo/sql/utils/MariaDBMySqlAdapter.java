@@ -9,7 +9,7 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
-import org.mariadb.jdbc.MariaDbDataSource;
+import org.mariadb.jdbc.MariaDbPoolDataSource;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -29,11 +29,13 @@ class MariaDBMySqlAdapter extends DbAdapter {
     @Override
     DataSource getDataSource(String url, String user, String password)
             throws SQLException {
-        final MariaDbDataSource dataSource = new MariaDbDataSource();
+        final MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
         dataSource.setUrl(url);
         dataSource.setUser(user);
         dataSource.setPassword(password);
         dataSource.setDatabaseName(config.getDatabaseName());
+        dataSource.setMinPoolSize(config.getMinPoolSize());
+        dataSource.setMaxPoolSize(config.getMaxPoolSize());
         return dataSource;
     }
 

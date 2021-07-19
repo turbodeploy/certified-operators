@@ -87,6 +87,10 @@ public class DbEndpointResolver {
     public static final String SHOULD_PROVISION_DATABASE_PROPERTY = "shouldProvisionDatabase";
     /** dbShouldProvisionUser property. */
     public static final String SHOULD_PROVISION_USER_PROPERTY = "shouldProvisionUser";
+    /** DB connection pool initial and minimum size property. */
+    public static final String MIN_POOL_SIZE_PROPERTY = "conPoolInitialSize";
+    /** DB connection pool maximum size property. */
+    public static final String MAX_POOL_SIZE_PROPERTY = "conPoolMaxActive";
 
     /** system property name for retrieving component name for certain property defaults. */
     public static final String COMPONENT_TYPE_PROPERTY = "component_type";
@@ -105,6 +109,16 @@ public class DbEndpointResolver {
     public static final String DEFAULT_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
     /** default value for host name. */
     public static final String DEFAULT_HOST_VALUE = "localhost";
+    /** default value for connection pool initial and minimum size. */
+    public static final int DEFAULT_MIN_POOL_SIZE = 5;
+    /** default value for connection pool maximum size. */
+    public static final int DEFAULT_MAX_POOL_SIZE = 10;
+
+    // absolute min and max values (guardrails) for some properties
+    /** default value for connection pool initial and minimum size. */
+    public static final int ABSOLUTE_MIN_POOL_SIZE = 1;
+    /** default value for connection pool maximum size. */
+    public static final int ABSOLUTE_MAX_POOL_SIZE = 500;
 
     private static final SpelExpressionParser spel = new SpelExpressionParser();
 
@@ -146,6 +160,8 @@ public class DbEndpointResolver {
         resolveRootPassword();
         resolveRootAccessEnabled();
         resolveDriverProperties();
+        resolveMinPoolSize();
+        resolveMaxPoolSize();
         resolveSecure();
         resolveMigrationLocations();
         resolveFlywayCallbacks();
@@ -308,6 +324,42 @@ public class DbEndpointResolver {
             base.putAll(injectedMap != null ? injectedMap : Collections.emptyMap());
         }
         config.setDriverProperties(base);
+    }
+
+    /**
+     * Resolve the dbMinPoolSize property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     */
+    private void resolveMinPoolSize() throws UnsupportedDialectException {
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getMinPoolSize);
+        String fromDefault = Integer.toString(DEFAULT_MIN_POOL_SIZE);
+        String currentValue = config.getMinPoolSize() != null ? config.getMinPoolSize().toString() : null;
+        String propValue = firstNonNull(configuredPropValue(MIN_POOL_SIZE_PROPERTY),
+                currentValue, fromTemplate, fromDefault);
+        int minPoolSize = Integer.parseInt(propValue);
+        minPoolSize =
+                Math.min(ABSOLUTE_MAX_POOL_SIZE, Math.max(ABSOLUTE_MIN_POOL_SIZE, minPoolSize));
+        config.setMinPoolSize(minPoolSize);
+    }
+
+    /**
+     * Resolve the dbMaxPoolSize property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     */
+    private void resolveMaxPoolSize() throws UnsupportedDialectException {
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getMaxPoolSize);
+        String fromDefault = Integer.toString(DEFAULT_MAX_POOL_SIZE);
+        String currentValue = config.getMaxPoolSize() != null
+                ? config.getMaxPoolSize().toString()
+                : null;
+        String propValue = firstNonNull(configuredPropValue(MAX_POOL_SIZE_PROPERTY),
+                currentValue, fromTemplate, fromDefault);
+        int maxPoolSize = Integer.parseInt(propValue);
+        maxPoolSize =
+                Math.min(ABSOLUTE_MAX_POOL_SIZE, Math.max(ABSOLUTE_MIN_POOL_SIZE, maxPoolSize));
+        config.setMaxPoolSize(maxPoolSize);
     }
 
     /**
