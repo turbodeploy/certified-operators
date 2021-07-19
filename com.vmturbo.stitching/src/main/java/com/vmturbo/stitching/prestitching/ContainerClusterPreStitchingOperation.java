@@ -390,7 +390,8 @@ public class ContainerClusterPreStitchingOperation implements PreStitchingOperat
     private void convertContainerSpec(@Nonnull StitchingEntity containerSpec,
                                       double cpuSpeed) {
         final List<StitchingEntity> containers = containerSpec.getConnectedFromByType().entrySet().stream()
-                .filter(entry -> entry.getKey().equals(ConnectionType.CONTROLLED_BY_CONNECTION))
+                .filter(entry -> entry.getKey().equals(ConnectionType.CONTROLLED_BY_CONNECTION)
+                        || entry.getKey().equals(ConnectionType.AGGREGATED_BY_CONNECTION))
                 .map(Entry::getValue)
                 .flatMap(Set::stream)
                 .filter(e -> EntityType.CONTAINER.equals(e.getEntityType()))
