@@ -106,12 +106,6 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testStoreActionsUsesPopulateMethod() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
-        verify(actionStore).populateRecommendedActions(eq(actionPlan));
-    }
-
-    @Test
     public void testGetNonExistingStore() {
         assertFalse(actionStorehouse.getStore(topologyContextId).isPresent());
     }
@@ -121,29 +115,9 @@ public class ActionStorehouseTest {
         assertFalse(actionStorehouse.getSeverityCache(topologyContextId).isPresent());
     }
 
-    /**
-     * testOnActionsReceivedStoreActions.
-     *
-     * @throws Exception on exception.
-     */
-    @Test
-    public void testOnActionsReceivedStoreActions() throws Exception {
-        ActionPlan actionPlan = ActionPlan.newBuilder()
-            .setId(1)
-            .setInfo(ActionPlanInfo.newBuilder()
-                .setMarket(MarketActionPlanInfo.newBuilder()
-                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                        .setTopologyId(123)
-                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID))))
-            .build();
-
-        actionStorehouse.storeActions(actionPlan);
-        verify(actionStore).populateRecommendedActions(actionPlan);
-    }
-
     @Test
     public void testRemoveExistingStore() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
         assertEquals(actionStore, actionStorehouse.getStore(topologyContextId).get());
 
         Optional<ActionStore> store = actionStorehouse.removeStore(topologyContextId);
@@ -158,7 +132,7 @@ public class ActionStorehouseTest {
     @Test
     public void testGetAllStores() throws Exception {
         assertTrue(actionStorehouse.getAllStores().isEmpty());
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
 
         Map<Long, ActionStore> stores = actionStorehouse.getAllStores();
         assertEquals(1, stores.size());
@@ -167,7 +141,7 @@ public class ActionStorehouseTest {
 
     @Test
     public void testClearStore() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
 
         assertEquals(1, actionStorehouse.size());
 
@@ -196,8 +170,8 @@ public class ActionStorehouseTest {
 
         assertEquals(0, actionStorehouse.size());
 
-        actionStorehouse.storeActions(actionPlan);
-        actionStorehouse.storeActions(otherActionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(otherActionPlan);
 
         assertEquals(2, actionStorehouse.size());
     }
@@ -223,7 +197,7 @@ public class ActionStorehouseTest {
 
     @Test
     public void testDeleteStoreNotPermitted() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
         assertEquals(actionStore, actionStorehouse.getStore(topologyContextId).get());
         when(actionStore.clear()).thenThrow(new IllegalStateException("not permitted"));
 
@@ -233,7 +207,7 @@ public class ActionStorehouseTest {
 
     @Test
     public void testDeleteStoreFailed() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
         assertEquals(actionStore, actionStorehouse.getStore(topologyContextId).get());
         when(actionStore.clear()).thenReturn(false);
 
@@ -243,7 +217,7 @@ public class ActionStorehouseTest {
 
     @Test
     public void testDeleteStoreSucceeded() throws Exception {
-        actionStorehouse.storeActions(actionPlan);
+        actionStorehouse.measurePlanAndGetOrCreateStore(actionPlan);
         assertEquals(actionStore, actionStorehouse.getStore(topologyContextId).get());
         when(actionStore.clear()).thenReturn(true);
 

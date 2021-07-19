@@ -77,13 +77,13 @@ import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.AddRe
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.CompilePreviousActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.CreateAtomicActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.CreateLastExecutedRecommendationsTrackerStage;
+import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.CreatePlanAtomicActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetEntitiesAndSettingsSnapshotStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetInvolvedEntityIdsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.GetOrCreateLiveActionStoreStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.IdentifiedActionDTO;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.IdentifiedActionsAndStore;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.MarketReRecommendedActionsStage;
-import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateActionStoreStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PopulateLiveActionsSegment;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.PrepareAggregatedActionsStage;
 import com.vmturbo.action.orchestrator.store.pipeline.ActionPipelineStages.RefreshProbeCapabilitiesStage;
@@ -187,20 +187,6 @@ public class ActionPipelineStagesTest {
     }
 
     /**
-     * testPopulateActionStoreStage.
-     *
-     * @throws Exception on exception.
-     */
-    @Test
-    public void testPopulateActionStoreStage() throws Exception {
-        final PopulateActionStoreStage stage = new PopulateActionStoreStage(actionStorehouse);
-        when(actionStorehouse.storeActions(actionPlan)).thenReturn(actionStore);
-        final StageResult<ActionStore> result = stage.execute(actionPlan);
-        assertEquals(actionStore, result.getResult());
-        verify(actionStorehouse).storeActions(eq(actionPlan));
-    }
-
-    /**
      * testUpdateAutomationStage.
      *
      * @throws PipelineStageException on exception.
@@ -261,7 +247,7 @@ public class ActionPipelineStagesTest {
         final GetInvolvedEntityIdsStage stage = new GetInvolvedEntityIdsStage();
 
         stage.setContext(context);
-        stage.execute(planAndStore);
+        stage.execute(actionPlan);
         final Set<Long> involvedEntities = captureContextMember(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS);
 
         assertEquals(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), involvedEntities);
@@ -292,7 +278,7 @@ public class ActionPipelineStagesTest {
 
         final PrepareAggregatedActionsStage stage = new PrepareAggregatedActionsStage(atomicActionFactory);
         stage.setContext(context);
-        stage.execute(planAndStore);
+        stage.execute(actionPlan);
 
         final Map<Long, AggregatedAction> actionIdToActions =
             captureContextMember(ActionPipelineContextMembers.ACTION_ID_TO_AGGREGATE_ACTION);
@@ -849,6 +835,33 @@ public class ActionPipelineStagesTest {
         // Ensure the action still in the tracker was cleared
         verify(toClear).receive(any(NotRecommendedEvent.class));
         verify(toNotClear, never()).receive(any(NotRecommendedEvent.class));
+    }
+
+    /**
+     * Test the creation of atomic actions for plan.
+     *
+     * @throws PipelineStageException on exception.
+     * @throws InterruptedException on exception.
+     */
+    @Test
+    public void testCreatePlanAtomicActionsStage() throws PipelineStageException, InterruptedException {
+        final Map<Long, AggregatedAction> aggregatedActions = new HashMap<>();
+        final ActionDTO.Action dedupAction = moveAction.toBuilder().setId(moveAction.getId() + 1).build();
+        final ActionDTO.Action atomicAction = moveAction.toBuilder().setId(moveAction.getId() + 2).build();
+        provideContextMember(ActionPipelineContextMembers.AGGREGATED_ACTIONS, aggregatedActions);
+        when(atomicActionFactory.atomicActions(eq(aggregatedActions)))
+                .thenReturn(Collections.singletonList(ImmutableAtomicActionResult.builder()
+                        .atomicAction(atomicAction)
+                        .deDuplicatedActions(ImmutableMap.of(dedupAction, Collections.singletonList(moveAction)))
+                        .build()
+                ));
+
+        final CreatePlanAtomicActionsStage stage = new CreatePlanAtomicActionsStage(atomicActionFactory);
+        stage.setContext(context);
+        final StageResult<ActionPipelineStages.AtomicActionsAndActionPlan> result = stage.execute(actionPlan);
+
+        assertEquals(2, result.getResult().getAtomicActionDTOs().size());
+        assertThat(result.getResult().getAtomicActionDTOs(), containsInAnyOrder(atomicAction, dedupAction));
     }
 
     private <T> void provideContextMember(@Nonnull final PipelineContextMemberDefinition<T> memberDef,
