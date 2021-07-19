@@ -56,7 +56,7 @@
              Do not change them independently without verifying that they are compatible with
              each other! Check the projects' github repositories and nested dependencies. -->
         <opentracing.version>0.33.0</opentracing.version>
-        <jaeger.version>1.2.0</jaeger.version>
+        <jaeger.version>1.6.0</jaeger.version>
         <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
         <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
         <opentracing.kafka.version>0.1.13</opentracing.kafka.version>
