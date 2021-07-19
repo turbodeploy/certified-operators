@@ -35,8 +35,8 @@
         <surefire.version>3.0.0-M4</surefire.version>
         <spring.version>5.3.7</spring.version>
         <commons-text.version>1.9</commons-text.version>
-        <velocity.version>1.7</velocity.version>
-        <velocity-tools.version>2.0</velocity-tools.version>
+        <velocity.version>2.3</velocity.version>
+        <velocity-tools.version>3.1</velocity-tools.version>
         <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
         https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->
         <wireMockVersion>2.27.2</wireMockVersion>
@@ -230,12 +230,12 @@
             </dependency>
             <dependency>
                 <groupId>org.apache.velocity</groupId>
-                <artifactId>velocity</artifactId>
+                <artifactId>velocity-engine-core</artifactId>
                 <version>${velocity.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.apache.velocity</groupId>
-                <artifactId>velocity-tools</artifactId>
+                <groupId>org.apache.velocity.tools</groupId>
+                <artifactId>velocity-tools-generic</artifactId>
                 <version>${velocity-tools.version}</version>
             </dependency>
             <dependency>

@@ -131,31 +131,6 @@ public class VelocityTest {
     }
 
     /**
-     * Test velocity XML template conversion.
-     * @throws IOException failed to write out template.
-     * @throws ParseException failed to convert template.
-     */
-    @Test
-        public void testVelocityXMLTemplate() throws IOException, ParseException {
-        // There are some 'hidden characters' when it comes to the XML output
-        // Instead of comparing string literals, we are comparing each character literal to ensure
-        // the conversion is correct
-        char[] expectedXMLCharArray = {123, 10, 32, 32, 34, 105, 100, 34, 58, 32, 34, 48, 34, 44,
-                10, 32, 32, 34, 117, 117, 105, 100, 34, 58, 32, 34, 49, 34, 44, 10, 32, 32, 34,
-                100, 101, 115, 99, 114, 105, 112, 116, 105, 111, 110, 34, 58, 32, 34, 92, 32, 47,
-                32, 12, 32, 9, 32, 8, 32, 10, 32, 13, 32, 1, 32, 17, 32, 38, 35, 50, 55, 51, 59,
-                32, 38, 35, 52, 51, 54, 57, 59, 32, 38, 97, 112, 111, 115, 59, 32, 92, 34, 44, 10, 125};
-
-            String xmlBody = Velocity.apply(escTemplate.replaceAll("%s", "xml"), testObject);
-            Assert.assertArrayEquals(xmlBody.toCharArray(), expectedXMLCharArray);
-
-            // sanity check to ensure values are still present and correct
-            Assert.assertTrue(xmlBody.contains("\"id\": \"0\""));
-            Assert.assertTrue(xmlBody.contains("\"description\":"));
-            Assert.assertTrue(xmlBody.contains("\"uuid\": \"1\""));
-        }
-
-    /**
      * Test velocity java template conversion on a null data object.
      * @throws IOException failed to write out template.
      * @throws ParseException failed to convert template.
