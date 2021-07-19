@@ -171,9 +171,9 @@ public final class Ede {
                     Optional<ITracer> optTracer) {
         @NonNull List<Action> actions = new ArrayList<>();
         try {
-            String analysisLabel = "Analysis ";
+            String analysisLabel = mktData + " Analysis ";
             logger.info(analysisLabel + "Started.");
-            ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
+            ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy), mktData);
             final ITracer tracer = optTracer.orElseGet(NoopTracer::new);
             try (ITracerScope tracerScope = tracer.trace("create_action_classifier")) {
                 if (classifyActions && classifier == null) {

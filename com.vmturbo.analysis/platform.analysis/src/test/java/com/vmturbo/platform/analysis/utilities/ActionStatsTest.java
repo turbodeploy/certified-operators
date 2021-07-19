@@ -90,7 +90,8 @@ public class ActionStatsTest {
     @Test
     public void testMoveStats() {
         List<Action> actions = new ArrayList<>();
-        ActionStats actionStats = new ActionStats(actions, ANALYSIS_ID);
+        final String analysisPrefix = "TEST-123";
+        ActionStats actionStats = new ActionStats(actions, ANALYSIS_ID, analysisPrefix);
 
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         ShoppingList pmShoppingList = null;
@@ -103,14 +104,17 @@ public class ActionStatsTest {
         actions.add(move);
 
         String logPhase1 = actionStats.phaseLogEntry("Phase1");
+        assertEquals(true, logPhase1.contains(analysisPrefix));
         assertEquals(true, logPhase1.contains("1 " + move.getType () + " (PhysicalMachine:1"));
         assertTrue(logPhase1.contains(Long.toString(ANALYSIS_ID)));
 
         actions.add(move);
         String logPhase2 = actionStats.phaseLogEntry("Phase2");
+        assertEquals(true, logPhase2.contains(analysisPrefix));
         assertEquals(true, logPhase2.contains("1 " + move.getType () + " (PhysicalMachine:1"));
 
         String finalEntry = actionStats.finalLogEntry();
+        assertEquals(true, finalEntry.contains(analysisPrefix));
         assertEquals(true, finalEntry.contains("2 " + move.getType () + " (PhysicalMachine:2"));
         assertTrue(finalEntry.contains(Long.toString(ANALYSIS_ID)));
     }
