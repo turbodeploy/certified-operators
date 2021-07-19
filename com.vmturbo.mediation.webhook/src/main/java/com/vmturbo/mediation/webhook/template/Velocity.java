@@ -26,7 +26,7 @@ public class Velocity {
         // or have not been defined with a #set directive. This setting will also throw an exception if an attempt
         // is made to call a non-existing property on an object or if the object is null.
         // More properties can be found at https://velocity.apache.org/engine/2.0/configuration.html
-        runtimeServices.setProperty("runtime.references.strict", "true");
+        runtimeServices.setProperty("runtime.strict_mode.enable", "true");
         escapeTool = new EscapeToolWithJson();
     }
 
@@ -45,7 +45,7 @@ public class Velocity {
         Template template = new Template();
         template.setRuntimeServices(runtimeServices);
         // runtimeServices parses the plain string and produces a SimpleNode object (AST Tree)
-        template.setData(runtimeServices.parse(reader, "Template name"));
+        template.setData(runtimeServices.parse(reader, new Template()));
         template.initDocument();
 
         VelocityContext context = new VelocityContext();
