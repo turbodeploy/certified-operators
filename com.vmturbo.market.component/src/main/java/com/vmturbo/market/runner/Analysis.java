@@ -502,8 +502,10 @@ public class Analysis {
         // Execute wasted file analysis
         final WastedFilesResults wastedFilesAnalysis;
         if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
-            wastedFilesAnalysis = wastedFilesAnalysisEngine.analyzeWastedFiles(
-                    topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
+            try (TracingScope ignored = Tracing.trace("wasted_file_analysis")) {
+                wastedFilesAnalysis = wastedFilesAnalysisEngine.analyzeWastedFiles(
+                        topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
+            }
         } else {
             wastedFilesAnalysis = WastedFilesResults.EMPTY;
         }
@@ -512,7 +514,9 @@ public class Analysis {
         // Do not generate reservations for cloud migration plans.
         final ReservedCapacityResults reservedCapacityResults;
         if (!isMigrateToCloud) {
-            reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
+            try (TracingScope ignored = Tracing.trace("reserved_capacity_analysis")) {
+                reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
+            }
         } else {
             reservedCapacityResults = ReservedCapacityResults.EMPTY;
         }
@@ -555,7 +559,9 @@ public class Analysis {
                     // because analysis already completed at this point.
                     if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
                         final UnmodifiableEconomy eco = convertedTopology.topology.getEconomy();
-                        updateReservationEconomyCache(eco, false);
+                        try (TracingScope ignored = Tracing.trace("reservation_economy_cache_updation")) {
+                            updateReservationEconomyCache(eco, false);
+                        }
                     }
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         commodityIdUpdater.saveCommodityIdToCommodityType(
@@ -591,7 +597,9 @@ public class Analysis {
                                     cloudVmOidToProvidersOIDsMap,
                                     topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
                             saveSMADiags(smaInput);
-                            smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
+                            try (TracingScope ignored = Tracing.trace("execute_sma")) {
+                                smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
+                            }
                         }
                         // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
                         converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -747,7 +755,9 @@ public class Analysis {
                             // If this is a migrate to cloud plan, send a request to the cost component to start cloud commitment
                             // analysis (Buy RI)
                             if (isMigrateToCloud) {
-                                runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology, projectedEntities, projectedTraderDTO);
+                                try (TracingScope ignored = Tracing.trace("migrated_workload_cloud_commitment_analysis")) {
+                                    runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology, projectedEntities, projectedTraderDTO);
+                                }
                             }
 
                             // Invoke buy RI impact analysis after projected entity creation, but prior to
@@ -759,8 +769,10 @@ public class Analysis {
                             // Projected RI coverage has been calculated by convertFromMarket
                             // Get it from TopologyConverter and pass it along to use for calculation of
                             // savings
-                            projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
-                                converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                            try (TracingScope ignored = Tracing.trace("calculate_projected_costs")) {
+                                projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
+                                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                            }
                         }
                     }
                 } catch (Exception e) {
@@ -783,8 +795,11 @@ public class Analysis {
                             projectedEntities, projectedEntityCosts,
                             converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
 
-                    List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                         originalCloudTopology, actionSavingsCalculator);
+                    List<Action> actions;
+                    try (TracingScope ignored = Tracing.trace("interpret_actions")) {
+                         actions = converter.interpretAllActions(actionsList, projectedEntities,
+                                originalCloudTopology, actionSavingsCalculator);
+                    }
 
                     actions.removeIf(action -> {
                         try {
@@ -1269,7 +1284,6 @@ public class Analysis {
      * @param projectedCloudTopology The projected cloud topology
      * @param cloudCostData The {@link CloudCostData}, used to lookup buy RI recommendations in creating
      *                      an instance of {@link BuyRIImpactAnalysis}
-     * @param isBuyRIImpactAnalysis true only if OCP Plan Option 3
      * @return  The list of allocate actions generated by the buyRI analysis.
      *          Non Empty only for OCP Plan Option 3.
 .    */
@@ -1283,29 +1297,31 @@ public class Analysis {
                 projectedCloudTopology.size() > 0) {
 
             try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
-                final BuyRIImpactAnalysis buyRIImpactAnalysis = buyRIImpactAnalysisFactory
-                              .createAnalysis(
-                                              topologyInfo,
-                                              projectedCloudTopology,
-                                              cloudCostData,
-                                              converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
-                final BuyCommitmentImpactResult impactResult =
-                                    buyRIImpactAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
+                try (TracingScope ignored = Tracing.trace("buy_RI_impact_analysis")) {
+                    final BuyRIImpactAnalysis buyRIImpactAnalysis = buyRIImpactAnalysisFactory
+                            .createAnalysis(
+                                    topologyInfo,
+                                    projectedCloudTopology,
+                                    cloudCostData,
+                                    converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
+                    final BuyCommitmentImpactResult impactResult =
+                            buyRIImpactAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
 
-                converter.getProjectedRICoverageCalculator().addBuyRICoverageToProjectedRICoverage(
-                        impactResult.buyCommitmentCoverage());
+                    converter.getProjectedRICoverageCalculator().addBuyRICoverageToProjectedRICoverage(
+                            impactResult.buyCommitmentCoverage());
 
-                if (!analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS)) {
+                    if (!analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS)) {
 
-                    logger.info("{}Generating {} buy RI allocation actions",
-                            logPrefix, impactResult.buyAllocationActions().size());
+                        logger.info("{}Generating {} buy RI allocation actions",
+                                logPrefix, impactResult.buyAllocationActions().size());
 
-                    buyRIAllocateActions.addAll(impactResult.buyAllocationActions());
+                        buyRIAllocateActions.addAll(impactResult.buyAllocationActions());
+                    }
+
+                } catch (Exception e) {
+                    logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
+                            topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
                 }
-
-            } catch (Exception e) {
-                logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
-                        topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
             }
         }
         return buyRIAllocateActions.build();

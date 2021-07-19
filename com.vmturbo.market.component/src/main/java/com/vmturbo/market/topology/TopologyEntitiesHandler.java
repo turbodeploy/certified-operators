@@ -88,6 +88,8 @@ public class TopologyEntitiesHandler {
     private static final String GLOBAL_ANALYSIS_LABEL = "global";
     public static final String PLAN_CONTEXT_TYPE_LABEL = "plan";
     public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
+    public static final String SUBCYCLE1 = "SUBCYCLE1";
+    public static final String SUBCYCLE2 = "SUBCYCLE2";
 
     private static final DataMetricSummary ECONOMY_BUILD = DataMetricSummary.builder()
             .withName("mkt_economy_build_duration_seconds")
@@ -265,7 +267,7 @@ public class TopologyEntitiesHandler {
             List<Action> actions;
             try (TracingScope ignored = Tracing.trace("first_round_analysis")) {
                 actions = ede.generateActions(economy, true, true, true, isResize,
-                    true, seedActions, marketId, isRealtime,
+                    true, seedActions, isRealtime ? marketId + "-" + SUBCYCLE1 : marketId, isRealtime,
                     isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT,
                     Optional.of(classicTracer));
             }
@@ -323,7 +325,7 @@ public class TopologyEntitiesHandler {
                         secondRoundActions = ede.generateActions(economy, true, true,
                             true, false, true, false,
                             analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
-                            marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
+                            isRealtime ? marketId + "-" + SUBCYCLE2 : marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
                             .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
                                 || action instanceof Activate
