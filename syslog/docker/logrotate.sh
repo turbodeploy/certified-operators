@@ -1,6 +1,7 @@
 #!/bin/bash
 LOG_FILE=/home/vmtsyslog/rsyslog/log.txt
 AUDIT_FILE=/var/log/turbonomic/audit.log
+EXTRA_FILE=/home/vmtsyslog/rsyslog/extra.txt
 # The max size is 100MB by default
 if [ -z "$LOG_MAXSIZE" ]
 then
@@ -50,5 +51,6 @@ while true
 do
     rotate ${LOG_FILE}
     rotate ${AUDIT_FILE}
+    rotate ${EXTRA_FILE}
     sleep ${CHECKINTERVAL}
 done

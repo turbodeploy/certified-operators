@@ -23,6 +23,9 @@
         <Syslog name="RFC5424" format="RFC5424" host="rsyslog"
                 port="2514" protocol="TCP" appName="" mdcId="mdc" includeMDC="true"
                 facility="authpriv" enterpriseNumber="18060" newLine="true" messageId="Audit" id=""/>
+        <Syslog name="extralog"  format="RFC5424" host="rsyslog"
+                port="2514" protocol="TCP" appName="" mdcId="mdc" includeMDC="true"
+                facility="local1" enterpriseNumber="18060"  newLine="true" messageId="Extra" id=""/>
     </Appenders>
 
     <Loggers>
@@ -31,6 +34,9 @@
         <!-- the audit log messages  will not be propagated to parent loggers -->
         <Logger name="com.vmturbo.platform.audit" level="INFO" additivity="false">
             <AppenderRef ref="RFC5424"/>
+        </Logger>
+        <Logger name="com.vmturbo.mediation.vmware.sdk.control.vm.movecost" level="INFO" additivity="false">
+            <AppenderRef ref="extralog"/>
         </Logger>
         <Root level="info">
             <AppenderRef ref="stdout"/>
