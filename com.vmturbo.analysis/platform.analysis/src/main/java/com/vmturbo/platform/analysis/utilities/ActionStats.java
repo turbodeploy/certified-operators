@@ -52,13 +52,15 @@ public class ActionStats {
     private Instant lastPhaseEnd_;
     private boolean closed_;
     private final long analysisId;
+    private final String analysisPrefix;
 
-    public ActionStats(List<@NonNull Action> actions, final long analysisId) {
+    public ActionStats(List<@NonNull Action> actions, final long analysisId, final String analysisPrefix) {
         actions_ = actions;
         size_ = actions.size();
         begin_ = Instant.now();
         lastPhaseEnd_ = begin_;
         this.analysisId = analysisId;
+        this.analysisPrefix = analysisPrefix;
     }
 
     /**
@@ -103,7 +105,8 @@ public class ActionStats {
         long took = end.getEpochSecond() - lastPhaseEnd_.getEpochSecond();
         lastPhaseEnd_ = end;
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed ").append(phase).append(" in ")
+        sb.append(this.analysisPrefix);
+        sb.append(" Analysis completed ").append(phase).append(" in ")
             .append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
@@ -127,7 +130,8 @@ public class ActionStats {
         count(0, data);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed in ").append(took).append(" sec");
+        sb.append(this.analysisPrefix);
+        sb.append(" Analysis completed in ").append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
             body(sb, data, PHASE_FINAL);
