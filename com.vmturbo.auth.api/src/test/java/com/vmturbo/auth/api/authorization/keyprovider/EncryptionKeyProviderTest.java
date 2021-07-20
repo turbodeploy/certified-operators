@@ -11,8 +11,8 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
-import com.vmturbo.components.crypto.CryptoFacility;
-import com.vmturbo.components.crypto.IEncryptionKeyProvider;
+import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.IEncryptionKeyProvider;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**

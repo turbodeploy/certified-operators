@@ -28,9 +28,9 @@ import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
-import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
-import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
+import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.oid.identity.OidSet.AllOidsSet;
+import com.vmturbo.oid.identity.RoaringBitmapOidSet;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**

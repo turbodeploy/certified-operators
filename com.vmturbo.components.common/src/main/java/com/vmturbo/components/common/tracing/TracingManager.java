@@ -17,8 +17,8 @@ import io.opentracing.util.GlobalTracer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.logging.Logging.TracingConfiguration;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Responsible for initializing and refreshing the static tracing configuration.

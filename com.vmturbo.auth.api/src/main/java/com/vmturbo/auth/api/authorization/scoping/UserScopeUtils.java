@@ -26,9 +26,9 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
-import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
+import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.oid.identity.OidSet.AllOidsSet;
+import com.vmturbo.oid.identity.RoaringBitmapOidSet;
 
 /**
  * Static utility methods for finding user scope info from the current security / grpc context.

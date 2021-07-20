@@ -1,5 +1,6 @@
 package com.vmturbo.common.protobuf.memory;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.PlatformManagedObject;
@@ -46,11 +47,35 @@ public class HeapDumper {
      */
     public String dumpHeap(@Nonnull final String fileName) throws IllegalAccessException,
         InvocationTargetException, ClassNotFoundException, IOException {
+
         // Figure out what JVM we are running on.
         if (ManagementFactory.getRuntimeMXBean().getVmVersion().toLowerCase().contains("openj9")) {
             return dumpHeapOpenJ9(fileName);
         } else {
             return dumpHeapHotspot(fileName);
+        }
+    }
+
+    /**
+     * Delete the existing dump file if it exists.
+     *
+     * @param fileName The name of the existing heap dump file to delete.
+     */
+    private void cleanExistingDumpFile(@Nonnull final String fileName) {
+        try {
+            final File existingFile = new File(fileName);
+            if (existingFile.exists()) {
+                if (existingFile.delete()) {
+                    logger.info("Deleted existing dump file {} to permit the creation of "
+                        + "a new dump with the same name.", fileName);
+                } else {
+                    logger.info("Failed to delete existing dump file {}. The dump attempt "
+                        + "will likely fail due to an already existing file. "
+                        + "You may consider manually attempting to delete.", fileName);
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.error(String.format("Failed to delete existing dump file %s", fileName), e);
         }
     }
 
@@ -63,6 +88,9 @@ public class HeapDumper {
      */
     private String dumpHeapHotspot(final String filename) throws IOException {
         final String fn = filename.toLowerCase().endsWith(HPROF_SUFFIX) ? filename : (filename + HPROF_SUFFIX);
+
+        // First clean an existing dump file with the required name if it exists.
+        cleanExistingDumpFile(fn);
 
         // See https://blogs.oracle.com/sundararajan/programmatically-dumping-heap-from-java-applications
         logger.info("Attempting to dump heap using HotSpotDiagnosticMXBean to '{}'.", fn);
@@ -92,6 +120,9 @@ public class HeapDumper {
         throws ClassNotFoundException, IllegalAccessException, InvocationTargetException {
         final String fn = filename.toLowerCase().endsWith(PHD_SUFFIX) ? filename : (filename + PHD_SUFFIX);
         logger.info("Attempting to dump heap using OpenJ9DiagnosticsMXBean to '{}'.", fn);
+
+        // First clean an existing dump file with the required name if it exists.
+        cleanExistingDumpFile(fn);
 
         // See jcl/src/jdk.management/share/classes/openj9/lang/management/internal/OpenJ9DiagnosticsMXBeanImpl.java
         // in the OpenJ9 source.

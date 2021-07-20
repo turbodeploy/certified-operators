@@ -35,9 +35,9 @@ import org.springframework.core.env.PropertiesPropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationException;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Load the configuration properties from "properties.yaml" and the "other" configuration properties

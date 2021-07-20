@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
 
-import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;

@@ -1,4 +1,4 @@
-package com.vmturbo.components.common.identity;
+package com.vmturbo.oid.identity;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -8,22 +8,29 @@ import java.util.PrimitiveIterator.OfLong;
 import java.util.Set;
 import java.util.stream.LongStream;
 
-import org.apache.commons.lang.NotImplementedException;
-
 /**
  * OidSet extends OidFilter by adding the ability to iterate over the members, perform union
  * operations, as well as get a count of the number of members.
  */
 public interface OidSet extends OidFilter, Iterable<Long> {
-    public static final OidSet EMPTY_OID_SET = new EmptyOidSet();
+
+    /**
+     * The empty oid set.
+     */
+    OidSet EMPTY_OID_SET = new EmptyOidSet();
 
     /**
      * Give access to a java iterator.
      *
-     * @return
+     * @return An iterator over the set.
      */
     PrimitiveIterator.OfLong iterator();
 
+    /**
+     * Get the size of the set.
+     *
+     * @return the size of the set.
+     */
     int size();
 
     /**
@@ -79,19 +86,19 @@ public interface OidSet extends OidFilter, Iterable<Long> {
 
     /**
      * Merge this OidSet with another one, returning the result.
-     *
+     * <p/>
      * There is no need for an intersection operation, because the filter() method is effectively an
      * intersection.
      *
-     * @param other
-     * @return
+     * @param other The other set to union with this one.
+     * @return The result of unioning this set with another.
      */
     OidSet union(OidSet other);
 
     /**
-     * Converts an OidSet to a {@link Set<Long>}.
+     * Converts an OidSet to a {@code Set<Long>}.
      *
-     * @return
+     * @return The result of converting the {@link OidSet} to a {@code Set<Long>}.
      */
     default Set<Long> toSet() {
         // create a simple HashSet<Long> and populate it via the iterator.
@@ -108,7 +115,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
      * another empty set.
      *
      */
-    public static class EmptyOidSet implements OidSet {
+    class EmptyOidSet implements OidSet {
         @Override
         public OfLong iterator() {
             return LongStream.empty().iterator();
@@ -121,7 +128,9 @@ public interface OidSet extends OidFilter, Iterable<Long> {
 
         @Override
         public OidSet union(final OidSet other) {
-            if (other == null) return this;
+            if (other == null) {
+                return this;
+            }
             return other;
         }
 
@@ -161,7 +170,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
      * we need. But I'm adding this this for convenience, to provide an object that can support the
      * OidSet interface while also representing an "all oids" case.
      */
-    public static class AllOidsSet extends OidFilter.AllOidsFilter implements OidSet {
+    class AllOidsSet extends OidFilter.AllOidsFilter implements OidSet {
         public static final AllOidsSet ALL_OIDS_SET = new AllOidsSet();
 
         /**
@@ -173,7 +182,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
          */
         @Override
         public OfLong iterator() {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         /**
@@ -184,13 +193,14 @@ public interface OidSet extends OidFilter, Iterable<Long> {
          */
         @Override
         public int size() {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
 
         /**
          * Union with the AllOidsSet just returns the AllOidsSet.
-         * @param other
-         * @return
+         *
+         * @param other The other set to union.
+         * @return The {@link AllOidsSet}.
          */
         @Override
         public OidSet union(final OidSet other) {
@@ -199,7 +209,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
 
         @Override
         public Set<Long> toSet() {
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
     }
 }

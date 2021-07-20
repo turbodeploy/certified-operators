@@ -8,9 +8,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.stream.Collectors;
 
@@ -19,11 +16,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapRequest;
-import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.FindMemoryPathRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.FindMemoryPathResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsRequest;
@@ -36,7 +29,6 @@ import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectsRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsServiceGrpc;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsServiceGrpc.MemoryMetricsServiceBlockingStub;
-import com.vmturbo.common.protobuf.memory.HeapDumper;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager;
 
@@ -45,8 +37,7 @@ import com.vmturbo.components.common.metrics.MemoryMetricsManager;
  */
 public class MemoryMetricsRpcServiceTest {
 
-    private final HeapDumper heapDumper = Mockito.mock(HeapDumper.class);
-    private final MemoryMetricsRpcService memoryMetricsRpcService = new MemoryMetricsRpcService(heapDumper);
+    private final MemoryMetricsRpcService memoryMetricsRpcService = new MemoryMetricsRpcService();
 
     /**
      * grpcServer.
@@ -235,40 +226,5 @@ public class MemoryMetricsRpcServiceTest {
         assertEquals(String.class.getName(), resp.getPaths(1).getClassName());
         assertEquals("foo.other.other.name", resp.getPaths(1).getPath());
         assertTrue(resp.hasRequestDuration());
-    }
-
-    /**
-     * testDumpHeapWithNoName.
-     *
-     * @throws Exception If heap dump throws exception.
-     */
-    @Test
-    public void testDumpHeapWithNoName() throws Exception {
-        when(heapDumper.dumpHeap(anyString())).thenReturn("foo");
-        ArgumentCaptor<String> argument = ArgumentCaptor.forClass(String.class);
-
-        final DumpHeapResponse response =
-            memoryMetricsService.dumpHeap(DumpHeapRequest.getDefaultInstance());
-        assertEquals("foo", response.getResponseMessage());
-        verify(heapDumper).dumpHeap(argument.capture());
-        assertEquals(MemoryMetricsRpcService.DEFAULT_HEAP_DUMP_FILENAME, argument.getValue());
-    }
-
-    /**
-     * testDumpHeapWithName.
-     *
-     * @throws Exception If heap dump throws exception.
-     */
-    @Test
-    public void testDumpHeapWithName() throws Exception {
-        when(heapDumper.dumpHeap(anyString())).thenReturn("foo");
-        ArgumentCaptor<String> argument = ArgumentCaptor.forClass(String.class);
-
-        final DumpHeapResponse response =
-            memoryMetricsService.dumpHeap(DumpHeapRequest.newBuilder()
-                .setFilename("/foo/bar/heap.dump").build());
-        assertEquals("foo", response.getResponseMessage());
-        verify(heapDumper).dumpHeap(argument.capture());
-        assertEquals("/foo/bar/heap.dump", argument.getValue());
     }
 }
