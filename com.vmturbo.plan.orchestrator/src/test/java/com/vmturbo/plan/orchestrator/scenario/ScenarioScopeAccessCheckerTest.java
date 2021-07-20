@@ -55,7 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.oid.identity.ArrayOidSet;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**

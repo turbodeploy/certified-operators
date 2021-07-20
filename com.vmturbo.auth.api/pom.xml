@@ -11,11 +11,6 @@
         <relativePath>../com.vmturbo.components.api.root/pom.xml</relativePath>
     </parent>
 
-    <properties>
-        <!-- syslog client -->
-        <syslog-client.version>1.1.7</syslog-client.version>
-    </properties>
-
     <artifactId>auth-api</artifactId>
 
     <build>
@@ -34,6 +29,22 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>kvstore</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>oid</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -63,11 +74,6 @@
         <dependency>
             <groupId>com.cloudbees</groupId>
             <artifactId>syslog-java-client</artifactId>
-            <version>${syslog-client.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.components.common</artifactId>
         </dependency>
         <!-- The Repository and Group clients are used for resolving user scope information, if
          necessary. -->

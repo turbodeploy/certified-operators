@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.servlet.Servlet;
@@ -62,6 +63,10 @@ import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import com.vmturbo.api.enums.DeploymentMode;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogEntry;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.SetOnce;
@@ -75,12 +80,13 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
+import com.vmturbo.components.common.logging.HeapDumpRpcService;
+import com.vmturbo.components.common.logging.HeapDumpRpcService.Factory;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager.ManagedRoot;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
@@ -606,6 +612,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         services.add(baseVmtComponentConfig.logConfigurationService());
         services.add(baseVmtComponentConfig.tracingConfigurationRpcService());
         services.add(baseVmtComponentConfig.memoryMetricsRpcService());
+        final HeapDumpRpcService heapDumpService = baseVmtComponentConfig.heapDumpRpcServiceFactory()
+            .instance(getComponentName());
+        if (heapDumpService != null) {
+            services.add(heapDumpService);
+        }
         ComponentGrpcServer.get().addServices(services, getServerInterceptors());
     }
 

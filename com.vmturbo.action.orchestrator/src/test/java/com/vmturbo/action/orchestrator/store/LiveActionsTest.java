@@ -86,8 +86,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.oid.identity.ArrayOidSet;
+import com.vmturbo.oid.identity.OidSet;
 
 public class LiveActionsTest {
 
