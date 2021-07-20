@@ -17,10 +17,10 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
 import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
@@ -37,8 +37,6 @@ import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSetti
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
-import com.vmturbo.topology.processor.targets.status.SQLTargetStatusStore;
-import com.vmturbo.topology.processor.targets.status.TargetStatusStore;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl;
 
@@ -196,18 +194,8 @@ public class TargetConfig {
      */
     @Bean
     public TargetStatusTracker targetStatusTracker() {
-        return new TargetStatusTrackerImpl(targetStatusStore(), targetStore(),
-                probeConfig.probeStore(), clockConfig.clock());
-    }
-
-    /**
-     * Persists target-status-related information.
-     *
-     * @return an instance of the target status DAO.
-     */
-    @Bean
-    public TargetStatusStore targetStatusStore() {
-        return new SQLTargetStatusStore(databaseConfig.dsl());
+        return new TargetStatusTrackerImpl(targetStore(), probeConfig.probeStore(),
+                clockConfig.clock());
     }
 
 }
