@@ -66,10 +66,12 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
 
         // Build ActionItemDTO for each resize info in the merged action
         AtomicResize atomicResizeInfo = getActionInfo().getAtomicResize();
+        boolean isPrimary = false;
         for (ResizeInfo resizeInfo : atomicResizeInfo.getResizesList()) {
             long originalActionEntityId = resizeInfo.getTarget().getId();
             EntityDTO originalEntityDTO = getFullEntityDTO(originalActionEntityId);
-            ActionItemDTO.Builder actionItemBuilder = buildActionItem(fullEntityDTO, originalEntityDTO);
+            ActionItemDTO.Builder actionItemBuilder = buildActionItem(fullEntityDTO, originalEntityDTO, isPrimary);
+            isPrimary = false;
 
             actionItemBuilder.setCommodityAttribute(
                     CommodityAttribute.forNumber(resizeInfo.getCommodityAttribute().getNumber()));
@@ -104,7 +106,7 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
     }
 
     private ActionItemDTO.Builder buildActionItem(final EntityDTO targetEntityDTO,
-              final EntityDTO originalEntityDTO) throws ContextCreationException {
+              final EntityDTO originalEntityDTO, final boolean isPrimary) throws ContextCreationException {
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));
@@ -112,7 +114,7 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
         actionItemBuilder.setCurrentSE(originalEntityDTO);
 
         // Add additional data for action execution
-        actionItemBuilder.addAllContextData(getContextData());
+        actionItemBuilder.addAllContextData(getContextData(isPrimary));
 
         //TODO: is this needed?
         //getHost(originalEntityDTO).ifPresent(actionItemBuilder::setHostedBySE);

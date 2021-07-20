@@ -75,13 +75,6 @@ public class MapperConfig {
     private boolean enableCloudScaleEnhancement;
 
     /**
-     * Flag that enables all action uuids come from the stable recommendation oid instead of the
-     * unstable action instance id.
-     */
-    @Value("${useStableActionIdAsUuid:true}")
-    private boolean useStableActionIdAsUuid;
-
-    /**
      * Enable entity details support.
      */
     @Value("${entityDetailsEnabled:false}")
@@ -144,7 +137,7 @@ public class MapperConfig {
             communicationConfig.getRealtimeTopologyContextId(),
             uuidMapper(),
             cloudSavingsDetailsDtoConverter(),
-            useStableActionIdAsUuid);
+            communicationConfig.useStableActionIdAsUuid());
     }
 
     @Bean

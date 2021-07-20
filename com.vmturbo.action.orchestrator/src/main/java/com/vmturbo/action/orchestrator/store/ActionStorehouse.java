@@ -35,12 +35,6 @@ public class ActionStorehouse {
     private final Map<Long, ActionStore> storehouse;
     private final ActionAutomationManager automationManager;
 
-    /**
-     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
-     * unstable action instance id.
-     */
-    private final boolean useStableActionIdAsUuid;
-
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
         .withName("ao_populate_store_duration_seconds")
         .withHelp("The amount of time it takes to populate an action store with a new action plan.")
@@ -61,18 +55,14 @@ public class ActionStorehouse {
      * @param actionStoreFactory The factory to use when creating new store instances.
      * @param storeLoader The loader to use at startup when loading previously saved action stores.
      * @param automationManager Manages execution of automated actions.
-     * @param useStableActionIdAsUuid flag set to true when the stable action recommendation OID is used,
-     *            instead of the unstable action instance id.
      **/
     public ActionStorehouse(@Nonnull final IActionStoreFactory actionStoreFactory,
                             @Nonnull final IActionStoreLoader storeLoader,
-                            @Nonnull final ActionAutomationManager automationManager,
-                            boolean useStableActionIdAsUuid) {
+                            @Nonnull final ActionAutomationManager automationManager) {
         this.actionStoreFactory = actionStoreFactory;
         this.storehouse = new ConcurrentHashMap<>();
         this.automationManager = Objects.requireNonNull(automationManager);
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
-        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
         logger.info("ActionStorehouse initialized with data for {} action stores", size());
     }
 
@@ -210,15 +200,6 @@ public class ActionStorehouse {
      */
     public int cancelQueuedActions() {
         return automationManager.cancelQueuedActions();
-    }
-
-    /**
-     * Returns true if the stable action ID is in use, false otherwise.
-     *
-     * @return useStableActionIdAsUuid which is true only if the stable action ID is in use.
-     */
-    public boolean isStableActionIdInUse() {
-        return this.useStableActionIdAsUuid;
     }
 
     /**

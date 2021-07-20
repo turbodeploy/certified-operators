@@ -75,7 +75,7 @@ public class SdkActionToApiConverterTest {
 
     private static final ActionExecution.ActionExecutionDTO MOVE_ACTION_PERFORMANCE =
         ActionExecution.ActionExecutionDTO.newBuilder()
-          .setActionOid(ACTION_OID)
+          .setActionOid(ACTION_UUID)
           .setActionState(ActionExecution.ActionResponseState.IN_PROGRESS)
           .setCreateTime(ACTION_CREATION_TIME)
           .setUpdateTime(ACTION_UPDATE_TIME)
@@ -96,6 +96,9 @@ public class SdkActionToApiConverterTest {
             .addContextData(CommonDTO.ContextData.newBuilder()
                 .setContextKey(SDKConstants.NEW_HOST_CLUSTER_DISPLAY_NAME)
                 .setContextValue(CLUSTER_2_DISPLAY_NAME).build())
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                .setContextKey("STABLE_ID")
+                .setContextValue(Long.toString(ACTION_OID)).build())
             .setTargetSE(CommonDTO.EntityDTO.newBuilder()
               .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
               .setId("Test1")
@@ -171,7 +174,7 @@ public class SdkActionToApiConverterTest {
 
     private static final ActionExecution.ActionExecutionDTO ON_PREM_RESIZE_ACTION =
         ActionExecution.ActionExecutionDTO.newBuilder()
-            .setActionOid(ACTION_OID)
+            .setActionOid(ACTION_UUID)
             .setActionState(ActionExecution.ActionResponseState.IN_PROGRESS)
             .setCreateTime(ACTION_CREATION_TIME)
             .setUpdateTime(ACTION_UPDATE_TIME)
@@ -180,6 +183,9 @@ public class SdkActionToApiConverterTest {
             .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
                 .setActionType(ActionExecution.ActionItemDTO.ActionType.RESIZE)
                 .setUuid(String.valueOf(ACTION_UUID))
+                .addContextData(CommonDTO.ContextData.newBuilder()
+                        .setContextKey("STABLE_ID")
+                        .setContextValue(Long.toString(ACTION_OID)).build())
                 .setTargetSE(CommonDTO.EntityDTO.newBuilder()
                     .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
                     .setId("Test1")
@@ -216,7 +222,7 @@ public class SdkActionToApiConverterTest {
 
     private static final ActionExecution.ActionExecutionDTO CLOUD_VOLUME_SCALE_ACTION =
         ActionExecution.ActionExecutionDTO.newBuilder()
-            .setActionOid(ACTION_OID)
+            .setActionOid(ACTION_UUID)
             .setActionState(ActionExecution.ActionResponseState.IN_PROGRESS)
             .setCreateTime(ACTION_CREATION_TIME)
             .setUpdateTime(ACTION_UPDATE_TIME)
@@ -225,6 +231,9 @@ public class SdkActionToApiConverterTest {
             .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
                 .setActionType(ActionExecution.ActionItemDTO.ActionType.SCALE)
                 .setUuid(String.valueOf(ACTION_UUID))
+                .addContextData(CommonDTO.ContextData.newBuilder()
+                        .setContextKey("STABLE_ID")
+                        .setContextValue(Long.toString(ACTION_OID)).build())
                 .setTargetSE(CommonDTO.EntityDTO.newBuilder()
                     .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME)
                     .setId("Test1")
@@ -298,9 +307,9 @@ public class SdkActionToApiConverterTest {
             new SdkActionInformationProvider(MOVE_ACTION_PERFORMANCE);
 
         // ACT
-        final ActionApiDTO apiMessage = converter.convert(provider, false, 0L, false);
+        final ActionApiDTO apiMessage = converter.convert(provider, true, 0L, false);
         // ASSERT
-        assertThat(apiMessage.getActionID(), is(ACTION_UUID));
+        assertThat(apiMessage.getActionID(), is(ACTION_OID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
         assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
             is(ACTION_CREATION_TIME));
@@ -424,10 +433,10 @@ public class SdkActionToApiConverterTest {
             new SdkActionInformationProvider(CLOUD_VOLUME_SCALE_ACTION);
 
         // ACT
-        final ActionApiDTO apiMessage = converter.convert(provider, false, 0L, false);
+        final ActionApiDTO apiMessage = converter.convert(provider, true, 0L, false);
 
         // ASSERT
-        assertThat(apiMessage.getActionID(), is(ACTION_UUID));
+        assertThat(apiMessage.getActionID(), is(ACTION_OID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
         assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
             is(ACTION_CREATION_TIME));
@@ -503,7 +512,7 @@ public class SdkActionToApiConverterTest {
                 .buildPartial();
         SdkActionInformationProvider provider =
                 new SdkActionInformationProvider(actionExecutionDTO);
-        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+        ActionApiDTO actionApiDTO = converter.convert(provider, true, 0L, false);
 
         assertEquals(
                 ImmutableMap.of("Department", Arrays.asList("Development")),
@@ -535,7 +544,7 @@ public class SdkActionToApiConverterTest {
                 .buildPartial();
         SdkActionInformationProvider provider =
                 new SdkActionInformationProvider(actionExecutionDTO);
-        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+        ActionApiDTO actionApiDTO = converter.convert(provider, true, 0L, false);
 
         assertEquals(
                 ImmutableMap.of("Department", Arrays.asList("Development", "Quality Engineering")),
@@ -568,7 +577,7 @@ public class SdkActionToApiConverterTest {
                 .buildPartial();
         SdkActionInformationProvider provider =
                 new SdkActionInformationProvider(actionExecutionDTO);
-        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+        ActionApiDTO actionApiDTO = converter.convert(provider, true, 0L, false);
 
         assertEquals(
                 ImmutableMap.of("Department", Arrays.asList("Quality Engineering", "Development")),
@@ -591,7 +600,7 @@ public class SdkActionToApiConverterTest {
                 .buildPartial();
         SdkActionInformationProvider provider =
                 new SdkActionInformationProvider(actionExecutionDTO);
-        ActionApiDTO actionApiDTO = converter.convert(provider, false, 0L, false);
+        ActionApiDTO actionApiDTO = converter.convert(provider, true, 0L, false);
 
         assertNull(actionApiDTO.getTarget().getTags());
     }

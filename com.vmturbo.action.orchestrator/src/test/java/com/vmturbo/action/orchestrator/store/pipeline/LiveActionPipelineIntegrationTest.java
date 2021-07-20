@@ -431,7 +431,65 @@ public class LiveActionPipelineIntegrationTest {
         when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
         pipelineFactory.actionPipeline(plan).run(plan);
+        assertEquals(1, actionStore.size());
+    }
+
+    /**
+     * Runs the a plan with duplicate actions with different orders. The plan should not behave differently
+     * based on the order of actions.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testHandleDuplicateActions() throws Exception {
+        // ARRANGE
+        final ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        final ActionDTO.Action.Builder firstMoveDuplicate = move(vm1, hostA, vmType, hostB, vmType);
+        final ActionDTO.Action.Builder secondMove = move(vm2, hostC, vmType, hostB, vmType);
+
+        ActionPlan plan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .addAction(firstMoveDuplicate)
+                .addAction(secondMove)
+                .addAction(move(vm1, hostA, vmType, hostB, vmType))
+                .build();
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
+                        TOPOLOGY_CONTEXT_ID);
+        when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
+
+        pipelineFactory.actionPipeline(plan).run(plan);
+
         assertEquals(2, actionStore.size());
+        assertTrue(actionStore.getAction(firstMove.getId()).isPresent());
+        assertTrue(actionStore.getAction(secondMove.getId()).isPresent());
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(firstPlanId)
+                .addAction(firstMoveDuplicate)
+                .addAction(secondMove)
+                .addAction(firstMove)
+                .addAction(move(vm1, hostA, vmType, hostB, vmType))
+                .build();
+
+        // ACT
+        pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
+
+        // ASSERT
+        assertEquals(2, actionStore.size());
+        assertTrue(actionStore.getAction(firstMove.getId()).isPresent());
+        assertTrue(actionStore.getAction(secondMove.getId()).isPresent());
     }
 
     /**
@@ -828,7 +886,7 @@ public class LiveActionPipelineIntegrationTest {
 
     /**
      * Test that when there is originally one copy of an action and then there are multiple,
-     * the duplicates are retained.
+     * the duplicates are removed.
      *
      * @throws Exception on exception.
      */
@@ -837,7 +895,7 @@ public class LiveActionPipelineIntegrationTest {
         ActionDTO.Action.Builder firstMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder secondMove =
-            move(vm1, hostA, vmType, hostB, vmType);
+            move(vm2, hostA, vmType, hostB, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -857,6 +915,7 @@ public class LiveActionPipelineIntegrationTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .setId(secondPlanId)
+            .addAction(move(vm2, hostA, vmType, hostB, vmType))
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .addAction(move(vm1, hostA, vmType, hostB, vmType))
@@ -868,7 +927,7 @@ public class LiveActionPipelineIntegrationTest {
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
-        assertEquals(3, actionStore.size());
+        assertEquals(2, actionStore.size());
         assertTrue(actionStore.getAction(firstMove.getId()).isPresent());
         assertTrue(actionStore.getAction(secondMove.getId()).isPresent());
     }
@@ -881,7 +940,7 @@ public class LiveActionPipelineIntegrationTest {
     @Test
     public void testPipeline() throws Exception {
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
-        ActionDTO.Action.Builder secondMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove = move(vm2, hostA, vmType, hostB, vmType);
 
         ActionPlan plan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -964,7 +1023,7 @@ public class LiveActionPipelineIntegrationTest {
     @Test
     public void testGetActionViews() throws Exception {
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
-        ActionDTO.Action.Builder secondMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove = move(vm2, hostA, vmType, hostB, vmType);
         ActionPlan plan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()

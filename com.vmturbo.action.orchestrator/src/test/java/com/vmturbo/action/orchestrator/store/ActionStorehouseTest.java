@@ -66,7 +66,7 @@ public class ActionStorehouseTest {
 
     @Before
     public void setup() {
-        actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader, automationManager, false);
+        actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader, automationManager);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
         when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStore.allowsExecution()).thenReturn(true);
@@ -190,7 +190,7 @@ public class ActionStorehouseTest {
         when(actionStoreLoader.loadActionStores()).thenReturn(ImmutableList.of(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                actionStoreLoader, automationManager, false);
+                actionStoreLoader, automationManager);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }

@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import org.junit.Assert;
@@ -106,7 +106,7 @@ public class ActionExecutionContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(activate))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
@@ -159,7 +159,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(activate);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -192,7 +191,7 @@ public class ActionExecutionContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(deactivate))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for just the primary entity -- physical machines don't have hosts
         final EntityType entityType = EntityType.PHYSICAL_MACHINE;
@@ -232,7 +231,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(deactivate);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -275,7 +273,7 @@ public class ActionExecutionContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(resize))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
@@ -345,7 +343,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(resize);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -378,7 +375,7 @@ public class ActionExecutionContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(provision))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // The XL-domain TopologyEntityDTO will be retrieved, before later being converted into
         // an EntityDTO.
@@ -430,7 +427,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(provision);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -462,7 +458,7 @@ public class ActionExecutionContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(resize))
-            .thenReturn(Collections.emptyList());
+            .thenReturn(new ArrayList<>());
 
         // We need entity info for both the primary entity and its host
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;

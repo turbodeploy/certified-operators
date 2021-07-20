@@ -212,13 +212,6 @@ public class ServiceConfig {
     private boolean enableEntitySavings;
 
     /**
-     * Flag that enables all action uuids come from the stable recommendation oid instead of the
-     * unstable action instance id.
-     */
-    @Value("${useStableActionIdAsUuid:true}")
-    private boolean useStableActionIdAsUuid;
-
-    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -1048,7 +1041,7 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.serviceProviderExpander(),
             communicationConfig.getRealtimeTopologyContextId(),
-            useStableActionIdAsUuid);
+            communicationConfig.useStableActionIdAsUuid());
     }
 
     @Bean

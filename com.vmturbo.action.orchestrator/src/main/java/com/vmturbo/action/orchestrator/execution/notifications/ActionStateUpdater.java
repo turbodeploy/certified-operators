@@ -144,11 +144,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
         if (storeOptional.isPresent()) {
             ActionStore actionStore = storeOptional.get();
-            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
-                    ?
-                    actionStore.getActionByRecommendationId(actionProgress.getActionId())
-                    :
-                    actionStore.getAction(actionProgress.getActionId());
+            Optional<Action> storedAction = actionStore.getAction(actionProgress.getActionId());
             if (storedAction.isPresent()) {
                 Action action = storedAction.get();
                 action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
@@ -179,10 +175,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
         if (storeOptional.isPresent()) {
             ActionStore actionStore = storeOptional.get();
-            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
-                    ?
-                    actionStore.getActionByRecommendationId(actionSuccess.getActionId())
-                    :
+            Optional<Action> storedAction =
                     actionStore.getAction(actionSuccess.getActionId());
             if (storedAction.isPresent()) {
                 Action action = storedAction.get();
@@ -273,10 +266,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
         if (storeOptional.isPresent()) {
             ActionStore actionStore = storeOptional.get();
-            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
-                    ?
-                    actionStore.getActionByRecommendationId(actionFailure.getActionId())
-                    :
+            Optional<Action> storedAction =
                     actionStore.getAction(actionFailure.getActionId());
             if (storedAction.isPresent()) {
                 Action action = storedAction.get();
@@ -325,10 +315,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         }
 
         targetActions.forEach(actionView -> {
-            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
-                ?
-                liveActionStore.getActionByRecommendationId(actionView.getId())
-                :
+            Optional<Action> storedAction =
                 liveActionStore.getAction(actionView.getId());
             storedAction
                 .ifPresent(action -> failAction(action, ActionFailure.newBuilder()
