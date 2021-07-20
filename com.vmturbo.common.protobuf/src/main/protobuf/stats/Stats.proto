@@ -671,15 +671,29 @@ message PercentileChunk {
 }
 
 message GetTimestampsRangeRequest {
-    // starting timestamp, inclusive, infinite if not specified
+    // starting timestamp, inclusive; 0 if not specified, i.e., including the oldest in retention
     optional int64 start_timestamp = 1;
-    // ending timestamp, exclusive, infinite if not specified
+    // ending timestamp, exclusive; infinity if not specified, i.e., including the newest
     optional int64 end_timestamp = 2;
 }
 
 message GetTimestampsRangeResponse {
     // ordered collection of checkpoints' timestamps in the requested range
     repeated int64 timestamp = 1;
+}
+
+message GetMovingStatisticsRequest {
+    // chunk size for streaming
+    required int32 chunk_size = 1;
+}
+
+message SetMovingStatisticsResponse {
+}
+
+message MovingStatisticsChunk {
+    required int64 start_timestamp = 1;
+    // payload
+    required bytes content = 2;
 }
 
 // the gRPC API entry points for the Stats service
@@ -761,4 +775,10 @@ service StatsHistoryService {
 
     // get the percentile blobs that begin within specific time range
     rpc GetPercentileTimestamps(GetTimestampsRangeRequest) returns (GetTimestampsRangeResponse);
+
+    // Get the latest moving statistics
+    rpc GetMovingStatistics (GetMovingStatisticsRequest) returns (stream MovingStatisticsChunk);
+
+    // Store the moving statistics for the given timestamp
+    rpc SetMovingStatistics (stream MovingStatisticsChunk) returns (SetMovingStatisticsResponse);
 }

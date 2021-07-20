@@ -126,4 +126,24 @@ public class SharedMetrics {
             .withHelp("Duration in seconds it takes the history component to store percentile snapshot in database.")
             .build()
             .register();
+
+    /**
+     * Prometheus metric to measure amount of time spent in moving stats snapshot reading by history
+     * component.
+     */
+    public static final DataMetricSummary MOVING_STATISTICS_READING = DataMetricSummary.builder()
+            .withName("moving_statistics_reading_seconds")
+            .withHelp("Duration in seconds it takes the history component to read moving statistics snapshot from database.")
+            .build()
+            .register();
+
+    /**
+     * Prometheus metric to measure amount of time spent in moving stats snapshot writing by history
+     * component.
+     */
+    public static final DataMetricSummary MOVING_STATISTICS_WRITING = DataMetricSummary.builder()
+            .withName("moving_statistics_writing_seconds")
+            .withHelp("Duration in seconds it takes the history component to store moving statistics snapshot in database.")
+            .build()
+            .register();
 }

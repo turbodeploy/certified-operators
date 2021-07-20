@@ -77,6 +77,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingReq
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetMovingStatisticsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
@@ -85,6 +86,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
@@ -92,6 +94,7 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
@@ -128,6 +131,7 @@ import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
+import com.vmturbo.history.stats.writers.MovingStatisticsWriter;
 import com.vmturbo.history.stats.writers.PercentileWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -158,6 +162,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final SystemLoadReader systemLoadReader;
     private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
+    private final RequestBasedReader<GetMovingStatisticsRequest, MovingStatisticsChunk> movingStatisticsReader;
     private final VolumeAttachmentHistoryReader volumeAttachmentHistoryReader;
 
     private final int systemLoadRecordsPerChunk;
@@ -193,6 +198,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             @Nonnull final SystemLoadReader systemLoadReader,
             final int systemLoadRecordsPerChunk,
             @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
+            @Nonnull RequestBasedReader<GetMovingStatisticsRequest, MovingStatisticsChunk> movingStatisticsReader,
             @Nonnull VolumeAttachmentHistoryReader volumeAttachmentHistoryReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
@@ -207,6 +213,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.systemLoadReader = Objects.requireNonNull(systemLoadReader);
         this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
         this.percentileReader = Objects.requireNonNull(percentileReader);
+        this.movingStatisticsReader = Objects.requireNonNull(movingStatisticsReader);
         this.volumeAttachmentHistoryReader = Objects.requireNonNull(volumeAttachmentHistoryReader);
     }
 
@@ -1317,6 +1324,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             percentileReader.processRequest(request, responseObserver);
         } catch (VmtDbException e) {
+            logger.error("Failed to retrieve percentile counts for timestamp "
+                    + request.getStartTimestamp() + " with chunk size " + request.getChunkSize(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
@@ -1475,5 +1484,23 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+    }
+
+    @Override
+    public void getMovingStatistics(GetMovingStatisticsRequest request,
+            StreamObserver<MovingStatisticsChunk> responseObserver) {
+        try {
+            movingStatisticsReader.processRequest(request, responseObserver);
+        } catch (VmtDbException e) {
+            logger.error("Failed to retrieve moving statistics with chunk size "
+                    + request.getChunkSize(), e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    @Override
+    public StreamObserver<MovingStatisticsChunk> setMovingStatistics(
+            StreamObserver<SetMovingStatisticsResponse> responseObserver) {
+        return new MovingStatisticsWriter(responseObserver, historydbIO);
     }
 }
