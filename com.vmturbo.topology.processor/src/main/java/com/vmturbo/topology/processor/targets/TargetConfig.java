@@ -20,7 +20,7 @@ import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
@@ -105,7 +105,7 @@ public class TargetConfig {
      */
     @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
     public void setKeyProviderStatic(boolean enableExternalSecrets){
-        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+        CryptoFacility.enableExternalSecrets = enableExternalSecrets;
         if (enableExternalSecrets) {
             CryptoFacility.encryptionKeyProvider =
                     new EncryptionKeyProvider(kvConfig.keyValueStore(), new MasterKeyReader());

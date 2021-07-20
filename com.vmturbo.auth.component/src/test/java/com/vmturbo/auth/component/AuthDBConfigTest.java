@@ -12,7 +12,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 
-import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**

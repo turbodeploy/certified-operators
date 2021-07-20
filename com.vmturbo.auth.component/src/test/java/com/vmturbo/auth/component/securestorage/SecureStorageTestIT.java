@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component.securestorage;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.Date;
 
 import org.jooq.Condition;
@@ -16,10 +18,9 @@ import org.mockito.Mockito;
 import com.vmturbo.auth.component.store.DBStore;
 import com.vmturbo.auth.component.store.db.tables.Storage;
 import com.vmturbo.auth.component.store.db.tables.records.StorageRecord;
-import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
-import static org.junit.Assert.*;
 
 /**
  * The SecureStorageTestIT implements the secure storage tests.

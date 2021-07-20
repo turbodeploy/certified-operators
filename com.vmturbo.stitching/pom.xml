@@ -65,6 +65,10 @@
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.flipkart.zjsonpatch</groupId>
             <artifactId>zjsonpatch</artifactId>
         </dependency>

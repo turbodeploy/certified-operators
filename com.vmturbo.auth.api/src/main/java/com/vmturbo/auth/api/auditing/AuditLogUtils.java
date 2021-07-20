@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 
 /**
  * Audit log utility class.

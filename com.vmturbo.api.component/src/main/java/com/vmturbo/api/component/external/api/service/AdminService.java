@@ -57,14 +57,16 @@ import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.DeploymentMode;
+import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.enums.healthCheck.HealthCheckCategory;
 import com.vmturbo.api.enums.healthCheck.HealthState;
-import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
@@ -73,10 +75,8 @@ import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceCo
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.common.utils.Strings;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
