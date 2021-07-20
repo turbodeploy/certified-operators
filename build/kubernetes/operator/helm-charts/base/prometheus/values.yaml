@@ -579,7 +579,7 @@ server:
       # Name of the sidecar container inside Prometheus server pod.
     - name: datacloud-gateway
       # Container image to use. It has to be a version that supports service accounts.
-      image: sevone/prometheus-gateway:c3cc01a8
+      image: sevone/prometheus-gateway:384f135e
       # Whether the container image should be pulled every time or only when it's not present.
       imagePullPolicy: IfNotPresent
       # Environment variable definitions to configure the sidecar container.
