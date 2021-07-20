@@ -127,8 +127,8 @@ import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlock
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.oid.identity.ArrayOidSet;
-import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;

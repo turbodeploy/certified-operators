@@ -26,8 +26,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.component.external.api.service.MarketsService;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
-import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.LoggingFilter;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Configuration for the external Turbonomic REST API.

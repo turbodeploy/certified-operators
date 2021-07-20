@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,6 +24,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapRequest;
+import com.vmturbo.common.protobuf.logging.MemoryMetrics.DumpHeapResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.FindMemoryPathRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.FindMemoryPathResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.ListWalkableRootsRequest;
@@ -34,6 +37,7 @@ import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkAllRootObjectsReque
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectResponse;
 import com.vmturbo.common.protobuf.logging.MemoryMetrics.WalkRootObjectsRequest;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsServiceGrpc.MemoryMetricsServiceImplBase;
+import com.vmturbo.common.protobuf.memory.HeapDumper;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryPathVisitor;
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.NamedObject;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager;
@@ -49,9 +53,18 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * Create new MemoryMetricsRpcService instance.
+     * When the user does not provide a filename to dump the heap to, the default to use.
      */
-    public MemoryMetricsRpcService() {
+    public static final String DEFAULT_HEAP_DUMP_FILENAME = "/tmp/heap.dump";
+    private final HeapDumper heapDumper;
+
+    /**
+     * Create new MemoryMetricsRpcService instance.
+     *
+     * @param heapDumper The object to use to dump the heap.
+     */
+    public MemoryMetricsRpcService(@Nonnull final HeapDumper heapDumper) {
+        this.heapDumper = Objects.requireNonNull(heapDumper);
     }
 
     @Override
@@ -189,6 +202,23 @@ public class MemoryMetricsRpcService extends MemoryMetricsServiceImplBase {
             }
         }
         return unresolved;
+    }
+
+    @Override
+    public void dumpHeap(DumpHeapRequest request,
+                         StreamObserver<DumpHeapResponse> responseObserver) {
+        final String filename = request.getFilename().isEmpty()
+            ? DEFAULT_HEAP_DUMP_FILENAME : request.getFilename();
+
+        try {
+            final String response = heapDumper.dumpHeap(filename);
+            responseObserver.onNext(DumpHeapResponse.newBuilder()
+                .setResponseMessage(response).build());
+        } catch (Exception e) {
+            logger.error("Failed to dump heap to " + filename + ": ", e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+        responseObserver.onCompleted();
     }
 
     /**

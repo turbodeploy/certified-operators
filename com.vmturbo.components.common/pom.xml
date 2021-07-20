@@ -83,14 +83,6 @@
             <artifactId>kvstore</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>auth-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>common-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
@@ -121,14 +113,6 @@
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.cloudbees</groupId>
-            <artifactId>syslog-java-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-core</artifactId>
         </dependency>
         <!-- Required for testing, because ProtobufHttpMessageConverter has a
              dependency on protobuf-java-format -->
@@ -214,6 +198,10 @@
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.roaringbitmap</groupId>
+            <artifactId>RoaringBitmap</artifactId>
         </dependency>
         <dependency>
             <groupId>de.vandermeer</groupId>

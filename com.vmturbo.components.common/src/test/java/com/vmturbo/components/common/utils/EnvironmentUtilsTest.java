@@ -1,4 +1,4 @@
-package com.vmturbo.common.api.utils;
+package com.vmturbo.components.common.utils;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -14,44 +14,26 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.contrib.java.lang.system.EnvironmentVariables;
 
-/**
- * Tests for environment utils.
- */
 @NotThreadSafe // must not be run in parallel
 public class EnvironmentUtilsTest {
 
-    /**
-     * test key1.
-     */
     public static final String TEST_KEY1 = "test-key1";
     // Save System Properties before each test, and restore afterwards
-
-    /**
-     * EnvironmentVariables.
-     */
     @Rule
     public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
-    /**
-     * Test key2.
-     */
+
     public static final String TEST_KEY = "test-key";
 
-    /**
-     * testParseIntegerFromProperty.
-     */
     @Test
-    public void testParseIntegerFromProperty() {
+    public void testParseIntegerFromProperty() throws Exception {
         environmentVariables.set("test-key", "123");
         int value = EnvironmentUtils.parseIntegerFromEnv("test-key");
         assertThat(value, equalTo(123));
     }
 
-    /**
-     * testParseIntegerFromNullProperty.
-     */
     @Test
-    public void testParseIntegerFromNullProperty() {
+    public void testParseIntegerFromNullProperty() throws Exception {
         // don't set any property value
         try {
             environmentVariables.set(TEST_KEY, null);
@@ -62,19 +44,13 @@ public class EnvironmentUtilsTest {
         }
     }
 
-    /**
-     * testParseIntegerFromEmptyProperty.
-     */
     @Test
-    public void testParseIntegerFromEmptyProperty() {
+    public void testParseIntegerFromEmptyProperty() throws Exception {
         testExceptionCase("");
     }
 
-    /**
-     * testParseIntegerFromCharProperty.
-     */
     @Test
-    public void testParseIntegerFromCharProperty() {
+    public void testParseIntegerFromCharProperty() throws Exception {
         testExceptionCase("abc");
     }
 
@@ -89,7 +65,7 @@ public class EnvironmentUtilsTest {
         environmentVariables.set(TEST_KEY, value);
         try {
             EnvironmentUtils.parseIntegerFromEnv(TEST_KEY);
-        } catch (NumberFormatException e) {
+        } catch(NumberFormatException e) {
             assertThat(e.getMessage(), containsString("'" + TEST_KEY + "'"));
             assertThat(e.getMessage(), containsString(">" + value + "<"));
             return;
@@ -97,11 +73,8 @@ public class EnvironmentUtilsTest {
         Assert.fail("expected a NumberFormatException");
     }
 
-    /**
-     * testParseBooleanFromProperty.
-     */
     @Test
-    public void testParseBooleanFromProperty() {
+    public void testParseBooleanFromProperty() throws Exception {
         environmentVariables.set(TEST_KEY1, "true");
         boolean value = EnvironmentUtils.parseBooleanFromEnv(TEST_KEY1);
         assertTrue(value);

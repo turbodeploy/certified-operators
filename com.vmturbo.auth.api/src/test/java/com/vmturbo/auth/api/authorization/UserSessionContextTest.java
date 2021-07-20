@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.userscope.UserScopeMoles.UserScopeServiceMole
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet;
 
 /**
  *

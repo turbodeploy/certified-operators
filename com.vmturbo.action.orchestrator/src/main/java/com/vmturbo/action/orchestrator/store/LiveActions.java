@@ -65,7 +65,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet;
 
 /**
  * A wrapper object for actions in the {@link LiveActionStore}.

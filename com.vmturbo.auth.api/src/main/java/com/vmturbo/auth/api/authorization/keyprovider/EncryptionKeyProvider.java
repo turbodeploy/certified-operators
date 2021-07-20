@@ -10,8 +10,8 @@ import com.google.common.io.BaseEncoding;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.api.crypto.CryptoFacility;
-import com.vmturbo.common.api.crypto.IEncryptionKeyProvider;
+import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.components.crypto.IEncryptionKeyProvider;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**

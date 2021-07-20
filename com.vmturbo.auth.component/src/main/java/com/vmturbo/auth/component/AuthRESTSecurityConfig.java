@@ -22,6 +22,7 @@ import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
 import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
+import com.vmturbo.auth.component.licensing.LicenseCheckService;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
@@ -31,10 +32,10 @@ import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
-import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.group.api.GroupClientConfig;
 
 /**
@@ -197,7 +198,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
      */
     @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
     public void setKeyProviderStatic(boolean enableExternalSecrets){
-        CryptoFacility.enableExternalSecrets = enableExternalSecrets;
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
         if (enableExternalSecrets) {
             CryptoFacility.encryptionKeyProvider =
                     getEncryptionKeyProvider();

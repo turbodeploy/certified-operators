@@ -67,17 +67,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.components.common</artifactId>
-            <version>${project.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.protobuf</groupId>
-                    <artifactId>protobuf-java</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>topology-processor-api</artifactId>
             <version>${project.version}</version>
         </dependency>

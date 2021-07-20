@@ -36,9 +36,9 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
-import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * This is the "main()" for the API Component. The API component implements

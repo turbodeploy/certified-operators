@@ -71,7 +71,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.oid.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class CurrentQueryMapperTest {

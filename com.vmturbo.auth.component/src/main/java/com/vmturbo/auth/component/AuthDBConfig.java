@@ -24,7 +24,7 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.services.SecureStorageController;
 import com.vmturbo.auth.component.store.DBStore;
 import com.vmturbo.auth.component.store.ISecureStore;
-import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.sql.utils.JooqExceptionTranslator;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 

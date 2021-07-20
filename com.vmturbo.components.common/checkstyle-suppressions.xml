@@ -30,6 +30,10 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]SimpleHealthStatusProvider.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]sql[/\\]MariaDBHealthMonitor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]sql[/\\]SQLDBHealthMonitor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]ArrayOidSet.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]OidFilter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]OidSet.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]RoaringBitmapOidSet.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]logging[/\\]TracingConfigurationRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]mail[/\\]MailConfigException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]mail[/\\]MailConfiguration.java" />
@@ -74,6 +78,9 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]MemoryMonitorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]PollingHealthMonitorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]health[/\\]sql[/\\]SQLDBHealthMonitorTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]ArrayOidSetTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]OidSetTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]identity[/\\]RoaringBitmapOidSetTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]mail[/\\]MailManagerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]metrics[/\\]ScheduledMetricsTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]components[/\\]common[/\\]migration[/\\]MigrationFrameworkTest.java" />

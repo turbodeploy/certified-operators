@@ -125,26 +125,6 @@ message DumpHeapRequest {
     optional string filename = 1;
 }
 
-// Message to enable heap dumping. Heap dumping is usually disabled by default.
-// It must be enabled before a heap dump will succeed.
-message EnableHeapDumpRequest {
-    // Whether to enable or disable heap dumping.
-    //
-    // Changes to this value will be audited for security purposes.
-    optional bool enabled = 1;
-}
-
-// Whether heap dumping is enabled or disabled.
-message HeapDumpEnabledResponse {
-    // Whether heap dumping is enabled or disabled.
-    optional bool enabled = 1;
-}
-
-// Request message to get whether heap dump is enabled.
-message GetHeapDumpEnabledRequest {
-    // No info
-}
-
 // Response for dumping heap to file.
 message DumpHeapResponse {
     // Message describing the outcome of the request.
@@ -379,16 +359,7 @@ service MemoryMetricsService {
     // When there are multiple paths to a given object in-memory from the root
     // set, we will always find a shortest path.
     rpc FindMemoryPath(FindMemoryPathRequest) returns (FindMemoryPathResponse);
-}
 
-// Service for triggering heap dumps.
-service HeapDumpService {
     // Dump the heap to a file.
     rpc DumpHeap(DumpHeapRequest) returns (DumpHeapResponse);
-
-    // Enable/disable the heap dump.
-    rpc ToggleDumpEnabled(EnableHeapDumpRequest) returns (HeapDumpEnabledResponse);
-
-    // Check whether heap dump is enabled or disabled.
-    rpc GetHeapDumpEnabled(GetHeapDumpEnabledRequest) returns (HeapDumpEnabledResponse);
 }

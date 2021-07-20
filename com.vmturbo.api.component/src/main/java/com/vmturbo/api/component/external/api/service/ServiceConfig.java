@@ -77,8 +77,8 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.common.api.utils.EnvironmentUtils;
-import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -810,7 +810,7 @@ public class ServiceConfig {
      */
     @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
     public void setKeyProviderStatic(boolean enableExternalSecrets){
-        CryptoFacility.enableExternalSecrets = enableExternalSecrets;
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
         if (enableExternalSecrets) {
             CryptoFacility.encryptionKeyProvider =
                     new EncryptionKeyProvider(keyValueStoreConfig.keyValueStore(), new MasterKeyReader());

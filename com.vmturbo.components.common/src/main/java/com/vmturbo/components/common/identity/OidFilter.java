@@ -1,4 +1,4 @@
-package com.vmturbo.oid.identity;
+package com.vmturbo.components.common.identity;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -9,15 +9,17 @@ import java.util.Set;
 
 /**
  * The OidFilter provides a filter on oid's.
- * <p/>
+ *
  * The oids are represnted as primitive longs for efficiency reasons.
+ *
+ *
  */
 public interface OidFilter {
     /**
      * Attribute indicating whether the filter includes all oids or not. If
      * containsAll is true, then the filter is effectively a no-op and doesn't need to be called.
      *
-     * @return whether the filter includes all oids or not.
+     * @return
      */
     boolean containsAll();
 
@@ -29,22 +31,22 @@ public interface OidFilter {
      * @return true, if the filter may filter results out.
      */
     default boolean hasRestrictions() {
-        return !containsAll();
+        return ! containsAll();
     }
 
     /**
      * Given an oid, return true or false if the oid passes the filter.
      *
-     * @param oid The oid.
-     * @return whether the oid passes the filter
+     * @param oid
+     * @return
      */
     boolean contains(long oid);
 
     /**
      * Given a string oid, check if it passes the filter.
      *
-     * @param stringOid The stringOid
-     * @return if it passes the filter
+     * @param stringOid
+     * @return
      */
     default boolean contains(String stringOid) {
         // non-numeric strings will trigger NumberFormatExceptions -- not attempting to handle these
@@ -55,7 +57,7 @@ public interface OidFilter {
     /**
      * Given a collection of oids, return true if all oids in the collection pass the filter.
      *
-     * @param oids The oids to check
+     * @param oids
      * @return true, if all oids in the collection pass the filter. false, if any do not.
      */
     default boolean contains(Collection<Long> oids) {
@@ -64,7 +66,7 @@ public interface OidFilter {
         }
         // return false on the first oid that doesn't match the filter.
         for (Long oid: oids) {
-            if (!contains(oid)) {
+            if (! contains(oid)) {
                 return false;
             }
         }
@@ -137,10 +139,10 @@ public interface OidFilter {
     /**
      * Utility function for checking "contains" on a collection of oids represented as strings. If
      * any entry cannot be converted, the result will be "false". Otherwise, the result will be
-     * as described in the {@code contains(Collection<Long>)} method.
+     * as described in the contains(Collection<Long>) method.
      *
-     * @param stringOids the string oids.
-     * @return Whether all the string oids pass the filter.
+     * @param stringOids
+     * @return
      */
     default boolean containsStringOids(Collection<String> stringOids) {
         // convert each string to a long and check contains(). If there are any parsing/conversion
@@ -161,8 +163,8 @@ public interface OidFilter {
     /**
      * Given an array of oids, return an array of oids that pass the filter.
      *
-     * @param inputOids the input oids.
-     * @return an array of oids that pass the filter.
+     * @param inputOids
+     * @return
      */
     OidSet filter(long[] inputOids);
 
@@ -170,8 +172,8 @@ public interface OidFilter {
      * Given an {@link OidSet}, return a new OidSet containing the values that pass this filter.
      * This is effectively an intersection operation.
      *
-     * @param inputSet the input set.
-     * @return a new OidSet containing the values that pass this filter
+     * @param inputSet
+     * @return
      */
     OidSet filter(OidSet inputSet);
 
@@ -181,8 +183,8 @@ public interface OidFilter {
      * less memory overhead and potentially better performance. But if you want input and output in
      * {@Set} objects then you might as well use this version to keep things simple.
      *
-     * @param inputOids the input oids.
-     * @return a new set containing the values that pass this filter
+     * @param inputOids
+     * @return
      */
     default Set<Long> filter(Set<Long> inputOids) {
         Set<Long> retVal = new HashSet<>();
@@ -194,12 +196,6 @@ public interface OidFilter {
         return retVal;
     }
 
-    /**
-     * Filter the list of inputOids.
-     *
-     * @param inputOids The list of inputOids.
-     * @return A new list of oids that pass the filter.
-     */
     default List<Long> filter(List<Long> inputOids) {
         List<Long> retVal = new ArrayList<>();
         for (Long oid : inputOids) {
@@ -213,7 +209,7 @@ public interface OidFilter {
     /**
      * The AllOidsFilter doesn't filter any oids out. It's basically a no-op filter.
      */
-    class AllOidsFilter implements OidFilter {
+    public class AllOidsFilter implements OidFilter {
         public static final AllOidsFilter ALL_OIDS_FILTER = new AllOidsFilter();
 
         @Override

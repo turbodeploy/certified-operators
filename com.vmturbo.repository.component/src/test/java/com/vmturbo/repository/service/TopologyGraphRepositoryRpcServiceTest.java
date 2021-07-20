@@ -24,7 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.oid.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;

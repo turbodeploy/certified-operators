@@ -1,9 +1,11 @@
-package com.vmturbo.oid.identity;
+package com.vmturbo.components.common.identity;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.PrimitiveIterator;
 import java.util.PrimitiveIterator.OfLong;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import org.apache.logging.log4j.LogManager;
@@ -12,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * An {@link OidFilter} that is backed by a simple long array. This array is sorted for search
  * efficiency.
- * <p/>
+ *
  * The array shouldn't contain any negative value, and the entries should be unique.
  */
 public class ArrayOidSet implements OidSet {
@@ -25,7 +27,7 @@ public class ArrayOidSet implements OidSet {
      * If you want an ArrayOidSet containing a copy of the array, you will need to pass the copy in
      * as the input param.
      *
-     * @param sourceOids The source oids in the set.
+     * @param sourceOids
      */
     public ArrayOidSet(long[] sourceOids) {
         if (null == sourceOids) {
@@ -42,7 +44,7 @@ public class ArrayOidSet implements OidSet {
     /**
      * Constructor that converts from a Collection to our primitive array type.
      *
-     * @param sourceOids The source oids in the set.
+     * @param sourceOids
      */
     public ArrayOidSet(Collection<Long> sourceOids) {
         oids = new long[sourceOids.size()];
@@ -150,7 +152,7 @@ public class ArrayOidSet implements OidSet {
         // this would overflow if the combined array would be greater than maxint. This means we'd
         // have input arrays greater than 2 billion members in length though, which is hopefully
         // not very likely to happen.
-        if ((long)size() + other.size() > Integer.MAX_VALUE) {
+        if ((long) size() + other.size() > Integer.MAX_VALUE) {
             logger.warn("Performing union on two sets that may exceed {} entries.", Integer.MAX_VALUE);
         }
         int tempSize = Math.min(size() + other.size(), Integer.MAX_VALUE);
@@ -169,7 +171,7 @@ public class ArrayOidSet implements OidSet {
                 // this is an error condition -- the union results will be incorrect.
                 break;
             }
-            temp[(int)x] = iterator.nextLong();
+            temp[(int) x] = iterator.nextLong();
         }
         // sort the concatenated arrays.
         Arrays.sort(temp);

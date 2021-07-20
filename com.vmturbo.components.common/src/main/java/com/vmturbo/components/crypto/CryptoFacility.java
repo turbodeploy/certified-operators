@@ -1,5 +1,20 @@
-package com.vmturbo.common.api.crypto;
+package com.vmturbo.components.crypto;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.BaseEncoding;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
@@ -16,24 +31,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.BaseEncoding;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.common.api.utils.EnvironmentUtils;
-
 /**
  * The CryptoFacility is a utility class that provides encryption and secure hash services.
  */
@@ -48,7 +45,7 @@ public class CryptoFacility {
      * many static methods that already exist in this class. This is expected to be a short-lived
      * situation, until enabling external secrets becomes the default.</p>
      */
-    public static boolean enableExternalSecrets = false;
+    public static boolean ENABLE_EXTERNAL_SECRETS = false;
 
     /**
      * When set (i.e. not null), used to provide the encryption key needed to encrypt/decrypt sensitive
@@ -501,7 +498,7 @@ public class CryptoFacility {
      */
     private static synchronized byte[] getEncryptionKeyForVMTurboInstance(final int version) {
         // When the encryption key provide is set, prefer this over local key management
-        if (enableExternalSecrets && encryptionKeyProvider != null) {
+        if (ENABLE_EXTERNAL_SECRETS && encryptionKeyProvider != null) {
             return BaseEncoding.base64().decode(encryptionKeyProvider.getEncryptionKey());
         }
 
@@ -532,7 +529,7 @@ public class CryptoFacility {
 
             // We don't have the file or it is of the wrong length.
             // If this happens with Kubernetes secrets in use, we'll just have to log an error
-            if (enableExternalSecrets) {
+            if (ENABLE_EXTERNAL_SECRETS) {
                 final String errorMessage = "Externally-supplied encryption key is not available "
                 + "although external secrets are enabled. Please check that the encryption key "
                 + "secret is populated.";

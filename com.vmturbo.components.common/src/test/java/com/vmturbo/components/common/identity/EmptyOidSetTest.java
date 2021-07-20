@@ -1,14 +1,15 @@
-package com.vmturbo.oid.identity;
+package com.vmturbo.components.common.identity;
 
 import static org.junit.Assert.assertFalse;
 
-import java.util.Arrays;
 import java.util.Iterator;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.oid.identity.OidSet.EmptyOidSet;
+import com.vmturbo.components.common.identity.OidSet.EmptyOidSet;
 
 /**
  * EmptyOidSet tests.
@@ -31,7 +32,7 @@ public class EmptyOidSetTest {
     @Test
     public void testUnion() {
         EmptyOidSet eos = new EmptyOidSet();
-        OidSet other = new ArrayOidSet(Arrays.asList(0L, 1L));
+        OidSet other = new ArrayOidSet(ImmutableList.of(0L, 1L));
         Assert.assertEquals(other, eos.union(other));
     }
 

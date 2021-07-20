@@ -1,6 +1,6 @@
 package com.vmturbo.voltron;
 
-import com.vmturbo.common.api.utils.EnvironmentUtils;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.voltron.VoltronConfiguration.MediationComponent;
 
 /**

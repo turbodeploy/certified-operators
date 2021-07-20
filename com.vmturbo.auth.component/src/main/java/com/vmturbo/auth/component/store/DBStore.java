@@ -22,7 +22,7 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.component.AuthDBConfig;
 import com.vmturbo.auth.component.store.db.tables.Storage;
 import com.vmturbo.auth.component.store.db.tables.records.StorageRecord;
-import com.vmturbo.common.api.crypto.CryptoFacility;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**

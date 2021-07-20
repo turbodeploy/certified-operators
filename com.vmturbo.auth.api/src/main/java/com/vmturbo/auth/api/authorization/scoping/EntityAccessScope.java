@@ -11,9 +11,9 @@ import javax.annotation.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.oid.identity.OidFilter;
-import com.vmturbo.oid.identity.OidSet;
-import com.vmturbo.oid.identity.OidSet.AllOidsSet;
+import com.vmturbo.components.common.identity.OidFilter;
+import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
 
 /**
  * EntityAccessScope models an access restriction list based on an "entity scope". The "access scope"

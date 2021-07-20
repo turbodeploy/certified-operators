@@ -1,20 +1,10 @@
-package com.vmturbo.common.api.utils;
+package com.vmturbo.components.common.utils;
 
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-/**
- * Utilities for interacting with environment variables.
- */
 public class EnvironmentUtils {
-
-    /**
-     * Hide constructor for utility class.
-     */
-    private EnvironmentUtils() {
-
-    }
 
     /**
      * Simple utility to fetch a value from the java Environment and convert to an int.
@@ -30,8 +20,8 @@ public class EnvironmentUtils {
         try {
             return Integer.valueOf(propValue);
         } catch (NumberFormatException e) {
-            throw new NumberFormatException("Invalid property '" + propKeyToFetch + "' value:  >"
-                + propValue + "< - should be an integer");
+            throw new NumberFormatException("Invalid property '" + propKeyToFetch + "' value:  >" +
+                    propValue + "< - should be an integer");
         }
     }
 

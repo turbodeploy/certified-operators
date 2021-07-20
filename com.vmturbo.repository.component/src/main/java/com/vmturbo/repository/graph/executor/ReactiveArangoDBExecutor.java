@@ -25,7 +25,7 @@ import reactor.core.scheduler.Schedulers;
 
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.oid.identity.OidSet;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
