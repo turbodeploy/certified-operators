@@ -1365,9 +1365,10 @@ public class EntitySettingsApplicator {
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                 @Nonnull final Collection<Setting> settings) {
 
-            CommoditySoldDTO.Builder vcpuCommodityBuilder = entity.getCommoditySoldListBuilderList().stream()
-                    .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.VCPU_VALUE).findFirst().get();
-            if (vcpuCommodityBuilder != null) {
+            Optional<CommoditySoldDTO.Builder> vcpuCommodityBuilderOptional = entity.getCommoditySoldListBuilderList().stream()
+                    .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.VCPU_VALUE).findFirst();
+            if (vcpuCommodityBuilderOptional.isPresent()) {
+                CommoditySoldDTO.Builder vcpuCommodityBuilder = vcpuCommodityBuilderOptional.get();
                 CoreSocketRatioPolicyEnum csrMode = CoreSocketRatioPolicyEnum.RESPECT;
                 float vcpuIncrementSettingValue = (float)EntitySettingSpecs.VmVcpuIncrement.getNumericDefault();
                 for (Setting setting: settings) {
