@@ -44,7 +44,7 @@ public class ProjectedContainerSpecPostProcessorTest {
      * Test {@link ProjectedContainerSpecPostProcessor#appliesTo}.
      */
     @Test
-    public void testAppliesToTrue() {
+    public void testTrueAppliesToContainerSpecEntitiesRealTime() {
         Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities = new HashMap<>();
         entityTypeToProjectedEntities.put(EntityType.CONTAINER_SPEC_VALUE, Collections.emptyList());
         assertTrue(postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities));
@@ -54,7 +54,37 @@ public class ProjectedContainerSpecPostProcessorTest {
      * Test {@link ProjectedContainerSpecPostProcessor#appliesTo}.
      */
     @Test
-    public void testFalseAppliesToPlanTopology() {
+    public void testTrueAppliesToContainerSpecEntitiesPlanTopology() {
+        topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(1234L)
+                .setTopologyContextId(5678L)
+                .setTopologyType(TopologyType.PLAN)
+                .build();
+        Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities = new HashMap<>();
+        entityTypeToProjectedEntities.put(EntityType.CONTAINER_SPEC_VALUE, Collections.emptyList());
+        assertTrue(postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities));
+    }
+
+    /**
+     * Test {@link ProjectedContainerSpecPostProcessor#appliesTo}.
+     */
+    @Test
+    public void testFalseAppliesToNonContainerSpecEntitiesRealTime() {
+        topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(1234L)
+                .setTopologyContextId(5678L)
+                .setTopologyType(TopologyType.REALTIME)
+                .build();
+        Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities = new HashMap<>();
+        entityTypeToProjectedEntities.put(EntityType.VIRTUAL_MACHINE_VALUE, Collections.emptyList());
+        assertFalse(postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities));
+    }
+
+    /**
+     * Test {@link ProjectedContainerSpecPostProcessor#appliesTo}.
+     */
+    @Test
+    public void testFalseAppliesToNonContainerSpecEntitiesPlanTopology() {
         topologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(1234L)
             .setTopologyContextId(5678L)
