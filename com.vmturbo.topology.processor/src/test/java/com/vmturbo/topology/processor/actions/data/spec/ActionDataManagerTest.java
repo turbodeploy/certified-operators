@@ -114,7 +114,7 @@ public class ActionDataManagerTest {
         entityRetriever = mock(EntityRetriever.class);
         groupAndPolicyRetriever = mock(GroupAndPolicyRetriever.class);
         actionDataManager = new ActionDataManager(searchServiceRpc, topologyToSdkEntityConverter,
-            entityRetriever, groupAndPolicyRetriever, false, true);
+            entityRetriever, groupAndPolicyRetriever, true);
 
         when(entityRetriever.retrieveTopologyEntity(VM_ID)).thenReturn(Optional.of(vmEntity));
         when(groupAndPolicyRetriever.getHostCluster(PM_1_ID)).thenReturn(Optional.of(cluster1));

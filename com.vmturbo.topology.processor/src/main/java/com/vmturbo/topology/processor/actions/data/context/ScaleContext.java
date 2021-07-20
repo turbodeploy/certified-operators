@@ -80,8 +80,10 @@ public class ScaleContext extends ChangeProviderContext {
         // ActionItemDTOs translated from ChangeProvider list.
         final List<ChangeProvider> changeProviderList
                 = getActionInfo().getScale().getChangesList();
+        boolean isPrimary = true;
         for (ChangeProvider change: changeProviderList) {
-            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
+            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO, isPrimary));
+            isPrimary = false;
         }
         // ActionItemDTOs translated from ResizeInfo list for commodity resize.
         List<ResizeInfo> resizeInfoList = getActionInfo().getScale().getCommodityResizesList();
@@ -101,7 +103,8 @@ public class ScaleContext extends ChangeProviderContext {
                     .setTargetSE(fullEntityDTO)
                     .setCurrentComm(curCommodity)
                     .setNewComm(newCommodity)
-                    .addAllContextData(getContextData()));
+                    .addAllContextData(getContextData(isPrimary)));
+            isPrimary = false;
             logger.trace("created action item for {}:{}:{}",
                     fullEntityDTO.getEntityType(), fullEntityDTO.getDisplayName(),
                     commodityType);

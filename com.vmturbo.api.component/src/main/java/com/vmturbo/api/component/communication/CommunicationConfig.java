@@ -189,11 +189,30 @@ public class CommunicationConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    @Value("${useStableActionIdAsUuid:true}")
+    private boolean useStableActionIdAsUuid;
+
+
     @Autowired
     private ApiWebsocketConfig websocketConfig;
 
     public long getRealtimeTopologyContextId() {
         return realtimeTopologyContextId;
+    }
+
+
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     *
+     * @return the use stable id flag.
+     */
+    public boolean useStableActionIdAsUuid() {
+        return useStableActionIdAsUuid;
     }
 
     @Bean
@@ -205,7 +224,10 @@ public class CommunicationConfig {
     public ApiComponentActionListener apiComponentActionListener()
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
-            new ApiComponentActionListener(websocketConfig.websocketHandler(), getRealtimeTopologyContextId());
+            new ApiComponentActionListener(websocketConfig.websocketHandler(),
+                    actionsRpcService(),
+                    useStableActionIdAsUuid,
+                    getRealtimeTopologyContextId());
         aoClientConfig.actionOrchestratorClient().addListener(actionsListener);
         return actionsListener;
     }

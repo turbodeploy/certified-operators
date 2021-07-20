@@ -144,13 +144,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
         logger.info("Action instance ID = {} and Action Stable ID = {}",
                 request.getActionId(), request.getActionSpec().getRecommendationId());
-        if (dataManager.isStableActionIdInUse()) {
-            this.actionId = request.getActionSpec().getRecommendationId();
-            logger.info("Stable action ID is in use");
-        } else {
-            this.actionId = request.getActionId();
-            logger.info("Stable action ID is not in use");
-        }
+        this.actionId = request.getActionId();
 
         this.targetId = request.getTargetId();
         this.workflow = request.hasWorkflowInfo() ? buildWorkflow(request.getWorkflowInfo()) : null;
@@ -402,7 +396,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         actionItemBuilder.setTargetSE(fullEntityDTO);
 
         // Add additional data for action execution
-        actionItemBuilder.addAllContextData(getContextData());
+        actionItemBuilder.addAllContextData(getContextData(true));
 
         // TODO: Determine if this special case should be converted to context data
         // Right now, this is treated as a fourth entity (hostedBySE) on the ActionItemDTO
@@ -481,10 +475,19 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * Add any additional ContextData needed to execute the action.
      *
+     * @param includeStableId if true the stable id is included in the context data.
      * @return a set of context data containing data related to action execution
      */
-    protected List<ContextData> getContextData() {
-        return dataManager.getContextData(actionSpec.getRecommendation().getInfo());
+    protected List<ContextData> getContextData(boolean includeStableId) {
+        List<ContextData> contextData = dataManager.getContextData(actionSpec.getRecommendation().getInfo());
+        // should be added separately as it is not in the recommendation
+        if (includeStableId) {
+            contextData.add(ContextData.newBuilder().setContextKey("STABLE_ID")
+                    .setContextValue(String.valueOf(actionSpec.getRecommendationId()))
+                    .build()
+            );
+        }
+        return contextData;
     }
 
     @Override

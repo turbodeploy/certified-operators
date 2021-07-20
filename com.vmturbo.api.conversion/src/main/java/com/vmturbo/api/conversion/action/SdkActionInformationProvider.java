@@ -82,7 +82,8 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public long getRecommendationId() {
-        return actionExecutionDTO.getActionOid();
+        String stableIdStr = getContextValue(getPrimaryAction(), "STABLE_ID");
+        return stableIdStr != null ? Long.parseLong(stableIdStr) : actionExecutionDTO.getActionOid();
     }
 
     @Override

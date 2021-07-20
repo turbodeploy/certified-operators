@@ -305,10 +305,8 @@ public class ActionSearchUtil {
                 specsToMap.addAll(specs);
                 recsByFilter.computeIfAbsent(response.getQueryId(), (arg) -> new HashSet<>())
                     .addAll(specs.stream()
-                        // note: ActionSpec.getRecommendation().getId() is NOT equivalent to
-                        // ActionSpec.getRecommendationId()
-                        .map(ActionSpec::getRecommendation)
-                        .map(Action::getId)
+                        .map(action -> actionSpecMapper.getActionId(action.getRecommendation().getId(),
+                                action.getRecommendationId(), contextId))
                         .collect(Collectors.toList()));
         }
         final Map<Long, ActionApiDTO> actionsByRec =

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -129,7 +129,7 @@ public class DeleteContextTest {
         final Entity destinationEntity = mockEntity(destinationEntityId, destinationEntityType, awsTargetId);
         destinationEntity.setHostedBy(awsTargetId, sourceEntityId);
 
-        when(actionDataManagerMock.getContextData(delete)).thenReturn(Collections.emptyList());
+        when(actionDataManagerMock.getContextData(delete)).thenReturn(new ArrayList<>());
         ActionExecutionContext actionExecutionContext = actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Move actions should have at least one actionItem
@@ -149,7 +149,6 @@ public class DeleteContextTest {
 
         // Verify the expected call was made to retrieve context data
         verify(actionDataManagerMock).getContextData(delete);
-        verify(actionDataManagerMock).isStableActionIdInUse();
         verifyNoMoreInteractions(actionDataManagerMock);
     }
 

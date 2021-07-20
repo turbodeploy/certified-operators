@@ -131,13 +131,6 @@ public class ActionsConfig {
     private boolean serializeCachedTopology;
 
     /**
-     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
-     * unstable action instance id.
-     */
-    @Value("${useStableActionIdAsUuid:true}")
-    private boolean useStableActionIdAsUuid;
-
-    /**
      * If true, the cluster information of entities involved in the action is sent as a part of
      * action message sent to the probe.
      */
@@ -149,7 +142,7 @@ public class ActionsConfig {
         return new ActionDataManager(
                 SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()),
                 topologyToSdkEntityConverter(), entityRetriever(),  groupAndPolicyRetriever(),
-                useStableActionIdAsUuid, populateActionClusterInfo);
+                populateActionClusterInfo);
     }
 
     @Bean
@@ -203,8 +196,7 @@ public class ActionsConfig {
     public ActionExecutionRpcService actionExecutionService() {
         return new ActionExecutionRpcService(
                 operationConfig.operationManager(),
-                actionExecutionContextFactory(),
-                useStableActionIdAsUuid);
+                actionExecutionContextFactory());
     }
 
     @Bean

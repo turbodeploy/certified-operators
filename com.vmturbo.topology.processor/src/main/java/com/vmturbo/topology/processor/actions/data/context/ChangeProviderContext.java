@@ -147,8 +147,10 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
         final List<ChangeProvider> changeProviderList = new ArrayList<>(
                 ActionDTOUtil.getChangeProviderList(getActionInfo()));
         changeProviderList.sort(CHANGE_LIST_COMPARATOR);
+        boolean isPrimary = true;
         for (ChangeProvider change: changeProviderList) {
-            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
+            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO, isPrimary));
+            isPrimary = false;
         }
         // Cross-target moves require adding storage changes, even when storage is staying the same
         if (isCrossTargetMove()) {
@@ -207,7 +209,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
             final ChangeProvider storageChange = ChangeProviderContext.createStorageChange(
                     entityId);
             final ActionItemDTO.Builder builder = actionItemDtoBuilder(storageChange, getActionId(),
-                    fullEntityDTO);
+                    fullEntityDTO, false);
             result.add(builder);
         }
         return result;
@@ -250,7 +252,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
 
     protected ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
             final long actionId,
-            final EntityDTO primaryEntity) throws ContextCreationException {
+            final EntityDTO primaryEntity, final boolean isPrimary) throws ContextCreationException {
         long sourceId = change.getSource().getId();
         long destId = change.getDestination().getId();
         logger.info("Retrieving Source id {} and destination id {} from repository", sourceId, destId);
@@ -274,7 +276,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                 .setTargetSE(primaryEntity)
                 .setCurrentSE(sourceEntity)
                 .setNewSE(destinationEntity)
-                .addAllContextData(getContextData());
+                .addAllContextData(getContextData(isPrimary));
         addResourcesInfo(resources, actionBuilder, EntityType.VIRTUAL_VOLUME);
         getHost(primaryEntity).ifPresent(actionBuilder::setHostedBySE);
         logger.trace("created action item for {}:{}, and provider {} change from {} to {}",

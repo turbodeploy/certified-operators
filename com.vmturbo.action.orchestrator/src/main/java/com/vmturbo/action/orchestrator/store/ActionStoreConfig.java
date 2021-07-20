@@ -154,13 +154,6 @@ public class ActionStoreConfig {
     private int queryTimeWindowForLastExecutedActionsMins;
 
     /**
-     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
-     * unstable action instance id.
-     */
-    @Value("${useStableActionIdAsUuid:true}")
-    private boolean useStableActionIdAsUuid;
-
-    /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
      */
     @Value("${enableCloudScaleEnhancement:true}")
@@ -392,7 +385,7 @@ public class ActionStoreConfig {
     @Bean
     public ActionStorehouse actionStorehouse() {
         ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
-                actionStoreLoader(), automationManager(), useStableActionIdAsUuid);
+                actionStoreLoader(), automationManager());
         return actionStorehouse;
     }
 

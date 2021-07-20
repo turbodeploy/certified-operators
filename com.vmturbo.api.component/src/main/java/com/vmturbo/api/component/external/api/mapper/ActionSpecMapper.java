@@ -683,7 +683,7 @@ public class ActionSpecMapper {
      *
      * @return the id we use in API.
      */
-    private long getActionId(long instanceId, long recommendationId, long topologyContextId) {
+    public long getActionId(long instanceId, long recommendationId, long topologyContextId) {
         if (useStableActionIdAsUuid && topologyContextId == realtimeTopologyContextId) {
             return recommendationId;
         } else {

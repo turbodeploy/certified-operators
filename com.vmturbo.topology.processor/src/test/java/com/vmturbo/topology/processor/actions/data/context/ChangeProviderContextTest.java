@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
-import static org.mockito.Mockito.verify;
-
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -139,7 +138,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(move))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for the primary entity and its source and destination providers
         // Build the primary entity
@@ -177,7 +176,6 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(move);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -214,7 +212,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(move))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for the primary entity and its source and destination providers
         // Build the primary entity
@@ -254,7 +252,6 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(move);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -293,7 +290,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(move))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for the primary entity and its source and destination providers
         // Build the primary entity
@@ -378,7 +375,6 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock, Mockito.atLeastOnce()).getContextData(move);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -430,7 +426,7 @@ public class ChangeProviderContextTest {
             .build();
 
         // Set up the mocks
-        Mockito.when(actionDataManagerMock.getContextData(move)).thenReturn(Collections.emptyList());
+        Mockito.when(actionDataManagerMock.getContextData(move)).thenReturn(new ArrayList<>());
 
         // Build the primary entity
         final Entity entity = mockEntity(entityId, EntityType.VIRTUAL_MACHINE, primaryTargetId);
@@ -543,7 +539,7 @@ public class ChangeProviderContextTest {
             .build();
 
         // Set up the mocks
-        Mockito.when(actionDataManagerMock.getContextData(move)).thenReturn(Collections.emptyList());
+        Mockito.when(actionDataManagerMock.getContextData(move)).thenReturn(new ArrayList<>());
 
         // Mock the primary entity
         final Entity entity = mockEntity(entityId, EntityType.VIRTUAL_MACHINE, primaryTargetId);
@@ -655,7 +651,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(move))
-            .thenReturn(Collections.emptyList());
+            .thenReturn(new ArrayList<>());
 
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         mockEntity(entityId, entityType, primaryTargetId);
@@ -716,7 +712,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(move))
-            .thenReturn(Collections.emptyList());
+            .thenReturn(new ArrayList<>());
 
         // We need entity info for the primary entity and its source and destination providers
         // Build the primary entity
@@ -910,7 +906,7 @@ public class ChangeProviderContextTest {
 
         // Set up the mocks
         Mockito.when(actionDataManagerMock.getContextData(scale))
-                .thenReturn(Collections.emptyList());
+                .thenReturn(new ArrayList<>());
 
         // We need entity info for the primary entity and its source and destination providers
         // Build the primary entity
@@ -948,7 +944,6 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(scale);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 

@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -450,6 +452,7 @@ public class ActionPipelineStages {
      */
     public static class ActionIdentityStage extends Stage<ActionDTOsAndStore, IdentifiedActionsAndStore> {
 
+        private static final Logger logger = LogManager.getLogger();
         private final IdentityService<ActionInfo> actionIdentityService;
         private int inputActionCount;
 
@@ -475,15 +478,90 @@ public class ActionPipelineStages {
                 final List<Long> oids = actionIdentityService.getOidsForObjects(input.actionDTOs.stream()
                     .map(ActionDTO.Action::getInfo)
                     .collect(Collectors.toList()));
+
+                // the list of oids should not have duplicates, if there is duplicate log an error and
+                // only keep one of the duplicates
+                Set<Long> duplicateOids = getDuplicateOids(oids);
+                Set<Long> recsToDrop = getActionRecommendationIdsToDrop(oids, input.actionDTOs, duplicateOids);
+
+                if (!duplicateOids.isEmpty()) {
+                    logger.error(" Actions with Recommendation IDs {} associated with actions with OIDs "
+                            + " {} were dropped as there were duplicates", recsToDrop, duplicateOids);
+                }
+
                 final List<IdentifiedActionDTO> identifiedActions = Streams
                     .zip(input.actionDTOs.stream(), oids.stream(), IdentifiedActionDTO::new)
+                    .filter(i -> !duplicateOids.contains(i.getOid()) || !recsToDrop.contains(i.getAction().getId()))
                     .collect(Collectors.toList());
 
-                return StageResult.withResult(new IdentifiedActionsAndStore(identifiedActions, input.actionStore))
-                    .andStatus(Status.success("Assigned " + oids.size() + " action identities"));
+                final StageResult.Builder<IdentifiedActionsAndStore> stageResult =
+                        StageResult.withResult(new IdentifiedActionsAndStore(identifiedActions, input.actionStore));
+                if (duplicateOids.isEmpty()) {
+                    return stageResult
+                            .andStatus(Status.success("Assigned " + oids.size() + " action identities"));
+                } else {
+                    return stageResult
+                            .andStatus(Status.withWarnings("Assigned " + identifiedActions.size()
+                                    + " action identities.  " + recsToDrop.size()
+                                    + " actions were dropped as they were duplicates."));
+                }
             } catch (IdentityServiceException e) {
                 throw new PipelineStageException("Unable to assign Action OIDs", e);
             }
+        }
+
+        /**
+         * Finds duplicates oids in the list of oids.
+         *
+         * @param oids the list of oids.
+         * @return the set of oids that appeared more than once.
+         */
+        private Set<Long> getDuplicateOids(List<Long> oids) {
+            Set<Long> actionOids = new HashSet<>(oids.size());
+            return oids.stream()
+                    .filter(e -> !actionOids.add(e))
+                    .collect(Collectors.toSet());
+        }
+
+        /**
+         * For a set of oids for actions that are duplicate, returns the set of actions ids that needs to drop.
+         *
+         * <p>The actions with the smallest recommendation id is always selected to be consistent, the action
+         * with the smallest instance id is always selected.</p>
+         *
+         * @param oids the list of oids for the action.
+         * @param actionDTOs the list of actions corresponding to to the list of oids.
+         * @param duplicateOids the set of duplicate oids.
+         * @return the set of actions instance ids that need to be dropped.
+         */
+        private Set<Long> getActionRecommendationIdsToDrop(List<Long> oids, List<ActionDTO.Action> actionDTOs,
+                                                           Set<Long> duplicateOids) {
+            Map<Long, Long> oidToActionRecIdToKeep = new HashMap<>(duplicateOids.size());
+            Set<Long> droppedRecs = new HashSet<>(duplicateOids.size());
+            Iterator<Long> oidIterator = oids.iterator();
+            for (ActionDTO.Action actionDTO : actionDTOs) {
+                final long oid = oidIterator.next();
+                if (duplicateOids.contains(oid)) {
+                    final long actionId = actionDTO.getId();
+                    final Long curRec = oidToActionRecIdToKeep.get(oid);
+                    // we keep the recommendation id with smallest value so the action consistently
+                    // have the same recommendation id
+                    if (curRec == null || actionId < curRec) {
+                        oidToActionRecIdToKeep.put(oid, actionId);
+                        if (curRec != null) {
+                            logger.trace("Action with recommendation ID {} and stable ID {} was dropped.",
+                                    curRec, oid);
+                            droppedRecs.add(curRec);
+                        }
+                    } else {
+                        logger.trace("Action with recommendation ID {} and stable ID {} was dropped.",
+                                actionId, oid);
+                        droppedRecs.add(actionId);
+                    }
+                }
+            }
+
+            return droppedRecs;
         }
 
         private int getInputActionCount() {

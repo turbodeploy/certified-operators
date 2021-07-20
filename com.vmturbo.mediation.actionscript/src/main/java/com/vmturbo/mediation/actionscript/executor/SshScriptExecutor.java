@@ -309,7 +309,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                     + "workflow \"{}\".", actionExecutionDTO.getActionOid(),
                     actionExecutionDTO.getWorkflow().getDisplayName());
                 final ActionApiDTO apiMessage = converter.convert(
-                    new SdkActionInformationProvider(actionExecutionDTO), false, 0L, false);
+                    new SdkActionInformationProvider(actionExecutionDTO), true, 0L, false);
                 converted = jsonConverter.writeValueAsString(apiMessage);
             } else {
                 logger.debug("Using SDK message format when sending action with ID \"{}\" to "
