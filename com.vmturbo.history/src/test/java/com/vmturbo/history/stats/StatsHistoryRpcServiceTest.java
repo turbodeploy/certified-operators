@@ -82,12 +82,14 @@
  import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+ import com.vmturbo.common.protobuf.stats.Stats.GetMovingStatisticsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
  import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
  import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+ import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
  import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
  import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
@@ -169,8 +171,10 @@ public class StatsHistoryRpcServiceTest {
     private GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
             new GetEntityStatsResponseStreamObserver();
 
-
     private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
+            = mock(RequestBasedReader.class);
+
+    private RequestBasedReader<GetMovingStatisticsRequest, MovingStatisticsChunk> movingStatisticsReader
             = mock(RequestBasedReader.class);
 
     private VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
@@ -186,6 +190,7 @@ public class StatsHistoryRpcServiceTest {
                     statRecordBuilderSpy,
                     systemLoadReader, 100,
                     percentileReader,
+                    movingStatisticsReader,
                     volumeAttachmentHistoryReader));
 
     @Rule

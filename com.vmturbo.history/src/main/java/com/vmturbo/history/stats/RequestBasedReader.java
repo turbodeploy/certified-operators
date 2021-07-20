@@ -13,11 +13,11 @@ import com.vmturbo.history.db.VmtDbException;
 /**
  * {@link RequestBasedReader} reader that will be used to process API requests of a single type.
  *
- * @param <I> type of the API request that will be processed and data from the
+ * @param <Q> type of the API request that will be processed and data from the
  *                 history will be returned.
- * @param <R> type of the records that will be returned by the reader.
+ * @param <C> type of the record chunks that will be returned by the reader.
  */
-public interface RequestBasedReader<I, R> {
+public interface RequestBasedReader<Q, C> {
 
     /**
      * Processes the request and creates output through {@link StreamObserver} instance.
@@ -27,6 +27,6 @@ public interface RequestBasedReader<I, R> {
      * @throws VmtDbException in case of error while retrieving requested data from
      *                 DB.
      */
-    void processRequest(@Nonnull I request, @Nonnull StreamObserver<R> responseObserver)
+    void processRequest(@Nonnull Q request, @Nonnull StreamObserver<C> responseObserver)
                     throws VmtDbException;
 }

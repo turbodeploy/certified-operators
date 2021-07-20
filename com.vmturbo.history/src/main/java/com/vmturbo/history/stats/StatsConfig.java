@@ -50,6 +50,7 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.MovingStatisticsReader;
 import com.vmturbo.history.stats.readers.PercentileReader;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.CapacityRecordVisitor.CapacityPopulator;
@@ -198,12 +199,19 @@ public class StatsConfig {
                 systemLoadReader(),
                 systemLoadRecordsPerChunk,
                 percentileReader(),
+                movingStatisticsReader(),
                 volumeAttachmentHistoryReader());
     }
 
     @Bean
     protected PercentileReader percentileReader() {
         return new PercentileReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
+                historyDbConfig.historyDbIO());
+    }
+
+    @Bean
+    protected MovingStatisticsReader movingStatisticsReader() {
+        return new MovingStatisticsReader(timeToWaitNetworkReadinessMs, grpcReadingTimeoutMs, clock(),
                 historyDbConfig.historyDbIO());
     }
 
