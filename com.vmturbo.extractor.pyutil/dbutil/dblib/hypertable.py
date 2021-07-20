@@ -40,7 +40,7 @@ class HypertableConfig:
             [ChunkRange(row['number'], row['range_start'], row['range_end'], row['is_compressed'])
              for row in rows]
 
-    def configure(self, schema, table):
+    def configure(self, schema, table, disabled=[]):
         """Apply this hypertable configuration to the given table in the given schema."""
         time_dim = self.dims[0]
         self.db.execute(
@@ -53,7 +53,7 @@ class HypertableConfig:
                             f"  timescaledb.compress, "
                             f"  timescaledb.compress_segmentby = {s_by}, "
                             f"  timescaledb.compress_orderby = {o_by})")
-            if self.compress_after:
+            if self.compress_after and not "compression_policy" in disabled:
                 self.db.query(f"SELECT add_compression_policy('{schema}.{table}', "
                               f"INTERVAL '{self.compress_after}')")
         if self.drop_after:

@@ -134,4 +134,4 @@ file path
 * `docker load -i data-extender.zip`
 
 ### Run the tool from the container
-* `docker run turbonomic/data-extender extend-data -h` - or whatever options/args you want
+* `docker run --rm turbonomic/data-extender extend-data -h` - or whatever options/args you want

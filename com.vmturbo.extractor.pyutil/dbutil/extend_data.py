@@ -3,7 +3,6 @@ import collections
 import importlib
 import logging
 import os
-import sys
 from datetime import datetime, timedelta
 from enum import Enum
 
@@ -62,7 +61,10 @@ class Adjustment:
 class Extender:
     """Class to perform data-extension processing for a given table."""
 
-    def __init__(self, table, args, adjustments=None, time_col=None):
+    # scaling gap is computed once when the first table is scaled, so it's a static class var
+    scaling_gap = None
+
+    def __init__(self, table, args, adjustments=None, time_col=None, scale_only=False):
         """Create an instance for a table.
 
         :param table: name of table to be extended
@@ -76,10 +78,17 @@ class Extender:
         self.args = args
         self.adjustments = adjustments or []
         self.time_col = time_col
+        self.scale_only = scale_only
         self.columns = [row[0] for row in list(db.query(
             f"SELECT column_name FROM information_schema.columns "
             f"WHERE table_schema='{self.args.db_schema}' AND table_name='{table}'"))]
         self.prepare()
+        if not Extender.scaling_gap:
+            Extender.scaling_gap = self.compute_scaling_gap()
+        # for ease of access
+
+    def is_scale_only(self):
+        return self.scale_only
 
     def prepare(self):
         """Prepare this table in the replica schema.
@@ -129,6 +138,19 @@ class Extender:
         """
         logger.info(f"Copied {count} records from {self.table} to {self.extended} in {time}")
 
+    def compute_scaling_gap(self):
+        sql = f"SELECT max(max_oid) - min(min_oid) + 1 AS gap FROM ( " \
+              f"  SELECT max(oid) AS max_oid, min(oid) AS min_oid " \
+              f"    FROM {self.args.db_schema}.entity " \
+              f"  UNION SELECT max(action_oid) as max_oid, min(action_oid) AS min_oid" \
+              f"    FROM {self.args.db_schema}.completed_action " \
+              f"  UNION SELECT max(action_oid) as max_oid, min(action_oid) AS min_oid" \
+              f"    FROM {self.args.db_schema}.pending_action " \
+              f") AS foo"
+        gap = db.query(sql).fetchone()['gap'] or 1
+        logger.debug(f"Scaling gap: {gap}")
+        return gap
+
     def extend(self, replica_number):
         """Copy the sample data into replica table with values adjusted so that this replica
         doesn't collide in any fashion with other replicas.
@@ -136,10 +158,23 @@ class Extender:
         :param replica_number: number of replica to copy; one means the first replica, which
         should be copied with no column value adjustments
         """
-        return self.copy_data(replica_number)
+        if replica_number == 1 or not self.scale_only:
+            return self.copy_data(replica_number, source=self.extended)
+        else:
+            return 0
+
+    def scale(self):
+        return self.scale([])
+
+    def scale(self, oid_cols):
+        n = 0
+        for i in range(1, self.args.scale_factor + 1):
+            adjustments = [Adjustment(col, Extender.scaling_gap) for col in oid_cols]
+            n += self.copy_data(i, adjustments=adjustments)
+        return n
 
     def copy_data(self, replica_number, start=None, end=None, extra_cond=None, source=None,
-                  adjustments=None, source_desc=None):
+                  adjustments=None, source_desc=None, disabled=[]):
         """Copy data from the table in the sample schema to the corresponding table in the
         replica schema.
 
@@ -151,7 +186,7 @@ class Extender:
         :param end: exclusive end of range of timestamps of sample data to copy
         :param extra_cond: any conditions to add to the standard time-based condition
         :param source: source table to copy records from (defaults to table in sample schema)
-        :param source_dest: name of source, purely for logging purposes
+        :param source_desc: name of source, purely for logging purposes
         :return: number of records copied
         """
         start = start or self.args.sample_start
@@ -164,6 +199,7 @@ class Extender:
             cond = f"{cond} AND {extra_cond}"
         select_list = self.__adjusted_columns(replica_number, adjustments)
         t0 = datetime.now()
+        source_table = self.table if replica_number == 1 else self.extended
         n = db.execute(f"INSERT INTO {self.extended} ({', '.join(self.columns)}) "
                        f"SELECT {select_list} FROM {source} WHERE {cond}")
         from_desc = f" from {source_desc}" if source_desc else ""
@@ -203,10 +239,13 @@ class HypertableExtender(Extender):
         :return:true if the table was created anew in the replica schema
         """
         if super().prepare():
-            # created extended table - configure hypertable same as sample table
+            # created extended table - configure hypertable same as sample table but without
+            # a compression policy (we may be dealing with old data, and we don't want timescale
+            # deciding to compress a chunk we're still writing into
             if logger.isEnabledFor(logging.DEBUG):
                 self.sample_htconfig.log_config(logger, logging.DEBUG)
-            self.sample_htconfig.configure(self.args.replica_schema, self.table)
+            self.sample_htconfig.configure(self.args.replica_schema, self.table,
+                                           ["compression_policy"])
             HypertableConfig(self.args.replica_schema, self.table, db) \
                 .log_config(logger, logging.DEBUG)
             return True
@@ -221,8 +260,16 @@ class HypertableExtender(Extender):
             self.compress_compressible_chunks(datetime.min)
         return n
 
+    def scale(self, oid_cols):
+        n = 0
+        for i in range(1, self.args.scale_factor + 1):
+            logger.debug(f"Scaling copy #{i}")
+            adjustments = [Adjustment(col, Extender.scaling_gap) for col in oid_cols]
+            n += self.copy_data(i, adjustments=adjustments, disabled=["compression"])
+        return n
+
     def copy_data(self, replica_number, start=None, end=None, extra_cond=None, source=None,
-                  adjustments=None, source_desc=None):
+                  adjustments=None, source_desc=None, disabled=[]):
         """Implementation of copy_data for a hypertable extender.
 
         The copies are done chunk-by-chunk, from latest to earliest chunk. After each chunk is
@@ -235,7 +282,7 @@ class HypertableExtender(Extender):
         :param end: exclusive end of range of timestamps of sample data to copy
         :param extra_cond: any conditions to add to the standard time-based condition
         :param source: source table to copy records from (defaults to table in sample schema)
-        :param source_dest: name of source, purely for logging purposes
+        :param source_desc: name of source, purely for logging purposes
         :return: number of records copied
         """
         start = start or self.args.sample_start
@@ -254,8 +301,9 @@ class HypertableExtender(Extender):
                 n += super().copy_data(replica_number, start=_start, end=_end,
                                        extra_cond=extra_cond, adjustments=adjustments,
                                        source=source, source_desc=sd)
-                self.compress_compressible_chunks(
-                    _start - (replica_number - 1) * self.args.replica_gap_delta)
+                if not "compression" in disabled:
+                    self.compress_compressible_chunks(
+                         _start - (replica_number - 1) * self.args.replica_gap_delta)
             else:
                 logger.debug(f"Skipping chunk {c.number} of {self.table}: no range overlap")
         return n
@@ -296,23 +344,21 @@ class HypertableExtender(Extender):
 
 
 class EntityExtender(Extender):
-    """Extender for the entity table."""
+    """Extender for the entity table.
+
+    Extending an entity record just means adjusting its first_seen timestamp into the earliest
+    replica, with the same offset form that replica's start time as it has in the sample data
+    from the sample start time.
+    """
 
     def __init__(self, args):
+        total_adjustment = args.replica_gap_delta * (args.replica_count - 1)
         super().__init__('entity', args,
-                         adjustments=[Adjustment('first_seen', -args.replica_gap_delta)])
+                         adjustments=[Adjustment('first_seen', -total_adjustment)],
+                         scale_only=True)
 
-    def extend(self, replica_number):
-        """Extend entity records in the sample entity table.
-
-        Extending an entity record just means adjusting its first_seen timestamp into the earliest
-        replica, with the same offset form that replica's start time as it has in the sample data
-        from the sample start time.
-        """
-        if replica_number == 1:
-            return self.copy_data(replica_number)
-        else:
-            return 0
+    def scale(self):
+        return super().scale(["oid"])
 
 class MetricExtender(HypertableExtender):
     """Extender for the metric hypertable."""
@@ -320,7 +366,8 @@ class MetricExtender(HypertableExtender):
     def __init__(self, args):
         super().__init__('metric', args, time_col='time',
                          adjustments=[Adjustment('time', -args.replica_gap_delta)])
-
+    def scale(self):
+        return super().scale(["entity_oid", "provider_oid"])
 
 class HistoricalEntityAttrsExtender(HypertableExtender):
     """Extender for the historical_entity_attrs hypertable."""
@@ -328,7 +375,8 @@ class HistoricalEntityAttrsExtender(HypertableExtender):
     def __init__(self, args):
         super().__init__('historical_entity_attrs', args, time_col='time',
                          adjustments=[Adjustment('time', -args.replica_gap_delta)]),
-
+    def scale(self):
+        return super().scale(["entity_oid"])
 
 class CompletedActionExtender(HypertableExtender):
     """Extender for completed_action hypertable."""
@@ -338,6 +386,8 @@ class CompletedActionExtender(HypertableExtender):
                          adjustments=[Adjustment('completion_time', -args.replica_gap_delta)],
                          time_col='completion_time')
 
+    def scale(self):
+        return super().scale(["action_oid", "target_entity_oid"])
 
 class PendingActionExtender(Extender):
     """Extender for pending_action table."""
@@ -348,20 +398,18 @@ class PendingActionExtender(Extender):
                             f"FROM {self.table}").fetchone()['span'] or 0
         self.adjustments = [Adjustment('action_oid', oid_span + 1)]
 
+    def scale(self):
+        return super().scale(["action_oid", "target_entity_oid"])
 
-class WastedFileExtender(Extender):
-    """Extender for wasted_file table. We only copy into first replica replica data, because this
+class FileExtender(Extender):
+    """Extender for file table. We only copy into first replica replica data, because this
     table is completely rewritten on every ingestion."""
 
     def __init__(self, args):
-        super().__init__('wasted_file', args)
+        super().__init__('file', args, scale_only=True)
 
-    def extend(self, replica_number):
-        if replica_number == 1:
-            return self.copy_data(1)
-        else:
-            return 0
-
+    def scale(self):
+        return super().scale(["volume_oid", "storage_oid"])
 
 class ScopeExtender(Extender):
     """Extender for scope table.
@@ -396,23 +444,19 @@ class ScopeExtender(Extender):
 
     def extend_first_replica(self):
         """
-        For the first replica we'll copy all records into the replica table, and then (unless
-        replica-count = 1):
+        For the first replica all records will already have been copied into the replica table by
+        scaling. Unless replica_count == 1, we then make the following adjustments:
 
-        * Adjust start times in records with finish=INF so they fall in the final repcica
-        * Move all records with finish != INF that matches another record with FIN=INF so that
-          its start and finish times are in the final record.
+        * Adjust start times in records with finish=INF so they fall in the final (earliest) replica
+        * Move any record with finish != INF that matches another record with finish=INF so that
+          its start and finish times are in the final (earliest) replica.
 
         After making these adjustments, any record whose start time remains in the first replica
         will be eligible for copying into all other replicas, and that's how we'll process the
         other replicas.
 
-        :return: number of records written
+        :return: 0, since we never create new records
         """
-        t0 = datetime.now()
-        n = self.copy_data(1)
-        logger.debug(
-            f"Wrote {n} records into scope table for first replica in {datetime.now() - t0}")
         moved = extended = 0
         if self.args.replica_count != 1:
             shift = f"INTERVAL '{self.args.replica_gap_delta}'"
@@ -433,7 +477,7 @@ class ScopeExtender(Extender):
                 f"WHERE finish = '{self.inf_time}'")
             logger.debug(
                 f"Moved {extended} record starts to earliest replica in {datetime.now() - t0}")
-        return n
+        return 0
 
     def extend_other_replicas(self, replica_number):
         """Fill in replicas other than first (latest) replica.
@@ -455,6 +499,9 @@ class ScopeExtender(Extender):
         logger.debug(f"Wrote {n} records to scope table for replica {replica_number} "
                      f"in {datetime.now() - t0}")
         return n
+
+    def scale(self):
+        return super().scale(["seed_oid", "scoped_oid"])
 
 class ArgParser:
     """Command line argument parser."""
@@ -490,7 +537,13 @@ class ArgParser:
             help='end of time interval to replicate; default earliest metric',
             type=is_valid_time)
         parser.add_argument(
-            '--replica-count', '-n', help='number of replicas to create', type=int, default=1)
+            '--replica-count', '-n', help='number of time-dimension replicas to create', type=int,
+            default=1)
+        parser.add_argument(
+            '--scale-factor', '-s',
+            help='number of topology-dimension copies to create before replicating, can be fractional',
+            type=int, default=1
+        )
         parser.add_argument(
             '--replica-gap',
             help='gap between end of one replica and start of next, e.g. 10m or 30s or 10m30s',
@@ -527,7 +580,7 @@ class Extendable(Enum):
     historical_entity_attrs = [HistoricalEntityAttrsExtender]
     completed_action = [CompletedActionExtender]
     pending_action = [PendingActionExtender]
-    wasted_file = [WastedFileExtender]
+    file = [FileExtender]
     scope = [ScopeExtender]
 
     def __call__(self, *args, **kwargs):
@@ -618,7 +671,10 @@ def main():
             if i == 1:
                 extender.drop_indexes()
             logger.info(f"Copying data to table {extender.table} for replica #{i}")
-            n = extender.extend(i)
+            if i == 1:
+                n = extender.scale()
+            else:
+                n = 0 if extender.is_scale_only() else extender.extend(i)
             # tie each table off after we complete its last replica
             if i == args.replica_count:
                 extender.create_indexes()
