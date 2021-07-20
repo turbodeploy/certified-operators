@@ -98,19 +98,16 @@ class Index:
 
     def __init__(self, info, db):
         """Create a new instance.
-
         :param info: the row from pg_index for this index
         :param db: database access
         """
         self.is_pk = info['indisprimary']
         # get the definition SQL, as well as the qualified names of the table and index
+        sql = f"SELECT pg_get_indexdef({info['indexrelid']}) AS defn, " \
+              f"  {info['indrelid']}::regclass AS tbl, " \
+              f"  (parse_ident({info['indexrelid']}::regclass::text)) AS name"
         self.defn, self.table, self.name = \
-            [db.query(f"SELECT pg_get_indexdef({info['indexrelid']}) AS defn, "
-                      f"  {info['indrelid']}::regclass AS tbl, "
-                      # for index name we split the qualified name into parts
-                      f"  (parse_ident({info['indexrelid']}::regclass::text)) AS name")
-                 .fetchone()[k]
-             for k in ['defn', 'tbl', 'name']]
+            map(db.query(sql).fetchone().get, ['defn', 'tbl', 'name'])
         self.db = db
 
     def drop(self):
@@ -118,6 +115,7 @@ class Index:
         sql = f"ALTER TABLE {self.table} DROP CONSTRAINT {self.name[1]}" if self.is_pk \
             else f"DROP INDEX {'.'.join(self.name)}"
         self.db.execute(sql)
+
 
     def create(self):
         """(Re)create this index on its table."""

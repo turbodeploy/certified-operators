@@ -23,6 +23,8 @@ import sqlalchemy
 import xxhash
 from ruamel.yaml import YAML
 
+global logger
+
 class Folder: pass
 
 class Dashboard: pass
