@@ -10,16 +10,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
@@ -107,9 +114,9 @@ public class ConsistentResizerTest {
      */
     @Test
     public void testResizingGroupGenerateResizeDownWithoutLowerBoundWithCSF() {
-        Resize resize1 = mockResize(TestUtils.VMEM, 200, 100, 0, true, VMEM_CAPACITY_INCREMENT,
+        Resize resize1 = mockResize(TestUtils.VCPU, 200, 100, 0, true, VMEM_CAPACITY_INCREMENT,
             FAST_CONSISTENT_SCALING_FACTOR);
-        Resize resize2 = mockResize(TestUtils.VMEM, 200, 100, 0, true, VMEM_CAPACITY_INCREMENT,
+        Resize resize2 = mockResize(TestUtils.VCPU, 200, 100, 0, true, VMEM_CAPACITY_INCREMENT,
             SLOW_CONSISTENT_SCALING_FACTOR);
         ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
         rg.addResize(resize1, true, new HashMap<>(), rawMaterials);
@@ -152,9 +159,9 @@ public class ConsistentResizerTest {
      */
     @Test
     public void testResizingGroupGenerateResizeDownWithLowerBoundWithCSF() {
-        Resize resize1 = mockResize(TestUtils.VMEM, 300, 136, 130, true, VMEM_CAPACITY_INCREMENT,
+        Resize resize1 = mockResize(TestUtils.VCPU, 300, 136, 130, true, VMEM_CAPACITY_INCREMENT,
             SLOW_CONSISTENT_SCALING_FACTOR);
-        Resize resize2 = mockResize(TestUtils.VMEM, 300, 136, 130, true, VMEM_CAPACITY_INCREMENT,
+        Resize resize2 = mockResize(TestUtils.VCPU, 300, 136, 130, true, VMEM_CAPACITY_INCREMENT,
             FAST_CONSISTENT_SCALING_FACTOR);
         ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
         rg.addResize(resize1, true, new HashMap<>(), rawMaterials);
@@ -264,9 +271,9 @@ public class ConsistentResizerTest {
      */
     @Test
     public void testResizingGroupGenerateResizeUpWithCSF() {
-        Resize resize1 = mockResize(TestUtils.VMEM, 114, 214, 0, true, VCPU_CAPACITY_INCREMENT,
+        Resize resize1 = mockResize(TestUtils.VCPU, 114, 214, 0, true, VCPU_CAPACITY_INCREMENT,
             FAST_CONSISTENT_SCALING_FACTOR);
-        Resize resize2 = mockResize(TestUtils.VMEM, 120, 220, 0, true, VCPU_CAPACITY_INCREMENT,
+        Resize resize2 = mockResize(TestUtils.VCPU, 120, 220, 0, true, VCPU_CAPACITY_INCREMENT,
             SLOW_CONSISTENT_SCALING_FACTOR);
         ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
         rg.addResize(resize1, true, new HashMap<>(), rawMaterials);
@@ -321,6 +328,82 @@ public class ConsistentResizerTest {
     }
 
     /**
+     * Test ResizingGroup.generateResizes for containers where VMem resize up is generated with
+     * namespace quota.
+     * <p/>
+     * Both resize1 and resize2 from 100 to 200. Provider namespace has capacity 400, quantity 100
+     * and consistentScalingFactor 0.2. In this case of VMem resizing (with requiresConsistentScalingFactor
+     * false), seller consistentScalingFactor is not applied to the calculation of headroom of namespace
+     * so that namespace has sufficient available headroom for these 2 resizes. So 2 actions are generated.
+     */
+    @Test
+    public void testResizingGroupGenerateVMemResizeUpWithNamespaceQuota() {
+        Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+            new RawMaterial(TestUtils.VMEM.getType(), false, false),
+            new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false)))
+            .requiresConsistentScalingFactor(false)
+            .build()));
+
+        Resize resize1 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VMEM, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        Resize resize2 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VMEM, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+
+        Trader sellerTrader = TestUtils.createTrader(new Economy(), TestUtils.NAMESPACE_TYPE, Collections.singletonList(0L),
+            Collections.singletonList(TestUtils.VMEMLIMITQUOTA), new double[]{400}, false, false);
+        sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
+        CommoditySold sellerCommSold = getCommoditySold(400, 100);
+        Map<CommoditySold, Trader> rawMaterialAndSupplier = ImmutableMap.of(sellerCommSold, sellerTrader);
+        rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
+        rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
+
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(2, actions.size());
+    }
+
+    /**
+     * Test ResizingGroup.generateResizes for containers VCPU where no resize up is generated with
+     * namespace quota.
+     * <p/>
+     * Both resize1 and resize2 from 100 to 200. Provider namespace has capacity 400, quantity 100
+     * and consistentScalingFactor 0.2. In this case of VCPU resizing (with requiresConsistentScalingFactor
+     * true), seller consistentScalingFactor is applied to the calculation of headroom of namespace so
+     * that namespace only has 60 (0.2 * 300) available headroom which is not sufficient for these
+     * 2 resizes. So no actions are generated.
+     */
+    @Test
+    public void testResizingGroupGenerateVCPUNoResizeUpWithNamespaceQuota() {
+        Optional<RawMaterials> rawMaterials = Optional.of(new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+            new RawMaterial(TestUtils.VCPU.getType(), false, false),
+            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false)))
+            .requiresConsistentScalingFactor(true)
+            .build()));
+
+        Resize resize1 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VCPU, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        Resize resize2 = mockResize(TestUtils.CONTAINER_TYPE, TestUtils.VCPU, 100, 200, 0, true, VCPU_CAPACITY_INCREMENT);
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+
+        Trader sellerTrader = TestUtils.createTrader(new Economy(), TestUtils.NAMESPACE_TYPE, Collections.singletonList(0L),
+            Collections.singletonList(TestUtils.VCPULIMITQUOTA), new double[]{400}, false, false);
+        sellerTrader.getSettings().setConsistentScalingFactor(0.2f);
+        CommoditySold sellerCommSold = getCommoditySold(400, 100);
+        Map<CommoditySold, Trader> rawMaterialAndSupplier = ImmutableMap.of(sellerCommSold, sellerTrader);
+        rg.addResize(resize1, true, rawMaterialAndSupplier, rawMaterials);
+        rg.addResize(resize2, true, rawMaterialAndSupplier, rawMaterials);
+
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(0, actions.size());
+    }
+
+    private CommoditySold getCommoditySold(final double capacity, final double quantity) {
+        CommoditySold commoditySold = new CommoditySoldWithSettings();
+        commoditySold.setCapacity(capacity);
+        commoditySold.setQuantity(quantity);
+        return commoditySold;
+    }
+
+    /**
      * Get the consistent scaling factor on the resize.
      *
      * @param resize the resize.
@@ -333,8 +416,15 @@ public class ConsistentResizerTest {
     private Resize mockResize(CommoditySpecification commSpec, double commOldCap, double commNewCap,
                               double capacityLowerBound, boolean isEligibleForResizeDown,
                               double capacityIncrement) {
+        return mockResize(TestUtils.VM_TYPE, commSpec, commOldCap, commNewCap, capacityLowerBound,
+            isEligibleForResizeDown, capacityIncrement);
+    }
+
+    private Resize mockResize(int traderType, CommoditySpecification commSpec, double commOldCap, double commNewCap,
+        double capacityLowerBound, boolean isEligibleForResizeDown,
+        double capacityIncrement) {
         Economy economy = new Economy();
-        Trader trader = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Collections.singletonList(0L),
+        Trader trader = TestUtils.createTrader(economy, traderType, Collections.singletonList(0L),
             Arrays.asList(commSpec), new double[]{commOldCap}, true, false);
         trader.setDebugInfoNeverUseInCode("trader");
         trader.getSettings().setIsEligibleForResizeDown(isEligibleForResizeDown);

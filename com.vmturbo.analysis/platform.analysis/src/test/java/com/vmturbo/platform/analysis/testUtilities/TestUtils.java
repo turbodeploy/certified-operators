@@ -144,6 +144,7 @@ public class TestUtils {
     public static final CommoditySpecification SPACE = createNewCommSpec();
     public static final CommoditySpecification COOLING = createNewCommSpec();
     public static final CommoditySpecification VMEMLIMITQUOTA = createNewCommSpec();
+    public static final CommoditySpecification VCPULIMITQUOTA = createNewCommSpec();
     public static final CommoditySpecification DTU = createNewCommSpec();
     /**
      * Construct the commodity specification for Application commodity.

@@ -177,12 +177,16 @@ public class ConsistentResizer {
                             // in each rawMaterial, the initial entry in the map needs to add the current
                             // amount of headroom in the rawMaterial.  After that, we return the capacity
                             // of the resized commodity back to the rawMaterial.
+                            // Get seller consistentScalingFactor only if given partial resize requires
+                            // consistentScalingFactor.
+                            final float sellerConsistentScalingFactor = partial.requiresConsistentScalingFactor()
+                                ? seller.getSettings().getConsistentScalingFactor() : 1f;
                             ConsistentScalingNumber headroom = commSold == null
                                 ? ConsistentScalingNumber.MAX_VALUE
                                 : fromNormalizedNumber(
                                 partial.getResize().getResizedCommodity().getSettings().getUtilizationUpperBound()
                                     * (commSold.getEffectiveCapacity() - commSold.getQuantity()),
-                                seller.getSettings().getConsistentScalingFactor());
+                                    sellerConsistentScalingFactor);
 
                             return headroom.plus(oldCapacity);
                         } else {
