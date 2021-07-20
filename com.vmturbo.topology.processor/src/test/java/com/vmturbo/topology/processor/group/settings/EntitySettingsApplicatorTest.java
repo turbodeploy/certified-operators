@@ -1906,6 +1906,16 @@ public class EntitySettingsApplicatorTest {
 
     }
 
+    /**
+     *  If the VM doesn't have VCPU commodity, should pass without exception.
+     */
+    @Test
+    public void testVCPUIncrementApplicatorForVMWithoutVCPU() {
+        final TopologyEntityDTO.Builder builder =
+                TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE.getNumber()).setOid(1);
+        applySettings(TOPOLOGY_INFO, builder, VM_VCPU_INCREMENT_DEFAULT);
+    }
+
     @Test
     public void testResizeIncrementApplicatorForVStorageForDefault() {
         final TopologyEntityDTO.Builder builder =
