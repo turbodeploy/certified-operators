@@ -16,6 +16,7 @@ public class PartialResize {
     private final boolean resizeDueToROI_;
     private final Map<CommoditySold, Trader> rawMaterialsMap_ = new HashMap<>();
 
+    private final boolean requiresConsistentScalingFactor;
     private final double consistentScalingFactor;
     private final double providerConsistentScalingFactor;
     private ConsistentScalingNumber consistentScalingOldCapacity = null;
@@ -29,6 +30,7 @@ public class PartialResize {
         final Optional<RawMaterials> filteredRawMaterials = rawMaterialDescriptor
             .filter(RawMaterials::requiresConsistentScalingFactor);
 
+        requiresConsistentScalingFactor = filteredRawMaterials.isPresent();
         consistentScalingFactor = filteredRawMaterials
             .map(d -> (double)resize.getSellingTrader().getSettings().getConsistentScalingFactor())
             .orElse(1.0);
@@ -47,6 +49,17 @@ public class PartialResize {
 
     public Map<CommoditySold, Trader> getRawMaterials() {
         return rawMaterialsMap_;
+    }
+
+    /**
+     * Return true if the commodity associated with this PartialResize requires the use of
+     * consistentScalingFactor.
+     *
+     * @return true true if the commodity associated with this PartialResize requires the use of
+     * consistentScalingFactor.
+     */
+    public boolean requiresConsistentScalingFactor() {
+        return requiresConsistentScalingFactor;
     }
 
     /**
