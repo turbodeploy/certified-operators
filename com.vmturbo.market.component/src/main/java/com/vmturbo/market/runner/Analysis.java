@@ -173,6 +173,29 @@ public class Analysis {
             .build()
             .register();
 
+    private static final DataMetricSummary SMA_RUNTIME_SUMMARY = DataMetricSummary.builder()
+            .withName("sma_duration_seconds")
+            .withHelp("Time to run sma.")
+            .withLabelNames("scope_type")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 20) // 20 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
+    private static final DataMetricSummary RESERVED_CAPACITY_ANALYSIS_SUMMARY = DataMetricSummary.builder()
+            .withName("reserved_capacity_analysis_duration_seconds")
+            .withHelp("Time to run reserved capacity analysis.")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 20) // 20 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
     private final Logger logger = LogManager.getLogger();
 
     // Analysis started (kept true also when it is completed).
@@ -514,8 +537,10 @@ public class Analysis {
         // Do not generate reservations for cloud migration plans.
         final ReservedCapacityResults reservedCapacityResults;
         if (!isMigrateToCloud) {
-            try (TracingScope ignored = Tracing.trace("reserved_capacity_analysis")) {
-                reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
+            try (DataMetricTimer timer = RESERVED_CAPACITY_ANALYSIS_SUMMARY.startTimer()) {
+                try (TracingScope ignored = Tracing.trace("reserved_capacity_analysis")) {
+                    reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
+                }
             }
         } else {
             reservedCapacityResults = ReservedCapacityResults.EMPTY;
@@ -597,8 +622,10 @@ public class Analysis {
                                     cloudVmOidToProvidersOIDsMap,
                                     topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
                             saveSMADiags(smaInput);
-                            try (TracingScope ignored = Tracing.trace("execute_sma")) {
-                                smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
+                            try (DataMetricTimer timer = SMA_RUNTIME_SUMMARY.startTimer()) {
+                                try (TracingScope ignored = Tracing.trace("execute_sma")) {
+                                    smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
+                                }
                             }
                         }
                         // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
