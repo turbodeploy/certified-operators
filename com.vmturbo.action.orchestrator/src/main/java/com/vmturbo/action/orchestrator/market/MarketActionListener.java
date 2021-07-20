@@ -132,7 +132,7 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
             orderedActions.getActionList().forEach(action -> logger.debug("Received action: " + action));
         }
 
-        final LocalDateTime analysisStart = localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp());
+        final LocalDateTime analysisStart = localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp());
         final LocalDateTime analysisEnd = localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp());
         if (shouldSkip(orderedActions)) {
             logger.warn("Dropping action plan {} (info: {}) " +
