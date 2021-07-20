@@ -1,6 +1,5 @@
-package com.vmturbo.components.crypto;
+package com.vmturbo.common.api.crypto;
 
-import static com.vmturbo.components.crypto.CryptoFacility.CHARSET_CRYPTO;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
@@ -75,11 +74,11 @@ public class CryptoFacilityTest {
     @Test
     public void testEncryptBothKeyLength() throws UnsupportedEncodingException {
         String ciphertextWith128BitsKey = BaseEncoding.base64()
-                .encode(CryptoFacility.encrypt(null, VALUE.getBytes(CHARSET_CRYPTO), 1));
+                .encode(CryptoFacility.encrypt(null, VALUE.getBytes(CryptoFacility.CHARSET_CRYPTO), 1));
         assertEquals(VALUE, CryptoFacility.decrypt(null, ciphertextWith128BitsKey));
 
         String ciphertextWith256BitsKey = BaseEncoding.base64()
-                .encode(CryptoFacility.encrypt(null, VALUE.getBytes(CHARSET_CRYPTO), 2));
+                .encode(CryptoFacility.encrypt(null, VALUE.getBytes(CryptoFacility.CHARSET_CRYPTO), 2));
         assertEquals(VALUE, CryptoFacility.decrypt(null, ciphertextWith256BitsKey));
     }
 

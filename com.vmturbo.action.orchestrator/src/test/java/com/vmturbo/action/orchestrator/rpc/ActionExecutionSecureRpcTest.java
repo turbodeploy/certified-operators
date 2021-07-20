@@ -104,7 +104,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.oid.identity.ArrayOidSet;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**

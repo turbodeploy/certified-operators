@@ -1,31 +1,42 @@
-package com.vmturbo.components.common.identity;
+package com.vmturbo.oid.identity;
 
 import java.util.Collection;
 import java.util.PrimitiveIterator;
 import java.util.PrimitiveIterator.OfLong;
 import java.util.function.LongConsumer;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.roaringbitmap.longlong.LongIterator;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 /**
- * An OidSet that is backed by a {@link Roaring64NavigableMap}
+ * An OidSet that is backed by a {@link Roaring64NavigableMap}.
  */
 public class RoaringBitmapOidSet implements OidSet {
     private final Roaring64NavigableMap roaringBitmap;
 
+    /**
+     * Create a new {@link RoaringBitmapOidSet}.
+     *
+     * @param oids The oids in the set.
+     */
     public RoaringBitmapOidSet(long[] oids) {
         roaringBitmap = Roaring64NavigableMap.bitmapOf(oids != null ? oids : new long[0]);
     }
 
+    /**
+     * Create a new {@link RoaringBitmapOidSet}.
+     *
+     * @param oids The oids in the set.
+     */
     public RoaringBitmapOidSet(Collection<Long> oids) {
         roaringBitmap = new Roaring64NavigableMap();
         oids.forEach(roaringBitmap::addLong);
     }
+
     /**
      * Create an instance based on a pre-created {@link Roaring64NavigableMap}.
-     * @param source
+     *
+     * @param source the navigable map to act as the backing bitmap.
      */
     RoaringBitmapOidSet(Roaring64NavigableMap source) {
         roaringBitmap = source;
@@ -40,7 +51,7 @@ public class RoaringBitmapOidSet implements OidSet {
     public int size() {
         // this may get truncated to an int, but our OidSet structure doesn't support sets greater
         // than int capacity anyways.
-        return (int) roaringBitmap.getLongCardinality();
+        return (int)roaringBitmap.getLongCardinality();
     }
 
     @Override
@@ -58,8 +69,9 @@ public class RoaringBitmapOidSet implements OidSet {
     /**
      * {@inheritDoc}
      *
-     * @param other
-     * @return
+     * @param other The other set to union with this one.
+     * @return The result of unioning the other set with this one. It is a new set.
+     *         Does not modify this or the other.
      */
     @Override
     public OidSet union(final OidSet other) {
@@ -68,7 +80,7 @@ public class RoaringBitmapOidSet implements OidSet {
         }
         // create a roaring bitmap containing the union results
         Roaring64NavigableMap resultMap = new Roaring64NavigableMap();
-        other.iterator().forEachRemaining((LongConsumer) resultMap::addLong);
+        other.iterator().forEachRemaining((LongConsumer)resultMap::addLong);
         // perform the union using the "or" method on the roaring bitmap. this modifies the bitmap
         // being operated on.
         resultMap.or(roaringBitmap);
@@ -95,7 +107,7 @@ public class RoaringBitmapOidSet implements OidSet {
         }
 
         Roaring64NavigableMap resultSet = new Roaring64NavigableMap();
-        for (int x = 0; x < inputOids.length ; x++) {
+        for (int x = 0; x < inputOids.length; x++) {
             if (roaringBitmap.contains(inputOids[x])) {
                 resultSet.add(inputOids[x]);
             }
@@ -129,7 +141,11 @@ public class RoaringBitmapOidSet implements OidSet {
     private class RoaringBitmapOidSetIterator implements PrimitiveIterator.OfLong {
         final LongIterator rbIterator;
 
-        public RoaringBitmapOidSetIterator(Roaring64NavigableMap r) {
+        /**
+         * Create a new {@link RoaringBitmapOidSetIterator}.
+         * @param r The navigable map to iterate.
+         */
+        RoaringBitmapOidSetIterator(Roaring64NavigableMap r) {
             rbIterator = r.getLongIterator();
         }
 
@@ -146,7 +162,7 @@ public class RoaringBitmapOidSet implements OidSet {
         @Override
         public void remove() {
             // not implemented
-            throw new NotImplementedException();
+            throw new UnsupportedOperationException();
         }
     }
 }

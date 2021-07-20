@@ -1,4 +1,4 @@
-package com.vmturbo.components.crypto;
+package com.vmturbo.common.api.crypto;
 
 import javax.annotation.Nonnull;
 

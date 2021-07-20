@@ -25,7 +25,7 @@ import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
-import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**

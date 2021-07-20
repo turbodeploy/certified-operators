@@ -4,6 +4,8 @@ import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONS
 
 import java.util.Optional;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +17,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistra
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.MemoryMetricsServiceController;
@@ -24,6 +27,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
+import com.vmturbo.components.common.logging.HeapDumpRpcService;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.logging.MemoryMetricsRpcService;
 import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
@@ -31,8 +35,6 @@ import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
 import com.vmturbo.components.common.migration.MigrationController;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.tracing.TracingManager;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -52,6 +54,14 @@ public class BaseVmtComponentConfig {
 
     @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
+
+    @Value("${removeHeapDumpService:false}")
+    private boolean removeHeapDumpService;
+
+    @Value("${enableHeapDumping:false}")
+    private boolean enableHeapDumping;
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * This property is used to disable consul migration. This is necessary for tests and
@@ -75,7 +85,7 @@ public class BaseVmtComponentConfig {
      */
     @Value("${" + ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
     public void setEnableExternalSecretsStatic(boolean enableExternalSecrets){
-        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+        CryptoFacility.enableExternalSecrets = enableExternalSecrets;
     }
 
     /**
@@ -176,7 +186,12 @@ public class BaseVmtComponentConfig {
 
     @Bean
     public MemoryMetricsRpcService memoryMetricsRpcService() {
-        return new MemoryMetricsRpcService(heapDumper());
+        return new MemoryMetricsRpcService();
+    }
+
+    @Bean
+    public HeapDumpRpcService.Factory heapDumpRpcServiceFactory() {
+        return new HeapDumpRpcService.Factory(heapDumper(), removeHeapDumpService, enableHeapDumping);
     }
 
     @Bean

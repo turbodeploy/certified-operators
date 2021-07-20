@@ -1,33 +1,41 @@
-package com.vmturbo.components.common.identity;
+package com.vmturbo.oid.identity;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.PrimitiveIterator;
 import java.util.Set;
-
-import com.google.common.collect.Sets;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * Generic base tests for OidSet implementations.
+ *
+ * @param <T> The type of the set being tested.
  */
 public abstract class OidSetTest<T extends OidSet> {
 
     // override this method to generate OidSet instances for the test
-    abstract protected T createOidSet(long[] sourceOids);
+    protected abstract T createOidSet(long[] sourceOids);
 
+    /**
+     * testContainsOid.
+     */
     @Test
     public void testContainsOid() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
         Assert.assertTrue(testFilter.contains(2L));
         Assert.assertFalse(testFilter.contains(5L));
     }
 
+    /**
+     * testContainsStringOids.
+     */
     @Test
     public void testContainsStringOids() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
         // empty list should be contained
         Assert.assertTrue(testFilter.contains(Collections.emptyList()));
         // non-long-compatible strings should NOT be contained
@@ -39,6 +47,9 @@ public abstract class OidSetTest<T extends OidSet> {
         Assert.assertFalse(testFilter.containsStringOids(Arrays.asList("1", "2", "3", "4")));
     }
 
+    /**
+     * testContainsCollection.
+     */
     @Test
     public void testContainsCollection() {
         T testFilter = createOidSet(new long[]{1L, 2L, 3L});
@@ -62,7 +73,7 @@ public abstract class OidSetTest<T extends OidSet> {
     }
 
     /**
-     * Test if the oidset contains any elements of an input oidset
+     * Test if the oidset contains any elements of an input oidset.
      */
     @Test
     public void testContainsAnyOidSet() {
@@ -74,50 +85,68 @@ public abstract class OidSetTest<T extends OidSet> {
         Assert.assertFalse(testFilter.containsAny(createOidSet(new long[]{4L, 5L})));
     }
 
+    /**
+     * testEmptySet.
+     */
     @Test
     public void testEmptySet() {
         T testFilter = createOidSet(new long[0]);
         Assert.assertFalse(testFilter.contains(5L));
     }
 
+    /**
+     * testNullConstructorParameter.
+     */
     @Test
     public void testNullConstructorParameter() {
         T testFilter = createOidSet(null);
         Assert.assertEquals(0, testFilter.size());
     }
 
+    /**
+     * testFilterPrimitiveArray.
+     */
     @Test
     public void testFilterPrimitiveArray() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L,4L});
-        OidSet results = testFilter.filter(new long[]{2,3});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L, 4L});
+        OidSet results = testFilter.filter(new long[]{2, 3});
         Assert.assertEquals(2, results.size());
         Assert.assertTrue(results.contains(2));
         Assert.assertFalse(results.contains(1));
     }
 
+    /**
+     * testFilterOidSet.
+     */
     @Test
     public void testFilterOidSet() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L,4L});
-        T testCandidates = createOidSet(new long[]{2L,3L});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L, 4L});
+        T testCandidates = createOidSet(new long[]{2L, 3L});
         OidSet results = testFilter.filter(testCandidates);
         Assert.assertEquals(2, results.size());
         Assert.assertTrue(results.contains(2));
         Assert.assertFalse(results.contains(1));
     }
 
+    /**
+     * testFilterSet.
+     */
     @Test
     public void testFilterSet() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L,4L});
-        Set<Long> testCandidates = Sets.newHashSet(2L,3L);
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L, 4L});
+        Set<Long> testCandidates = Stream.of(2L, 3L).collect(Collectors.toSet());
         Set<Long> results = testFilter.filter(testCandidates);
         Assert.assertEquals(2, results.size());
         Assert.assertTrue(results.contains(2L));
         Assert.assertFalse(results.contains(1L));
     }
 
+    /**
+     * testIterator.
+     */
     @Test
     public void testIterator() {
-        T testFilter = createOidSet(new long[]{1,2,3,4});
+        T testFilter = createOidSet(new long[]{1, 2, 3, 4});
         PrimitiveIterator.OfLong iterator = testFilter.iterator();
         Assert.assertEquals(1L, iterator.nextLong());
         Assert.assertEquals(2L, iterator.nextLong());
@@ -126,6 +155,9 @@ public abstract class OidSetTest<T extends OidSet> {
         Assert.assertFalse(iterator.hasNext());
     }
 
+    /**
+     * testUnion.
+     */
     @Test
     public void testUnion() {
         T testSetA = createOidSet(new long[]{2, 3, 4});

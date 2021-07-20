@@ -14,11 +14,9 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.security.access.prepost.PreAuthorize;
 
-import com.vmturbo.auth.api.authorization.AuthorizationException;
+import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.components.crypto.CryptoFacility;
 
 /**
  * Implements {@link ILicenseStore} by storing license in docker volume.

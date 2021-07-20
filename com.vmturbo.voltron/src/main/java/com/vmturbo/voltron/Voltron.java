@@ -47,11 +47,11 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.clustermgr.ClusterMgrService;
+import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Velocity-Oriented Lightweight Turbo Running On Native.

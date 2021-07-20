@@ -13,9 +13,9 @@ import com.google.common.collect.ImmutableList;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.components.common.identity.OidFilter;
-import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.oid.identity.ArrayOidSet;
+import com.vmturbo.oid.identity.OidFilter;
+import com.vmturbo.oid.identity.OidSet;
 
 /**
  * Test EntityAccessScope.
