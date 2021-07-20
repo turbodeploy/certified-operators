@@ -18,7 +18,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.EnumUtils;
@@ -154,10 +153,8 @@ public enum EntitySettingSpecs {
      * Enable Scale actions (currently it is used for Volumes and Cloud DB Servers only).
      */
     EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER),
-            new BooleanSettingDataType(true, ImmutableMap.of(EntityType.DATABASE_SERVER, false)),
-            true),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER),
+            new BooleanSettingDataType(true), true),
 
     /**
      * Enable Delete actions (currently it is used for Volumes only).

@@ -7,13 +7,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
@@ -57,9 +62,13 @@ public class TargetStatusTrackerImplTest {
     private TargetStatusTrackerImpl targetStatusTracker;
     private TargetStore targetStore;
     private ProbeStore probeStore;
+    private TargetStatusStore targetStatusStore;
     private IdentityProvider identityProvider;
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
+
+    @Captor
+    private ArgumentCaptor<TargetStatus> targetStatusCaptor;
 
     /**
      * Initialize test environment.
@@ -72,7 +81,8 @@ public class TargetStatusTrackerImplTest {
 
         targetStore = Mockito.mock(TargetStore.class);
         probeStore = Mockito.mock(ProbeStore.class);
-        targetStatusTracker = new TargetStatusTrackerImpl(targetStore, probeStore, clock);
+        targetStatusStore = Mockito.mock(TargetStatusStore.class);
+        targetStatusTracker = new TargetStatusTrackerImpl(targetStatusStore, targetStore, probeStore, clock);
         identityProvider = Mockito.mock(IdentityProvider.class);
 
         final ProbeInfo probeInfo1 = createProbeInfo(ProbeCategory.ORCHESTRATOR.getCategory(),
@@ -87,6 +97,40 @@ public class TargetStatusTrackerImplTest {
         final Target target2 = new Target(TARGET_ID_2, probeStore, targetSpec2.build(), false, true);
         Mockito.when(targetStore.getTarget(TARGET_ID_1)).thenReturn(Optional.of(target1));
         Mockito.when(targetStore.getTarget(TARGET_ID_2)).thenReturn(Optional.of(target2));
+    }
+
+    /**
+     * Test that we upload targets statuses from DB into in-memory cache when initialize
+     * TargetStatusTracker.
+     *
+     * @throws TargetStatusStoreException if communication issue with DB happened
+     */
+    @Test
+    public void testTargetStatusCacheInitialising() throws TargetStatusStoreException {
+        // ARRANGE
+        final List<ProbeStageDetails> discoveryStages = Collections.singletonList(
+                createStageDetails(StageStatus.SUCCESS, "Discovery stage #1"));
+        final TargetStatus persistedTargetStatus = TargetStatus.newBuilder()
+                .setTargetId(TARGET_ID_1)
+                .addAllStageDetails(discoveryStages)
+                .setOperationCompletionTime(clock.millis())
+                .build();
+
+        Mockito.when(targetStatusStore.getTargetsStatuses(null)).thenReturn(
+                ImmutableMap.of(TARGET_ID_1, persistedTargetStatus));
+
+        // ACT
+        Consumer<Runnable> immediateInitializer = Runnable::run;
+        final TargetStatusTrackerImpl targetStatusTracker = new TargetStatusTrackerImpl(
+                targetStatusStore, targetStore, probeStore, clock, immediateInitializer);
+        final Map<Long, TargetStatus> targetsStatuses = targetStatusTracker.getTargetsStatuses(
+                Collections.emptySet(), true);
+
+        // ASSERT
+        Assert.assertEquals(1, targetsStatuses.size());
+        Assert.assertNotNull(targetsStatuses.get(TARGET_ID_1));
+        Assert.assertTrue(CollectionUtils.isEqualCollection(discoveryStages,
+                targetsStatuses.get(TARGET_ID_1).getStageDetailsList()));
     }
 
     /**
@@ -122,9 +166,10 @@ public class TargetStatusTrackerImplTest {
     /**
      * Test setting target status when finished discovery/validation for the target.
      *
+     * @throws TargetStatusStoreException if communication issue with DB happened
      */
     @Test
-    public void testSetTargetStatus() {
+    public void testSetTargetStatus() throws TargetStatusStoreException {
         // ARRANGE
         final ProbeStageDetails discoveryStage1 = createStageDetails(StageStatus.SUCCESS,
                 "Discovery stage #1");
@@ -145,6 +190,12 @@ public class TargetStatusTrackerImplTest {
         Assert.assertNotNull(targetStatus);
         Assert.assertTrue(CollectionUtils.isEqualCollection(discoveryStages,
                 targetStatus.getStageDetailsList()));
+        Mockito.verify(targetStatusStore, Mockito.times(1)).setTargetStatus(
+                targetStatusCaptor.capture());
+        final TargetStatus targetStatusToPersist = targetStatusCaptor.getValue();
+        Assert.assertEquals(TARGET_ID_1, targetStatusToPersist.getTargetId());
+        Assert.assertTrue(CollectionUtils.isEqualCollection(discoveryStages,
+                targetStatusToPersist.getStageDetailsList()));
     }
 
     /**
@@ -240,9 +291,11 @@ public class TargetStatusTrackerImplTest {
 
     /**
      * Test not updating target status when target deleted or probe is not connected.
+     *
+     * @throws TargetStatusStoreException if communication issue with DB happened
      */
     @Test
-    public void notUpdateTargetStatusWhenTargetIsDeleted() {
+    public void notUpdateTargetStatusWhenTargetIsDeleted() throws TargetStatusStoreException {
         // ARRANGE
         Mockito.when(probeStore.isProbeConnected(PROBE_ID_1)).thenReturn(false);
         Mockito.when(targetStore.getTarget(TARGET_ID_1)).thenReturn(Optional.empty());
@@ -255,7 +308,8 @@ public class TargetStatusTrackerImplTest {
         targetStatusTracker.notifyOperationState(discovery);
 
         // ASSERT
-        Assert.assertTrue(targetStatusTracker.getTargetsStatuses(Collections.singleton(TARGET_ID_1), false).isEmpty());
+        Mockito.verify(targetStatusStore, Mockito.never()).setTargetStatus(Mockito.any());
+
     }
 
     /**

@@ -8,12 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf.util.JsonFormat.Printer;
@@ -45,6 +47,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, TargetStatus> targetStatusCache;
     private final Map<Long, Long> lastSuccessfulDiscoveryTimeByTargetId = new HashMap<>();
+    private final TargetStatusStore targetStatusStore;
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
     private final Clock clock;
@@ -52,16 +55,45 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     /**
      * Constructor.
      *
+     * @param targetStatusStore the target status store
      * @param targetStore the target store
      * @param probeStore the probe store
      * @param clock to interpret discovery/validation completion times.
      */
-    public TargetStatusTrackerImpl(@Nonnull TargetStore targetStore, @Nonnull ProbeStore probeStore,
+    public TargetStatusTrackerImpl(@Nonnull TargetStatusStore targetStatusStore,
+            @Nonnull TargetStore targetStore,
+            @Nonnull ProbeStore probeStore,
             @Nonnull final Clock clock) {
+        this(targetStatusStore, targetStore, probeStore, clock, (runnable) -> {
+            // Run the initialization on a separate thread to avoid blocking at startup for
+            // db access.
+            new Thread(runnable).start();
+        });
+    }
+
+    @VisibleForTesting
+    TargetStatusTrackerImpl(@Nonnull TargetStatusStore targetStatusStore,
+            @Nonnull TargetStore targetStore,
+            @Nonnull ProbeStore probeStore,
+            @Nonnull final Clock clock,
+            @Nonnull Consumer<Runnable> intializationRunner) {
+        this.targetStatusStore = Objects.requireNonNull(targetStatusStore);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.clock = clock;
+
         targetStatusCache = Collections.synchronizedMap(new HashMap<>());
+        intializationRunner.accept(() -> {
+            try {
+                // Target status info is not super critical because it will be populated/updated
+                // after finishing the next discovery/validation operation. Don't try too hard
+                // to retrieve statuses from DB.
+                initializeTargetsStatusCache();
+            } catch (TargetStatusStoreException e) {
+                LOGGER.error("Failed to initialize targets status cache.", e);
+            }
+
+        });
     }
 
     @Nonnull
@@ -84,6 +116,12 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         removeFailedDiscovery(removedTargetId);
         // do not report last successful discovery time on targets that no longer exist
         lastSuccessfulDiscoveryTimeByTargetId.remove(removedTargetId);
+        try {
+            targetStatusStore.deleteTargetStatus(removedTargetId);
+        } catch (TargetStatusStoreException exception) {
+            LOGGER.error("Failed to delete status of the {} target in DB", removedTargetId,
+                    exception);
+        }
     }
 
 
@@ -178,6 +216,10 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         return lastSuccessfulDiscoveryTimeByTargetId.get(targetId);
     }
 
+    private void initializeTargetsStatusCache() throws TargetStatusStoreException {
+        targetStatusCache.putAll(targetStatusStore.getTargetsStatuses(null));
+    }
+
     private void setTargetStatusInternal(final long probeId, @Nonnull TargetStatus targetStatus) {
         if (targetStatus.getStageDetailsList().isEmpty()) {
             LOGGER.debug("Not persisting target status for target {} because there are no details.",
@@ -188,6 +230,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
         final long targetId = targetStatus.getTargetId();
         if (isOperationActual(probeId, targetId)) {
             targetStatusCache.put(targetId, targetStatus);
+            attemptToPersistTargetStatusInDB(targetId, targetStatus);
         } else {
             LOGGER.warn("Status of the {} target wasn't updated, because the target was deleted or the probe is not connected.",
                     targetId);
@@ -196,6 +239,15 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
 
     private boolean isOperationActual(final long probeId, final long targetId) {
         return targetStore.getTarget(targetId).isPresent() && probeStore.isProbeConnected(probeId);
+    }
+
+    private void attemptToPersistTargetStatusInDB(final long targetId,
+            @Nonnull final TargetStatus targetStatus) {
+        try {
+            targetStatusStore.setTargetStatus(targetStatus);
+        } catch (TargetStatusStoreException ex) {
+            LOGGER.error("Failed to persist status of the {} target in the DB.", targetId, ex);
+        }
     }
 
     /**
