@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.commons.analysis.ByProductMap.ByProductInfo;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -36,9 +35,8 @@ public class ProjectedContainerSpecPostProcessor extends ProjectedEntityPostProc
     @Override
     public boolean appliesTo(@Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final Map<Integer, List<ProjectedTopologyEntity>> entityTypeToEntitiesMap) {
-        // Post process projected ContainerSpec entities only in real-time market.
-        return topologyInfo.getTopologyType() == TopologyType.REALTIME
-            && entityTypeToEntitiesMap.containsKey(EntityType.CONTAINER_SPEC_VALUE);
+        // Post process projected ContainerSpec entities for real-time and plan market.
+        return entityTypeToEntitiesMap.containsKey(EntityType.CONTAINER_SPEC_VALUE);
     }
 
     /**
