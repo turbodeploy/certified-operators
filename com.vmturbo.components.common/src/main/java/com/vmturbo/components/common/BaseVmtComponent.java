@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
@@ -22,7 +23,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.servlet.Servlet;
@@ -63,9 +63,6 @@ import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import com.vmturbo.api.enums.DeploymentMode;
-import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.auditing.AuditLogEntry;
-import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.ServerStartedNotifier;
@@ -81,7 +78,6 @@ import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.logging.HeapDumpRpcService;
-import com.vmturbo.components.common.logging.HeapDumpRpcService.Factory;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager.ManagedRoot;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
@@ -612,12 +608,20 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         services.add(baseVmtComponentConfig.logConfigurationService());
         services.add(baseVmtComponentConfig.tracingConfigurationRpcService());
         services.add(baseVmtComponentConfig.memoryMetricsRpcService());
-        final HeapDumpRpcService heapDumpService = baseVmtComponentConfig.heapDumpRpcServiceFactory()
-            .instance(getComponentName());
-        if (heapDumpService != null) {
-            services.add(heapDumpService);
-        }
+        potentiallyAddHeapDumpService(services);
         ComponentGrpcServer.get().addServices(services, getServerInterceptors());
+    }
+
+    private void potentiallyAddHeapDumpService(List<BindableService> services) {
+        final Optional<HeapDumpRpcService> heapDumpRpcService = baseVmtComponentConfig.heapDumpRpcService();
+        if (heapDumpRpcService.isPresent()) {
+            final HeapDumpRpcService heapDumper = heapDumpRpcService.get();
+            heapDumper.initialize(baseVmtComponentConfig.heapDumpEnabled(), getComponentName());
+            services.add(heapDumper);
+        } else {
+            HeapDumpRpcService.sendAuditLogMessage("Heap dump service will not be created and is unavailable.",
+                getComponentName(), true);
+        }
     }
 
     @Override

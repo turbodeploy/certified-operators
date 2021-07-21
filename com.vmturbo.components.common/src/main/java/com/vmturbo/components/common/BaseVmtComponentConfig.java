@@ -20,6 +20,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.HeapDumpServiceController;
 import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.MemoryMetricsServiceController;
 import com.vmturbo.common.protobuf.memory.HeapDumper;
 import com.vmturbo.components.common.config.SpringConfigSource;
@@ -190,8 +191,17 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
-    public HeapDumpRpcService.Factory heapDumpRpcServiceFactory() {
-        return new HeapDumpRpcService.Factory(heapDumper(), removeHeapDumpService, enableHeapDumping);
+    public Optional<HeapDumpRpcService> heapDumpRpcService() {
+        if (removeHeapDumpService) {
+            return Optional.empty();
+        } else {
+            return Optional.of(new HeapDumpRpcService(heapDumper()));
+        }
+    }
+
+    @Bean
+    public boolean heapDumpEnabled() {
+        return enableHeapDumping;
     }
 
     @Bean
@@ -207,6 +217,13 @@ public class BaseVmtComponentConfig {
     @Bean
     public MemoryMetricsServiceController memoryMetricsServiceController() {
         return new MemoryMetricsServiceController(memoryMetricsRpcService());
+    }
+
+    @Bean
+    public HeapDumpServiceController heapDumpServiceController() {
+        return heapDumpRpcService()
+            .map(HeapDumpServiceController::new)
+            .orElse(null);
     }
 
     /**
@@ -237,5 +254,4 @@ public class BaseVmtComponentConfig {
                     .addResourceLocations("file:/swagger/");
         }
     }
-
 }

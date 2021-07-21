@@ -33,10 +33,8 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 public class HeapDumpRpcServiceTest {
 
     private final HeapDumper heapDumper = Mockito.mock(HeapDumper.class);
-    private final HeapDumpRpcService heapDumpRpcService = new HeapDumpRpcService(heapDumper,
-        getClass().getSimpleName(), true);
-    private final HeapDumpRpcService heapDumpRpcServiceDisabled = new HeapDumpRpcService(heapDumper,
-        getClass().getSimpleName(), false);
+    private final HeapDumpRpcService heapDumpRpcService = new HeapDumpRpcService(heapDumper);
+    private final HeapDumpRpcService heapDumpRpcServiceDisabled = new HeapDumpRpcService(heapDumper);
 
     /**
      * grpcServer.
@@ -62,6 +60,8 @@ public class HeapDumpRpcServiceTest {
     @Before
     public void setup() {
         heapDumpService = HeapDumpServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        heapDumpRpcService.initialize(true, getClass().getSimpleName());
+        heapDumpRpcServiceDisabled.initialize(false, getClass().getSimpleName());
     }
 
     /**

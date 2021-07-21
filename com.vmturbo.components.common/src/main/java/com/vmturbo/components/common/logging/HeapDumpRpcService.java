@@ -3,7 +3,6 @@ package com.vmturbo.components.common.logging;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -30,8 +29,6 @@ public class HeapDumpRpcService extends HeapDumpServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final String parentComponentName;
-
     /**
      * When the user does not provide a filename to dump the heap to, the default to use.
      */
@@ -44,19 +41,37 @@ public class HeapDumpRpcService extends HeapDumpServiceImplBase {
     private boolean enableHeapDumping;
 
     /**
+     * The name of the parent component for the service. Used when logging audit messages to be able
+     * to tell what component is associated.
+     */
+    private String parentComponentName;
+
+    /**
      * Create a new {@link HeapDumpRpcService}.
      *
      * @param heapDumper The object to use to dump the heap.
-     * @param parentComponentName The name of the XL component with which this service is associated.
-     * @param enableHeapDumping Whether the heap dump service is initially enabled. If false, any attempts to
-     *                          trigger a heap dump will be rejected.
      */
-    public HeapDumpRpcService(@Nonnull final HeapDumper heapDumper,
-                              @Nonnull final String parentComponentName,
-                              final boolean enableHeapDumping) {
+    public HeapDumpRpcService(@Nonnull final HeapDumper heapDumper) {
         this.heapDumper = Objects.requireNonNull(heapDumper);
-        this.parentComponentName = Objects.requireNonNull(parentComponentName);
+        // Initialize heap dump enabled to false. The #initialize call may adjust when the parent
+        // component name is set.
+        this.enableHeapDumping = false;
+    }
+
+    /**
+     * Initialize the heap dump service. The service will reject all requests (because it will be disabled)
+     * until initialized.
+     *
+     * @param enableHeapDumping Whether heap dumping should be initially enabled or disabled.
+     * @param parentComponentName The name of the parent component.
+     */
+    public void initialize(final boolean enableHeapDumping,
+                           @Nonnull final String parentComponentName) {
         this.enableHeapDumping = enableHeapDumping;
+        this.parentComponentName = Objects.requireNonNull(parentComponentName);
+
+        sendAuditLogMessage(String.format("Heap dump service initialized with state enabled=%b", enableHeapDumping),
+            parentComponentName, true);
     }
 
     @Override
@@ -109,7 +124,14 @@ public class HeapDumpRpcService extends HeapDumpServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    private static void sendAuditLogMessage(@Nonnull final String message,
+    /**
+     * Send a heap-dump related audit log message.
+     *
+     * @param message The message to send.
+     * @param parentComponentName The parent component of the heap dump service.
+     * @param result The success or failure status of the action being audited.
+     */
+    public static void sendAuditLogMessage(@Nonnull final String message,
                                             @Nonnull final String parentComponentName,
                                             final boolean result) {
         final AuditLogEntry triggerEntry = new AuditLogEntry.Builder(AuditAction.HEAP_DUMP,
@@ -117,49 +139,5 @@ public class HeapDumpRpcService extends HeapDumpServiceImplBase {
             .targetName(parentComponentName)
             .build();
         AuditLogUtils.audit(triggerEntry);
-    }
-
-    /**
-     * Factory for creating new {@link HeapDumpRpcService} instance.
-     */
-    public static class Factory {
-        private final HeapDumper heapDumper;
-        private final boolean removeHeapDumpService;
-        private final boolean enableHeapDumping;
-
-        /**
-         * Create a new {@link HeapDumpRpcService.Factory}.
-         *
-         * @param heapDumper The name of the parent component.
-         * @param removeHeapDumpService Whether to entirely remove the heap dumping service. If true, the heap dump
-         *                              service will be unavailable in the component.
-         * @param enableHeapDumping If the heap dump service is not removed, whether heap dumping is initially
-         *                          enabled or disabled.
-         */
-        public Factory(@Nonnull final HeapDumper heapDumper,
-                       final boolean removeHeapDumpService,
-                       final boolean enableHeapDumping) {
-            this.heapDumper = Objects.requireNonNull(heapDumper);
-            this.removeHeapDumpService = removeHeapDumpService;
-            this.enableHeapDumping = enableHeapDumping;
-        }
-
-        /**
-         * Create a new HeapDumpRpcService instance.
-         *
-         * @param parentComponentName The name of the parent component that owns the service.
-         * @return A new {@link HeapDumpRpcService}.
-         */
-        @Nullable
-        public HeapDumpRpcService instance(@Nonnull final String parentComponentName) {
-            if (removeHeapDumpService) {
-                sendAuditLogMessage("Heap dumping service removed", parentComponentName, true);
-                return null;
-            } else {
-                sendAuditLogMessage(String.format("Heap dumping service is being created with state enabled=%b",
-                    enableHeapDumping), parentComponentName, true);
-                return new HeapDumpRpcService(heapDumper, parentComponentName, enableHeapDumping);
-            }
-        }
     }
 }
