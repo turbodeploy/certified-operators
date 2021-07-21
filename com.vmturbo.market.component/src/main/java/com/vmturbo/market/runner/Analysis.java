@@ -143,6 +143,7 @@ public class Analysis {
     private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_economy_convert_to_traders_duration_seconds")
             .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
+            .withLabelNames("context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -154,6 +155,7 @@ public class Analysis {
     private static final DataMetricSummary TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_economy_convert_from_traders_duration_seconds")
             .withHelp("Time to convert from TraderTO back to TopologyDTO for projected topology after analysis.")
+            .withLabelNames("context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -165,6 +167,7 @@ public class Analysis {
     private static final DataMetricSummary BUY_RI_IMPACT_ANALYSIS_SUMMARY = DataMetricSummary.builder()
             .withName("mkt_buy_ri_impact_analysis_duration_seconds")
             .withHelp("Time for buy RI impact analysis to run. This includes the execution of the RI coverage allocator.")
+            .withLabelNames("context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -176,7 +179,7 @@ public class Analysis {
     private static final DataMetricSummary SMA_RUNTIME_SUMMARY = DataMetricSummary.builder()
             .withName("sma_duration_seconds")
             .withHelp("Time to run sma.")
-            .withLabelNames("scope_type")
+            .withLabelNames("context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -188,6 +191,7 @@ public class Analysis {
     private static final DataMetricSummary RESERVED_CAPACITY_ANALYSIS_SUMMARY = DataMetricSummary.builder()
             .withName("reserved_capacity_analysis_duration_seconds")
             .withHelp("Time to run reserved capacity analysis.")
+            .withLabelNames("context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -195,6 +199,19 @@ public class Analysis {
             .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
             .build()
             .register();
+
+    private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
+            .withName("mkt_process_result_duration_seconds")
+            .withHelp("Time to process the analysis results.")
+            .withLabelNames("context_type")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 20) // 20 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
 
     private final Logger logger = LogManager.getLogger();
 
@@ -288,6 +305,8 @@ public class Analysis {
             Arrays.asList(new ProjectedContainerSpecPostProcessor(),
                           new ProjectedContainerClusterPostProcessor());
 
+    private final String contextType;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -356,18 +375,9 @@ public class Analysis {
         this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
         this.commodityIdUpdater = commodityIdUpdater;
         this.actionSavingsCalculatorFactory = Objects.requireNonNull(actionSavingsCalculatorFactory);
+        this.contextType = topologyInfo.hasPlanInfo() ? TopologyConversionConstants.PLAN_CONTEXT_TYPE_LABEL
+                : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
     }
-
-    private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
-            .withName("mkt_process_result_duration_seconds")
-            .withHelp("Time to process the analysis results.")
-            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-            .withMaxAgeSeconds(60 * 20) // 20 mins.
-            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-            .build()
-            .register();
 
     /**
      * A wrapper class around a {@link Topology} created from the {@link TopologyEntityDTO}s
@@ -401,7 +411,7 @@ public class Analysis {
      */
     @Nonnull
     private ConvertedTopology createM2Topology(final boolean enableThrottling) {
-        final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
+        final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.labels(contextType).startTimer();
         // remove any (scoped) traders that may have been flagged for removal
         // We are doing this after the convertToMarket() function because we need the original
         // traders available in the "old providers maps" so the biclique calculation can
@@ -537,7 +547,7 @@ public class Analysis {
         // Do not generate reservations for cloud migration plans.
         final ReservedCapacityResults reservedCapacityResults;
         if (!isMigrateToCloud) {
-            try (DataMetricTimer timer = RESERVED_CAPACITY_ANALYSIS_SUMMARY.startTimer()) {
+            try (DataMetricTimer timer = RESERVED_CAPACITY_ANALYSIS_SUMMARY.labels(contextType).startTimer()) {
                 try (TracingScope ignored = Tracing.trace("reserved_capacity_analysis")) {
                     reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
                 }
@@ -569,7 +579,7 @@ public class Analysis {
             try {
                 convertedTopology = createM2Topology(enableThrottling);
 
-                processResultTime = RESULT_PROCESSING.startTimer();
+                processResultTime = RESULT_PROCESSING.labels(contextType).startTimer();
 
                 if (!stopAnalysis) {
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
@@ -622,7 +632,7 @@ public class Analysis {
                                     cloudVmOidToProvidersOIDsMap,
                                     topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
                             saveSMADiags(smaInput);
-                            try (DataMetricTimer timer = SMA_RUNTIME_SUMMARY.startTimer()) {
+                            try (DataMetricTimer timer = SMA_RUNTIME_SUMMARY.labels(contextType).startTimer()) {
                                 try (TracingScope ignored = Tracing.trace("execute_sma")) {
                                     smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                                 }
@@ -657,7 +667,7 @@ public class Analysis {
             CloudTopology<TopologyEntityDTO> projectedCloudTopology = null;
             if (!stopAnalysis) {
                 if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
-                    processResultTime = RESULT_PROCESSING.startTimer();
+                    processResultTime = RESULT_PROCESSING.labels(contextType).startTimer();
                 }
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
@@ -667,7 +677,7 @@ public class Analysis {
                 }
                 final List<Action.Builder> buyRIAllocateActions = new ArrayList<>();
                 try {
-                    try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                    try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.labels(contextType).startTimer()) {
                         try (TracingScope tracingScope = Tracing.trace("convert_from_traders")) {
                             if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
                                 if (enableThrottling) {
@@ -1323,7 +1333,7 @@ public class Analysis {
         if (analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS) &&
                 projectedCloudTopology.size() > 0) {
 
-            try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
+            try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.labels(contextType).startTimer()) {
                 try (TracingScope ignored = Tracing.trace("buy_RI_impact_analysis")) {
                     final BuyRIImpactAnalysis buyRIImpactAnalysis = buyRIImpactAnalysisFactory
                             .createAnalysis(

@@ -41,6 +41,8 @@ public class TopologyConversionConstants {
     public static final float CAPACITY_FACTOR = 0.999999f;
 
     public static final float ACCESS_COMMODITY_CAPACITY = 1.0E9f;
+    public static final String PLAN_CONTEXT_TYPE_LABEL = "plan";
+    public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
 
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
     // the resizable commodity sold
