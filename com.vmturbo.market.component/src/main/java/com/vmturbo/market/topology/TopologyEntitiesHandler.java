@@ -86,8 +86,6 @@ public class TopologyEntitiesHandler {
     private static final Logger logger = LogManager.getLogger();
     private static final String SCOPED_ANALYSIS_LABEL = "scoped";
     private static final String GLOBAL_ANALYSIS_LABEL = "global";
-    public static final String PLAN_CONTEXT_TYPE_LABEL = "plan";
-    public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
     public static final String SUBCYCLE1 = "SUBCYCLE1";
     public static final String SUBCYCLE2 = "SUBCYCLE2";
 
@@ -105,7 +103,7 @@ public class TopologyEntitiesHandler {
     private static final DataMetricSummary ANALYSIS_RUNTIME = DataMetricSummary.builder()
             .withName("mkt_analysis_duration_seconds")
             .withHelp("Time to run the analysis.")
-            .withLabelNames("scope_type")
+            .withLabelNames("scope_type", "context_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -247,8 +245,10 @@ public class TopologyEntitiesHandler {
             final String scopeType = topologyInfo.getScopeSeedOidsCount() > 0 ?
                 SCOPED_ANALYSIS_LABEL :
                 GLOBAL_ANALYSIS_LABEL;
+            final String contextType = topologyInfo.hasPlanInfo() ? TopologyConversionConstants.PLAN_CONTEXT_TYPE_LABEL
+                    : TopologyConversionConstants.LIVE_CONTEXT_TYPE_LABEL;
             final DataMetricTimer runTimer = ANALYSIS_RUNTIME
-                .labels(scopeType)
+                .labels(scopeType, contextType)
                 .startTimer();
             AnalysisResults results;
 
@@ -402,7 +402,6 @@ public class TopologyEntitiesHandler {
             runTimer.observe();
 
             // Capture a metric about the size of the economy analyzed
-            final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
             ANALYSIS_ECONOMY_SIZE
                 .labels(scopeType, contextType)
                 .observe((double)topologySize);
