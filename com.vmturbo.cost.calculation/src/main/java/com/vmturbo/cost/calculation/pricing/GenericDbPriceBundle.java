@@ -36,11 +36,13 @@ public class GenericDbPriceBundle<T extends GenericPrice> {
                     .build();
 
     private static final Map<DatabaseEdition, String> DB_EDITION_MAP =
-            ImmutableMap.<DatabaseEdition, String>builder().put(DatabaseEdition.ENTERPRISE,
-                    "Enterprise").put(DatabaseEdition.STANDARD, "Standard").put(
-                    DatabaseEdition.STANDARDONE, "Standard One").put(DatabaseEdition.STANDARDTWO,
-                    "Standard Two").put(DatabaseEdition.WEB, "Web").put(DatabaseEdition.EXPRESS,
-                    "Express").build();
+            ImmutableMap.<DatabaseEdition, String>builder()
+                    .put(DatabaseEdition.ENTERPRISE, "Enterprise")
+                    .put(DatabaseEdition.STANDARD, "Standard")
+                    .put(DatabaseEdition.STANDARDONE, "StandardOne")
+                    .put(DatabaseEdition.STANDARDTWO, "StandardTwo")
+                    .put(DatabaseEdition.WEB, "Web")
+                    .put(DatabaseEdition.EXPRESS, "Express").build();
 
     private static final Map<DeploymentType, String> DEPLOYMENT_TYPE_MAP =
             ImmutableMap.<DeploymentType, String>builder().put(DeploymentType.MULTI_AZ, "MultiAz")
