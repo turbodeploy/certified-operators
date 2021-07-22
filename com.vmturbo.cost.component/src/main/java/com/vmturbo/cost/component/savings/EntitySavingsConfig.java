@@ -87,7 +87,7 @@ public class EntitySavingsConfig {
     /**
      * Enable cloud savings tracking.
      */
-    @Value("${enableEntitySavings:false}")
+    @Value("${enableEntitySavings:true}")
     private boolean enableEntitySavings;
 
     /**
