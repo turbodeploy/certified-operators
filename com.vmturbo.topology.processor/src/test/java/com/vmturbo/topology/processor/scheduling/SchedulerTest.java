@@ -40,7 +40,10 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -62,34 +65,54 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
  */
 public class SchedulerTest {
 
-    private final OperationManager operationManager = mock(OperationManager.class);
+    @Mock
+    private OperationManager operationManager;
+
+    @Mock
+    private TargetStore targetStore;
+
+    @Mock
+    private ProbeStore probeStore = mock(ProbeStore.class);
+
+    @Mock
+    private TopologyHandler topologyHandler = mock(TopologyHandler.class);
+
+    @Mock
+    private KeyValueStore keyValueStore = mock(KeyValueStore.class);
+
+    @Mock
+    private StitchingJournalFactory journalFactory =
+            StitchingJournalFactory.emptyStitchingJournalFactory();
+
+    @Spy
     private final ScheduledExecutorService fullDiscoveryExecutorSpy1 =
             Mockito.spy(new DelegationExecutor());
+    @Spy
     private final ScheduledExecutorService fullDiscoveryExecutorSpy2 =
             Mockito.spy(new DelegationExecutor());
+
+    @Spy
     private final ScheduledExecutorService incrementalDiscoveryExecutorSpy1 =
             Mockito.spy(new DelegationExecutor());
+
+    @Spy
     private final ScheduledExecutorService incrementalDiscoveryExecutorSpy2 =
             Mockito.spy(new DelegationExecutor());
+
+    @Spy
     private final ScheduledExecutorService broadcastExecutorSpy =
             Mockito.spy(new DelegationExecutor());
+
+    @Spy
     private final ScheduledExecutorService expirationExecutorSpy =
             Mockito.spy(new DelegationExecutor());
-    private final TargetStore targetStore = mock(TargetStore.class);
-    private final ProbeStore probeStore = mock(ProbeStore.class);
-    private final TopologyHandler topologyHandler = mock(TopologyHandler.class);
-    private final KeyValueStore keyValueStore = mock(KeyValueStore.class);
-    private final StitchingJournalFactory journalFactory =
-            StitchingJournalFactory.emptyStitchingJournalFactory();
+
     private Scheduler scheduler;
 
-    public static final long TEST_SCHEDULE_MILLIS = 100;
-    public static final long SCHEDULED_TIMEOUT_SECONDS = 10;
-    public static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
-    /**
-     * Number of discoveries that can be skipped before we log a warning.
-     */
-    public static final int  NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING = 10;
+    private static final long TEST_SCHEDULE_MILLIS = 100;
+    private static final long SCHEDULED_TIMEOUT_SECONDS = 10;
+    private static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
+    private static final int  NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING = 10;
     private static final long PROBE_ID_1 = 1L;
     private static final long PROBE_ID_2 = 2L;
     private static final long PROBE_ID_3 = 3L;
@@ -111,7 +134,7 @@ public class SchedulerTest {
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .build();
     private final long targetId = 1234;
-    private final long targetId3 = 1235;
+    private final long targetId2 = 1235;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -142,19 +165,24 @@ public class SchedulerTest {
 
     @Before
     public void setup() throws Exception {
-        Target target = mock(Target.class);
+        MockitoAnnotations.initMocks(this);
+
+        final Target target = mock(Target.class);
         when(target.getId()).thenReturn(targetId);
         when(target.getProbeId()).thenReturn(PROBE_ID_1);
         when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
-        Target target3 = mock(Target.class);
-        when(target3.getId()).thenReturn(targetId3);
-        when(target3.getProbeId()).thenReturn(PROBE_ID_3);
-        when(target3.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
+        final Target target2 = mock(Target.class);
+        when(target2.getId()).thenReturn(targetId2);
+        when(target2.getProbeId()).thenReturn(PROBE_ID_3);
+        when(target2.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
+
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
-        when(targetStore.getTarget(targetId3)).thenReturn(Optional.of(target3));
+        when(targetStore.getTarget(targetId2)).thenReturn(Optional.of(target2));
+
         when(probeStore.getProbe(PROBE_ID_1)).thenAnswer(answer -> Optional.of(PROBE_TYPE_1_INFO));
         when(probeStore.getProbe(PROBE_ID_2)).thenAnswer(answer -> Optional.of(PROBE_TYPE_2_INFO));
         when(probeStore.getProbe(PROBE_ID_3)).thenReturn(Optional.of(PROBE_TYPE_3_INFO));
+
         when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
 
         when(operationManager.getActionTimeoutMs()).thenReturn(2000L);
@@ -168,11 +196,11 @@ public class SchedulerTest {
             (name) -> getIncrementalDiscoveryExecutorService(name), broadcastExecutorSpy,
             expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES,
             NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
+
         scheduler.initialize();
     }
 
     @Test
-    @Ignore("Investigate this test later and verify why this is flaky. See OM-53822 for details.")
     public void testSetDiscoverySchedule() throws Exception {
         final CountDownLatch discoveryExecutedLatch = new CountDownLatch(1);
 
@@ -294,9 +322,9 @@ public class SchedulerTest {
      */
     @Test
     public void testOnNonDiscoveryTargetAdded() {
-        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
-        scheduler.onTargetAdded(targetStore.getTarget(targetId3).get());
-        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId2, DiscoveryType.FULL).isPresent());
+        scheduler.onTargetAdded(targetStore.getTarget(targetId2).get());
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId2, DiscoveryType.FULL).isPresent());
     }
 
     /**
