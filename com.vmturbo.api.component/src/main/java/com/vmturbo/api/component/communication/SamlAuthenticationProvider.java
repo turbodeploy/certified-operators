@@ -36,7 +36,9 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
      * The logger.
      */
     private static final Logger logger = LogManager.getLogger(SamlAuthenticationProvider.class);
-    private static final Pattern PATTERN = Pattern.compile("^http", Pattern.CASE_INSENSITIVE);
+    // Request to API component is from Nginx using HTTP, but the assertion is https from IDP.
+    // to pass the assertion validation, we need to manually convert http: to https:.
+    private static final Pattern PATTERN = Pattern.compile("^http:", Pattern.CASE_INSENSITIVE);
     private final IComponentJwtStore componentJwtStore;
     private final OpenSamlAuthenticationProvider authProvider;
 
@@ -146,7 +148,7 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
     private Saml2AuthenticationToken convert(Saml2AuthenticationToken token) {
 
         return new Saml2AuthenticationToken(token.getSaml2Response(),
-                token.getRecipientUri().replaceFirst(PATTERN.pattern(), "https"),
+                token.getRecipientUri().replaceFirst(PATTERN.pattern(), "https:"),
                 token.getIdpEntityId(), token.getLocalSpEntityId(), token.getX509Credentials());
     }
 

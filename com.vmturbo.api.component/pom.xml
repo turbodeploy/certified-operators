@@ -605,6 +605,19 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-saml2-service-provider</artifactId>
             <version>${spring.security.version}</version>
+            <exclusions>
+                <!-- Excluding org.apache.velocity 1.7 which is transitively introduced by
+                    org.springframework.security:spring-security-saml2-service-provider:jar:5.5.1.
+                    This library has security vulnerabilities.
+                    See CVE-2015-7501 for details.
+                    Note: We have verified basic SAML functions still works after removing this library.
+                    Although further investigation might be needed.
+                -->
+                <exclusion>
+                    <groupId>org.apache.velocity</groupId>
+                    <artifactId>velocity</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
