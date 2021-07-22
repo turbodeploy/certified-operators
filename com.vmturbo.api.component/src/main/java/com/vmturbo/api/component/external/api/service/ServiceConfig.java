@@ -208,7 +208,7 @@ public class ServiceConfig {
     @Value("${allowTargetManagementInIntegrationMode:false}")
     private boolean allowTargetManagementInIntegrationMode;
 
-    @Value("${enableEntitySavings:false}")
+    @Value("${enableEntitySavings:true}")
     private boolean enableEntitySavings;
 
     /**
