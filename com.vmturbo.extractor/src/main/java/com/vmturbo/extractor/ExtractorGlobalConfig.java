@@ -53,6 +53,9 @@ public class ExtractorGlobalConfig {
     @Value("${enableBillingCost:false}")
     private boolean enableBillingCost;
 
+    @Value("${enableIndividualVStorages:false}")
+    private boolean enableIndividualVStorages;
+
     /**
      * Clock for the component.
      *
@@ -75,7 +78,8 @@ public class ExtractorGlobalConfig {
                 enableReporting,
                 enableActionIngestion,
                 enableDataExtraction,
-                enableBillingCost);
+                enableBillingCost,
+                enableIndividualVStorages);
     }
 
     /**
@@ -100,15 +104,17 @@ public class ExtractorGlobalConfig {
          * Whether billing cost data collection and reporting is enabled.
          */
         private final boolean enableBillingCost;
+        private final boolean enableIndividualVStorages;
 
         private ExtractorFeatureFlags(boolean enableSearchApi, boolean enableReporting,
                 boolean enableReportActionIngestion, boolean enableExtraction,
-                boolean enableBillingCost) {
+                boolean enableBillingCost, boolean enableIndividualVStorages) {
             this.enableSearchApi = enableSearchApi;
             this.enableReporting = enableReporting;
             this.enableReportActionIngestion = enableReportActionIngestion;
             this.enableExtraction = enableExtraction;
             this.enableBillingCost = enableBillingCost;
+            this.enableIndividualVStorages = enableIndividualVStorages;
         }
 
         public boolean isSearchEnabled() {
@@ -135,6 +141,10 @@ public class ExtractorGlobalConfig {
             return isBillingCostEnabled() && isReportingEnabled();
         }
 
+        public boolean isIndividualVStoragesEnabled() {
+            return enableIndividualVStorages;
+        }
+
         @Override
         public String toString() {
             return FormattedString.format("Flags:\n"
@@ -142,9 +152,10 @@ public class ExtractorGlobalConfig {
                             + "Report Action Ingestion {}\n"
                             + "Search Ingestion {}\n"
                             + "Data Extraction {}\n"
-                            + "Billing Cost Ingestion {}",
+                            + "Billing Cost Ingestion {}\n"
+                            + "Individual vStorage metrics {}",
                     isReportingEnabled(), isReportingActionIngestionEnabled(), isSearchEnabled(),
-                    isExtractionEnabled(), isBillingCostEnabled());
+                    isExtractionEnabled(), isBillingCostEnabled(), isIndividualVStoragesEnabled());
         }
     }
 }

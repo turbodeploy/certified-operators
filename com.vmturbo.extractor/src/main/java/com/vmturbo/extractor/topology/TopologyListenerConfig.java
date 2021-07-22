@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -65,6 +67,7 @@ import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -223,10 +226,24 @@ public class TopologyListenerConfig {
      */
     @Bean
     public WriterConfig writerConfig() {
+        ExtractorFeatureFlags extractorFeatureFlags = extractorGlobalConfig.featureFlags();
+
+        Multimap<CommodityType, EntityType> unaggregatedKeyedCommodityTypes;
+
+        if (extractorFeatureFlags.isIndividualVStoragesEnabled()) {
+            unaggregatedKeyedCommodityTypes =
+                    ImmutableSetMultimap.<CommodityType, EntityType>builder()
+                            .putAll(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+                            .put(CommodityType.VSTORAGE, EntityType.VIRTUAL_MACHINE)
+                            .build();
+        } else {
+            unaggregatedKeyedCommodityTypes = Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES;
+        }
+
         return ImmutableWriterConfig.builder()
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
-                .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+                .unaggregatedCommodities(unaggregatedKeyedCommodityTypes)
                 .build();
     }
 
