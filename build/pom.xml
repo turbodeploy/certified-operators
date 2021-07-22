@@ -168,7 +168,7 @@
         commons-codec:jar:1.10, which is affected by a security vulnerability.
         The dependency below is used only to enforce a specific version that
         does not suffer from a vulnerability. See bug OM-59183 -->
-        <commons-codec.version>1.14</commons-codec.version>
+        <commons-codec.version>1.15</commons-codec.version>
 
         <!-- EM: The commons-validator dependency is bringing a dependency on
         commons-beanutils:jar:1.9.2, which is affected by a security vulnerability.
