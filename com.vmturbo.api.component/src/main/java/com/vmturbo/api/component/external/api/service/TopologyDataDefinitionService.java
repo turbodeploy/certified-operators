@@ -35,21 +35,17 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
 
     private final TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub;
     private final TopologyDataDefinitionMapper topologyDataDefinitionMapper;
-    private final boolean enableContextBased;
 
     /**
      * Constructor for {@link TopologyDataDefinitionService}.
      *
      * @param topologyDataDefinitionServiceBlockingStub blocking stub for the service
      * @param topologyDataDefinitionMapper mapper for XL and API DTO objects
-     * @param enableContextBased enable or disable context-based ATDs.
      */
     public TopologyDataDefinitionService(@Nonnull final TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub,
-                                         @Nonnull final TopologyDataDefinitionMapper topologyDataDefinitionMapper,
-                                         final boolean enableContextBased) {
+                                         @Nonnull final TopologyDataDefinitionMapper topologyDataDefinitionMapper) {
         this.topologyDataDefinitionServiceBlockingStub = topologyDataDefinitionServiceBlockingStub;
         this.topologyDataDefinitionMapper = topologyDataDefinitionMapper;
-        this.enableContextBased = enableContextBased;
     }
 
     /**
@@ -70,8 +66,8 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
                 continue;
             }
             TopologyDataDefinitionEntry entry = response.getTopologyDataDefinition();
-            if (isContextBasedDefinition(entry) && !enableContextBased) {
-                // Do not return context based ATDs if feature flag is disabled
+            if (isContextBasedDefinition(entry)) {
+                // Do not return context based ATDs until they won't be implemented
                 continue;
             }
             checkId(entry);

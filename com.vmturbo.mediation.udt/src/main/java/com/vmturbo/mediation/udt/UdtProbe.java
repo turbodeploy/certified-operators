@@ -13,6 +13,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,6 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinitionEntry;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationException;
@@ -212,7 +214,28 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
         final DataRequests dataRequests = new DataRequests();
         final SearchFilterResolver searchFilterResolver
                 = new UdtSearchFilterResolver(connection, requestExecutor, dataRequests);
-        return new DataProvider(requestExecutor, dataRequests, searchFilterResolver);
+        // TODO: use feature flag value to enable or disable context-based ATDs. At the moment they are disabled.
+        return new DataProvider(requestExecutor, dataRequests, searchFilterResolver,
+                buildTopologyDefinitionsFilter(false));
+    }
+
+    /**
+     * Creates a filter for topology data definitions.
+     *
+     * @param enableContextBased should context based definitions be filtered or not
+     * @return Returns an instance of {@link Predicate} for filtering topology data definitions.
+     */
+    public static Predicate<TopologyDataDefinitionEntry> buildTopologyDefinitionsFilter(boolean enableContextBased) {
+        Predicate<TopologyDataDefinitionEntry> filter = TopologyDataDefinitionEntry::hasDefinition;
+        if (!enableContextBased) {
+            filter = filter.and(entry -> {
+                if (entry.getDefinition().hasManualEntityDefinition()) {
+                    return !entry.getDefinition().getManualEntityDefinition().getContextBased();
+                }
+                return true;
+            });
+        }
+        return filter;
     }
 
     /**

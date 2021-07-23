@@ -73,7 +73,6 @@ public class TopologyDataDefinitionServiceTest {
     private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper, groupsService);
 
     private TopologyDataDefinitionService service;
-    private TopologyDataDefinitionService serviceWithEnabledContextBasedATDs;
 
     @Rule
     public GrpcTestServer grpcServer =
@@ -197,13 +196,7 @@ public class TopologyDataDefinitionServiceTest {
         );
 
         service = new TopologyDataDefinitionService(
-                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper,
-                false
-        );
-
-        serviceWithEnabledContextBasedATDs = new TopologyDataDefinitionService(
-                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper,
-                true
+                TopologyDataDefinitionServiceGrpc.newBlockingStub(grpcServer.getChannel()), mapper
         );
 
         // Mocks for update method
@@ -282,47 +275,6 @@ public class TopologyDataDefinitionServiceTest {
         JSONAssert.assertEquals(objectMapper.writeValueAsString(automatedApiDTO), objectMapper.writeValueAsString(dtos.get(1)), false);
         manualApiDTO.setUuid(null);
         automatedApiDTO.setUuid(null);
-    }
-
-    /**
-     * Get all definitions test including context-based ATDs.
-     */
-    @Test
-    public void getAllTopologyDefinitionsWithEnabledContextBased() throws Exception {
-        GroupApiDTO groupApiDTO = new GroupApiDTO();
-        groupApiDTO.setUuid("123434550");
-        Mockito.when(groupsService.getGroupByUuid("123434550", false))
-                        .thenReturn(groupApiDTO);
-        List<TopologyDataDefinitionApiDTO> dtos
-                        = serviceWithEnabledContextBasedATDs.getAllTopologyDefinitions();
-        assertEquals(3, dtos.size());
-        ObjectMapper objectMapper = new ObjectMapper();
-        manualApiDTO.setUuid("123");
-        automatedApiDTO.setUuid("456");
-        manualContextBasedApiDTO.setUuid("789");
-        JSONAssert.assertEquals(objectMapper.writeValueAsString(manualApiDTO),
-                                objectMapper.writeValueAsString(dtos.get(0)), false);
-        JSONAssert.assertEquals(objectMapper.writeValueAsString(automatedApiDTO),
-                                objectMapper.writeValueAsString(dtos.get(1)), false);
-
-
-        TopologyDataDefinitionApiDTO contextBasedDataDefDTO = dtos.get(2);
-
-        // Need to convert TopologyDataDefinitionApiDTO into TopoDataDefContextBasedApiDTO
-        // for comparison
-        TopoDataDefContextBasedApiDTO contextBasedDto = new TopoDataDefContextBasedApiDTO();
-        contextBasedDto.setContextBased(true);
-        contextBasedDto.setUuid("789");
-        contextBasedDto.setEntityDefinitionData(contextBasedDataDefDTO.getEntityDefinitionData());
-        contextBasedDto.setEntityType(contextBasedDataDefDTO.getEntityType());
-        contextBasedDto.setDisplayName(contextBasedDataDefDTO.getDisplayName());
-
-        JSONAssert.assertEquals(objectMapper.writeValueAsString(manualContextBasedApiDTO),
-                                objectMapper.writeValueAsString(contextBasedDto), false);
-
-        manualApiDTO.setUuid(null);
-        automatedApiDTO.setUuid(null);
-        manualContextBasedApiDTO.setUuid(null);
     }
 
     /**

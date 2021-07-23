@@ -62,13 +62,13 @@ public class UdtProbeExplorer {
             LOGGER.info("No definitions found.");
             return Collections.emptySet();
         }
-        final Set<? extends UdtCollector<?>> collectors = createUdtCollectors(definitionsMap);
+        final Set<UdtCollector> collectors = createUdtCollectors(definitionsMap);
         final Set<UdtEntity> definedEntities = collectEntities(collectors);
         return OidToUdtMappingTask.execute(definedEntities, dataProvider);
     }
 
     @Nonnull
-    private Set<? extends UdtCollector<?>> createUdtCollectors(@Nonnull Map<Long, TopologyDataDefinition> definitionsMap) {
+    private Set<UdtCollector> createUdtCollectors(@Nonnull Map<Long, TopologyDataDefinition> definitionsMap) {
         return definitionsMap.entrySet().stream()
                 .map(entry -> createCollector(entry.getKey(), entry.getValue()))
                 .filter(Objects::nonNull)
@@ -78,7 +78,7 @@ public class UdtProbeExplorer {
     @Nullable
     @VisibleForTesting
     @ParametersAreNonnullByDefault
-    UdtCollector<?> createCollector(Long definitionId, TopologyDataDefinition topologyDataDef) {
+    UdtCollector createCollector(Long definitionId, TopologyDataDefinition topologyDataDef) {
         switch (topologyDataDef.getTopologyDataDefinitionDetailsCase()) {
             case MANUAL_ENTITY_DEFINITION:
                 return new ManualDefinitionCollector(definitionId, topologyDataDef.getManualEntityDefinition());
@@ -90,7 +90,7 @@ public class UdtProbeExplorer {
     }
 
     @Nonnull
-    private Set<UdtEntity> collectEntities(@Nonnull Set<? extends UdtCollector<?>> collectors) {
+    private Set<UdtEntity> collectEntities(@Nonnull Set<UdtCollector> collectors) {
         final Collection<CompletableFuture<Set<UdtEntity>>> futures = collectors.stream()
                 .map(this::createFutureTask)
                 .collect(Collectors.toSet());

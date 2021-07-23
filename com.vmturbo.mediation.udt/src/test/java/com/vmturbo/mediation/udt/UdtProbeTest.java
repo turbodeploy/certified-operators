@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.Set;
+import java.util.function.Predicate;
 
 import io.grpc.ManagedChannel;
 
@@ -135,6 +136,22 @@ public class UdtProbeTest {
         Mockito.when(connection.getTopologyProcessorChannel()).thenReturn(tpChannel);
         DataProvider dataProvider = probe.buildDataProvider(connection);
         Assert.assertNotNull(dataProvider);
+    }
+
+    /**
+     * Tests TDD filter which is applied for all TDDs in the DB.
+     * It should accept all Automated TDD and Manual TDD without 'context-based' flag.
+     */
+    @Test
+    public void testTddFilter() {
+        final Predicate<TopologyDataDefinitionEntry> filterNoContext
+                = UdtProbe.buildTopologyDefinitionsFilter(false);
+        final TopologyDataDefinitionEntry manualContextBased = createManualTdd(true);
+        final TopologyDataDefinitionEntry manualNoContextBased = createManualTdd(false);
+        final TopologyDataDefinitionEntry automatedTdd = createAutomatedTdd();
+        Assert.assertFalse(filterNoContext.test(manualContextBased));
+        Assert.assertTrue(filterNoContext.test(manualNoContextBased));
+        Assert.assertTrue(filterNoContext.test(automatedTdd));
     }
 
     private TopologyDataDefinitionEntry createManualTdd(boolean contextBased) {
