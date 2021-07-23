@@ -384,10 +384,12 @@ public class ActionAuditSenderTest {
         when(actionNotSentToKafka.getWorkflowSetting(ActionState.READY))
             .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID)));
         final Action actionSentToServiceNOW = createAction(ACTION3_ID, TARGET_ENTITY_ID_3, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendOnGenerationEvents(Arrays.asList(actionAlreadySentToKafka,
-                actionNotSentToKafka, actionSentToServiceNOW), entitiesAndSettingsSnapshot);
+        final int auditedActionsCount = actionAuditSender.sendOnGenerationEvents(
+                Arrays.asList(actionAlreadySentToKafka, actionNotSentToKafka,
+                        actionSentToServiceNOW), entitiesAndSettingsSnapshot);
 
-        // only action3 will be send for audit. action1 and action2 were already sent
+        // actionNotSentToKafka and actionSentToServiceNOW should be sent
+        Assert.assertEquals(2, auditedActionsCount);
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
         Assert.assertEquals(actionNotSentToKafka.getRecommendationOid(),
             sentActionEventMessageCaptor.getAllValues().get(0).getActionRequest().getActionId());
@@ -398,9 +400,9 @@ public class ActionAuditSenderTest {
         Mockito.verify(auditedActionsManager, Mockito.times(1))
             .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
-        Assert.assertEquals(
-            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty())),
-            actualUpdate.getAuditedActions());
+        Assert.assertEquals(Collections.singletonList(
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2,
+                        VMEM_RESIZE_UP_ONGEN, Optional.empty())), actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedAudits());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());

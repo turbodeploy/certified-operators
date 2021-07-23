@@ -161,13 +161,14 @@ public class ActionAuditSender {
      *
      * @param actions new actions received.
      * @param entitiesAndSettingsSnapshot mapping of entity id to the entity's settings.
+     * @return count of audited events
      * @throws CommunicationException if communication error occurred while sending
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
      * @throws UnsupportedActionException when primary entity of an action cannot be found.
      * @throws ExecutionInitiationException if failed to process workflow
      */
-    public void sendOnGenerationEvents(
+    public int sendOnGenerationEvents(
             @Nonnull Collection<? extends ActionView> actions,
             @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
             throws CommunicationException, InterruptedException, UnsupportedActionException,
@@ -183,6 +184,7 @@ public class ActionAuditSender {
         stopWatch.stop();
         logger.info("Took {} to send {} of {} actions for external audit", stopWatch,
                 auditedActionsCount, actions.size());
+        return auditedActionsCount;
     }
 
     /**
