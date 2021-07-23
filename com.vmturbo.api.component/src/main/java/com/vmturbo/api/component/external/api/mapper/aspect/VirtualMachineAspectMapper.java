@@ -65,6 +65,9 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
             if (virtualMachineInfo.hasNumCpus()) {
                 aspect.setNumVCPUs(virtualMachineInfo.getNumCpus());
             }
+            if (virtualMachineInfo.hasCoresPerSocketRatio()) {
+                aspect.setCoresPerSocketRatio(virtualMachineInfo.getCoresPerSocketRatio());
+            }
             if (!virtualMachineInfo.getConnectedNetworksList().isEmpty()) {
                 aspect.setConnectedNetworks(virtualMachineInfo.getConnectedNetworksList().stream()
                     .map(this::mapToNetwork).collect(Collectors.toList()));
