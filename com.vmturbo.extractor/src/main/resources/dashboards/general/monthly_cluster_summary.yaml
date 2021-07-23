@@ -1,3 +1,22 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.5
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
+- type: panel
+  id: table
+  name: Table
+  version: ""
+- type: panel
+  id: table-old
+  name: Table (old)
+  version: ""
 annotations:
   list:
   - builtIn: 1
@@ -7,97 +26,78 @@ annotations:
     iconColor: rgba(0, 211, 255, 1)
     name: Annotations & Alerts
     type: dashboard
-description: ''
+description: ""
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
-iteration: 1598553889195
+iteration: 1626808254620
 links: []
 panels:
-- columns: []
-  datasource: $DB
+- datasource: $DB
   description: This panel presents statistics for the virtual enterprise as a whole.
     Values are provided showing month over month with growth.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: null
+        displayMode: auto
+      decimals: 0
+      displayName: ""
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: rgba(245, 54, 54, 0.9)
+          value: null
+        - color: rgba(237, 129, 40, 0.89)
+          value: null
+      unit: short
+    overrides:
+    - matcher:
+        id: byName
+        options: time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: MMM-DD YYYY'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byRegexp
+        options: /.*This Month/
+      properties:
+      - id: unit
+        value: short
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(188, 189, 186, 0.97)
+            value: null
+          - color: rgb(0, 0, 0)
+            value: 0
+    - matcher:
+        id: byName
+        options: VMs Per Host
+      properties:
+      - id: unit
+        value: short
+      - id: decimals
+        value: 1
+      - id: custom.align
+        value: null
   gridPos:
     h: 5
     w: 17
     x: 0
     y: 0
   id: 2
-  pageSize:
-  showHeader: true
-  sort:
-    col: 0
-    desc: true
-  styles:
-  - $$hashKey: object:691
-    alias: Time
-    align: auto
-    dateFormat: MMM-DD YYYY
-    pattern: Time
-    type: date
-  - $$hashKey: object:692
-    alias: ''
-    align: ''
-    colorMode:
-    colors:
-    - rgba(188, 189, 186, 0.97)
-    - rgb(0, 0, 0)
-    - rgba(245, 54, 54, 0.9)
-    decimals: 0
-    mappingType: 1
-    pattern: /.*This Month/
-    thresholds:
-    - 0
-    type: string
-    unit: short
-    valueMaps:
-    - $$hashKey: object:735
-      text: ''
-      value: -1
-  - $$hashKey: object:693
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 1
-    mappingType: 1
-    pattern: VMs Per Host
-    rangeMaps:
-    - from: ''
-      text: ''
-      to: ''
-    thresholds: []
-    type: number
-    unit: short
-    valueMaps:
-    - text: ''
-      value: -1
-  - $$hashKey: object:694
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 0
-    mappingType: 1
-    pattern: /.*/
-    thresholds:
-    - ''
-    type: number
-    unit: short
+  options:
+    showHeader: true
+  pluginVersion: 8.0.5
   targets:
   - format: time_series
     group: []
@@ -206,17 +206,16 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Stats
-  transform: timeseries_to_columns
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 - columns: []
   datasource: $DB
-  fieldConfig:
-    defaults:
-      custom: {}
-    overrides: []
   fontSize: 100%
   gridPos:
     h: 4
@@ -224,7 +223,7 @@ panels:
     x: 0
     y: 5
   id: 4
-  pageSize:
+  pageSize: null
   showHeader: true
   sort:
     col: 0
@@ -235,9 +234,9 @@ panels:
     dateFormat: MMM-DD YYYY
     pattern: Time
     type: date
-  - alias: ''
+  - alias: ""
     align: left
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -249,9 +248,9 @@ panels:
     thresholds: []
     type: number
     unit: short
-  - alias: ''
+  - alias: ""
     align: left
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -422,8 +421,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Storage
   transform: table
   type: table-old
@@ -432,10 +431,6 @@ panels:
   description: 'The following indicators compare cluster capacity vs consumption.
     Indicator colors show: green where consumption is below N-2 server total resources,
     orange for above N-2 but below N-1, and red where consumption is above N-1.'
-  fieldConfig:
-    defaults:
-      custom: {}
-    overrides: []
   fontSize: 100%
   gridPos:
     h: 8
@@ -443,7 +438,7 @@ panels:
     x: 0
     y: 9
   id: 6
-  pageSize:
+  pageSize: null
   showHeader: true
   sort:
     col: 0
@@ -456,9 +451,9 @@ panels:
     pattern: Time
     type: date
   - $$hashKey: object:401
-    alias: ''
+    alias: ""
     align: auto
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -471,7 +466,7 @@ panels:
     type: string
     unit: short
   - $$hashKey: object:402
-    alias: ''
+    alias: ""
     align: right
     colorMode: cell
     colors:
@@ -565,29 +560,34 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Cluster Status
   transform: table
   type: table-old
 refresh: false
-schemaVersion: 25
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - description: null
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
+time:
+  from: now-6h
+  to: now
 timepicker:
   refresh_intervals:
   - 10s
@@ -599,6 +599,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Monthly Overview and Cluster Summary
 uid: monthly_cluster_summary
+version: 2

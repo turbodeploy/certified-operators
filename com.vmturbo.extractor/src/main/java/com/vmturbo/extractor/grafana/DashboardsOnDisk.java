@@ -218,8 +218,8 @@ public class DashboardsOnDisk {
         dashboard.getId()
             .ifPresent(id -> {
                 throw new IllegalArgumentException(FormattedString.format(
-                    "Saved dashboard at {} (title: {}, uid: {}) has an id explicitly set.",
-                    file.getPath(), dashboard.getTitle(), dashboard.getUid()));
+                    "Saved dashboard at {} (title: {}, uid: {}) has an id '{}' explicitly set.",
+                    file.getPath(), dashboard.getTitle(), dashboard.getUid(), id));
             });
         if (dashboard.getUid().length() > 40) {
             throw new IllegalArgumentException(FormattedString.format(

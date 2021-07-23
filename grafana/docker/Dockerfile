@@ -1,8 +1,8 @@
 # When updating grafana versions, copy the "defaults.ini" of the new version into the
 # docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
-ARG grafana_version=7.3.8
+ARG grafana_version=8.0.6
 # Not all image renderer versions work with all versions of grafana.
-ARG grafana_img_renderer_version=v2.1.1
+ARG grafana_img_renderer_version=v3.0.1
 
 FROM registry.access.redhat.com/ubi8 AS builder
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
@@ -12,7 +12,7 @@ ARG grafana_version
 WORKDIR /grafana-fetch
 
 RUN dnf install -y wget && \
-    wget https://storage.googleapis.com/grafana-private-releases/enterprise/grafana-enterprise-$grafana_version.linux-amd64.tar.gz && \
+    wget https://dl.grafana.com/enterprise/release/grafana-enterprise-$grafana_version.linux-amd64.tar.gz && \
     tar -zxvf grafana-enterprise-$grafana_version.linux-amd64.tar.gz
 
 
@@ -38,8 +38,7 @@ ENV GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
   GF_PATHS_PROVISIONING="/etc/grafana/provisioning" \
   GRAFANA_PATH="/grafana/bin/grafana-server" \
   # Make sure that python can find the grpc bindings
-  PYTHONPATH="/grpc" \
-  GF_RENDERER_PLUGIN_CHROME_BIN="/usr/bin/chromium-browser"
+  PYTHONPATH="/grpc"
 
 # Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
 RUN groupadd -g 1000 grafana && useradd -r -g 1000 -s /bin/bash -u 102 grafana && \
@@ -54,12 +53,12 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.n
     # The name and file path of the key needs to match the ones configured in the CentOS .repo files.
     curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official
 RUN dnf search chrom && \
-    dnf install -y --nobest rsyslog procps python3-devel gcc udev chromium && \
+    dnf install -y --nobest rsyslog procps python3-devel gcc udev chromium libXScrnSaver && \
     dnf clean all
 RUN python3 -m pip install --upgrade pip
 RUN $GF_PATHS_HOME/bin/grafana-cli \
     --pluginsDir "$GF_PATHS_PLUGINS" \
-    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc-no-chromium.zip \
+    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
     plugins install grafana-image-renderer
 
 COPY rsyslog.conf /etc

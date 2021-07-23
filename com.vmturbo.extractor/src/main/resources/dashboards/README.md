@@ -12,6 +12,9 @@ or updated in Grafana under the appropriate folder.
 
 Rules for Dashboards:
 
+*NOTE:* When exporting the reports, enable the toggle option 'Export for sharing externally'. 
+This reduces the chance of environment specific settings (e.g. IP) being present in the JSON. 
+
 1) **Do Not** change the UID for dashboards! This is what gets used to detect duplicates. This also
    gets used for saved links, so changing the UID will break any bookmarks the customers have to
    specific dashboards.
@@ -69,8 +72,9 @@ Rules for Dashboards:
     ...
 ```
 
-4) Remove the `id` and `version` fields - they will be unique per installation. You can leave the
-   `uid` field.
+4) Remove the `id` (including any top-level `id: null`) and `version` fields - they will be unique 
+   per installation. 
+   You can leave the `uid` field.
 
 5) Remove any explicit `time` fields - they are unique to each installation. e.g.:
 
@@ -81,7 +85,9 @@ Rules for Dashboards:
 },
 ```
 
-6) If you export your finished work from Grafana, it will be in the form of a JSON file. Before you
+6) Verify that reports are not mistakenly set as editable, i.e should be like: `editable: false`.
+
+7) If you export your finished work from Grafana, it will be in the form of a JSON file. Before you
    check in your work, you should convert it to YAML and remove the JSON file. The utility class
    `ConvertJsonToYaml` in this module should be used to do this; it includes
    transformationsa nd that are important for optimum conversion that are unlikely to be done by any of

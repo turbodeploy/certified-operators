@@ -8,7 +8,7 @@ __requires:
 - type: grafana
   id: grafana
   name: Grafana
-  version: 7.3.8
+  version: 8.0.6
 - type: datasource
   id: postgres
   name: PostgreSQL
@@ -33,16 +33,15 @@ annotations:
 description: This dashboard displays information on data stores organized by wasted
   storage amounts. Wasted amounts are those that are allocated on a data store, and
   occupy space, but are not associated with a virtual machine.
-editable: true
+editable: false
 gnetId: null
 graphTooltip: 0
-iteration: 1622831307339
+iteration: 1627068822375
 links: []
 panels:
 - datasource: $DB
   fieldConfig:
     defaults:
-      custom: {}
       links:
       - title: Scope Dashboard to ${__field.name}
         url: /d/wasted_files?var-Datastore=${__field.name}&var-MinFileSize=${MinFileSize}
@@ -71,9 +70,10 @@ panels:
       limit: 10
       values: true
     showUnfilled: false
-  pluginVersion: 7.3.8
+    text: {}
+  pluginVersion: 8.0.6
   targets:
-  - format: time_series
+  - format: table
     group: []
     metricColumn: none
     rawQuery: true
@@ -107,6 +107,7 @@ panels:
     defaults:
       custom:
         align: null
+        displayMode: auto
         filterable: false
       mappings: []
       thresholds:
@@ -140,7 +141,7 @@ panels:
   id: 4
   options:
     showHeader: true
-  pluginVersion: 7.3.8
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -174,8 +175,6 @@ panels:
 - datasource: $DB
   fieldConfig:
     defaults:
-      custom:
-        align: null
       links:
       - title: Scope Dashboard to ${__field.name}
         url: /d/wasted_files?var-Datastore=${__field.name}&var-MinFileSize=${MinFileSize}
@@ -203,9 +202,10 @@ panels:
       limit: 5
       values: true
     showUnfilled: true
-  pluginVersion: 7.3.8
+    text: {}
+  pluginVersion: 8.0.6
   targets:
-  - format: time_series
+  - format: table
     group: []
     metricColumn: none
     rawQuery: true
@@ -235,10 +235,6 @@ panels:
   title: Wasted File Count Per Datastore
   type: bargauge
 - datasource: null
-  fieldConfig:
-    defaults:
-      custom: {}
-    overrides: []
   gridPos:
     h: 2
     w: 24
@@ -253,7 +249,7 @@ panels:
       of report generation. Before you delete files based on this report,
       verify that the files are indeed unused.</p>
     mode: html
-  pluginVersion: 7.3.8
+  pluginVersion: 8.0.6
   timeFrom: null
   timeShift: null
   title: Caution
@@ -263,6 +259,7 @@ panels:
     defaults:
       custom:
         align: null
+        displayMode: auto
         filterable: false
       mappings: []
       thresholds:
@@ -308,7 +305,7 @@ panels:
   options:
     showHeader: true
     sortBy: []
-  pluginVersion: 7.3.8
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -340,15 +337,12 @@ panels:
   title: Individual Wasted Files
   type: table
 refresh: false
-schemaVersion: 26
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - current:
-      selected: false
-      text: Turbo Timescale
-      value: Turbo Timescale
+  - description: null
     error: null
     hide: 2
     includeAll: false
@@ -370,6 +364,7 @@ templating:
              storage_oid as __value
       FROM wasted_file
       ORDER BY storage_name
+    description: null
     error: null
     hide: 0
     includeAll: true
@@ -387,7 +382,6 @@ templating:
     skipUrlSync: false
     sort: 0
     tagValuesQuery: ""
-    tags: []
     tagsQuery: ""
     type: query
     useTags: false
@@ -406,6 +400,7 @@ templating:
              generate_series*1024 as __value
         FROM generate_series(10,100,10)
        ORDER BY __value
+    description: null
     error: null
     hide: 0
     includeAll: false
@@ -430,7 +425,6 @@ templating:
     skipUrlSync: false
     sort: 0
     tagValuesQuery: ""
-    tags: []
     tagsQuery: ""
     type: query
     useTags: false
@@ -449,6 +443,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Wasted Storage Files
 uid: wasted_files
+version: 3426

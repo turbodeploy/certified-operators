@@ -1,3 +1,18 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.6
+- type: panel
+  id: graph
+  name: Graph (old)
+  version: ""
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
 annotations:
   list:
   - builtIn: 1
@@ -11,9 +26,9 @@ description: This dashboard compares average daily utilization measurements for 
   machines week-over-week for two consecutive weeks. All VMs in the selected group
   are included in the averages.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 1
-iteration: 1598643345092
+iteration: 1627069133054
 links: []
 panels:
 - aliasColors: {}
@@ -25,7 +40,7 @@ panels:
   description: Average Virtual Memory utilization for VM's
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -48,10 +63,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -99,6 +115,7 @@ panels:
         avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1 ASC
     refId: A
     select:
     - - params:
@@ -112,9 +129,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VMem Utilization
   tooltip:
     shared: true
@@ -122,28 +139,28 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -153,7 +170,7 @@ panels:
   description: Average Virtual CPU utilization for VM's
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -176,10 +193,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -241,9 +259,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VCPU Utilization
   tooltip:
     shared: true
@@ -251,46 +269,49 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
-schemaVersion: 25
+    alignLevel: null
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - description: null
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue: "0"
+  - allValue: 0
+    current: {}
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -301,9 +322,11 @@ templating:
       AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
       GROUP BY name, oid
       ORDER BY 1
+    description: null
+    error: null
     hide: 0
     includeAll: true
-    label:
+    label: null
     multi: false
     name: Group
     options: []
@@ -317,12 +340,11 @@ templating:
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
+    tagValuesQuery: ""
+    tagsQuery: ""
     type: query
     useTags: false
 time:
@@ -339,6 +361,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Virtual Machine Utilization Week over Week By Day
 uid: vm_util_week_over_week_by_day
+version: 3426

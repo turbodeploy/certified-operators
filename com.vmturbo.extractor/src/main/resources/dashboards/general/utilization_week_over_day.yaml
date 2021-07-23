@@ -1,3 +1,18 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.6
+- type: panel
+  id: graph
+  name: Graph (old)
+  version: ""
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
 annotations:
   list:
   - builtIn: 1
@@ -11,9 +26,9 @@ description: This dashboard compares average daily utilization measurements for 
   machines (aka hosts) week-over-week for two consecutive weeks. All physical machines
   in the selected group are included in the averages.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 1
-iteration: 1597070486563
+iteration: 1627069804249
 links: []
 panels:
 - aliasColors: {}
@@ -25,7 +40,7 @@ panels:
   description: Average memory utilization for physical machines
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -36,7 +51,7 @@ panels:
     y: 0
   hiddenSeries: false
   id: 4
-  interval: ''
+  interval: ""
   legend:
     alignAsTable: true
     avg: true
@@ -51,10 +66,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -123,9 +139,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg Memory Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -133,29 +149,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:83
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:84
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -165,7 +181,7 @@ panels:
   description: Average CPU utilization by physical machine
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -188,10 +204,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -260,9 +277,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg CPU Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -270,29 +287,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:167
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:168
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -302,7 +319,7 @@ panels:
   description: Average Ballooning utilization by physical machines
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -325,10 +342,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -399,9 +417,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg Ballooning Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -409,29 +427,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:335
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:336
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -441,7 +459,7 @@ panels:
   description: Average Swapping utilization by physical machines
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -464,10 +482,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -536,9 +555,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg Swapping Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -546,29 +565,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:251
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:252
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -578,7 +597,7 @@ panels:
   description: Average IO Throughput utilization by physical machine
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -601,10 +620,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -674,9 +694,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg IO Throughput Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -684,29 +704,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:419
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:420
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -716,7 +736,7 @@ panels:
   description: Average Net Throughput utilization by physical machines
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 1
   fillGradient: 0
@@ -739,10 +759,11 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: true
   renderer: flot
@@ -811,9 +832,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Machine Avg Net Throughput Utilization - Week over Week by Day
   tooltip:
     shared: true
@@ -821,48 +842,51 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:503
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:504
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 refresh: false
-schemaVersion: 25
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - description: null
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue: "0"
+  - allValue: 0
+    current: {}
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -873,9 +897,11 @@ templating:
       AND attrs -> 'member_types' ? 'PHYSICAL_MACHINE'
       GROUP BY name, oid
       ORDER BY 1
+    description: null
+    error: null
     hide: 0
     includeAll: true
-    label:
+    label: null
     multi: false
     name: Group
     options: []
@@ -889,14 +915,16 @@ templating:
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
+    tagValuesQuery: ""
+    tagsQuery: ""
     type: query
     useTags: false
+time:
+  from: now-7d
+  to: now
 timepicker:
   refresh_intervals:
   - 10s
@@ -908,6 +936,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Physical Machine Utilization Week over Week by Day
 uid: utilization_week_over_day
+version: 3424

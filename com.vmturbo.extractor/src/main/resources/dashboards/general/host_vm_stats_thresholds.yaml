@@ -1,3 +1,22 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.5
+- type: panel
+  id: graph
+  name: Graph (old)
+  version: ""
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
+- type: panel
+  id: table
+  name: Table
+  version: ""
 annotations:
   list:
   - builtIn: 1
@@ -13,9 +32,9 @@ description: This report shows daily average utilization measurements for the se
   virtual machines are included. This information is useful as a top-level assessment
   of the overall average loading of your entire environment over time.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
-iteration: 1596048754801
+iteration: 1626807992515
 links: []
 panels:
 - aliasColors: {}
@@ -26,7 +45,7 @@ panels:
   description: Average utilization for physical machines over selected time period.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -47,10 +66,11 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.5
   pointradius: 2
   points: false
   renderer: flot
@@ -88,9 +108,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Physical Infrastructure Utilization Metrics
   tooltip:
     shared: true
@@ -98,43 +118,44 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:410
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:411
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - datasource: $DB
   description: Percentage thresholds at which the color changes from Green to Yellow,
     and Yellow to Red
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
+        displayMode: auto
         width: 115
       mappings: []
       thresholds:
         mode: percentage
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
       unit: percentunit
@@ -148,7 +169,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: yellow
             value: 20
           - color: red
@@ -166,7 +187,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 60
           - color: red
@@ -182,7 +203,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 30
           - color: red
@@ -198,7 +219,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 10
           - color: red
@@ -214,7 +235,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 20
           - color: red
@@ -230,7 +251,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 20
           - color: red
@@ -246,7 +267,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 3
           - color: red
@@ -260,7 +281,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 60
           - color: red
@@ -278,7 +299,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value:
+            value: null
           - color: '#EAB839'
             value: 20
           - color: red
@@ -291,7 +312,7 @@ panels:
   id: 7
   options:
     showHeader: true
-  pluginVersion: 7.0.1
+  pluginVersion: 8.0.5
   targets:
   - format: table
     group: []
@@ -316,177 +337,211 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Legend
   type: table
-- columns: []
-  datasource: -- Dashboard --
+- datasource: -- Dashboard --
   description: Daily average for physical machines.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 80%
+      color:
+        mode: thresholds
+      custom:
+        align: right
+        displayMode: auto
+      decimals: 2
+      displayName: ""
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+      unit: percentunit
+    overrides:
+    - matcher:
+        id: byName
+        options: time
+      properties:
+      - id: displayName
+        value: Date
+      - id: unit
+        value: 'time: YYYY-MM-DD'
+    - matcher:
+        id: byName
+        options: CPU
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(41, 168, 36, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.2
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.4
+    - matcher:
+        id: byName
+        options: MEM
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.6
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.8
+    - matcher:
+        id: byName
+        options: BALLOONING
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.3
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.6
+    - matcher:
+        id: byName
+        options: SWAPPING
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.1
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.25
+    - matcher:
+        id: byName
+        options: IO_THROUGHPUT
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.2
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.4
+    - matcher:
+        id: byName
+        options: NET_THROUGHPUT
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.2
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.4
+    - matcher:
+        id: byRegexp
+        options: /Q.*_VCPU/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: custom.align
+        value: null
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.03
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.1
   gridPos:
     h: 12
     w: 24
     x: 0
     y: 13
   id: 4
-  pageSize:
-  showHeader: true
-  sort:
-    col: 0
-    desc: false
-  styles:
-  - $$hashKey: object:1199
-    alias: Date
-    align: ''
-    dateFormat: YYYY-MM-DD
-    pattern: Time
-    type: date
-  - $$hashKey: object:1200
-    alias: ''
-    align: ''
-    colorMode: cell
-    colors:
-    - rgba(41, 168, 36, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: CPU
-    thresholds:
-    - 0.2
-    - 0.4
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1201
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: MEM
-    thresholds:
-    - 0.6
-    - 0.8
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1202
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    link: false
-    mappingType: 1
-    pattern: BALLOONING
-    thresholds:
-    - 0.3
-    - 0.6
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1203
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: SWAPPING
-    thresholds:
-    - 0.1
-    - 0.25
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1204
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: IO_THROUGHPUT
-    thresholds:
-    - 0.2
-    - 0.4
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1205
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: NET_THROUGHPUT
-    thresholds:
-    - 0.2
-    - 0.4
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1206
-    alias: ''
-    align: auto
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: /Q.*_VCPU/
-    thresholds:
-    - 0.03
-    - 0.1
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1207
-    alias: ''
-    align: right
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    decimals: 2
-    pattern: /.*/
-    thresholds: []
-    type: number
-    unit: percentunit
+  options:
+    showHeader: true
+  pluginVersion: 8.0.5
   targets:
   - panelId: 2
     refId: A
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Physical Machine Summary
-  transform: timeseries_to_columns
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -495,7 +550,7 @@ panels:
   description: Average utilization for virtual machines over selected time period.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -516,10 +571,11 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.5
   pointradius: 2
   points: false
   renderer: flot
@@ -558,9 +614,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Virtual Infrastructure Utilization Metrics
   tooltip:
     shared: true
@@ -568,128 +624,136 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:317
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:318
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
-- columns: []
-  datasource: -- Dashboard --
+    alignLevel: null
+- datasource: -- Dashboard --
   description: Daily average for virtual machines.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: ""
+        displayMode: auto
+      decimals: 2
+      displayName: ""
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+      unit: percentunit
+    overrides:
+    - matcher:
+        id: byName
+        options: time
+      properties:
+      - id: displayName
+        value: Date
+      - id: unit
+        value: 'time: YYYY-MM-DD'
+    - matcher:
+        id: byName
+        options: VCPU
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(41, 168, 36, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.2
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.4
+    - matcher:
+        id: byName
+        options: VMEM
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-background
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgba(50, 172, 45, 0.97)
+            value: null
+          - color: rgba(237, 129, 40, 0.89)
+            value: 0.6
+          - color: rgba(245, 54, 54, 0.9)
+            value: 0.8
   gridPos:
     h: 11
     w: 12
     x: 12
     y: 25
   id: 5
-  pageSize:
-  showHeader: true
-  sort:
-    col: 0
-    desc: false
-  styles:
-  - $$hashKey: object:1426
-    alias: Date
-    align: ''
-    dateFormat: YYYY-MM-DD
-    pattern: Time
-    type: date
-  - $$hashKey: object:1427
-    alias: ''
-    align: ''
-    colorMode: cell
-    colors:
-    - rgba(41, 168, 36, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VCPU
-    thresholds:
-    - 0.2
-    - 0.4
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1428
-    alias: ''
-    align: ''
-    colorMode: cell
-    colors:
-    - rgba(50, 172, 45, 0.97)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(245, 54, 54, 0.9)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VMEM
-    thresholds:
-    - 0.6
-    - 0.8
-    type: number
-    unit: percentunit
-  - $$hashKey: object:1429
-    alias: ''
-    align: ''
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: /.*/
-    thresholds: []
-    type: number
-    unit: percentunit
+  options:
+    showHeader: true
+  pluginVersion: 8.0.5
   targets:
   - panelId: 3
     refId: A
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Virtual Machine Summary
-  transform: timeseries_to_columns
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 refresh: false
-schemaVersion: 25
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - description: null
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
 time:
@@ -706,6 +770,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Daily Infrastructure Average Stats vs. Thresholds
 uid: host_vm_stats_thresholds
+version: 2
