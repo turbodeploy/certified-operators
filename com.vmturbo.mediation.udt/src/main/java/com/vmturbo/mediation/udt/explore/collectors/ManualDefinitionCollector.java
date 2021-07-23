@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
+
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +32,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ManualDefinitionCollector extends UdtCollector<ManualEntityDefinition> {
 
     private static final Logger LOGGER = LogManager.getLogger();
+
+    static final ImmutableMap<EntityType, Set<EntityType>> ATD_FILTER_OUT_CLASSES =
+            new ImmutableMap.Builder<EntityType, Set<EntityType>>()
+                    .put(EntityType.BUSINESS_APPLICATION,
+                            Sets.newHashSet(EntityType.BUSINESS_APPLICATION))
+                    .put(EntityType.BUSINESS_TRANSACTION,
+                            Sets.newHashSet(EntityType.BUSINESS_APPLICATION, EntityType.BUSINESS_TRANSACTION))
+                    .put(EntityType.SERVICE,
+                            Sets.newHashSet(EntityType.BUSINESS_APPLICATION, EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE))
+                    .build();
 
     /**
      * Constructor.
@@ -59,6 +71,10 @@ public class ManualDefinitionCollector extends UdtCollector<ManualEntityDefiniti
                 .map(criteria -> getChildEntities(criteria, dataProvider))
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
+        // If the definition is context-bases we use children as ATD Context to get 'leaf' entities.
+        if (definition.getContextBased()) {
+            children = dataProvider.getLeafEntities(children, ATD_FILTER_OUT_CLASSES.get(definition.getEntityType()));
+        }
         final UdtEntity udtEntity = new UdtEntity(definition.getEntityType(),
                 String.valueOf(definitionId), definition.getEntityName(), children);
         return Collections.singleton(udtEntity);

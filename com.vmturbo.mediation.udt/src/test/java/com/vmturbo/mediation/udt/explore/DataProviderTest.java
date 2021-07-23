@@ -1,17 +1,24 @@
 package com.vmturbo.mediation.udt.explore;
 
+import static org.junit.Assert.assertTrue;
+
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+
+import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -19,12 +26,14 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTop
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinitionEntry;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.udt.TestUtils;
-import com.vmturbo.mediation.udt.UdtProbe;
+import com.vmturbo.mediation.udt.inventory.UdtChildEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -48,8 +57,7 @@ public class DataProviderTest {
     public void testGetTopologyDataDefinitions() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
         Mockito.when(requestExecutor.getAllTopologyDataDefinitions(Mockito.any()))
                 .thenReturn(Collections.emptyIterator());
         dataProvider.getTopologyDataDefinitions();
@@ -66,8 +74,7 @@ public class DataProviderTest {
     public void testGetTopologyDataDefinitionsWithEnabledContextBasedAtds() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(true));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
         Mockito.when(requestExecutor.getAllTopologyDataDefinitions(Mockito.any()))
                 .thenReturn(buildTopologyDataDefinitionResponseIterator());
         Map<Long, TopologyDataDefinition> topologyDataDefinitions = dataProvider.getTopologyDataDefinitions();
@@ -79,28 +86,6 @@ public class DataProviderTest {
         Assert.assertEquals(2, topologyDataDefinitions.size());
         Assert.assertTrue(topologyDataDefinitions.containsKey(ENTRY));
         Assert.assertTrue(topologyDataDefinitions.containsKey(CONTEXT_BASED_ENTRY));
-    }
-
-    /**
-     * Tests that {@link DataProvider#getTopologyDataDefinitions()} does not return
-     * context-based ATDs.
-     */
-    @Test
-    public void testGetTopologyDataDefinitionsWithDisabledContextBasedAtds() {
-        RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
-        DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
-        Mockito.when(requestExecutor.getAllTopologyDataDefinitions(Mockito.any()))
-                .thenReturn(buildTopologyDataDefinitionResponseIterator());
-        Map<Long, TopologyDataDefinition> topologyDataDefinitions = dataProvider.getTopologyDataDefinitions();
-        Mockito.verify(requests, Mockito.times(1)).tddRequest();
-        Mockito.verify(requestExecutor, Mockito.times(1))
-                .getAllTopologyDataDefinitions(Mockito.any());
-
-        Assert.assertNotNull(topologyDataDefinitions);
-        Assert.assertEquals(1, topologyDataDefinitions.size());
-        Assert.assertTrue(topologyDataDefinitions.containsKey(ENTRY));
     }
 
     private static Iterator<GetTopologyDataDefinitionResponse> buildTopologyDataDefinitionResponseIterator() {
@@ -133,8 +118,7 @@ public class DataProviderTest {
     public void testSearchEntities() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
         SearchEntitiesResponse response = SearchEntitiesResponse.newBuilder().build();
         Mockito.when(requestExecutor.searchEntities(Mockito.any())).thenReturn(response);
         SearchParameters searchParameters = SearchParameters.newBuilder().build();
@@ -151,8 +135,7 @@ public class DataProviderTest {
     public void testGetGroupMembersIds() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
         long id = 1200L;
         GroupDTO.GroupID groupID = GroupDTO.GroupID.newBuilder().setId(id).build();
         Mockito.when(requestExecutor.getGroupMembers(Mockito.any())).thenReturn(Collections.emptyIterator());
@@ -168,8 +151,7 @@ public class DataProviderTest {
     public void testGetGroupMembersMissingGroup() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
         long id = 1200L;
         GroupDTO.GroupID groupID = GroupDTO.GroupID.newBuilder().setId(id).build();
         Mockito.when(requestExecutor.getGroupMembers(Mockito.any()))
@@ -186,8 +168,7 @@ public class DataProviderTest {
     public void testGetUdtTargetId() throws CommunicationException {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
 
         ProbeInfo probeInfo = TestUtils.mockProbeInfo(PROBE_ID, SDKProbeType.UDT);
         Mockito.when(requestExecutor.findProbe(SDKProbeType.UDT))
@@ -210,8 +191,7 @@ public class DataProviderTest {
     public void testGetUdtTargetIdIfProbeNotFound() throws CommunicationException {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
 
         Long udtTargetId = dataProvider.getUdtTargetId();
 
@@ -229,8 +209,7 @@ public class DataProviderTest {
     public void testGetUdtTargetIdIfUdtTargetsNotFound() throws CommunicationException {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
 
         ProbeInfo probeInfo = TestUtils.mockProbeInfo(PROBE_ID, SDKProbeType.UDT);
         Mockito.when(requestExecutor.findProbe(SDKProbeType.UDT))
@@ -251,8 +230,7 @@ public class DataProviderTest {
     public void testGetUdtTargetIdIfCommunicationExceptionThrown() throws CommunicationException {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
 
         Mockito.when(requestExecutor.findProbe(SDKProbeType.UDT))
                 .thenThrow(CommunicationException.class);
@@ -270,12 +248,41 @@ public class DataProviderTest {
     public void testRetrieveTagValue() {
         RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
         DataRequests requests = Mockito.mock(DataRequests.class);
-        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver,
-                UdtProbe.buildTopologyDefinitionsFilter(false));
+        DataProvider dataProvider = new DataProvider(requestExecutor, requests, resolver);
 
         dataProvider.retrieveTagValues("tag1", EntityType.SERVICE);
 
         Mockito.verify(requests).getSearchTagValuesRequest("tag1", EntityType.SERVICE);
         Mockito.verify(requestExecutor).getTagValues(Mockito.any());
+    }
+
+    /**
+     * It tests `getLeafEntities` method.
+     * Tests tan empty atdContext.
+     * Tests that correct OIDs sre passed to the request executor.
+     */
+    @Test
+    public void testGetLeafEntities() {
+        List<Long> oids = Lists.newArrayList(1L, 2L);
+        RequestExecutor requestExecutor = Mockito.mock(RequestExecutor.class);
+        DataProvider dataProvider = new DataProvider(requestExecutor, new DataRequests(), resolver);
+
+        Set<UdtChildEntity> leaves;
+        leaves = dataProvider.getLeafEntities(Collections.emptySet(), null);
+        Assert.assertTrue(leaves.isEmpty());
+
+        Set<UdtChildEntity> atdContext = new HashSet<>();
+        atdContext.add(new UdtChildEntity(oids.get(0), EntityType.APPLICATION_COMPONENT));
+        atdContext.add(new UdtChildEntity(oids.get(1), EntityType.CONTAINER));
+        Mockito.when(requestExecutor.getLeafEntities(Mockito.any()))
+                .thenReturn(LeafEntitiesResponse.newBuilder().build());
+
+        ArgumentCaptor<LeafEntitiesRequest> reqCaptor = ArgumentCaptor.forClass(LeafEntitiesRequest.class);
+        leaves = dataProvider.getLeafEntities(atdContext, null);
+        Mockito.verify(requestExecutor).getLeafEntities(reqCaptor.capture());
+        LeafEntitiesRequest request = reqCaptor.getValue();
+        List<Long> seeds = request.getSeedsList();
+        assertTrue(seeds.size() == oids.size() && seeds.containsAll(oids) && oids.containsAll(seeds));
+
     }
 }

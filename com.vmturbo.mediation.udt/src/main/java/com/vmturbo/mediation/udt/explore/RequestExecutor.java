@@ -37,6 +37,10 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTop
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchTagValuesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagValuesResponse;
 import com.vmturbo.common.protobuf.search.Search.TaggedEntities;
@@ -56,6 +60,7 @@ public class RequestExecutor {
 
     private final TopologyDataDefinitionServiceBlockingStub topologyDataDefService;
     private final RepositoryServiceBlockingStub repositoryService;
+    private final SupplyChainServiceBlockingStub supplyChainRpcService;
     private final GroupServiceBlockingStub groupService;
     private final SearchServiceBlockingStub searchService;
     private final TopologyProcessor topologyProcessor;
@@ -73,6 +78,7 @@ public class RequestExecutor {
         this.groupService = newBlockingStub(connection.getGroupChannel());
         this.searchService = SearchServiceGrpc.newBlockingStub(connection.getRepositoryChannel());
         this.topologyProcessor = connection.getTopologyProcessorApi();
+        this.supplyChainRpcService = SupplyChainServiceGrpc.newBlockingStub(connection.getRepositoryChannel());
     }
 
     @Nonnull
@@ -191,6 +197,11 @@ public class RequestExecutor {
         stopWatch.stop();
         logger.debug(stopWatch.prettyPrint());
         return targetInfo;
+    }
+
+    @Nonnull
+    LeafEntitiesResponse getLeafEntities(@Nonnull LeafEntitiesRequest request) {
+        return supplyChainRpcService.getLeafEntities(request);
     }
 
     @Nonnull
