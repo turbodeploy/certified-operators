@@ -9,6 +9,7 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
+import org.mariadb.jdbc.MariaDbDataSource;
 import org.mariadb.jdbc.MariaDbPoolDataSource;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
@@ -27,16 +28,24 @@ class MariaDBMySqlAdapter extends DbAdapter {
     }
 
     @Override
-    DataSource getDataSource(String url, String user, String password)
+    DataSource getDataSource(String url, String user, String password, boolean pooled)
             throws SQLException {
-        final MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
-        dataSource.setUrl(url);
-        dataSource.setUser(user);
-        dataSource.setPassword(password);
-        dataSource.setDatabaseName(config.getDatabaseName());
-        dataSource.setMinPoolSize(config.getMinPoolSize());
-        dataSource.setMaxPoolSize(config.getMaxPoolSize());
-        return dataSource;
+        if (pooled) {
+            final MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
+            dataSource.setUrl(url);
+            dataSource.setUser(user);
+            dataSource.setPassword(password);
+            dataSource.setDatabaseName(config.getDatabaseName());
+            dataSource.setMinPoolSize(config.getMinPoolSize());
+            dataSource.setMaxPoolSize(config.getMaxPoolSize());
+            return dataSource;
+        } else {
+            final MariaDbDataSource dataSource = new MariaDbDataSource();
+            dataSource.setUrl(url);
+            dataSource.setUser(user);
+            dataSource.setPassword(password);
+            return dataSource;
+        }
     }
 
     @Override
