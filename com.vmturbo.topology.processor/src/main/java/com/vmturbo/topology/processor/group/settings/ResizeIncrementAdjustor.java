@@ -26,7 +26,7 @@ class ResizeIncrementAdjustor {
      * @param probeProvidedIncrement The resize increment allowed by the probe.
      * @return The resize increment to use for the commodity in the topology.
      */
-    public static float roundToProbeIncrement(final float userRequestedIncrement,
+    public static float roundToProbeIncrement(final double userRequestedIncrement,
                                               final float probeProvidedIncrement) {
         Preconditions.checkArgument(probeProvidedIncrement > 0);
         // First, find the amount of "probe increments" that the user-requested increment can

@@ -578,12 +578,28 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
+     * Virtual CPU Increment in sockets for virtual machines.
+     */
+    VmVcpuIncrementSockets("usedIncrement_VCPU_Sockets", "Increment constant for VCPU [Sockets]",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(1f/*min*/, 1000000.0f/*max*/, 1f/*default*/), true),
+
+    /**
+     * Virtual CPU Increment unit for virtual machines.
+     */
+    VmVcpuIncrementUnit("usedIncrement_VCPU_Unit", "Increment constant unit For VCPU",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(UsedIncrementUnitVCpu.MHZ, UsedIncrementUnitVCpu.class), true),
+
+    /**
      * Core Socket Ratio Policy for virtual machines.
      */
     CoreSocketRatioMode("coreSocketRatioMode", "Cores to sockets ratio mode",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new EnumSettingDataType<>(CoreSocketRatioPolicyEnum.IGNORE, CoreSocketRatioPolicyEnum.class), true),
+            new EnumSettingDataType<>(CoreSocketRatioPolicyEnum.LEGACY, CoreSocketRatioPolicyEnum.class), true),
 
     /**
      * Virtual Memory Increment for virtual machines.
