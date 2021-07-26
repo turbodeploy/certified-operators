@@ -314,8 +314,10 @@ public abstract class SQLDatabaseConfig {
         DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword,
                 dbMinPoolSize, dbMaxPoolSize);
         try {
-            // Test DB connection first to the schema under given user credentials.
-            dataSource.getConnection().close();
+            // Test DB connection first with to the schema under given user credentials.
+            // We use an un-pooled datasource because otherwise, failures can cause long waits.
+            new MariaDbDataSource(getSQLConfigObject().getDbUrl())
+                    .getConnection(dbUsername, dbPassword).close();
             logger.info("DB connection is available to schema '{}' from user '{}'.", schemaName,
                     dbUsername);
             // Run flyway migration with given user.

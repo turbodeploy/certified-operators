@@ -187,7 +187,7 @@ public class DbEndpoint {
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
         awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
         if (config.getEndpointEnabled()) {
-            return adapter.getDataSource();
+            return adapter.getDataSource(true);
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
         }
@@ -228,7 +228,7 @@ public class DbEndpoint {
         return new DataSourceConnectionProvider(
                 new TransactionAwareDataSourceProxy(
                         new LazyConnectionDataSourceProxy(
-                                adapter.getDataSource())));
+                                adapter.getDataSource(true))));
     }
 
     /**

@@ -132,8 +132,8 @@ public abstract class DbAdapter {
 
             }
             // check to make sure that the endpoint user can now connect to the database
-            try {
-                final Connection ignored = getNonRootConnection();
+            //noinspection EmptyTryBlock
+            try (Connection ignored = getNonRootConnection(false)) {
             } catch (SQLException e) {
                 final String msg = String.format(
                         "Failed to establish test connection after provisioning endpoint %s", config);
@@ -159,12 +159,13 @@ public abstract class DbAdapter {
     /**
      * Create a {@link DataSource} object for this endpoint, using non-root credentials.
      *
+     * @param pooled true if the connection should be allocated from a pooled data source
      * @return new datasource object
      * @throws UnsupportedDialectException for an unsupported endpoint dialect
      * @throws SQLException                if the datasource cannot be created
      */
-    DataSource getDataSource() throws UnsupportedDialectException, SQLException {
-        return getDataSource(getUrl(config), config.getUserName(), config.getPassword());
+    DataSource getDataSource(boolean pooled) throws UnsupportedDialectException, SQLException {
+        return getDataSource(getUrl(config), config.getUserName(), config.getPassword(), pooled);
     }
 
     /**
@@ -173,10 +174,11 @@ public abstract class DbAdapter {
      * @param url      URL for DB server
      * @param user     login user name
      * @param password login password
+     * @param pooled   true if a pooled datasource is desired
      * @return new datasource
      * @throws SQLException if the datasource cannot be created
      */
-    abstract DataSource getDataSource(String url, String user, String password)
+    abstract DataSource getDataSource(String url, String user, String password, boolean pooled)
             throws SQLException;
 
     /**
@@ -190,7 +192,7 @@ public abstract class DbAdapter {
      * @throws SQLException                if there's a problem creating the data source
      */
     protected DataSource getDataSourceForFlyway() throws UnsupportedDialectException, SQLException {
-        return getDataSource();
+        return getDataSource(true);
     }
 
     /**
@@ -206,7 +208,7 @@ public abstract class DbAdapter {
             throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
         if (config.isRootAccessEnabled()) {
             return getDataSource(getUrl(config, database),
-                    config.getRootUserName(), config.getRootPassword());
+                    config.getRootUserName(), config.getRootPassword(), true);
         } else {
             throw new UnsupportedOperationException(
                     String.format("DbEndpoint %s is not enabled for root access", this));
@@ -218,19 +220,31 @@ public abstract class DbAdapter {
      * Create a {@link Connection} to this endpoint's database, using the non-root user
      * credentials.
      *
+     * @param pooled true if the connection should be obtained from a pooled datasource
      * @return new connection
      * @throws UnsupportedDialectException for an unsupported dialect
      * @throws SQLException                if the connection could not be created
      */
-    Connection getNonRootConnection() throws UnsupportedDialectException, SQLException {
-        final Connection conn = getDataSource().getConnection();
+    Connection getNonRootConnection(boolean pooled) throws UnsupportedDialectException, SQLException {
+        final Connection conn = getDataSource(pooled).getConnection();
         try {
             setConnectionUser(conn, config.getUserName());
         } catch (SQLException ignored) {
             // only for logging, so we swallow any exception
         }
-
         return conn;
+    }
+
+    /**
+     * Create a pooled {@link Connection} to this endpoint's database, using the non-root user
+     * credentials.
+     *
+     * @return new connection
+     * @throws UnsupportedDialectException for an unsupported dialect
+     * @throws SQLException                if the connection could not be created
+     */
+    Connection getNonRootConnection() throws UnsupportedDialectException, SQLException {
+        return getNonRootConnection(true);
     }
 
     /**
