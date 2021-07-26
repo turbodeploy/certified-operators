@@ -241,7 +241,7 @@ public class TracingManager {
             return EnvironmentUtils
                 .getOptionalEnvProperty("ALWAYS_ON_TRACER_ENABLED")
                 .map(Boolean::parseBoolean)
-                .orElse(true);
+                .orElse(false);
         } catch (Exception e) {
             logger.error("Unable to check ALWAYS_ON_TRACER_ENABLED. Defaulting to false ", e);
             return false;
