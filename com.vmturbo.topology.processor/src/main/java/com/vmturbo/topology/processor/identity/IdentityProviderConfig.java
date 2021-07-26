@@ -69,7 +69,7 @@ public class IdentityProviderConfig {
     @Value("${entityValidationFrequencyHours:6}")
     private int entityValidationFrequencyHours;
 
-    @Value("${expireOids:false}")
+    @Value("${expireOids:true}")
     private boolean expireOids;
 
     @Value("${expirationDaysPerEntity:}")
