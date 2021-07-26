@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.components.common.setting.UsedIncrementUnitVCpu;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -65,7 +66,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.CoreSocketRatioPolicyEnum;
@@ -245,6 +245,33 @@ public class EntitySettingsApplicatorTest {
                             .getSettingSpec()
                             .getNumericSettingValueType()
                             .getDefault()))
+            .build();
+    private static final Setting VM_VCPU_INCREMENT_SOCKETS_DEFAULT = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrementSockets.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(
+                    EntitySettingSpecs.VmVcpuIncrementSockets
+                            .getSettingSpec()
+                            .getNumericSettingValueType()
+                            .getDefault()))
+            .build();
+
+    private static final Setting VM_VCPU_INCREMENT_SOCKETS = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrementSockets.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(
+                    4)).build();
+
+    private static final Setting VM_VCPU_INCREMENT_UNIT_SOCKETS = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrementUnit.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(UsedIncrementUnitVCpu.SOCKETS
+                            .name()).build())
+            .build();
+
+    private static final Setting VM_VCPU_INCREMENT_UNIT_DEFAULT = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrementUnit.getSettingName())
+            .setEnumSettingValue(
+                    EnumSettingValue.newBuilder().setValue(
+                            EntitySettingSpecs.VmVcpuIncrementUnit.getSettingSpec().getEnumSettingValueType()
+                                    .getDefault()).build())
             .build();
 
 
@@ -1879,12 +1906,14 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testVCPUIncrementApplicatorDefault() {
         //coreSocketRatio default is ignore, so use default vmCpuIncrement
-        testVCPUIncrementApplicator(1800, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT);
+        testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(), VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT,
+                VM_VCPU_INCREMENT_UNIT_DEFAULT, VM_VCPU_INCREMENT_SOCKETS_DEFAULT);
     }
 
     @Test
     public void testVCPUIncrementApplicatorNonDefault() {
-        testVCPUIncrementApplicator(5200, VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT);
+        testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(), VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT,
+                VM_VCPU_INCREMENT_UNIT_DEFAULT, VM_VCPU_INCREMENT_SOCKETS_DEFAULT);
 
     }
 
@@ -1893,17 +1922,97 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testVCPUIncrementApplicatorNoCSRSetting() {
-
-        testVCPUIncrementApplicator(5200, VM_VCPU_INCREMENT_DEFAULT);
+        testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(), VM_VCPU_INCREMENT_DEFAULT);
     }
 
-    private static void testVCPUIncrementApplicator(int expectedVCPUIncrenemt, Setting... settings) {
+    /**
+     * If there is No CSR setting(e.g. containers), should work as if settinng = RESPECT.
+     */
+    @Test
+    public void testVCPUIncrementUnitSockets() {
+        testVCPUIncrementApplicator(5200, 10400, 5200, TypeSpecificInfo.newBuilder().build(), VM_VCPU_INCREMENT_DEFAULT,
+                VM_VCPU_INCREMENT_UNIT_SOCKETS, VM_VCPU_INCREMENT_SOCKETS_DEFAULT);
+    }
+
+    /**
+     * If there is No CSR setting(e.g. containers), should work as if settinng = RESPECT.
+     */
+    @Test
+    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefault() {
+        testVCPUIncrementApplicator(1800, 10400, 5200, TypeSpecificInfo.newBuilder().build(), VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_DEFAULT,
+                VM_VCPU_INCREMENT_UNIT_SOCKETS, VM_VCPU_INCREMENT_SOCKETS);
+    }
+
+    /**
+     * Checks that in case capacity increment has not been send by the probe, then we will use
+     * capacity increment value from setting.
+     */
+    @Test
+    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectVmInfo() {
+        testVCPUIncrementApplicator(7200, 20400, null, TypeSpecificInfo.newBuilder().build(),
+                        VM_VCPU_INCREMENT_DEFAULT, CORE_SOCKET_RATIO_MODE_RESPECT,
+                        VM_VCPU_INCREMENT_UNIT_SOCKETS, VM_VCPU_INCREMENT_SOCKETS);
+    }
+
+    /**
+     * Checks that in case capacity increment has not been sent explicitly from the probe then it
+     * will be calculated as VCPU_sold_capacity/numCpus * coresPerSocketRatio.
+     */
+    @Test
+    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrement() {
+        testVCPUIncrementApplicator(5200, 10400, null, createTypeSpecificInfo(4, 2),
+                        VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    /**
+     * Checks that in case capacity increment has not been sent explicitly from the probe and probe
+     * has not send cores per socket ratio value, then it will be calculated as
+     * VCPU_sold_capacity/numCpus.
+     */
+    @Test
+    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrementAndNoCSPR() {
+        testVCPUIncrementApplicator(2600, 10400, null, createTypeSpecificInfo(4, null),
+                        VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    /**
+     * Checks that in case capacity increment has not been sent explicitly from the probe and probe
+     * has not send cores per socket ratio value and probe has not send num cpus, setting value will
+     * be taken.
+     */
+    @Test
+    public void testVCPUIncrementUnitSocketsIncrementSocketsNonDefaultCSRRespectNoCapacityIncrementNoCSPRNoNumCpus() {
+        testVCPUIncrementApplicator(1800, 10400, null, createTypeSpecificInfo(null, null),
+                        VM_VCPU_INCREMENT_DEFAULT);
+    }
+
+    private static void testVCPUIncrementApplicator(int expectedVCPUIncrenemt, int capacity,
+                    Integer capacityIncrement, TypeSpecificInfo typeSpecificInfo, Setting... settings) {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, CommodityType.VCPU);
-        builder.getCommoditySoldListBuilder(0).setCapacityIncrement(5200);
+        final CommoditySoldDTO.Builder vcpuCommodity = builder.getCommoditySoldListBuilder(0);
+        if (capacityIncrement != null) {
+            vcpuCommodity.setCapacityIncrement(capacityIncrement);
+        }
+        if (typeSpecificInfo != null) {
+            builder.setTypeSpecificInfo(typeSpecificInfo);
+        }
+        vcpuCommodity.setCapacity(capacity);
         applySettings(TOPOLOGY_INFO, builder, settings);
-        assertEquals(expectedVCPUIncrenemt, builder.getCommoditySoldListBuilder(0).getCapacityIncrement(), 0);
+        assertEquals(expectedVCPUIncrenemt, vcpuCommodity.getCapacityIncrement(), 0);
+    }
 
+    @Nonnull
+    private static TypeSpecificInfo createTypeSpecificInfo(Integer numCpus, Integer cpsr) {
+        final TypeSpecificInfo.VirtualMachineInfo.Builder vmInfo = TypeSpecificInfo.VirtualMachineInfo.newBuilder();
+        if (numCpus != null) {
+            vmInfo.setNumCpus(numCpus);
+        }
+        if (cpsr != null) {
+            vmInfo.setCoresPerSocketRatio(cpsr);
+        }
+        return TypeSpecificInfo.newBuilder().setVirtualMachine(
+                vmInfo.build()).build();
     }
 
     /**

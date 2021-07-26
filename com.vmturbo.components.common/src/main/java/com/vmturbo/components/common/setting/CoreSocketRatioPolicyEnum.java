@@ -5,9 +5,9 @@ package com.vmturbo.components.common.setting;
  */
 public enum CoreSocketRatioPolicyEnum {
     /**
-     * Ignore the CSR sent from probe.
+     * Ignores the CSR sent from probe.
      */
-    IGNORE,
+    LEGACY,
 
     /**
      * Use the CSR sent from probe.

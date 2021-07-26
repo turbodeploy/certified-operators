@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.SettingDataStructure;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -38,6 +40,29 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
         return entity.getCommoditySoldListBuilderList().stream().filter(
                 commodity -> commodity.getCommodityType().getType() == commodityType.getNumber())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get value of the same type that supported by {@link EntitySettingSpecs#getDataStructure()}.
+     * In case there is no setting then default value will be returned.
+     *
+     * @param <T> type of the return setting value.
+     * @param settings settings
+     * @param spec setting spec
+     * @param defaultValue that will be used in case there is no setting for specified spec.
+     * @return value of the setting for specified specification.
+     */
+    @Nullable
+    protected static <T> T getSettingValue(@Nonnull Map<EntitySettingSpecs, Setting> settings,
+                    @Nonnull EntitySettingSpecs spec, @Nullable T defaultValue) {
+        final Setting setting = settings.get(spec);
+        if (setting == null) {
+            return defaultValue;
+        }
+        @SuppressWarnings("unchecked")
+        final SettingDataStructure<T> dataStructure =
+                        (SettingDataStructure<T>)spec.getDataStructure();
+        return dataStructure.getValue(setting);
     }
 
     /**
