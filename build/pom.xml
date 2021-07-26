@@ -128,7 +128,7 @@
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
 
         <mariadb.client.version>2.3.0</mariadb.client.version>
-        <postgresql.client.version>42.2.12</postgresql.client.version>
+        <postgresql.client.version>42.2.23</postgresql.client.version>
 
         <reactor.version>3.3.10.RELEASE</reactor.version>
 
