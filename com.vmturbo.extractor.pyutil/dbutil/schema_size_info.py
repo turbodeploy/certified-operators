@@ -1,6 +1,6 @@
 import argparse
-import logging
 import csv
+import logging
 import sys
 
 import humanize
@@ -8,8 +8,8 @@ import humanize
 from dblib import Database
 
 global logger
-global csv_format
 csv_format = False
+
 
 class ArgParser:
     """Command line argument parser."""
@@ -61,7 +61,7 @@ def log_sizes(schema, db):
         size, detail = db.table_size_info(schema, table)
         total += size
         if not csv_format:
-            print(f"{table}[{humanize.naturalsize(size)}]{': '+detail if detail else ''}")
+            print(f"{table}[{humanize.naturalsize(size)}]{': ' + detail if detail else ''}")
             continue
 
         # We need csv display format.

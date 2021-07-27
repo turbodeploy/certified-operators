@@ -53,7 +53,7 @@ class Database:
             return result
 
     def get_tables(self, schema):
-        """Get the nams of all the tables in the given schema.
+        """Get the names of all the tables in the given schema.
 
         :param schema: schema to scan
         :return: list of tables
@@ -67,8 +67,16 @@ class Database:
         :param table:  table name
         :return: list of indexes
         """
-        sql = f"SELECT * from pg_index WHERE indrelid = '{schema}.{table}'::regclass"
+        sql = f"SELECT * from pg_index " \
+              f"WHERE indrelid = '{schema}.{table}'::regclass AND NOT indisprimary"
         return [Index(row, self) for row in self.query(sql)]
+
+    def get_primary_key(self, schema, table):
+        """Get a Constraint instance for the given table's primary key, or None if there is none."""
+        sql = f"SELECT * from pg_constraint " \
+              f"WHERE conrelid = '{schema}.{table}'::regclass AND contype = 'p'"
+        row = self.query(sql).fetchone()
+        return PrimaryKey(row, self) if row else None
 
     def table_size_info(self, schema, table):
         if HypertableConfig.is_hypertable(schema, table, self):
@@ -80,7 +88,7 @@ class Database:
                 f"  pg_total_relation_size('{sname}')"))
             detail = f"Table: {humanize.naturalsize(tbl_size)}; " \
                      f"Indexes: {humanize.naturalsize(idx_size)}; " \
-                     f"Other: {humanize.naturalsize(total_size-tbl_size-idx_size)}; " \
+                     f"Other: {humanize.naturalsize(total_size - tbl_size - idx_size)}; " \
                      f"Total: {humanize.naturalsize(total_size)}; " \
                      f"Actual: {total_size}b"
             return total_size, detail
@@ -101,25 +109,37 @@ class Index:
         :param info: the row from pg_index for this index
         :param db: database access
         """
-        self.is_pk = info['indisprimary']
-        # get the definition SQL, as well as the qualified names of the table and index
+        # get the definition SQL, as well as the qualified name of the index
         sql = f"SELECT pg_get_indexdef({info['indexrelid']}) AS defn, " \
-              f"  {info['indrelid']}::regclass AS tbl, " \
               f"  (parse_ident({info['indexrelid']}::regclass::text)) AS name"
-        self.defn, self.table, self.name = \
-            map(db.query(sql).fetchone().get, ['defn', 'tbl', 'name'])
+        self.defn, self.name = \
+            map(db.query(sql).fetchone().get, ['defn', 'name'])
         self.db = db
 
     def drop(self):
         """Drop this index from its table."""
-        sql = f"ALTER TABLE {self.table} DROP CONSTRAINT {self.name[1]}" if self.is_pk \
-            else f"DROP INDEX {'.'.join(self.name)}"
+        sql = f"DROP INDEX {'.'.join(self.name)}"
         self.db.execute(sql)
-
 
     def create(self):
         """(Re)create this index on its table."""
         self.db.execute(self.defn)
-        # and restore the primary key if this index was a PK index
-        if self.is_pk:
-            self.db.execute(f"ALTER TABLE {self.table} ADD PRIMARY KEY USING INDEX {self.name[1]}")
+
+
+class PrimaryKey:
+    """Class to represent and operate on a table's primary key."""
+
+    def __init__(self, info, db):
+        sql = f"SELECT pg_get_constraintdef({info['oid']}) AS defn, " \
+              f"  {info['conrelid']}::regclass AS tbl"
+        self.defn, self.table = map(db.query(sql).fetchone().get, ['defn', 'tbl'])
+        self.name = info['conname']
+        self.db = db
+
+    def drop(self):
+        """Drop this constraint from its table."""
+        self.db.execute(f"ALTER TABLE {self.table} DROP CONSTRAINT {self.name}")
+
+    def create(self):
+        """(Re)create this primary key for its table."""
+        self.db.execute(f"ALTER TABLE {self.table} ADD {self.defn}")
