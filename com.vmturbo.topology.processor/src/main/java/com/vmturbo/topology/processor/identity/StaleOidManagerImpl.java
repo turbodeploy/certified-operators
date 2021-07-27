@@ -110,11 +110,12 @@ public class StaleOidManagerImpl implements StaleOidManager {
             .map(localDateTime -> Timestamp.valueOf(localDateTime).getTime()).orElse(currentTimeMs);
         long timeToNextExpirationTask =
             Math.max(0, validationFrequency - (currentTimeMs - latestValidationTime));
-
-        logger.info("Initializing StaleOidManager with following settings {}. Next task will happen"
-                + " in {} hours. After that there will be a task running every {} hours",
-            this.expirationDaysPerEntity, TimeUnit.MILLISECONDS.toHours(timeToNextExpirationTask),
-            TimeUnit.MILLISECONDS.toHours(validationFrequency));
+        logger.info("Initializing StaleOidManager with expiration set to {}. Next task will happen in {} hours."
+                        + " After that there will be a task running every {} hours", this.expireOids,
+                TimeUnit.MILLISECONDS.toHours(timeToNextExpirationTask), TimeUnit.MILLISECONDS.toHours(validationFrequency));
+        if (!expirationDaysPerEntity.keySet().isEmpty()) {
+            logger.info("StaleOidManager settings: {}", this.expirationDaysPerEntity);
+        }
         return this.executorService.scheduleWithFixedDelay(new OidExpirationTask(getCurrentOids,
                         this::notifyListener, entityExpirationTime, context, expireOids, clock,
                         this.expirationDaysPerEntity), timeToNextExpirationTask,
