@@ -110,7 +110,7 @@ public class RequestExecutorTest {
     public void testCreateServices() {
         new RequestExecutor(connection);
         Mockito.verify(connection, Mockito.times(2)).getGroupChannel();
-        Mockito.verify(connection, Mockito.times(2)).getRepositoryChannel();
+        Mockito.verify(connection, Mockito.times(3)).getRepositoryChannel();
     }
 
     /**

@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -31,6 +30,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.mediation.udt.inventory.UdtChildEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -65,7 +67,6 @@ public class DataProvider {
     private final DataRequests requests;
     private final RequestExecutor requestExecutor;
     private final SearchFilterResolver searchFilterResolver;
-    private final Predicate<TopologyDataDefinitionEntry> topologyDefinitionsFilter;
 
     /**
      * Constructor.
@@ -73,16 +74,13 @@ public class DataProvider {
      * @param requestExecutor           - an instance of {@link RequestExecutor}.
      * @param requests                  - an instance of {@link DataRequests}.
      * @param filterResolver            - an instance of {@link SearchFilterResolver}.
-     * @param topologyDefinitionsFilter - a filter for topology definitions.
      */
     @ParametersAreNonnullByDefault
     public DataProvider(RequestExecutor requestExecutor, DataRequests requests,
-                        SearchFilterResolver filterResolver,
-                        Predicate<TopologyDataDefinitionEntry> topologyDefinitionsFilter) {
+                        SearchFilterResolver filterResolver) {
         this.requestExecutor = requestExecutor;
         this.requests = requests;
         this.searchFilterResolver = filterResolver;
-        this.topologyDefinitionsFilter = topologyDefinitionsFilter;
     }
 
     /**
@@ -114,7 +112,6 @@ public class DataProvider {
         return StreamSupport.stream(spliterator, false)
                 .filter(GetTopologyDataDefinitionResponse::hasTopologyDataDefinition)
                 .map(GetTopologyDataDefinitionResponse::getTopologyDataDefinition)
-                .filter(topologyDefinitionsFilter)
                 .collect(Collectors.toMap(TopologyDataDefinitionEntry::getId,
                         TopologyDataDefinitionEntry::getDefinition));
     }
@@ -204,5 +201,30 @@ public class DataProvider {
         return SearchParameters.newBuilder().addSearchFilter(filter)
                 .setStartingFilter(SearchProtoUtil.entityTypeFilter(supportedEntityTypes))
                 .build();
+    }
+
+    /**
+     * Returns leaf entities based on the ATD Context.
+     *
+     * @param atdContext     - list of OIDs.
+     * @param filterOutTypes - entity type to filter out.
+     * @return a set on {@link UdtChildEntity}.
+     */
+    @Nonnull
+    public Set<UdtChildEntity> getLeafEntities(@Nonnull Set<UdtChildEntity> atdContext,
+                                               @Nullable Set<EntityType> filterOutTypes) {
+        if (atdContext.isEmpty()) {
+            return Collections.emptySet();
+        }
+        final Set<Long> seeds = atdContext.stream().map(UdtChildEntity::getOid).collect(Collectors.toSet());
+        final LeafEntitiesRequest request = requests.getLeafEntitiesRequest(seeds, filterOutTypes);
+        final LeafEntitiesResponse response = requestExecutor.getLeafEntities(request);
+        if (response.getLeavesCount() > 0) {
+            return response.getLeavesList()
+                    .stream()
+                    .map(l -> new UdtChildEntity(l.getOid(), l.getEntityType()))
+                    .collect(Collectors.toSet());
+        }
+        return Collections.emptySet();
     }
 }

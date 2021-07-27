@@ -212,6 +212,12 @@ public class ServiceConfig {
     private boolean enableEntitySavings;
 
     /**
+     * Allow context-based ATDs.
+     */
+    @Value("${enableContextBasedAtd:false}")
+    private boolean enableContextBasedAtd;
+
+    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -733,7 +739,7 @@ public class ServiceConfig {
     @Bean
     public TopologyDataDefinitionService topologyDataDefinitionService() {
         return new TopologyDataDefinitionService(communicationConfig.topologyDataDefinitionServiceBlockingStub(),
-                mapperConfig.topologyDataDefinitionMapper());
+                mapperConfig.topologyDataDefinitionMapper(), enableContextBasedAtd);
     }
 
     @Bean

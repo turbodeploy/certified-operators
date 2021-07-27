@@ -35,17 +35,21 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
 
     private final TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub;
     private final TopologyDataDefinitionMapper topologyDataDefinitionMapper;
+    private final boolean enableContextBasedAtd;
 
     /**
      * Constructor for {@link TopologyDataDefinitionService}.
      *
      * @param topologyDataDefinitionServiceBlockingStub blocking stub for the service
      * @param topologyDataDefinitionMapper mapper for XL and API DTO objects
+     * @param enableContextBasedAtd enable or disable context-based ATDs.
      */
     public TopologyDataDefinitionService(@Nonnull final TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub,
-                                         @Nonnull final TopologyDataDefinitionMapper topologyDataDefinitionMapper) {
+                                         @Nonnull final TopologyDataDefinitionMapper topologyDataDefinitionMapper,
+                                         final boolean enableContextBasedAtd) {
         this.topologyDataDefinitionServiceBlockingStub = topologyDataDefinitionServiceBlockingStub;
         this.topologyDataDefinitionMapper = topologyDataDefinitionMapper;
+        this.enableContextBasedAtd = enableContextBasedAtd;
     }
 
     /**
@@ -66,8 +70,8 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
                 continue;
             }
             TopologyDataDefinitionEntry entry = response.getTopologyDataDefinition();
-            if (isContextBasedDefinition(entry)) {
-                // Do not return context based ATDs until they won't be implemented
+            if (isContextBasedDefinition(entry) && !enableContextBasedAtd) {
+                // Do not return context based ATDs if feature flag is disabled
                 continue;
             }
             checkId(entry);
@@ -109,7 +113,8 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
         GetTopologyDataDefinitionResponse response =
                 topologyDataDefinitionServiceBlockingStub.getTopologyDataDefinition(TopologyDataDefinitionID.newBuilder()
                         .setId(parseId(id)).build());
-        if (!response.hasTopologyDataDefinition() || !response.getTopologyDataDefinition().hasDefinition()) {
+        if (!response.hasTopologyDataDefinition() || !response.getTopologyDataDefinition().hasDefinition()
+                || (isContextBasedDefinition(response.getTopologyDataDefinition()) && !enableContextBasedAtd) ) {
             String errorText = String.format("Cannot find topology data definition by ID: %s", id);
             logger.error(errorText);
             throw new UnknownObjectException(errorText);
@@ -162,6 +167,8 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
     @Override
     public TopologyDataDefinitionApiDTO editTopologyDefinition(String id, TopologyDataDefinitionApiDTO topologyDataDefinitionApiDTO)
             throws UnknownObjectException, OperationFailedException {
+        // Verify that topology definition exists
+        getTopologyDefinition(id);
         UpdateTopologyDataDefinitionResponse response = UpdateTopologyDataDefinitionResponse.getDefaultInstance();
         try {
             response = topologyDataDefinitionServiceBlockingStub.updateTopologyDataDefinition(
@@ -193,6 +200,8 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
      */
     @Override
     public void deleteTopologyDefinition(String id) throws UnknownObjectException, OperationFailedException {
+        // Verify that topology definition exists
+        getTopologyDefinition(id);
         DeleteTopologyDataDefinitionResponse response = DeleteTopologyDataDefinitionResponse.getDefaultInstance();
         try {
             response = topologyDataDefinitionServiceBlockingStub.deleteTopologyDataDefinition(
