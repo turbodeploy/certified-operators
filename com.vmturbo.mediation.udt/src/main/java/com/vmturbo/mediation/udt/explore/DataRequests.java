@@ -5,6 +5,7 @@ import static com.vmturbo.common.protobuf.search.Search.SearchParameters;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,6 +16,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.LeafEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchTagValuesRequest;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -98,6 +100,17 @@ public class DataRequests {
                 .setEntityType(entityType.getNumber())
                 .setTagKey(tag)
                 .build();
+    }
+
+    @Nonnull
+    LeafEntitiesRequest getLeafEntitiesRequest(@Nonnull Set<Long> seeds,
+                                               @Nullable Set<EntityType> filterOutTypes) {
+        final LeafEntitiesRequest.Builder requestBuilder = LeafEntitiesRequest.newBuilder();
+        requestBuilder.addAllSeeds(seeds);
+        if (filterOutTypes != null) {
+            requestBuilder.addAllFilterOutClasses(filterOutTypes);
+        }
+        return requestBuilder.build();
     }
 
 }
