@@ -141,11 +141,14 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        // Check if it's not a cloud plan type.
-        Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
-        return planInstanceOpt.isPresent() &&
-            StringConstants.CLOUD_PLAN_TYPES.contains(
-                planInstanceOpt.get().getScenario().getScenarioInfo().getType());
+        final Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
+        if (!planInstanceOpt.isPresent()) {
+            return false;
+        }
+        // Applicable for Cloud plans or OCCP
+        final String planType = planInstanceOpt.get().getScenario().getScenarioInfo().getType();
+        return StringConstants.CLOUD_PLAN_TYPES.contains(planType) ||
+                StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(planType);
     }
 
     @Override
