@@ -2,6 +2,8 @@ import collections
 
 import humanize
 
+from extenders.extender import Feature
+
 
 class HypertableConfig:
     """Class to manage hypertable configuration for a table."""
@@ -25,7 +27,7 @@ class HypertableConfig:
             f"WHERE {cond} AND orderby_column_index IS NOT NULL "
             f"ORDER BY orderby_column_index")]
         rows = list(db.query(
-            f"SELECT config->>'compress_after' AS compress_after FROM {ti}.jobs WHERE {cond} "
+            f"SELECT (config->>'compress_after')::interval AS compress_after FROM {ti}.jobs WHERE {cond} "
             f"AND proc_schema = '_timescaledb_internal' AND proc_name = 'policy_compression'"))
         self.compress_after = rows[0]['compress_after'] if rows else None
         rows = list(db.query(
@@ -40,7 +42,7 @@ class HypertableConfig:
             [ChunkRange(row['number'], row['range_start'], row['range_end'], row['is_compressed'])
              for row in rows]
 
-    def configure(self, schema, table, disabled=[]):
+    def configure(self, schema, table, disabled=None):
         """Apply this hypertable configuration to the given table in the given schema."""
         time_dim = self.dims[0]
         self.db.execute(
@@ -53,9 +55,9 @@ class HypertableConfig:
                             f"  timescaledb.compress, "
                             f"  timescaledb.compress_segmentby = {s_by}, "
                             f"  timescaledb.compress_orderby = {o_by})")
-            if self.compress_after and not "compression_policy" in disabled:
-                self.db.query(f"SELECT add_compression_policy('{schema}.{table}', "
-                              f"INTERVAL '{self.compress_after}')")
+            if self.compress_after and Feature.compression_policy not in (disabled or []):
+                self.db.execute(f"SELECT add_compression_policy('{schema}.{table}', "
+                              f"INTERVAL '{int(self.compress_after.total_seconds())} seconds')")
         if self.drop_after:
             self.db.query(f"SELECT add_retention_policy('{schema}.{table}', "
                           f"INTERVAL '{self.drop_after}')")
@@ -95,8 +97,8 @@ class HypertableConfig:
             bt_tot += row['before_compression_table_bytes']
             bi_tot += row['before_compression_index_bytes']
             bo_tot += row['before_compression_total_bytes'] \
-                - row['before_compression_table_bytes'] \
-                - row['before_compression_index_bytes']
+                      - row['before_compression_table_bytes'] \
+                      - row['before_compression_index_bytes']
             btotal += row['before_compression_total_bytes']
             at_tot += row['after_compression_table_bytes']
             ai_tot += row['after_compression_index_bytes']

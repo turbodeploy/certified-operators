@@ -1,16 +1,24 @@
 # Extractor Data Extension Tool
 
-This tool is used to quickly (well, compared to ingestion!) create a large extractor data set
+This tool quickly (well, compared to ingestion!) creates a large extractor data set
 for performance benchmarking or other purposes.
 
 The tool begins with a representative data set that has already been created in a "sample data"
-schema and replicates that data set some number of times to create an extended data set in a
+schema. It then replicates that data set some number of times to create an extended data set in a
 "replica" schema.
 
-In the standard case, the sample records are copied in such a way that a designated timestamp
-field is adjusted backward in time by successively larger amounts for each replica,
-so that the time ranges represented by the replicas do not overlap. A designated "gap" interval
-can also be specified so that the ranges of successive replicas will be spaced by that interval.
+Replication can occur in two dimensions: space and time
+
+Space replication extends the size of the topology, by making copies of entities appearing
+in the sample data. New records are created with new entity oids, so that the resulting topology
+resembles a topology that really consisted of some number of copies of the sample topology.
+
+Time replication refers to creating copies of the sample data with times adjusted into the past,
+without overlap. The result is sort of a groundhog-day data set in which exactly the same metric
+values, topology changes, etc. take place over and over again. The `--replica-gap` command line
+parameter can be used to specify the separation between the first timestamp appearing in one
+copy and the last timestamp appearing in the next (earlier) copy. By default, a 10-minute gap
+is used.
 
 Some tables have special extension algorithms. For example, the `entity` table is extended merely
 by adjusting `first_seen` values to be relative to the time range of the final (earliest) replica,
@@ -35,11 +43,16 @@ copied from the sample data table to the replica table:
 * Compression enabled or not
 * Segment-by columns for compression
 * Order-by columns for compression
-* Compression policy
-* Retention policy
 
-Following are specifically not implemented, and if we start using them this script should be
-extended as needed:
+Note that compression policy and retention policy are _not_ set in the replica table. The main
+reason is that, once we've finished creating the replica, we want it to be stable for subsequent
+analysis. Having chunks compressed or dropped while that is ongoing would be problematic.
+
+In addition, if the timescale operates on chunks while we're building a replica table, certain
+operations could fail, like the script compressing a chunk that was already compressed by policy.
+
+The following features of hypertables are specifically not implemented, and if we start using them 
+this script should be extended as needed:
 
 * Additional dimensions beyond the primary time dimension
 * Tablespace attachments
@@ -63,7 +76,7 @@ leave it as-is, only truncating it prior to copying in data.
 
 * `--db-host` or `-H`: Host name or IP address of DB server, defaults to `localhost`
 * `--db-port` or `-p`: DB server port, defaults to `5432`
-* `--db-user` or `-U:` User name for login to DB server, default is `extractor`
+* `--db-user` or `-U:` Username for login to DB server, default is `extractor`
 * `--db-password` or `-P`: Password for login user, defaults to standard passwd used in test
   environments
 * `--db-database` or `-D`: Name of database to connect to, defaults to `extractor`
@@ -93,9 +106,11 @@ leave it as-is, only truncating it prior to copying in data.
     * Grant `CREATE` privileges with `GRANT CREATE ON DATABASE <database> TO <user>` to grant the
       needed privilege. You must be logged in to the database as the database owner or as a super
       user in order to do this.
-* `--replica-count` or `-n`: specify the number of copies fo the sample data to copy into the
-  replica schema, defaults, to 1.
-* `--replica-gap`: specify an additional time gap to be used between consecutive replicas, e.g. to
+* `--replica-count` or `-n`: specify the number of copies of the sample data to copy into the
+  replica schema for time replication, defaults, to 1.
+* `--scale-factor` or `-s`: specify the number of copies of the sample data to copy into the
+  replica schema for space replication, defaults to 1.
+* `--replica-gap`: specify an additional time gap to be used between consecutive replicas, e.g., to
   simulate a particular topology cycle time. Default is 10 minutes. Specify like `10m` or `1h 30m`
   etc.
 
