@@ -108,7 +108,7 @@
         <flyway-plugin.version>4.2.0</flyway-plugin.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <spotbugs.version>4.0.4</spotbugs.version>
-        <tomcat.version>9.0.33</tomcat.version>
+        <tomcat.version>9.0.50</tomcat.version>
         <start-class/>
         <api.version>${project.version}</api.version>
         <springfox.version>2.7.0</springfox.version>
