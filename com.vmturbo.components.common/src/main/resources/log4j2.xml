@@ -23,9 +23,8 @@
         <Syslog name="RFC5424" format="RFC5424" host="rsyslog"
                 port="2514" protocol="TCP" appName="" mdcId="mdc" includeMDC="true"
                 facility="authpriv" enterpriseNumber="18060" newLine="true" messageId="Audit" id=""/>
-        <Syslog name="extralog"  format="RFC5424" host="rsyslog"
-                port="2514" protocol="TCP" appName="" mdcId="mdc" includeMDC="true"
-                facility="local1" enterpriseNumber="18060"  newLine="true" messageId="Extra" id=""/>
+        <Syslog name="extralog"  format="RFC5424" host="rsyslog" port="2514" protocol="TCP"
+                facility="local1" newLine="true"/>
     </Appenders>
 
     <Loggers>
