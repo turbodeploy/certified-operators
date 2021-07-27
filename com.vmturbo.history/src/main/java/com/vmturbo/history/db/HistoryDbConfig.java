@@ -68,7 +68,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     /**
      * Maximum batch size for bulk loaders.
      */
-    @Value("${bulk.batchSize:1000}")
+    @Value("${bulk.batchSize:10000}")
     private int batchSize;
 
     /**
