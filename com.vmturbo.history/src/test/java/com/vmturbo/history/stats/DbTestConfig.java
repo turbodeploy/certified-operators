@@ -47,7 +47,7 @@ public class DbTestConfig {
         properties.setProperty("dbSchemaName", "vmt_testdb_" + System.nanoTime());
         properties.setProperty("adapter", MARIADB);
         properties.setProperty("hostName", LOCALHOST);
-        properties.setProperty("defaultBatchSize", "10000");
+        properties.setProperty("defaultBatchSize", "1000");
         properties.setProperty("maxBatchRetries", "10");
         properties.setProperty("maxBatchRetryTimeoutMsec", "60000");
         // note that in early versions of mysql, user names are limited to 16 chars, so we
