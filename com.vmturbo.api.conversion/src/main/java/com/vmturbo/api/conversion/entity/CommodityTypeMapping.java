@@ -36,10 +36,6 @@ public class CommodityTypeMapping {
      * Millicore unit shown as "mCores" for CPU commodity types of related cloud native entities.
      */
     public static final String CPU_MILLICORE = "mCores";
-    /**
-     * Core unit shown as "cores" for VCPU commodity types.
-     */
-    public static final String CPU_CORE = "cores";
 
     // Unit type for vCPU on VMs.
     private static final String VCPU_UNIT = "vCPU";
