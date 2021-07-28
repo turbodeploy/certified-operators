@@ -1,4 +1,7 @@
-package com.vmturbo.sql.utils;
+package com.vmturbo.sql.utils.sizemon;
+
+import static com.vmturbo.sql.utils.sizemon.DbSizeMonitor.Granularity.PARTITION;
+import static com.vmturbo.sql.utils.sizemon.DbSizeMonitor.Granularity.TABLE;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,8 +17,7 @@ import org.jooq.Schema;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.sql.utils.DbSizeMonitor.Granularity;
-import com.vmturbo.sql.utils.DbSizeMonitor.SizeItem;
+import com.vmturbo.sql.utils.sizemon.DbSizeMonitor.Granularity;
 
 /**
  * {@link DbSizeAdapter} for a PostgreSQL database with TimescaleDB extension.
@@ -26,19 +28,19 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
 
 
     /** Names of all the hypertables defined in the schema. */
-    Set<String> hypertables;
+    private final Set<String> hypertables;
+    private static final Field<String> HYPERTABLE_SCHEMA = DSL.field("hypertable_schema", String.class);
 
     /**
      * Create a new instance.
-     *
-     * @param dsl         {@link DSLContext} for access to the database
+     *  @param dsl         {@link DSLContext} for access to the database
      * @param schema      name of schema to interrogate
-     * @param granularity granularity of data to report
      */
-    protected PostgresSizeAdapter(DSLContext dsl, Schema schema, final Granularity granularity) {
-        super(dsl, schema, granularity);
+    protected PostgresSizeAdapter(DSLContext dsl, Schema schema) {
+        super(dsl, schema);
         this.hypertables = dsl.select(HYPERTABLE_NAME_FIELD)
                 .from(HYPERTABLES_TABLE)
+                .where(HYPERTABLE_SCHEMA.eq(schema.getName()))
                 .fetchSet(HYPERTABLE_NAME_FIELD);
     }
 
@@ -55,7 +57,7 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
         private final String tableName;
         private final boolean isHypertable;
 
-        // for a hypertable, these represent info on individual chunmks; for a normal table it's
+        // for a hypertable, these represent info on individual chunks; for a normal table it's
         // a single object for the table as a whole.
         private final List<SizeInfo> sizeInfos;
 
@@ -173,7 +175,7 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
             if (isHypertable) {
                 // create a table-level item summing the per-chunk values
                 final long totalSize = sizeInfos.stream().mapToLong(SizeInfo::size).sum();
-                items.add(new SizeItem(0, totalSize, "Hypertable " + tableName));
+                items.add(new SizeItem(TABLE, totalSize, "Hypertable " + tableName));
             }
             // follow with per-chunk items (or just add the single table item for a non-hypertable)
             sizeInfos.stream().map(SizeInfo::toSizeItem).forEach(items::add);
@@ -196,7 +198,7 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
     /**
      * Size information for a chunk of a hypertable, or for the whole of a normal table.
      */
-    private class SizeInfo {
+    private static class SizeInfo {
         private final String tableName;
         private final String chunkName;
         private final long dataSize;
@@ -256,9 +258,9 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
          */
         public SizeItem toSizeItem() {
             // if we're a chunk we're at level 1, else we're a top-level item
-            final int level = chunkName != null ? 1 : 0;
+            final Granularity granularity = chunkName != null ? PARTITION : TABLE;
             final String desc = (chunkName != null ? chunkName : "Table " + tableName) + ": " + this;
-            return new SizeItem(level, size(), desc);
+            return new SizeItem(granularity, size(), desc);
         }
 
         /**
