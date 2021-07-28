@@ -3,11 +3,10 @@ package com.vmturbo.api.component.external.api.service.util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.Collections2;
 
 import io.grpc.StatusRuntimeException;
 
@@ -68,13 +67,12 @@ public class HealthDataAggregator {
                         .build());
                 int failedDiscoveryCountThreshold = (int)failedDiscoveryCountResponse.getSetting().getNumericSettingValue().getValue();
                 List<AggregatedHealthResponseDTO> responseItems = HealthDataMapper
-                    .aggregateTargetHealthInfoToDTO(Collections2.transform(
-                        targetDetails.values(), TargetDetails::getHealthDetails),
-                        failedDiscoveryCountThreshold);
+                    .aggregateTargetHealthInfoToDTO(targetDetails, failedDiscoveryCountThreshold);
                 HealthCategoryReponseDTO targetsHealth = new HealthCategoryReponseDTO();
                 targetsHealth.setHealthCheckCategory(HealthCheckCategory.TARGET);
                 targetsHealth.setCategoryDisplayName("Targets");
-                targetsHealth.setCategoryHealthState(getWorstHealthState(responseItems));
+                targetsHealth.setCategoryHealthState(getWorstHealthState(responseItems.stream()
+                    .map(AggregatedHealthResponseDTO::getHealthState).collect(Collectors.toList())));
                 targetsHealth.addResponseItems(responseItems);
 
                 result.add(targetsHealth);
@@ -86,15 +84,21 @@ public class HealthDataAggregator {
         }
     }
 
-    private HealthState getWorstHealthState(List<AggregatedHealthResponseDTO> responseItems) {
+    /**
+     * Returns the worst health state out of the states passed.
+     *
+     * @param healthStates the health states.
+     * @return the worst health state out of the states passed.
+     */
+    public static HealthState getWorstHealthState(List<HealthState> healthStates) {
         HealthState state = HealthState.NORMAL;
-        for (AggregatedHealthResponseDTO item : responseItems) {
-            if (HealthState.CRITICAL.equals(item.getHealthState())) {
+        for (HealthState healthState : healthStates) {
+            if (HealthState.CRITICAL.equals(healthState)) {
                 return HealthState.CRITICAL;
             }
-            if (HealthState.MAJOR.equals(item.getHealthState())) {
+            if (HealthState.MAJOR.equals(healthState)) {
                 state = HealthState.MAJOR;
-            } else if (HealthState.NORMAL.equals(state) && HealthState.MINOR.equals(item.getHealthState())) {
+            } else if (HealthState.NORMAL.equals(state) && HealthState.MINOR.equals(healthState)) {
                 state = HealthState.MINOR;
             }
         }

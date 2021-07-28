@@ -409,6 +409,14 @@ public class Target implements ProbeStoreListener {
         return id;
     }
 
+    /**
+     * Return whether the Target is hidden.
+     *
+     * @return whether the Target is hidden.
+     */
+    public boolean isHidden() {
+        return noSecretDto.getSpec().getIsHidden();
+    }
 
     /**
      * Compute a display name for a target, for a given probe.

@@ -4,9 +4,14 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -74,7 +79,7 @@ public class HealthDataAggregatorTest {
                         ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4));
         healthOfTargets.put(5L, makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryC",
                         ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 3));
-        mockTargetHealth(healthOfTargets);
+        defaultMockTargetHealth(healthOfTargets);
 
         HealthCheckCategory checkCategory = HealthCheckCategory.TARGET;
         List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(checkCategory);
@@ -97,15 +102,156 @@ public class HealthDataAggregatorTest {
         }
     }
 
-    private void mockTargetHealth(Map<Long, TargetHealth> health) {
+    /**
+     * Tests getting the aggregated health data for the TARGET health check category with considering
+     * hidden derived targets.
+     * @throws CommunicationException (is supposed to never happen)
+     */
+    @Test
+    public void testHiddenTargetBothNormalAvoidDoubleCounting() throws CommunicationException {
+        List<Long> ids = Lists.newArrayList(0L, 1L);
+        List<TargetHealth> healths = Lists.newArrayList(
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredParent"),
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredDerived"));
+        List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L), Lists.newArrayList());
+        List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
+        List<Boolean> hidden = Lists.newArrayList(false, true);
+        hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
+        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
+        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
+        List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
+        Assert.assertEquals(1, responseItems.size());
+        AggregatedHealthResponseDTO rItem = responseItems.get(0);
+        Assert.assertEquals(TargetCheckSubcategory.DISCOVERY.toString(), rItem.getSubcategory());
+        Assert.assertEquals(HealthState.NORMAL, rItem.getHealthState());
+        Assert.assertEquals(1, rItem.getNumberOfItems());
+        Assert.assertEquals(0, rItem.getRecommendations().size());
+    }
+
+    /**
+     * Tests getting the aggregated health data for the TARGET health check category with considering
+     * hidden derived targets.
+     * @throws CommunicationException (is supposed to never happen)
+     */
+    @Test
+    public void testHiddenTargetValidationTrumpsDiscovery() throws CommunicationException {
+        List<Long> ids = Lists.newArrayList(0L, 1L);
+        List<TargetHealth> healths = Lists.newArrayList(
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredParent"),
+            makeHealth(TargetHealthSubCategory.VALIDATION, "fineValidatedDerived"));
+        List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L), Lists.newArrayList());
+        List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
+        List<Boolean> hidden = Lists.newArrayList(false, true);
+        hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
+        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
+        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(HealthState.NORMAL, responseDTO.getCategoryHealthState());
+        List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
+        Assert.assertEquals(1, responseItems.size());
+        AggregatedHealthResponseDTO rItem = responseItems.get(0);
+        Assert.assertEquals(TargetCheckSubcategory.VALIDATION.toString(), rItem.getSubcategory());
+        Assert.assertEquals(HealthState.NORMAL, rItem.getHealthState());
+        Assert.assertEquals(1, rItem.getNumberOfItems());
+        Assert.assertEquals(0, rItem.getRecommendations().size());
+    }
+
+    /**
+     * Tests getting the aggregated health data for the TARGET health check category with considering
+     * hidden derived targets.
+     * @throws CommunicationException (is supposed to never happen)
+     */
+    @Test
+    public void testHiddenTargetParentAggregateRecommendations() throws CommunicationException {
+        List<Long> ids = Lists.newArrayList(0L, 1L, 2L);
+        List<TargetHealth> healths = Lists.newArrayList(
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryParent",
+                ErrorType.DATA_IS_MISSING, "Data is missing.", 1_000_000, 3),
+            makeHealth(TargetHealthSubCategory.VALIDATION, "failedDiscoveryDerivedA",
+                ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4),
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerivedB",
+                ErrorType.INTERNAL_PROBE_ERROR, "Probe error.", 1_000_000, 3));
+        List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L, 2L), Lists.newArrayList(), Lists.newArrayList());
+        List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L), Lists.newArrayList(0L));
+        List<Boolean> hidden = Lists.newArrayList(false, true, true);
+        hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
+        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
+        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(HealthState.CRITICAL, responseDTO.getCategoryHealthState());
+        List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
+        Assert.assertEquals(1, responseItems.size());
+        AggregatedHealthResponseDTO rItem = responseItems.get(0);
+        Assert.assertEquals(TargetCheckSubcategory.DISCOVERY.toString(), rItem.getSubcategory());
+        Assert.assertEquals(HealthState.CRITICAL, rItem.getHealthState());
+        Assert.assertEquals(1, rItem.getNumberOfItems());
+        Assert.assertEquals(3, rItem.getRecommendations().size());
+        Assert.assertTrue(rItem.getRecommendations().stream()
+            .anyMatch(rec -> rec.getDescription().contains("(Hidden Target)")));
+    }
+
+    /**
+     * Tests getting the aggregated health data for the TARGET health check category with considering
+     * hidden derived targets.
+     * @throws CommunicationException (is supposed to never happen)
+     */
+    @Test
+    public void testHiddenTargetParentNonNormalTrumpsDerived() throws CommunicationException {
+        List<Long> ids = Lists.newArrayList(0L, 1L);
+        List<TargetHealth> healths = Lists.newArrayList(
+            makeHealth(TargetHealthSubCategory.VALIDATION, "pendingValidationParent", "Pending Validation."),
+            makeHealth(TargetHealthSubCategory.DISCOVERY, "failedDiscoveryDerived",
+                ErrorType.CONNECTION_TIMEOUT, "Connection timeout.", 1_000_000, 4));
+        List<List<Long>> derived = Lists.newArrayList(Lists.newArrayList(1L), Lists.newArrayList());
+        List<List<Long>> parents = Lists.newArrayList(Lists.newArrayList(), Lists.newArrayList(0L));
+        List<Boolean> hidden = Lists.newArrayList(false, true);
+        hiddenMockTargetHealth(ids, healths, derived, parents, hidden);
+        List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(HealthCheckCategory.TARGET);
+        HealthCategoryReponseDTO responseDTO = aggregatedData.get(0);
+        Assert.assertEquals(HealthState.MINOR, responseDTO.getCategoryHealthState());
+        List<AggregatedHealthResponseDTO> responseItems = responseDTO.getResponseItems();
+        Assert.assertEquals(1, responseItems.size());
+        AggregatedHealthResponseDTO rItem = responseItems.get(0);
+        Assert.assertEquals(TargetCheckSubcategory.VALIDATION.toString(), rItem.getSubcategory());
+        Assert.assertEquals(HealthState.MINOR, rItem.getHealthState());
+        Assert.assertEquals(1, rItem.getNumberOfItems());
+        Assert.assertEquals(1, rItem.getRecommendations().size());
+    }
+
+    private void defaultMockTargetHealth(Map<Long, TargetHealth> healthMap) {
+        List<TargetDetails> targetDetails = new ArrayList<>();
+        healthMap.forEach((id, health) -> {
+            targetDetails.add(createTargetDetails(id, health, new ArrayList<>(), new ArrayList<>(), false));
+        });
+        mockTargetHealth(targetDetails.stream()
+            .collect(Collectors.toMap(TargetDetails::getTargetId, Function.identity())));
+    }
+
+    private void hiddenMockTargetHealth(List<Long> ids, List<TargetHealth> healths, List<List<Long>> derived,
+        List<List<Long>> parents, List<Boolean> hidden) {
+        List<TargetDetails> targetDetails = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i++) {
+            targetDetails.add(createTargetDetails(ids.get(i), healths.get(i), derived.get(i),
+                parents.get(i), hidden.get(i)));
+        }
+        mockTargetHealth(targetDetails.stream()
+            .collect(Collectors.toMap(TargetDetails::getTargetId, Function.identity())));
+    }
+
+    private TargetDetails createTargetDetails(Long id, TargetHealth health, List<Long> derived,
+        List<Long> parents, boolean hidden) {
+        return TargetDetails.newBuilder()
+            .setTargetId(id)
+            .setHealthDetails(health)
+            .addAllDerived(derived)
+            .addAllParents(parents)
+            .setHidden(hidden)
+            .build();
+    }
+
+    private void mockTargetHealth(Map<Long, TargetDetails> targetDetails) {
         doAnswer(invocationOnMock -> {
             GetTargetDetailsResponse.Builder respBuilder = GetTargetDetailsResponse.newBuilder();
-            health.forEach((targetId, healthDeets) -> {
-                respBuilder.putTargetDetails(targetId, TargetDetails.newBuilder()
-                        .setTargetId(targetId)
-                        .setHealthDetails(healthDeets)
-                        .build());
-            });
+            respBuilder.putAllTargetDetails(targetDetails);
             return respBuilder.build();
         }).when(targetBackend).getTargetDetails(any());
     }
@@ -149,7 +295,7 @@ public class HealthDataAggregatorTest {
         healthOfTargets.put(0L, makeHealth(TargetHealthSubCategory.VALIDATION, "fineValidated"));
         healthOfTargets.put(1L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscovered"));
         healthOfTargets.put(2L, makeHealth(TargetHealthSubCategory.VALIDATION, "pendingValidationA", "Pending Validation."));
-        mockTargetHealth(healthOfTargets);
+        defaultMockTargetHealth(healthOfTargets);
 
         List<HealthCategoryReponseDTO> aggregatedData = healthDataAggregator.getAggregatedHealth(null);
         Assert.assertEquals(1, aggregatedData.size());
@@ -181,7 +327,7 @@ public class HealthDataAggregatorTest {
         Map<Long, TargetHealth> healthOfTargets = new HashMap<>();
         healthOfTargets.put(0L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredA"));
         healthOfTargets.put(1L, makeHealth(TargetHealthSubCategory.DISCOVERY, "fineDiscoveredB"));
-        mockTargetHealth(healthOfTargets);
+        defaultMockTargetHealth(healthOfTargets);
 
         HealthCategoryReponseDTO responseDTO = healthDataAggregator.getAggregatedHealth(
                         HealthCheckCategory.TARGET).get(0);
