@@ -68,6 +68,15 @@ message TargetDetails {
   // Health information about the target.
   optional TargetHealth health_details = 2;
 
+  // Field indicating oids of parent targets. Meaning this is a derived target.
+  repeated int64 parents = 3;
+
+  // Field indicating oids of derived targets. Meaning this is a parent target.
+  repeated int64 derived = 4;
+
+  // Field indicating if the target is hidden.
+  optional bool hidden = 5 [default = false];
+
   // The details reported by the most recent discovery - or, if no discovery has been run, validation.
   // Only present if the detail level in the request is FULL.
   repeated common_dto.ProbeStageDetails last_discovery_details = 10;

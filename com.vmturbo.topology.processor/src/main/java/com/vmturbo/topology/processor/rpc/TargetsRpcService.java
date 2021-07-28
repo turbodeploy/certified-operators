@@ -128,6 +128,9 @@ public class TargetsRpcService extends TargetsServiceImplBase {
             if (status != null) {
                 detailsBldr.addAllLastDiscoveryDetails(status.getStageDetailsList());
             }
+            detailsBldr.addAllParents(targetStore.getParentTargetIds(targetId));
+            detailsBldr.setHidden(targetStore.getTarget(targetId).get().isHidden());
+            detailsBldr.addAllDerived(targetStore.getDerivedTargetIds(targetId));
             respBuilder.putTargetDetails(targetId, detailsBldr.build());
         });
         responseObserver.onNext(respBuilder.build());
