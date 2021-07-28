@@ -1,10 +1,9 @@
-package com.vmturbo.sql.utils.sizemon;
+package com.vmturbo.sql.utils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
@@ -14,7 +13,8 @@ import org.jooq.Schema;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.sql.utils.sizemon.DbSizeMonitor.Granularity;
+import com.vmturbo.sql.utils.DbSizeMonitor.Granularity;
+import com.vmturbo.sql.utils.DbSizeMonitor.SizeItem;
 
 /**
  * {@link DbSizeAdapter} for MariaDB or MySQL database.
@@ -30,12 +30,21 @@ public class MariaMysqlSizeAdapter extends DbSizeAdapter {
 
     /**
      * Create a new instance.
-     *  @param dsl         {@link DSLContext} for DB access
+     *
+     * @param dsl         {@link DSLContext} for DB access
      * @param schema      schema to be interrogated
+     * @param granularity granularity of size info to report
      */
-    public MariaMysqlSizeAdapter(DSLContext dsl, Schema schema) {
-        super(dsl, schema);
-        this.sizeInfos = loadPartitionInfo();
+    public MariaMysqlSizeAdapter(DSLContext dsl, Schema schema, final Granularity granularity) {
+        super(dsl, schema, granularity);
+        // get the information we'll need, scanning either partitions or tables depending on
+        // desired granularity. An unpartitioned table is represented by a single record in the
+        // partition table, so we get a table-level scan as a side-effect of doing a partition-level
+        // scan where that granularity is needed. It has the added benefit of not picking up views
+        // only real tables
+        this.sizeInfos = granularity.ordinal() >= Granularity.PARTITION.ordinal()
+                ? loadPartitionInfo()
+                : loadTableInfo();
     }
 
     /**
@@ -49,8 +58,6 @@ public class MariaMysqlSizeAdapter extends DbSizeAdapter {
         return sizeInfos.keySet().stream()
                 .sorted()
                 .map(schema::getTable)
-                // skip anything not known to jOOQ (like flyway's schema-version)
-                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
@@ -90,7 +97,25 @@ public class MariaMysqlSizeAdapter extends DbSizeAdapter {
                 .orderBy(TABLE_NAME_FIELD, PARTITION_ORDINAL_POSITION_FIELD)
                 .stream()
                 .map(r -> new SizeInfo(r.value1(), r.value2(), r.value3(), r.value4(), r.value5(), r.value6()))
-                .collect(Collectors.groupingBy(sizeInfo -> sizeInfo.tableName));
+                .collect(Collectors.groupingBy(pi -> pi.tableName));
+    }
+
+    /**
+     * Get size info on every table in the schema. We only use this when we're not scanning for
+     * partition-level size info.
+     *
+     * @return SizeInfo objects organized by table
+     */
+    private Map<String, List<SizeInfo>> loadTableInfo() {
+        return dsl.select(TABLE_NAME_FIELD, DATA_LENGTH_FIELD, INDEX_LENGTH_FIELD, DATA_FREE_FIELD, TABLE_ROWS_FIELD)
+                .from(TABLES_TABLE)
+                .where(TABLE_SCHEMA_FIELD.eq(schema.getName()))
+                // only real tables, not views etc.
+                .and(TABLE_TYPE_FIELD.eq(BASE_TABLE_TYPE_VALUE))
+                .orderBy(TABLE_NAME_FIELD)
+                .stream()
+                .map(r -> new SizeInfo(r.value1(), null, r.value2(), r.value3(), r.value4(), r.value5()))
+                .collect(Collectors.toMap(pi -> pi.tableName, Collections::singletonList));
     }
 
     private SizeItem formatSizeItem(final Integer itemNo, final String itemName,
@@ -98,7 +123,7 @@ public class MariaMysqlSizeAdapter extends DbSizeAdapter {
         String name = itemNo != null
                 ? String.format("Partition [#%d: %s]", itemNo, itemName)
                 : String.format("Table %s", itemName);
-        return new SizeItem(itemNo != null ? Granularity.PARTITION : Granularity.TABLE, dataSize + indexSize + free,
+        return new SizeItem(itemNo != null ? 1 : 0, dataSize + indexSize + free,
                 String.format("%s: (%d data, %d index, %d free, %d rows)", name, dataSize, indexSize, free, recordCount));
     }
 

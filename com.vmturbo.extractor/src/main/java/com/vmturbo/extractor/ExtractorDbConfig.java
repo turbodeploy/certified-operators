@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.extractor.flyway.ResetChecksumsForTimescaleDB201Migrations;
@@ -23,8 +22,8 @@ import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.DbSizeMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
-import com.vmturbo.sql.utils.sizemon.DbSizeMonitor;
 
 /**
  * Config class that defines DB endpoints used by extractor component.
@@ -43,22 +42,17 @@ public class ExtractorDbConfig {
     @Autowired
     private SQLDatabaseConfig2 dbConfig;
 
-    /** whether to enable DbSizeMonitor at all. */
-    @Value("${dbSizeMonitorEnabled:true}")
-    Boolean dbSizeMonitorEnabled;
-
     /**
      * How often we report database sizes, default is once per day. See {@link
-     * Duration#parse(CharSequence)} for formatting requirements. Default is 4 hours, so we get 6
-     * reports per day.
+     * Duration#parse(CharSequence)} for formatting requirements.
      */
-    @Value("${dbSizeMonitorFrequency:PT4H}")
+    @Value("${dbSizeMonitorFrequency:P1D}")
     String dbSizeMonitorFrequency;
 
     /**
      * How long to wait after the start of each reporting interval (based on frequency setting)
      * before initiating a new report. Default is 1 hour, so with default frequency reports will be
-     * triggered at 1am, 5am, ..., 9pm each day.
+     * triggered at 1am each day.
      *
      * <p>See {@link Duration#parse(CharSequence)} for formatting requirements.</p>
      */
@@ -78,39 +72,19 @@ public class ExtractorDbConfig {
     @Value("${dbSizeMonitorExcludes:#{null}}")
     private String dbSizeMonitorExcludes;
 
-    /** Granularity of DB size reports sent to log. */
-    @Value("${dbSizeMonitorLogGranularity:TABLE}")
-    private DbSizeMonitor.Granularity dbSizeMonitorLogGranularity;
-
-    /**
-     * Frequency of logged reports, as multiple of report activations. Default is 6 so with an
-     * activation every 4 hours we'll get one logged report per day.
-     */
-    @Value("${dbSizeMonitorLogFrequency:6}")
-    private int dbSizeMonitorLogFrequency;
-
-    /** Granularity of DB size reports persisted to database. */
-    @Value("${dbSizeMonitorPersistGranularity:PARTITION}")
-    private DbSizeMonitor.Granularity dbSizeMonitorPersistGranularity;
-
-    /** Frequency of persisted size reports default every activation. */
-    @Value("${dbSizeMonitorPersistedFrequency:1}")
-    private int dbSizeMonitorPersistedFrequency;
+    /** Granularity of DB size reports. */
+    @Value("${dbSizeMonitorGranularity:PARTITION}")
+    private DbSizeMonitor.Granularity dbSizeMonitorGranularity;
 
     /**
      * Create a new {@link DbSizeMonitor} to be activated after component startup.
      *
-     * @return the size monitor instance
+     * @return the dize monitor instance
      */
-    @Lazy
-    @Bean
     public DbSizeMonitor dbSizeMonitor() {
-        return new DbSizeMonitor(ingesterEndpoint(), Extractor.EXTRACTOR,
-                dbSizeMonitorFrequency, dbSizeMonitorOffset, dbMonitorExecutorService())
-                .withLogging(dbSizeMonitorLogGranularity, dbSizeMonitorIncludes, dbSizeMonitorExcludes,
-                        dbSizeMonitorLogFrequency)
-                .withPersisting(dbSizeMonitorPersistGranularity,
-                        dbSizeMonitorIncludes, dbSizeMonitorExcludes, dbSizeMonitorPersistedFrequency);
+        return new DbSizeMonitor(queryEndpoint(), Extractor.EXTRACTOR,
+                dbSizeMonitorIncludes, dbSizeMonitorExcludes, dbSizeMonitorGranularity,
+                dbMonitorExecutorService());
     }
 
     /**

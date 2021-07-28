@@ -104,13 +104,18 @@ public class ExtractorComponent extends BaseVmtComponent {
             } catch (UnsupportedDialectException | SQLException e) {
                 logger.error("Failed to create retention policy", e);
             }
-            if (extractorDbConfig.dbSizeMonitorEnabled) {
+            Thread sizeMonitor = new Thread(() -> {
                 try {
-                    extractorDbConfig.dbSizeMonitor().activate();
+                    logger.info("Trying to start up DbSizeMonitor");
+                    extractorDbConfig.dbSizeMonitor().activate(
+                            extractorDbConfig.dbSizeMonitorFrequency,
+                            extractorDbConfig.dbSizeMonitorOffset);
                 } catch (Exception e) {
                     logger.error("Failed to establish DbSizeMonitor: {}", e.toString());
                 }
-            }
+            });
+            sizeMonitor.setDaemon(true);
+            sizeMonitor.start();
         }
     }
 }

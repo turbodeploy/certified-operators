@@ -1,4 +1,4 @@
-package com.vmturbo.sql.utils.sizemon;
+package com.vmturbo.sql.utils;
 
 import java.util.List;
 import java.util.Objects;
@@ -11,6 +11,9 @@ import org.jooq.SQLDialect;
 import org.jooq.Schema;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
+
+import com.vmturbo.sql.utils.DbSizeMonitor.Granularity;
+import com.vmturbo.sql.utils.DbSizeMonitor.SizeItem;
 
 /**
  * Class to obtain size-related info for a database schema. Subclasses adapt to different supported
@@ -29,15 +32,19 @@ public abstract class DbSizeAdapter {
 
     protected final DSLContext dsl;
     protected final Schema schema;
+    protected final Granularity granularity;
 
     /**
      * Create a new instance.
-     *  @param dsl         {@link DSLContext for db access}
+     *
+     * @param dsl         {@link DSLContext for db access}
      * @param schema      schema to interrogate
+     * @param granularity granularity of size data to gather
      */
-    protected DbSizeAdapter(DSLContext dsl, Schema schema) {
+    protected DbSizeAdapter(DSLContext dsl, Schema schema, Granularity granularity) {
         this.dsl = dsl;
         this.schema = schema;
+        this.granularity = granularity;
     }
 
     /**
@@ -46,16 +53,17 @@ public abstract class DbSizeAdapter {
      *
      * @param dsl         {@link DSLContext} for db access
      * @param schema      schema to interrogate
+     * @param granularity granularity of size info to report
      * @return new adapter instance
      */
-    public static DbSizeAdapter of(DSLContext dsl, Schema schema) {
+    public static DbSizeAdapter of(DSLContext dsl, Schema schema, Granularity granularity) {
         final SQLDialect dialect = dsl.configuration().dialect();
         switch (dialect) {
             case POSTGRES:
-                return new PostgresSizeAdapter(dsl, schema);
+                return new PostgresSizeAdapter(dsl, schema, granularity);
             case MYSQL:
             case MARIADB:
-                return new MariaMysqlSizeAdapter(dsl, schema);
+                return new MariaMysqlSizeAdapter(dsl, schema, granularity);
             default:
                 throw new UnsupportedOperationException(
                         String.format("DbSizeAdapter not implemented for dialect %s", dialect));
