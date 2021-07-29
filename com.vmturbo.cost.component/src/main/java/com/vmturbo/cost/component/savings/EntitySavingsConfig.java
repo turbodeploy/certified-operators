@@ -169,7 +169,7 @@ public class EntitySavingsConfig {
      * @return EntityState cache to keep track of per entity state in memory.
      */
     @Bean
-    public EntityStateStore entityStateStore() {
+    public EntityStateStore<DSLContext> entityStateStore() {
         return new SqlEntityStateStore(databaseConfig.dsl(), persistEntityCostChunkSize);
     }
 
@@ -196,6 +196,8 @@ public class EntitySavingsConfig {
                 realtimeTopologyContextId,
                 supportedEntityTypes, supportedActionTypes,
                 getEntitySavingsRetentionConfig(),
+                entitySavingsStore(),
+                entityStateStore(),
                 getClock());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
@@ -288,7 +290,7 @@ public class EntitySavingsConfig {
      * @return Savings store.
      */
     @Bean
-    public EntitySavingsStore entitySavingsStore() {
+    public EntitySavingsStore<DSLContext> entitySavingsStore() {
         return new SqlEntitySavingsStore(getDslContext(), getClock(),
                 persistEntityCostChunkSize);
     }
