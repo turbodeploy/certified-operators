@@ -62,6 +62,9 @@ public class ActionExecutor implements ActionExecutionListener {
     /** The HTTP_METHOD parameter name for the Webhook workflow. */
     public static final String HTTP_METHOD = "HTTP_METHOD";
 
+    /** The TRUST_SELF_SIGNED_CERTIFICATES parameter name for the Webhook workflow. */
+    public static final String TRUST_SELF_SIGNED_CERTIFICATES = "TRUST_SELF_SIGNED_CERTIFICATES";
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -220,11 +223,19 @@ public class ActionExecutor implements ActionExecutionListener {
                                 .setName(URL)
                                 .setValue(webhookInfo.getUrl())
                                 .build());
+
                 if (workflowInfo.getWebhookInfo().hasTemplate()) {
                     builder.addWorkflowProperty(WorkflowProperty.newBuilder()
                             .setName(TEMPLATED_ACTION_BODY)
                             .setValue(webhookInfo.getTemplate()));
                 }
+
+                String trustedValue = Boolean.toString(
+                        workflowInfo.getWebhookInfo().getTrustSelfSignedCertificates());
+                builder.addWorkflowProperty(WorkflowProperty.newBuilder()
+                        .setName(TRUST_SELF_SIGNED_CERTIFICATES)
+                        .setValue(trustedValue));
+
                 return builder.build();
             } else {
                 throw new ExecutionInitiationException("The HTTP METHOD, URL and TEMPLATE are required parameters "
