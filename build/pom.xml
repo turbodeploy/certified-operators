@@ -425,7 +425,6 @@
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
@@ -903,13 +902,6 @@
         </profile>
 
         <profile>
-            <id>mediation-cloudfoundry</id>
-            <modules>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
-            </modules>
-        </profile>
-
-        <profile>
             <id>mediation-hyperflex</id>
             <modules>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
@@ -1316,7 +1308,6 @@
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
                 <module>../com.vmturbo.mediation.azure.sp.component</module>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
-                <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
