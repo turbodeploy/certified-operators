@@ -80,6 +80,9 @@ message WorkflowInfo {
             PUT = 3;
             DELETE = 4;
         }
+
+        // Flag set to true when self-signed certificates are trusted.
+        optional bool trust_self_signed_certificates = 4;
     }
 }
 
