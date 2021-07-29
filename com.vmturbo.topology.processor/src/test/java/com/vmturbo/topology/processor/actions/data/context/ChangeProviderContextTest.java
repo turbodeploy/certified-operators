@@ -17,6 +17,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -69,6 +70,8 @@ public class ChangeProviderContextTest {
 
     private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
+    private SecureStorageClient secureStorageClientMock = Mockito.mock(SecureStorageClient.class);
+
     private final int targetId = 2;
 
     private final int primaryTargetId = 2;
@@ -86,7 +89,8 @@ public class ChangeProviderContextTest {
                 entityRetrieverMock,
                 targetStoreMock,
                 probeStoreMock,
-                groupAndPolicyRetrieverMock);
+                groupAndPolicyRetrieverMock,
+                secureStorageClientMock);
         Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
             .thenReturn(Optional.of(SDKProbeType.VCENTER));
         final Target target = Mockito.mock(Target.class);

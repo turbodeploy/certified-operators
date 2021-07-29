@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -144,6 +145,7 @@ public class ActionAuditServiceTest {
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
         final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
         final GroupAndPolicyRetriever groupAndPolicyRetriever = Mockito.mock(GroupAndPolicyRetriever.class);
+        final SecureStorageClient secureStorageClient = Mockito.mock(SecureStorageClient.class);
         final TopologyEntityDTO vmTopology = TopologyEntityDTO
                 .newBuilder()
                 .setOid(ENTITY_ID)
@@ -165,7 +167,8 @@ public class ActionAuditServiceTest {
         Mockito.when(topologyToSdkEntityConverter.convertToEntityDTO(vmTopology)).thenReturn(vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+                entityStoreMock, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever,
+                secureStorageClient);
         identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateOperationId()).thenAnswer(
                 invocation -> counter.getAndIncrement());

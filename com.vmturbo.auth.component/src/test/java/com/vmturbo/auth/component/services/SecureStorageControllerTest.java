@@ -101,19 +101,6 @@ public class SecureStorageControllerTest {
     }
 
     @Test
-    public void testGetUnauthenticated() throws Exception {
-        getAndExpect("/securestorage/get/user/foo", HttpStatus.UNAUTHORIZED);
-    }
-
-    @Test
-    public void testGetUnauthorized() throws Exception {
-        setupUser("user");
-
-        getAndExpect("/securestorage/get/other-thing/foo", HttpStatus.FORBIDDEN);
-    }
-
-
-    @Test
     public void testNotExisting() throws Exception {
         setupUser("user");
 

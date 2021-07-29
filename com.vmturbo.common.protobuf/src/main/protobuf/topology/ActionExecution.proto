@@ -21,7 +21,7 @@ message ExecuteActionRequest {
     optional action.ActionSpec action_spec = 3;
 
     // Any action may be overridden by a "workflow" specification
-    optional workflow.WorkflowInfo workflow_info = 4;
+    optional workflow.Workflow workflow = 4;
 
     // The Action Type that will be mapped to the Probe Action Type.
     optional action.ActionType action_type = 5;

@@ -19,6 +19,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -64,9 +65,11 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                         @Nonnull final EntityRetriever entityRetriever,
                         @Nonnull final TargetStore targetStore,
                         @Nonnull final ProbeStore probeStore,
-                        @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+                        @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                        @Nonnull final SecureStorageClient secureStorageClient)
+            throws ContextCreationException {
         super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
-            groupAndPolicyRetriever);
+            groupAndPolicyRetriever, secureStorageClient);
     }
 
     /**

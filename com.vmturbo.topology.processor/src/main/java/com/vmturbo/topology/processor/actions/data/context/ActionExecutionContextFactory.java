@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -53,18 +54,25 @@ public class ActionExecutionContextFactory {
      */
     protected final GroupAndPolicyRetriever groupAndPolicyRetriever;
 
+    /**
+     * The client for auth secure storage.
+     */
+    private final SecureStorageClient secureStorageClient;
+
     public ActionExecutionContextFactory(@Nonnull final ActionDataManager actionDataManager,
                                          @Nonnull final EntityStore entityStore,
                                          @Nonnull final EntityRetriever entityRetriever,
                                          @Nonnull final TargetStore targetStore,
                                          @Nonnull final ProbeStore probeStore,
-                                         @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+                                         @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                                         @Nonnull final SecureStorageClient secureStorageClient) {
         this.actionDataManager = Objects.requireNonNull(actionDataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.groupAndPolicyRetriever = Objects.requireNonNull(groupAndPolicyRetriever);
+        this.secureStorageClient = Objects.requireNonNull(secureStorageClient);
     }
 
     /**
@@ -77,7 +85,7 @@ public class ActionExecutionContextFactory {
      */
     @Nonnull
     public ActionExecutionContext getActionExecutionContext(
-            @Nonnull final ExecuteActionRequest request) {
+            @Nonnull final ExecuteActionRequest request) throws ContextCreationException {
         return ActionExecutionContextFactory.getActionExecutionContext(
                 Objects.requireNonNull(request),
                 actionDataManager,
@@ -85,7 +93,8 @@ public class ActionExecutionContextFactory {
                 entityRetriever,
                 targetStore,
                 probeStore,
-                groupAndPolicyRetriever);
+                groupAndPolicyRetriever,
+                secureStorageClient);
     }
 
     /**
@@ -111,8 +120,9 @@ public class ActionExecutionContextFactory {
             @Nonnull final EntityRetriever entityRetriever,
             @Nonnull final TargetStore targetStore,
             @Nonnull final ProbeStore probeStore,
-            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever
-            ) {
+            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+            @Nonnull final SecureStorageClient secureStorageClient
+            ) throws ContextCreationException {
         if (!request.hasActionSpec()) {
             throw new IllegalArgumentException("Cannot execute action with no action info. "
                     + "Action request: " + request.toString());
@@ -121,31 +131,31 @@ public class ActionExecutionContextFactory {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
                 return new MoveContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case SCALE:
                 return new ScaleContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case RESIZE:
                 return new ResizeContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case ACTIVATE:
                 return new ActivateContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case DEACTIVATE:
                 return  new DeactivateContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case PROVISION:
                 return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case DELETE:
                 return new DeleteContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case ATOMICRESIZE:
                 return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             case RECONFIGURE:
                 return new ReconfigureContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, groupAndPolicyRetriever);
+                    targetStore, probeStore, groupAndPolicyRetriever, secureStorageClient);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

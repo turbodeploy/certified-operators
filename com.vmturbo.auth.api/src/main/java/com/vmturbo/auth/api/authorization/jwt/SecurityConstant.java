@@ -141,6 +141,11 @@ public class SecurityConstant {
     public static final String CREDENTIALS = "***";
 
     /**
+     * The header name for authentication token.
+     */
+    public static final String AUTH_HEADER_NAME = "x-auth-token";
+
+    /**
      * These are predefined external groups for all the roles in XL.
      */
     public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =

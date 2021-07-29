@@ -19,6 +19,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -60,6 +61,8 @@ public class DeleteContextTest {
 
     private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
+    private SecureStorageClient secureStorageClientMock = Mockito.mock(SecureStorageClient.class);
+
     private final int awsTargetId = 2;
 
     // Builds the class under test
@@ -76,7 +79,8 @@ public class DeleteContextTest {
             entityRetrieverMock,
             targetStoreMock,
             probeStoreMock,
-            groupAndPolicyRetrieverMock);
+            groupAndPolicyRetrieverMock,
+            secureStorageClientMock);
 
         // Setup for AWS Probe
         when(targetStoreMock.getProbeTypeForTarget(awsTargetId)).thenReturn(Optional.of(SDKProbeType.AWS));
@@ -156,9 +160,10 @@ public class DeleteContextTest {
      * Test getPrimaryEntityId() method.
      *
      * @throws EntityRetrievalException when entity is not being able to be retrieved.
+     * @throws ContextCreationException if something goes wrong.
      */
     @Test
-    public void testGetPrimaryEntityId() throws EntityRetrievalException {
+    public void testGetPrimaryEntityId() throws EntityRetrievalException, ContextCreationException {
         final long destinationEntityId = 333333L;
         final EntityType destinationEntityType = EntityType.VIRTUAL_VOLUME;
         final long sourceEntityId = 44444L;
@@ -190,7 +195,8 @@ public class DeleteContextTest {
         destinationEntity.setHostedBy(awsTargetId, sourceEntityId);
 
         DeleteContext context = new DeleteContext(request, actionDataManagerMock,
-            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock);
+            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock,
+            secureStorageClientMock);
 
         long result = context.getPrimaryEntityId();
         assertEquals(destinationEntityId, result);

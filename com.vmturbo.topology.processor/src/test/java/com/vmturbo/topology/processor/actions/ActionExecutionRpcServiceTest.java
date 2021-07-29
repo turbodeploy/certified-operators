@@ -26,6 +26,7 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -79,13 +80,15 @@ public class ActionExecutionRpcServiceTest {
 
     private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
+    private SecureStorageClient secureStorageClient = Mockito.mock(SecureStorageClient.class);
+
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
     private ActionExecutionContextFactory actionExecutionContextFactory =
             new ActionExecutionContextFactory(actionDataManager, entityStore, entityRetriever,
-                    targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock);
+                    targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock, secureStorageClient);
 
     private ActionExecutionRpcService actionExecutionBackend = new ActionExecutionRpcService(
             operationManager, actionExecutionContextFactory);

@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -178,7 +180,7 @@ public class UsersService implements IUsersService {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+        headers.set(AUTH_HEADER_NAME,
                 geJwtTokenFromSpringSecurityContext().orElseThrow(() ->
                         new SecurityException("Invalid JWT token")));
         return headers;

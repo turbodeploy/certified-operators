@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -35,8 +36,11 @@ public class ProvisionContext extends AbstractActionExecutionContext {
                             @Nonnull final EntityRetriever entityRetriever,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
-                            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+                            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                            @Nonnull final SecureStorageClient secureStorageClient)
+            throws ContextCreationException {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever,
+                secureStorageClient);
     }
 
     /**

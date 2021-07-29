@@ -38,10 +38,10 @@ public class TestActionBuilder {
                                   int destinationType,
                                   @Nullable String scalingGroupId) {
         return Action.newBuilder().setId(actionId.getAndIncrement()).setDeprecatedImportance(1)
-            .setExplanation(Explanation.newBuilder().build())
-            .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType, scalingGroupId))
-            .setSupportingLevel(SupportLevel.SUPPORTED)
-            .build();
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType, scalingGroupId))
+                .setSupportingLevel(SupportLevel.SUPPORTED)
+                .build();
     }
 
     public static ActionInfo.Builder makeMoveInfo(

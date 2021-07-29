@@ -1,5 +1,13 @@
 package com.vmturbo.mediation.webhook;
 
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATION_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -51,10 +59,6 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 public class WebhookProbe
         implements IDiscoveryProbe<WebhookAccount>,
             IActionExecutor<WebhookAccount> {
-
-    private static final String TEMPLATED_ACTION_BODY_PROPERTY = "TEMPLATED_ACTION_BODY";
-    private static final String URL_PROPERTY = "URL";
-    private static final String HTTP_METHOD_PROPERTY = "HTTP_METHOD";
 
     private WebhookProperties probeConfiguration;
 
@@ -174,7 +178,7 @@ public class WebhookProbe
     @Nullable
     private WebhookBody getWebhookBody(@Nonnull final ActionExecutionDTO actionExecutionDto,
                                        @Nonnull ActionApiDTO actionApiDTO) throws WebhookException {
-        final Optional<String> template = getWebhookPropertyValue(TEMPLATED_ACTION_BODY_PROPERTY,
+        final Optional<String> template = getWebhookPropertyValue(TEMPLATED_ACTION_BODY,
                 actionExecutionDto.getWorkflow().getPropertyList());
 
         if (template.isPresent()) {
@@ -205,7 +209,7 @@ public class WebhookProbe
 
     private HttpMethodType getWebhookMethodType(final List<Property> webhookProperties)
             throws WebhookException {
-        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD_PROPERTY, webhookProperties);
+        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD, webhookProperties);
         if (!webhookHttpMethodType.isPresent()) {
             throw new WebhookException(
                     "Webhook http method type was not provided in the list of workflow properties");
@@ -224,19 +228,28 @@ public class WebhookProbe
     @Nonnull
     private WebhookCredentials createWebhookCredentials(final List<Property> webhookProperties, ActionApiDTO actionApiDTO)
             throws WebhookException {
-        final String webhookURL = getWebhookPropertyValue(URL_PROPERTY,
+        final String webhookURL = getWebhookPropertyValue(URL,
                 webhookProperties).orElseThrow(() -> new WebhookException(
                 "Webhook url was not provided in the list of workflow properties."));
 
         final String templatedUrl = applyTemplate(webhookURL, actionApiDTO);
 
-        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD_PROPERTY, webhookProperties);
+        final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD, webhookProperties);
         if (!webhookHttpMethodType.isPresent()) {
             throw new WebhookException(
                     "Webhook http method type was not provided in the list of workflow properties");
         }
+
+        // get authentication info
+        final AuthenticationMethod authenticationMethod = getWebhookPropertyValue(AUTHENTICATION_METHOD, webhookProperties)
+                .map(AuthenticationMethod::valueOf).orElse(AuthenticationMethod.NONE);
+        final String userName = getWebhookPropertyValue(USER_NAME, webhookProperties)
+                .orElse(null);
+        final String password = getWebhookPropertyValue(PASSWORD, webhookProperties)
+                .orElse(null);
+
         return new WebhookCredentials(templatedUrl, webhookHttpMethodType.get(),
-                probeConfiguration.getConnectionTimeout());
+                probeConfiguration.getConnectionTimeout(), authenticationMethod, userName, password);
     }
 
     private Optional<String> getWebhookPropertyValue(@Nonnull final String webhookPropertyName,

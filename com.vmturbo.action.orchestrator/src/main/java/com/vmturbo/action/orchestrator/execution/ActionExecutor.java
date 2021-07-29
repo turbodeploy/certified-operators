@@ -19,7 +19,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
@@ -37,9 +36,6 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -49,21 +45,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
  * and sending them to the {@link TopologyProcessor}.
  */
 public class ActionExecutor implements ActionExecutionListener {
-
-    /**
-     * The parameter name of the property that contains the string value of the action details
-     * applied to the customer's template.
-     */
-    public static final String TEMPLATED_ACTION_BODY = "TEMPLATED_ACTION_BODY";
-
-    /** The URL parameter name for the Webhook workflow. */
-    public static final String URL = "URL";
-
-    /** The HTTP_METHOD parameter name for the Webhook workflow. */
-    public static final String HTTP_METHOD = "HTTP_METHOD";
-
-    /** The TRUST_SELF_SIGNED_CERTIFICATES parameter name for the Webhook workflow. */
-    public static final String TRUST_SELF_SIGNED_CERTIFICATES = "TRUST_SELF_SIGNED_CERTIFICATES";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -197,9 +178,8 @@ public class ActionExecutor implements ActionExecutionListener {
             // if there is a Workflow for this action, then the target to execute the action
             // will be the one from which the Workflow was discovered instead of the target
             // from which the original Target Entity was discovered
-            final WorkflowDTO.WorkflowInfo workflowInfo = workflowOpt.get().getWorkflowInfo();
-            executionRequestBuilder.setTargetId(workflowInfo.getTargetId());
-            executionRequestBuilder.setWorkflowInfo(fillInProperties(action, workflowInfo));
+            executionRequestBuilder.setTargetId(workflowOpt.get().getWorkflowInfo().getTargetId());
+            executionRequestBuilder.setWorkflow(workflowOpt.get());
         } else {
             // Typically, the target to execute the action is the target from which the
             // Target Entity was discovered
@@ -207,43 +187,6 @@ public class ActionExecutor implements ActionExecutionListener {
         }
 
         return executionRequestBuilder.build();
-    }
-
-    private static WorkflowInfo fillInProperties( @Nonnull final ActionDTO.ActionSpec action,
-            @Nonnull final WorkflowInfo workflowInfo) throws ExecutionInitiationException {
-        if (workflowInfo.hasWebhookInfo()) {
-            WebhookInfo webhookInfo = workflowInfo.getWebhookInfo();
-            if (webhookInfo.hasHttpMethod() && webhookInfo.hasUrl()) {
-                WorkflowInfo.Builder builder = workflowInfo.toBuilder()
-                        .addWorkflowProperty(WorkflowProperty.newBuilder()
-                                .setName(HTTP_METHOD)
-                                .setValue(webhookInfo.getHttpMethod().name())
-                                .build())
-                        .addWorkflowProperty(WorkflowProperty.newBuilder()
-                                .setName(URL)
-                                .setValue(webhookInfo.getUrl())
-                                .build());
-
-                if (workflowInfo.getWebhookInfo().hasTemplate()) {
-                    builder.addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(TEMPLATED_ACTION_BODY)
-                            .setValue(webhookInfo.getTemplate()));
-                }
-
-                String trustedValue = Boolean.toString(
-                        workflowInfo.getWebhookInfo().getTrustSelfSignedCertificates());
-                builder.addWorkflowProperty(WorkflowProperty.newBuilder()
-                        .setName(TRUST_SELF_SIGNED_CERTIFICATES)
-                        .setValue(trustedValue));
-
-                return builder.build();
-            } else {
-                throw new ExecutionInitiationException("The HTTP METHOD, URL and TEMPLATE are required parameters "
-                        + "for Webhook workflows", Status.INTERNAL.getCode());
-            }
-        }
-
-        return workflowInfo;
     }
 
     /**

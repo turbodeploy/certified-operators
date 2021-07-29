@@ -72,6 +72,13 @@ message WorkflowInfo {
         optional HttpMethod http_method = 2;
         // the template for the body of workflow
         optional string template = 3;
+        // Flag set to true when self-signed certificates are trusted.
+        optional bool trust_self_signed_certificates = 4;
+        // the authentication method to use
+        optional AuthenticationMethod authentication_method = 5;
+        // the user name for authentication
+        optional string username = 6;
+
 
         // the type of http method made to webhook
         enum HttpMethod {
@@ -81,8 +88,11 @@ message WorkflowInfo {
             DELETE = 4;
         }
 
-        // Flag set to true when self-signed certificates are trusted.
-        optional bool trust_self_signed_certificates = 4;
+        // the way to authenticate to webhook
+        enum AuthenticationMethod {
+            NONE = 1;
+            BASIC = 2;
+        }
     }
 }
 

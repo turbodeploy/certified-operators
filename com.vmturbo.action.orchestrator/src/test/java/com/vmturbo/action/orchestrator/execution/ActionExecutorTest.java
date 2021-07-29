@@ -29,7 +29,6 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionState;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory;
@@ -44,10 +43,6 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -64,7 +59,6 @@ public class ActionExecutorTest {
     private ActionExecutor actionExecutor;
 
     private static final long TARGET_ID = 7L;
-    private static final long WORKFLOW_ID = 8L;
 
     private final ActionExecutionServiceMole actionExecutionBackend =
             Mockito.spy(new ActionExecutionServiceMole());
@@ -360,143 +354,5 @@ public class ActionExecutorTest {
     public void testActionWithInvalidLicense() throws ExecutionStartException {
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(false);
         actionExecutor.execute(TARGET_ID, testAction, workflowOpt);
-    }
-
-    /**
-     * When an action has a workflow without WorkflowParam, ActionExecutor should not fail
-     * to create an ExecuteActionRequest.
-     * @throws ExecutionInitiationException if failed to process workflow
-     */
-    @Test
-    public void testWorkflowWithNoParamsDoesNotFail() throws ExecutionInitiationException {
-        ExecuteActionRequest request = ActionExecutor.createRequest(
-            TARGET_ID,
-            testAction,
-            Optional.of(Workflow.newBuilder()
-                .setId(WORKFLOW_ID)
-                .setWorkflowInfo(WorkflowInfo.newBuilder()
-                    .build())
-                .build())
-        );
-
-        Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(0, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals(0, request.getWorkflowInfo().getWorkflowPropertyCount());
-    }
-
-    /**
-     * When an action has a workflow that has a supported WorkflowParam, ActionExecutor should not fill it in.
-     * @throws ExecutionInitiationException if failed to process workflow
-     */
-    @Test
-    public void testWorkflowWithUnsupportedParamDoesNothing() throws ExecutionInitiationException {
-        ExecuteActionRequest request = ActionExecutor.createRequest(
-            TARGET_ID,
-            testAction,
-            Optional.of(Workflow.newBuilder()
-                .setId(WORKFLOW_ID)
-                .setWorkflowInfo(WorkflowInfo.newBuilder()
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName("UNRELATED_PARAM")
-                        .setType("String")
-                        .build())
-                    .build())
-                .build())
-        );
-
-        Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals("UNRELATED_PARAM", request.getWorkflowInfo().getWorkflowParam(0).getName());
-        Assert.assertEquals(0, request.getWorkflowInfo().getWorkflowPropertyCount());
-    }
-
-    /**
-     * When an action has a workflow that has a supported WorkflowParam, ActionExecutor should fill it in.
-     * @throws ExecutionInitiationException if failed to process workflow
-     */
-    @Test
-    public void testWorkflowWithParamToFill() throws ExecutionInitiationException {
-        ExecuteActionRequest request = ActionExecutor.createRequest(
-            TARGET_ID,
-            testAction,
-            Optional.of(Workflow.newBuilder()
-                .setId(WORKFLOW_ID)
-                .setWorkflowInfo(WorkflowInfo.newBuilder()
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
-                        .setType("String")
-                        .build())
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                            .setName(ActionExecutor.URL)
-                            .setType("String")
-                            .build())
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                            .setName(ActionExecutor.HTTP_METHOD)
-                            .setType("String")
-                            .build())
-                    .addWorkflowProperty(WorkflowProperty.newBuilder()
-                            .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
-                            .setValue("123")
-                            .build())
-                    .build())
-                .build())
-        );
-
-        Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(3, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowParam(0).getName());
-        Assert.assertEquals(ActionExecutor.URL, request.getWorkflowInfo().getWorkflowParam(1).getName());
-        Assert.assertEquals(ActionExecutor.HTTP_METHOD, request.getWorkflowInfo().getWorkflowParam(2).getName());
-        Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowPropertyCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowProperty(0).getName());
-        Assert.assertFalse(request.getWorkflowInfo().getWorkflowProperty(0).getValue().isEmpty());
-    }
-
-    /**
-     * When an action has a workflow that has multiple params, only the support params should have
-     * properties filled in. The unsupported properties should not appear in WorkflowProperties.
-     * @throws ExecutionInitiationException if failed to process workflow
-     */
-    @Test
-    public void testWorkflowWithMultipleParams() throws ExecutionInitiationException {
-        ExecuteActionRequest request = ActionExecutor.createRequest(
-            TARGET_ID,
-            testAction,
-            Optional.of(Workflow.newBuilder()
-                .setId(WORKFLOW_ID)
-                .setWorkflowInfo(WorkflowInfo.newBuilder()
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
-                        .setType("String")
-                        .build())
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                            .setName(ActionExecutor.URL)
-                            .setType("String")
-                            .build())
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                            .setName(ActionExecutor.HTTP_METHOD)
-                            .setType("String")
-                            .build())
-                    .addWorkflowParam(WorkflowParameter.newBuilder()
-                        .setName("UNRELATED_PARAM")
-                        .setType("String")
-                        .build())
-                        .addWorkflowProperty(WorkflowProperty.newBuilder()
-                                .setName(ActionExecutor.TEMPLATED_ACTION_BODY)
-                                .setValue("123")
-                                .build())
-                    .build())
-                .build())
-        );
-
-        Assert.assertTrue(request.hasWorkflowInfo());
-        Assert.assertEquals(4, request.getWorkflowInfo().getWorkflowParamCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowParam(0).getName());
-        Assert.assertEquals(ActionExecutor.URL, request.getWorkflowInfo().getWorkflowParam(1).getName());
-        Assert.assertEquals(ActionExecutor.HTTP_METHOD, request.getWorkflowInfo().getWorkflowParam(2).getName());
-        Assert.assertEquals("UNRELATED_PARAM", request.getWorkflowInfo().getWorkflowParam(3).getName());
-        Assert.assertEquals(1, request.getWorkflowInfo().getWorkflowPropertyCount());
-        Assert.assertEquals(ActionExecutor.TEMPLATED_ACTION_BODY, request.getWorkflowInfo().getWorkflowProperty(0).getName());
-        Assert.assertFalse(request.getWorkflowInfo().getWorkflowProperty(0).getValue().isEmpty());
     }
 }

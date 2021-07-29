@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.webhook;
 
 import static com.vmturbo.mediation.webhook.WebhookProbeTest.createWorkflow;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -12,6 +13,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -32,6 +35,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
@@ -164,7 +168,8 @@ public class WebhookProbeLocalServerTest {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
                 .toBuilder()
-                .setWorkflow(createWorkflow("http://localhost:28121/get/method", null, "GET"))
+                .setWorkflow(createWorkflow("http://localhost:28121/get/method", null, "GET",
+                        null, null, null))
                 .build();
 
         // ACT
@@ -184,7 +189,8 @@ public class WebhookProbeLocalServerTest {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
                 .toBuilder()
-                .setWorkflow(createWorkflow("http://localhost:28121/get/$action.uuid", null, "GET"))
+                .setWorkflow(createWorkflow("http://localhost:28121/get/$action.uuid", null, "GET",
+                        null, null, null))
                 .build();
 
         handler.setResponseCode(404);
@@ -208,7 +214,8 @@ public class WebhookProbeLocalServerTest {
         final String payload = "{\"message\": \"sample message\"}";
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
                 .toBuilder()
-                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "POST"))
+                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "POST",
+                        null, null, null))
                 .build();
 
         // ACT
@@ -231,7 +238,8 @@ public class WebhookProbeLocalServerTest {
                 + " \"$action.risk.reasonCommodities.toArray()[0]\", \"to\": \"$action.newValue\"}";
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
                 .toBuilder()
-                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "POST"))
+                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "POST",
+                        null, null, null))
                 .build();
 
         // ACT
@@ -254,7 +262,8 @@ public class WebhookProbeLocalServerTest {
         final String payload = "{\"description\": \"$action.details\"}";
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
                 .toBuilder()
-                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "PUT"))
+                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "PUT",
+                        null, null, null))
                 .build();
 
         // ACT
@@ -263,6 +272,31 @@ public class WebhookProbeLocalServerTest {
         // ASSERT
         verifyResults(result, ActionResponseState.SUCCEEDED, "PUT", "/actions/" + ACTION_UUID,
                 "{\"description\": \"Resize up VCPU for Virtual Machine turbonomic-t8c from 2 to 3\"}");
+    }
+
+    /**
+     * Tests the case that workflow is a get call with basic auth.
+     *
+     * @throws InterruptedException if something goes wrong.
+     */
+    @Test
+    public void testBasicAuth() throws InterruptedException {
+        // ARRANGE
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
+                .toBuilder()
+                .setWorkflow(createWorkflow("http://localhost:28121/get/method", null, "GET",
+                        AuthenticationMethod.BASIC, "testUser", "testPass"))
+                .build();
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
+
+        // ASSERT
+        verifyResults(result, ActionResponseState.SUCCEEDED, "GET", "/get/method", null);
+
+        // make sure request has basic auth header
+        assertThat(handler.getLastRequest().get().headers.get("Authorization"),
+                equalTo(Collections.singletonList("Basic dGVzdFVzZXI6dGVzdFBhc3M=")));
     }
 
     private void verifyResults(ActionResult result, ActionResponseState expectedState, String expectedMethod,
@@ -291,7 +325,8 @@ public class WebhookProbeLocalServerTest {
                 body = null;
             }
 
-            lastRequest = new Request(exchange.getRequestMethod(), exchange.getRequestURI().toString(), body);
+            lastRequest = new Request(exchange.getRequestMethod(), exchange.getRequestURI().toString(), body,
+                    exchange.getRequestHeaders());
 
             exchange.sendResponseHeaders(responseCode, 0);
             exchange.getResponseBody().close();
@@ -318,11 +353,13 @@ public class WebhookProbeLocalServerTest {
         String method;
         String url;
         String payload;
+        Map<String, List<String>> headers;
 
-        Request(String method, String url, String payload) {
+        Request(String method, String url, String payload, Map<String, List<String>> headers) {
             this.method = method;
             this.url = url;
             this.payload = payload;
+            this.headers = headers;
         }
     }
 }
