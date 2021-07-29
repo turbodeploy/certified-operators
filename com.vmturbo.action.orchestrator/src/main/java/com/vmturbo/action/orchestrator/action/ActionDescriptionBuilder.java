@@ -119,6 +119,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} ({1}) in {2}"),
         CONTAINER_VCPU_MILLICORES(String.format("{0,number,integer} %s", CommodityTypeMapping.CPU_MILLICORE)),
+        VCPU_CORES(String.format("{0,number,integer} %s", CommodityTypeMapping.CPU_CORE)),
         STORAGE_ACCESS_IOPS("{0,number,integer} IOPS"),
         IO_THROUGHPUT_MBPS("{0,number,integer} MB/s"),
         SIMPLE("{0, number, integer}");
@@ -276,9 +277,9 @@ public class ActionDescriptionBuilder {
             beautifyCommodityType(resize.getCommodityType()),
             beautifyEntityTypeAndName(entity),
             formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getOldCapacity()),
+                commodityType, entity.getEntityType(), resize.getOldCapacity(), false),
             formatResizeActionCommodityValue(
-                commodityType, entity.getEntityType(), resize.getNewCapacity()));
+                commodityType, entity.getEntityType(), resize.getNewCapacity(), true));
     }
 
     /**
@@ -529,9 +530,9 @@ public class ActionDescriptionBuilder {
         final String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
                 .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(resizeInfo.getCommodityType()));
         final String oldVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                targetEntityDTO.getEntityType(), resizeInfo.getOldCapacity());
+                targetEntityDTO.getEntityType(), resizeInfo.getOldCapacity(), false);
         final String newVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                newEntityDTO.getEntityType(), resizeInfo.getNewCapacity());
+                newEntityDTO.getEntityType(), resizeInfo.getNewCapacity(), true);
         final String verb = resizeInfo.getNewCapacity() > resizeInfo.getOldCapacity() ? UP : DOWN;
         return messageSeparator.concat(
                 ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
@@ -574,17 +575,21 @@ public class ActionDescriptionBuilder {
                     beautifyEntityTypeAndName(optTargetEntity),
                     primaryProviderEntity.getDisplayName(),
                     formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
+                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity(),
+                            false),
                     formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
+                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity(),
+                            true)));
         } else {
             description = new StringBuilder(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
                     firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
                     commodityTypeDisplayName, beautifyEntityTypeAndName(optTargetEntity),
                     formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
+                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity(),
+                            false),
                     formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
+                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity(),
+                            true)));
         }
 
         // Scaling more than one commodity
@@ -907,11 +912,12 @@ public class ActionDescriptionBuilder {
      * @param commodityType commodity type.
      * @param entityType the entity type to be checked
      * @param capacity commodity capacity which needs to format.
+     * @param isNewCapacity
      * @return a string after format.
      */
     static String formatResizeActionCommodityValue(
-            @Nonnull final CommodityDTO.CommodityType commodityType,
-            final int entityType, final double capacity) {
+            @Nonnull final CommodityType commodityType, final int entityType, final double capacity,
+            boolean isNewCapacity) {
         // Convert capacity of the commodities in this map into human readable format and round the number
         // with 1 significant figure in decimal, eg. 100.2 MB, 11.0 GB, etc.
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
@@ -925,6 +931,8 @@ public class ActionDescriptionBuilder {
             // Convert IO_Throughput value from KB/s to MB/s in action description
             double adaptCapacityToUnit = CommodityType.IO_THROUGHPUT == commodityType ? capacity / Units.KIBI : capacity;
             return COMMODITY_TYPE_ACTION_MESSAGE_FORMAT_MAP.get(commodityType).format(adaptCapacityToUnit);
+        } else if(commodityType == CommodityType.VCPU && isNewCapacity){
+            return ActionMessageFormat.VCPU_CORES.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }
