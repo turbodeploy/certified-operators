@@ -1234,7 +1234,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                                                      entitySettingsCache, resizeRecommendation);
 
-        assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
+        assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20 cores");
     }
 
     @Test
@@ -1298,7 +1298,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeVcpuRecommendationForVM);
 
         assertEquals(description,
-            "Resize down VCPU for Virtual Machine vm1_test from 16 to 8");
+            "Resize down VCPU for Virtual Machine vm1_test from 16 to 8 cores");
     }
 
     /**
@@ -1316,7 +1316,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeVcpuReservationRecommendationForVM);
 
         assertEquals(description,
-            "Resize down VCPU reservation for Virtual Machine vm1_test from 16 to 8");
+            "Resize down VCPU reservation for Virtual Machine vm1_test from 16 to 8 cores");
     }
 
     /**
