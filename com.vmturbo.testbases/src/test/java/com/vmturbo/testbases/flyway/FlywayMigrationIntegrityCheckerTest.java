@@ -791,7 +791,12 @@ public class FlywayMigrationIntegrityCheckerTest {
     private Git setupGit(final String workingTreeName) throws GitAPIException {
         // confusingly, this does not delete the temp directory, but only its contents
         tempFolder.delete();
-        return Git.init().setDirectory(new File(tempFolder.getRoot(), workingTreeName)).call();
+        final Git git = Git.init()
+                .setDirectory(new File(tempFolder.getRoot(), workingTreeName))
+                .call();
+        // Disable Git signed commits if they are enabled by default to prevent JGit internal error.
+        git.getRepository().getConfig().setBoolean("commit", null, "gpgSign", false);
+        return git;
     }
 
     /**
