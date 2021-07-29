@@ -4,7 +4,7 @@ __requires:
 - type: grafana
   id: grafana
   name: Grafana
-  version: 8.0.5
+  version: 8.0.6
 - type: datasource
   id: postgres
   name: PostgreSQL
@@ -12,10 +12,6 @@ __requires:
 - type: panel
   id: table
   name: Table
-  version: ""
-- type: panel
-  id: table-old
-  name: Table (old)
   version: ""
 annotations:
   list:
@@ -30,7 +26,7 @@ description: ""
 editable: false
 gnetId: null
 graphTooltip: 0
-iteration: 1626808254620
+iteration: 1627425168587
 links: []
 panels:
 - datasource: $DB
@@ -79,6 +75,15 @@ panels:
             value: null
           - color: rgb(0, 0, 0)
             value: 0
+      - id: mappings
+        value:
+        - options:
+            "-1":
+              index: 0
+              text: 0
+          type: value
+      - id: noValue
+        value: 0
     - matcher:
         id: byName
         options: VMs Per Host
@@ -97,7 +102,7 @@ panels:
   id: 2
   options:
     showHeader: true
-  pluginVersion: 8.0.5
+  pluginVersion: 8.0.6
   targets:
   - format: time_series
     group: []
@@ -214,52 +219,55 @@ panels:
     options:
       reducers: []
   type: table
-- columns: []
-  datasource: $DB
-  fontSize: 100%
+- datasource: $DB
+  fieldConfig:
+    defaults:
+      color:
+        mode: thresholds
+      custom:
+        align: left
+        displayMode: auto
+      decimals: 2
+      displayName: ""
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+      unit: mbytes
+    overrides:
+    - matcher:
+        id: byName
+        options: Time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: MMM-DD YYYY'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: VMs per TB
+      properties:
+      - id: unit
+        value: short
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: left
   gridPos:
     h: 4
     w: 17
     x: 0
     y: 5
   id: 4
-  pageSize: null
-  showHeader: true
-  sort:
-    col: 0
-    desc: true
-  styles:
-  - alias: Time
-    align: auto
-    dateFormat: MMM-DD YYYY
-    pattern: Time
-    type: date
-  - alias: ""
-    align: left
-    colorMode: null
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VMs per TB
-    thresholds: []
-    type: number
-    unit: short
-  - alias: ""
-    align: left
-    colorMode: null
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    decimals: 2
-    pattern: /.*/
-    thresholds: []
-    type: number
-    unit: mbytes
+  options:
+    showHeader: true
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -424,69 +432,67 @@ panels:
   timeFrom: null
   timeShift: null
   title: Storage
-  transform: table
-  type: table-old
-- columns: []
-  datasource: $DB
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
+- datasource: $DB
   description: 'The following indicators compare cluster capacity vs consumption.
     Indicator colors show: green where consumption is below N-2 server total resources,
     orange for above N-2 but below N-1, and red where consumption is above N-1.'
-  fontSize: 100%
+  fieldConfig:
+    defaults:
+      color:
+        mode: thresholds
+      custom:
+        align: right
+        displayMode: color-background
+      decimals: 2
+      displayName: ""
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: rgb(242, 73, 92)
+          value: null
+        - color: rgba(237, 129, 40, 0.89)
+          value: 1
+        - color: rgba(50, 172, 45, 0.97)
+          value: 2
+      unit: none
+    overrides:
+    - matcher:
+        id: byName
+        options: Time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: YYYY-MM-DD HH:mm:ss'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: Cluster
+      properties:
+      - id: unit
+        value: short
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+      - id: custom.displayMode
+        value: auto
   gridPos:
     h: 8
     w: 17
     x: 0
     y: 9
   id: 6
-  pageSize: null
-  showHeader: true
-  sort:
-    col: 0
-    desc: true
-  styles:
-  - $$hashKey: object:400
-    alias: Time
-    align: auto
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    pattern: Time
-    type: date
-  - $$hashKey: object:401
-    alias: ""
-    align: auto
-    colorMode: null
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: Cluster
-    thresholds: []
-    type: string
-    unit: short
-  - $$hashKey: object:402
-    alias: ""
-    align: right
-    colorMode: cell
-    colors:
-    - rgb(242, 73, 92)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    decimals: 2
-    mappingType: 2
-    pattern: /.*/
-    preserveFormat: false
-    rangeMaps: []
-    thresholds:
-    - 1
-    - 2
-    type: number
-    unit: none
-    valueMaps:
-    - $$hashKey: object:270
-      text: 10000000
-      value: -10000000
+  options:
+    showHeader: true
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -563,8 +569,11 @@ panels:
   timeFrom: null
   timeShift: null
   title: Cluster Status
-  transform: table
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 refresh: false
 schemaVersion: 30
 style: dark
@@ -602,4 +611,4 @@ timepicker:
 timezone: ""
 title: Monthly Overview and Cluster Summary
 uid: monthly_cluster_summary
-version: 2
+version: 14

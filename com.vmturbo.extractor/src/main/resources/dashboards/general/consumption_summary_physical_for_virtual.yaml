@@ -1,3 +1,22 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.6
+- type: panel
+  id: graph
+  name: Graph (old)
+  version: ""
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
+- type: panel
+  id: table
+  name: Table
+  version: ""
 annotations:
   list:
   - builtIn: 1
@@ -11,42 +30,43 @@ description: |-
   Average consumption of physical resources for a group of virtual machines.
   Only on-prem VMs are represented in the panel.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
-iteration: 1600436048145
+iteration: 1627420242006
 links: []
 panels:
 - datasource: $DB
   description: The Capacity and Used figures are averages over the time window. The
     VM count indicates the number of unique VMs that have been part of the group over
-    the time window and that provide information about the specific resource.
-    Only on-prem VMs are represented in the panel.
+    the time window and that provide information about the specific resource. Only
+    on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
       custom:
         align: null
+        displayMode: auto
         filterable: false
       mappings: []
       thresholds:
         mode: absolute
         steps:
-          - color: green
-            value: null
-          - color: red
-            value: 80
+        - color: green
+          value: null
+        - color: red
+          value: 80
     overrides:
-      - matcher:
-          id: byName
-          options: Capacity
-        properties:
-          - id: custom.width
-            value: 144
-      - matcher:
-          id: byName
-          options: Units
-        properties:
-          - id: custom.width
-            value: 90
+    - matcher:
+        id: byName
+        options: Capacity
+      properties:
+      - id: custom.width
+        value: 144
+    - matcher:
+        id: byName
+        options: Units
+      properties:
+      - id: custom.width
+        value: 90
   gridPos:
     h: 6
     w: 24
@@ -56,121 +76,121 @@ panels:
   options:
     showHeader: true
     sortBy: []
-  pluginVersion: 7.3.4
+  pluginVersion: 8.0.6
   targets:
-    - format: table
-      group: []
-      metricColumn: none
-      rawQuery: true
-      rawSql: |-
-        WITH consumed_metrics AS (
-          SELECT m.time, m.entity_oid, coalesce(m.consumed, 0.0) as value, m.type as metric_type
-          FROM metric m,
-            scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
-            entity e
-          WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-             AND m.time BETWEEN s.from_time and s.to_time
-             AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
-             AND m.provider_oid IS NOT NULL
-             AND s.oid = m.entity_oid
-             AND e.oid = m.entity_oid
-             AND e.environment = 'ON_PREM'
-        ),
-        time_entity_consumed_sums AS (
-          SELECT time, entity_oid, metric_type, sum(value) as value
-          FROM consumed_metrics
-          GROUP BY 1, 2, 3
-        ),
-        daily_avg_consumed_metrics as (
-          SELECT
-            date_trunc('day', m.time) as "time",
-            m.entity_oid,
-            metric_type,
-            avg(m.value) as value
-          FROM time_entity_consumed_sums m
-          GROUP BY 1, 2, 3
-        ),
-        daily_consumed AS (
-          SELECT
-            metric_type as type,
-            m.time,
-            sum(m.value) as consumed,
-            count(entity_oid) AS numConsumers
-          FROM daily_avg_consumed_metrics m
-          GROUP BY 1,2
-        ),
-        capacity_metrics as (
-          SELECT
-            date_trunc('day', m.time) AS "time",
-            m.type,
-            s.e_type as entityType,
-            m.entity_oid,
-            avg(coalesce(m.capacity, 0.0)) AS capacity
-          FROM metric m,
-            scope_to_types($__timeFrom(), $__timeTo(), ARRAY['PHYSICAL_MACHINE', 'STORAGE']::entity_type[], ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
-            entity e
-          WHERE
-            m.time BETWEEN $__timeFrom() AND $__timeTo()
-            AND m.type in ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
-            AND m.provider_oid IS NULL
-            AND m.entity_oid = s.oid
-            AND m.time BETWEEN s.from_time AND s.to_time
-            AND m.entity_oid = e.oid
-            AND e.environment = 'ON_PREM'
-          GROUP BY 1, 2, 3, 4
-        ),
-        daily_capacity AS (
-          SELECT type, time, SUM(capacity) as capacity
-          FROM capacity_metrics
-          GROUP BY 1, 2
-        )
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH consumed_metrics AS (
+        SELECT m.time, m.entity_oid, coalesce(m.consumed, 0.0) as value, m.type as metric_type
+        FROM metric m,
+          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
+           AND m.time BETWEEN s.from_time and s.to_time
+           AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
+           AND m.provider_oid IS NOT NULL
+           AND s.oid = m.entity_oid
+           AND e.oid = m.entity_oid
+           AND e.environment = 'ON_PREM'
+      ),
+      time_entity_consumed_sums AS (
+        SELECT time, entity_oid, metric_type, sum(value) as value
+        FROM consumed_metrics
+        GROUP BY 1, 2, 3
+      ),
+      daily_avg_consumed_metrics as (
         SELECT
-          CASE
-            WHEN con.type = 'STORAGE_AMOUNT' THEN 'Storage Usage'
-            WHEN con.type = 'CPU' THEN 'CPU Usage'
-            WHEN con.type = 'MEM' THEN 'Memory Usage'
-            WHEN con.type = 'STORAGE_ACCESS' THEN 'Storage Access - IOPS'
-          END::text AS "Resource",
-          CASE
-            WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1000 , 2)
-            WHEN con.type = 'CPU' THEN ROUND(AVG(cap.capacity)::numeric, 2)
-            WHEN con.type = 'MEM' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1024 / 1000, 2)
-            ELSE AVG(capacity)
-          END :: numeric as "Capacity",
-          CASE
-            WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1000, 2)
-            WHEN con.type = 'CPU' THEN ROUND(AVG(con.consumed)::numeric, 2)
-            WHEN con.type = 'MEM' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1024 / 1000, 2)
-            WHEN con.type = 'STORAGE_ACCESS' THEN ROUND(AVG(con.consumed)::numeric, 2)
-            ELSE AVG(consumed)
-          END :: numeric as "Used",
-          CASE
-            WHEN con.type = 'STORAGE_AMOUNT' THEN 'TiB'
-            WHEN con.type = 'CPU' THEN 'MHz'
-            WHEN con.type = 'MEM' THEN 'TiB'
-            WHEN con.type = 'STORAGE_ACCESS' THEN 'IOPS'
-            ELSE '-'
-          END as "Units",
-          ROUND(AVG(numConsumers), 0) as "VM Count"
-        FROM daily_consumed AS con FULL OUTER JOIN daily_capacity AS cap USING (type)
-        GROUP BY 1, con.type
-        ORDER BY CASE con.type WHEN 'CPU' then 1
-          WHEN 'MEM' THEN 2
-          WHEN 'STORAGE_AMOUNT' THEN 3
-          WHEN 'STORAGE_ACCESS' THEN 4 ELSE 5
-        END;
-      refId: A
-      select:
-      - - params:
-          - savings
-          type: column
-      table: action_spec
-      timeColumn: first_seen
-      timeColumnType: timestamp
-      where:
-      - name: $__timeFilter
-        params: []
-        type: macro
+          date_trunc('day', m.time) as "time",
+          m.entity_oid,
+          metric_type,
+          avg(m.value) as value
+        FROM time_entity_consumed_sums m
+        GROUP BY 1, 2, 3
+      ),
+      daily_consumed AS (
+        SELECT
+          metric_type as type,
+          m.time,
+          sum(m.value) as consumed,
+          count(entity_oid) AS numConsumers
+        FROM daily_avg_consumed_metrics m
+        GROUP BY 1,2
+      ),
+      capacity_metrics as (
+        SELECT
+          date_trunc('day', m.time) AS "time",
+          m.type,
+          s.e_type as entityType,
+          m.entity_oid,
+          avg(coalesce(m.capacity, 0.0)) AS capacity
+        FROM metric m,
+          scope_to_types($__timeFrom(), $__timeTo(), ARRAY['PHYSICAL_MACHINE', 'STORAGE']::entity_type[], ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s,
+          entity e
+        WHERE
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+          AND m.type in ('CPU', 'MEM', 'STORAGE_AMOUNT', 'STORAGE_ACCESS')
+          AND m.provider_oid IS NULL
+          AND m.entity_oid = s.oid
+          AND m.time BETWEEN s.from_time AND s.to_time
+          AND m.entity_oid = e.oid
+          AND e.environment = 'ON_PREM'
+        GROUP BY 1, 2, 3, 4
+      ),
+      daily_capacity AS (
+        SELECT type, time, SUM(capacity) as capacity
+        FROM capacity_metrics
+        GROUP BY 1, 2
+      )
+      SELECT
+        CASE
+          WHEN con.type = 'STORAGE_AMOUNT' THEN 'Storage Usage'
+          WHEN con.type = 'CPU' THEN 'CPU Usage'
+          WHEN con.type = 'MEM' THEN 'Memory Usage'
+          WHEN con.type = 'STORAGE_ACCESS' THEN 'Storage Access - IOPS'
+        END::text AS "Resource",
+        CASE
+          WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1000 , 2)
+          WHEN con.type = 'CPU' THEN ROUND(AVG(cap.capacity)::numeric, 2)
+          WHEN con.type = 'MEM' THEN ROUND(AVG(cap.capacity)::numeric / 1024 / 1024 / 1000, 2)
+          ELSE AVG(capacity)
+        END :: numeric as "Capacity",
+        CASE
+          WHEN con.type = 'STORAGE_AMOUNT' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1000, 2)
+          WHEN con.type = 'CPU' THEN ROUND(AVG(con.consumed)::numeric, 2)
+          WHEN con.type = 'MEM' THEN ROUND(AVG(con.consumed)::numeric / 1024 / 1024 / 1000, 2)
+          WHEN con.type = 'STORAGE_ACCESS' THEN ROUND(AVG(con.consumed)::numeric, 2)
+          ELSE AVG(consumed)
+        END :: numeric as "Used",
+        CASE
+          WHEN con.type = 'STORAGE_AMOUNT' THEN 'TiB'
+          WHEN con.type = 'CPU' THEN 'MHz'
+          WHEN con.type = 'MEM' THEN 'TiB'
+          WHEN con.type = 'STORAGE_ACCESS' THEN 'IOPS'
+          ELSE '-'
+        END as "Units",
+        ROUND(AVG(numConsumers), 0) as "VM Count"
+      FROM daily_consumed AS con FULL OUTER JOIN daily_capacity AS cap USING (type)
+      GROUP BY 1, con.type
+      ORDER BY CASE con.type WHEN 'CPU' then 1
+        WHEN 'MEM' THEN 2
+        WHEN 'STORAGE_AMOUNT' THEN 3
+        WHEN 'STORAGE_ACCESS' THEN 4 ELSE 5
+      END;
+    refId: A
+    select:
+    - - params:
+        - savings
+        type: column
+    table: action_spec
+    timeColumn: first_seen
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
   timeFrom: null
   timeShift: null
   title: Total Resource Summary
@@ -185,7 +205,7 @@ panels:
     Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -206,10 +226,11 @@ panels:
     values: false
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: false
   renderer: flot
@@ -266,9 +287,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: CPU Usage
   tooltip:
     shared: true
@@ -276,9 +297,9 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
@@ -286,19 +307,19 @@ panels:
     format: none
     label: MHz
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1301
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -309,7 +330,7 @@ panels:
     Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -330,10 +351,11 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: false
   renderer: flot
@@ -389,9 +411,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Mem Usage
   tooltip:
     shared: true
@@ -399,29 +421,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:1219
     format: kbytes
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1220
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -432,7 +454,7 @@ panels:
     Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -453,10 +475,11 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: false
   renderer: flot
@@ -511,9 +534,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Storage Usage
   tooltip:
     shared: true
@@ -521,29 +544,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:1386
     format: mbytes
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1387
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -554,7 +577,7 @@ panels:
     Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
-      custom: {}
+      links: []
     overrides: []
   fill: 0
   fillGradient: 0
@@ -575,10 +598,11 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
-    dataLinks: []
+    alertThreshold: true
   percentage: false
+  pluginVersion: 8.0.6
   pointradius: 2
   points: false
   renderer: flot
@@ -634,9 +658,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Storage Access - IOPS
   tooltip:
     shared: true
@@ -644,9 +668,9 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
@@ -654,100 +678,101 @@ panels:
     format: none
     label: IOPS
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1481
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
-- columns: []
-  datasource: $DB
+    alignLevel: null
+- datasource: $DB
   description: |-
     Average measurements for each VM in the selected group.
     Only on-prem VMs are represented in the panel.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: auto
+        displayMode: auto
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+    overrides:
+    - matcher:
+        id: byName
+        options: Time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: YYYY-MM-DD HH:mm:ss'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: Mem
+      properties:
+      - id: displayName
+        value: Memory
+      - id: unit
+        value: kbytes
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: left
+    - matcher:
+        id: byName
+        options: Storage
+      properties:
+      - id: unit
+        value: mbytes
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: IOPS
+      properties:
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: CPU
+      properties:
+      - id: unit
+        value: hertz
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
   gridPos:
     h: 22
     w: 24
     x: 0
     y: 30
   id: 10
-  pageSize:
-  showHeader: true
-  sort:
-    col: 1
-    desc: true
-  styles:
-  - alias: Time
-    align: auto
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    pattern: Time
-    type: date
-  - alias: 'Memory'
-    align: left
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    decimals: 2
-    pattern: Mem
-    thresholds: []
-    type: number
-    unit: kbytes
-  - alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: Storage
-    thresholds: []
-    type: number
-    unit: mbytes
-  - alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: IOPS
-    thresholds: []
-    type: number
-    unit: null
-  - alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: CPU
-    thresholds: []
-    type: number
-    unit: hertz
+  options:
+    showHeader: true
+    sortBy:
+    - desc: true
+      displayName: VM Name
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -800,88 +825,95 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Virtual Machine Resource Usage
-  transform: table
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 refresh: false
-schemaVersion: 26
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-    - hide: 2
-      includeAll: false
-      label:
-      multi: false
-      name: DB
-      options: []
-      query: postgres
-      queryValue: ''
-      refresh: 1
-      regex: ''
-      skipUrlSync: false
-      type: datasource
-    - allValue: "0"
-      datasource: $DB
-      definition: |-
-        WITH candidates AS (
-          SELECT oid, name
-          FROM entity
-          WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
-            AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
-            AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
-        )
-        SELECT DISTINCT
-          g.name AS __text,
-          g.oid AS __value
-        FROM
-          candidates g,
-          entity e,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
-            (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
-        WHERE
-          s.seed = g.oid
-          AND s.oid = e.oid
-          AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
-          AND e.environment = 'ON_PREM'
-      hide: 0
-      includeAll: true
-      label:
-      multi: false
-      name: Group
-      options: []
-      query: |-
-        WITH candidates AS (
-          SELECT oid, name
-          FROM entity
-          WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
-            AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
-            AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
-        )
-        SELECT DISTINCT
-          g.name AS __text,
-          g.oid AS __value
-        FROM
-          candidates g,
-          entity e,
-          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
-            (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
-        WHERE
-          s.seed = g.oid
-          AND s.oid = e.oid
-          AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
-          AND e.environment = 'ON_PREM'
-      refresh: 2
-      regex: ''
-      skipUrlSync: false
-      sort: 0
-      tagValuesQuery: ''
-      tags: []
-      tagsQuery: ''
-      type: query
-      useTags: false
+  - description: null
+    error: null
+    hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+  - allValue: 0
+    current: {}
+    datasource: $DB
+    definition: |-
+      WITH candidates AS (
+        SELECT oid, name
+        FROM entity
+        WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
+          AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
+          AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+      )
+      SELECT DISTINCT
+        g.name AS __text,
+        g.oid AS __value
+      FROM
+        candidates g,
+        entity e,
+        scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
+          (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
+      WHERE
+        s.seed = g.oid
+        AND s.oid = e.oid
+        AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+        AND e.environment = 'ON_PREM'
+    description: null
+    error: null
+    hide: 0
+    includeAll: true
+    label: null
+    multi: false
+    name: Group
+    options: []
+    query: |-
+      WITH candidates AS (
+        SELECT oid, name
+        FROM entity
+        WHERE type IN ('GROUP', 'COMPUTE_CLUSTER')
+          AND attrs -> 'member_types' ?| array['VIRTUAL_MACHINE', 'PHYSICAL_MACHINE']
+          AND (first_seen, last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+      )
+      SELECT DISTINCT
+        g.name AS __text,
+        g.oid AS __value
+      FROM
+        candidates g,
+        entity e,
+        scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE',
+          (SELECT array_agg(oid) FROM candidates)::bigint[], false) AS s
+      WHERE
+        s.seed = g.oid
+        AND s.oid = e.oid
+        AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+        AND e.environment = 'ON_PREM'
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tagsQuery: ""
+    type: query
+    useTags: false
 time:
   from: now-1d
   to: now
@@ -896,6 +928,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Consumption Summary of Physical Resources for Virtual Machines
 uid: consumption_summary_physical_for_virtual
+version: 57

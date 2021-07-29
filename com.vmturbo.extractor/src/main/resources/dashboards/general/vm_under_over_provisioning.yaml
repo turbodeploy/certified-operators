@@ -1,3 +1,18 @@
+---
+__inputs: []
+__requires:
+- type: grafana
+  id: grafana
+  name: Grafana
+  version: 8.0.6
+- type: datasource
+  id: postgres
+  name: PostgreSQL
+  version: 1.0.0
+- type: panel
+  id: table
+  name: Table
+  version: ""
 annotations:
   list:
   - builtIn: 1
@@ -10,97 +25,99 @@ annotations:
 description: This dashboard shows virtual machines that are over or under provisioned,
   as indicated by their utilization levels of allocated resources.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
-iteration: 1597070835900
+iteration: 1627420703500
 links: []
 panels:
-- columns: []
-  datasource: $DB
+- datasource: $DB
   description: Active VMs with CPU or Memory utilization peaks that are below 10%.
     Values indicating over- provisioning are highlighted with red text.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: auto
+        displayMode: auto
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+    overrides:
+    - matcher:
+        id: byName
+        options: Time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: YYYY-MM-DD HH:mm:ss'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byRegexp
+        options: /.*Peak/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-text
+      - id: custom.align
+        value: right
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: '#C4162A'
+            value: null
+          - color: rgb(1, 3, 0)
+            value: 0.1
+    - matcher:
+        id: byRegexp
+        options: /(VMEM|VCPU) (Avg)/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: VMEM Capacity
+      properties:
+      - id: unit
+        value: kbytes
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: VCPU Capacity
+      properties:
+      - id: unit
+        value: hertz
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
   gridPos:
     h: 15
     w: 24
     x: 0
     y: 0
   id: 4
-  pageSize: 50
-  showHeader: true
-  sort:
-    col:
-    desc: false
-  styles:
-  - $$hashKey: object:279
-    alias: Time
-    align: auto
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    pattern: Time
-    type: date
-  - $$hashKey: object:280
-    alias: ''
-    align: right
-    colorMode: value
-    colors:
-    - '#C4162A'
-    - rgb(1, 3, 0)
-    - rgb(1, 3, 0)
-    decimals: 2
-    pattern: /.*Peak/
-    thresholds:
-    - 0.1
-    type: number
-    unit: percentunit
-  - $$hashKey: object:281
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: /(VMEM|VCPU) (Avg)/
-    thresholds: []
-    type: number
-    unit: percentunit
-  - $$hashKey: object:282
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VMEM Capacity
-    thresholds: []
-    type: number
-    unit: kbytes
-  - $$hashKey: object:291
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VCPU Capacity
-    thresholds: []
-    type: number
-    unit: hertz
+  options:
+    showHeader: true
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -151,97 +168,102 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Over-provisioned VMs
-  transform: table
-  type: table-old
-- columns: []
-  datasource: $DB
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
+- datasource: $DB
   description: Active VMs with CPU or Memory utilization averages that are above 85%.
     Values indicating under-provisioning are highlighted in red text.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: auto
+        displayMode: auto
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+    overrides:
+    - matcher:
+        id: byName
+        options: Time
+      properties:
+      - id: displayName
+        value: Time
+      - id: unit
+        value: 'time: YYYY-MM-DD HH:mm:ss'
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byRegexp
+        options: /.*Peak/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.displayMode
+        value: color-text
+      - id: custom.align
+        value: right
+      - id: thresholds
+        value:
+          mode: absolute
+          steps:
+          - color: rgb(1, 3, 0)
+            value: null
+          - color: '#E02F44'
+            value: 0.85
+    - matcher:
+        id: byRegexp
+        options: /(VMEM|VCPU) (Avg)/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: VMEM Capacity
+      properties:
+      - id: unit
+        value: kbytes
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
+    - matcher:
+        id: byName
+        options: VCPU Capacity
+      properties:
+      - id: unit
+        value: hertz
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: null
   gridPos:
     h: 15
     w: 24
     x: 0
     y: 15
   id: 7
-  pageSize: 50
-  showHeader: true
-  sort:
-    col:
-    desc: false
-  styles:
-  - $$hashKey: object:511
-    alias: Time
-    align: auto
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    pattern: Time
-    type: date
-  - $$hashKey: object:512
-    alias: ''
-    align: right
-    colorMode: value
-    colors:
-    - rgb(1, 3, 0)
-    - '#E02F44'
-    - '#E02F44'
-    decimals: 2
-    pattern: /.*Peak/
-    thresholds:
-    - 0.85
-    type: number
-    unit: percentunit
-  - $$hashKey: object:513
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: /(VMEM|VCPU) (Avg)/
-    thresholds: []
-    type: number
-    unit: percentunit
-  - $$hashKey: object:514
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VMEM Capacity
-    thresholds: []
-    type: number
-    unit: kbytes
-  - $$hashKey: object:541
-    alias: ''
-    align: auto
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    dateFormat: YYYY-MM-DD HH:mm:ss
-    decimals: 2
-    mappingType: 1
-    pattern: VCPU Capacity
-    thresholds: []
-    type: number
-    unit: hertz
+  options:
+    showHeader: true
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -291,44 +313,52 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Under-provisioned VMs
-  transform: table
-  type: table-old
-- columns: []
-  datasource: $DB
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
+- datasource: $DB
   description: Group/Cluster information allowing individual VM peaks to be compared
     with the average of all of the peaks of the VMs in their corresponding cluster.
   fieldConfig:
     defaults:
-      custom: {}
-    overrides: []
-  fontSize: 100%
+      color:
+        mode: thresholds
+      custom:
+        align: auto
+        displayMode: auto
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+    overrides:
+    - matcher:
+        id: byRegexp
+        options: /Avg.*/
+      properties:
+      - id: unit
+        value: percentunit
+      - id: decimals
+        value: 2
+      - id: custom.align
+        value: right
   gridPos:
     h: 13
     w: 24
     x: 0
     y: 30
   id: 6
-  pageSize: 50
-  showHeader: true
-  sort:
-    col: 2
-    desc: true
-  styles:
-  - alias: ''
-    align: right
-    colorMode:
-    colors:
-    - rgba(245, 54, 54, 0.9)
-    - rgba(237, 129, 40, 0.89)
-    - rgba(50, 172, 45, 0.97)
-    decimals: 2
-    pattern: /Avg.*/
-    thresholds: []
-    type: number
-    unit: percentunit
+  options:
+    showHeader: true
+  pluginVersion: 8.0.6
   targets:
   - format: table
     group: []
@@ -379,29 +409,37 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Clusters with Average Peaks
-  transform: table
-  type: table-old
+  transformations:
+  - id: merge
+    options:
+      reducers: []
+  type: table
 refresh: false
-schemaVersion: 25
+schemaVersion: 30
 style: dark
 tags: []
 templating:
   list:
-  - hide: 2
+  - description: null
+    error: null
+    hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
+time:
+  from: now-6h
+  to: now
 timepicker:
   refresh_intervals:
   - 10s
@@ -413,6 +451,7 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Virtual Machine Over or Under Provisioning
 uid: vm_under_over_provisioning
+version: 57
