@@ -1,15 +1,19 @@
 package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -26,6 +30,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -64,6 +69,7 @@ import com.vmturbo.cost.component.entity.cost.InMemoryEntityCostStore;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -174,6 +180,22 @@ public class ActionListener implements ActionsListener {
     private final Clock clock;
 
     /**
+     * Entity Savings Store.
+     */
+    private final EntitySavingsStore<DSLContext> entitySavingsStore;
+
+    /**
+     * Entity State Store.
+     */
+    private final EntityStateStore<DSLContext> entityStateStore;
+
+    /**
+     * This flag indicates whether we have recovered the events the action listener has missed
+     * before the cost component was restarted.
+     */
+    private boolean actionsCaughtUp = false;
+
+    /**
      * Constructor.
      *
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
@@ -184,17 +206,21 @@ public class ActionListener implements ActionsListener {
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
      * @param retentionConfig savings action retention configuration.
+     * @param entitySavingsStore entity savings store
+     * @param entityStateStore entity state store
      * @param clock clock
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
-                    @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
-                    @Nonnull final EntityCostStore costStoreHouse,
-                    @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
-                    @Nonnull final Long realTimeContextId,
-                    @Nonnull Set<EntityType> supportedEntityTypes,
-                    @Nonnull Set<ActionType> supportedActionTypes,
-                    @Nonnull EntitySavingsRetentionConfig retentionConfig,
-                   @Nonnull final Clock clock) {
+            @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
+            @Nonnull final EntityCostStore costStoreHouse,
+            @Nonnull final InMemoryEntityCostStore projectedEntityCostStore,
+            @Nonnull final Long realTimeContextId,
+            @Nonnull Set<EntityType> supportedEntityTypes,
+            @Nonnull Set<ActionType> supportedActionTypes,
+            @Nonnull EntitySavingsRetentionConfig retentionConfig,
+            @Nonnull final EntitySavingsStore<DSLContext> entitySavingsStore,
+            @Nonnull final EntityStateStore<DSLContext> entityStateStore,
+            @Nonnull final Clock clock) {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         this.actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -205,6 +231,8 @@ public class ActionListener implements ActionsListener {
                 .collect(Collectors.toSet());
         this.pendingActionTypes = supportedActionTypes;
         this.retentionConfig = retentionConfig;
+        this.entitySavingsStore = entitySavingsStore;
+        this.entityStateStore = entityStateStore;
         this.clock = clock;
     }
 
@@ -226,40 +254,44 @@ public class ActionListener implements ActionsListener {
         //  - entry for it.
         final Long actionId = actionSuccess.getActionId();
         logger.debug("Got success notification for action {}", actionId);
+        final ActionSpec actionSpec = actionSuccess.getActionSpec();
         try {
-            final ActionSpec actionSpec = actionSuccess.getActionSpec();
-            final ActionState actionState = actionSpec.getActionState();
-            logger.info("Action State of Action {} changed to {}", actionId, actionState);
-            // Multiple SUCCEEDED notifications could likely still be received from probes,
-            // However the Savings Calculator will only process the first Savings event
-            // related to action execution and drop the rest.
             ActionEntity entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-            final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
-            if (pendingWorkloadTypes.contains(entity.getType())) {
-                final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
-                final Long entityId = entity.getId();
-                // The Savings Calculator preserves the recommendation prices, hence executions events don't
-                // need to have a EntityPriceChange with before and after costs populated.
-                long expirationTime = completionTime
-                        + (ActionEventType.DELETE_EXECUTION_SUCCESS
-                                .equals(entityActionInfo.getActionEventType())
-                                        ? retentionConfig.getVolumeDeleteRetentionMs()
-                                        : retentionConfig.getActionRetentionMs());
-                final SavingsEvent successEvent = createActionEvent(entity.getId(),
-                        completionTime,
-                        entityActionInfo.getActionEventType(),
-                        actionId, null,
-                        entityActionInfo, Optional.of(expirationTime));
-                entityEventsJournal.addEvent(successEvent);
-                logger.debug("Added action {} for entity {}, completion time {}, recommendation"
-                                + " time {}, journal size {}",
-                             actionId, entityId, completionTime,
-                             actionSpec.getRecommendationTime(),
-                             entityEventsJournal.size());
-            }
+            createActionSuccessEvent(actionId, actionSpec, entity);
         } catch (UnsupportedActionException e) {
             logger.error("Cannot create action Savings event due to unsupported action type for action {}",
-                         actionId, e);
+                    actionId, e);
+        }
+    }
+
+    private void createActionSuccessEvent(Long actionId, ActionSpec actionSpec, ActionEntity entity) {
+        final ActionState actionState = actionSpec.getActionState();
+        logger.info("Action State of Action {} changed to {}", actionId, actionState);
+        // Multiple SUCCEEDED notifications could likely still be received from probes,
+        // However the Savings Calculator will only process the first Savings event
+        // related to action execution and drop the rest.
+        final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
+        if (pendingWorkloadTypes.contains(entity.getType())) {
+            final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
+            final Long entityId = entity.getId();
+            // The Savings Calculator preserves the recommendation prices, hence executions events don't
+            // need to have a EntityPriceChange with before and after costs populated.
+            long expirationTime = completionTime
+                    + (ActionEventType.DELETE_EXECUTION_SUCCESS
+                    .equals(entityActionInfo.getActionEventType())
+                    ? retentionConfig.getVolumeDeleteRetentionMs()
+                    : retentionConfig.getActionRetentionMs());
+            final SavingsEvent successEvent = createActionEvent(entity.getId(),
+                    completionTime,
+                    entityActionInfo.getActionEventType(),
+                    actionId, null,
+                    entityActionInfo, Optional.of(expirationTime));
+            entityEventsJournal.addEvent(successEvent);
+            logger.debug("Added action {} for entity {}, completion time {}, recommendation"
+                            + " time {}, journal size {}",
+                    actionId, entityId, completionTime,
+                    actionSpec.getRecommendationTime(),
+                    entityEventsJournal.size());
         }
     }
 
@@ -303,8 +335,11 @@ public class ActionListener implements ActionsListener {
         BiMap<EntityActionInfo, Long> newPendingActionsInfoToEntityId = HashBiMap.create();
         AtomicReference<String> cursor = new AtomicReference<>("0");
         do {
+            // This request for actions will not filter by time range or action states.
+            // Actions with SUCCEEDED state is included so that if a RECOMMENDATION_ADDED event will
+            // be created for the action even if we did not see its earlier states.
             final FilteredActionRequest filteredActionRequest =
-                    filteredActionRequest(topologyContextId, cursor);
+                    filteredActionRequest(topologyContextId, cursor, null, null, null);
             actionsService.getAllActions(filteredActionRequest)
                     .forEachRemaining(filteredActionResponse -> {
                         if (filteredActionResponse.hasActionChunk()) {
@@ -377,6 +412,15 @@ public class ActionListener implements ActionsListener {
      * being processed.
      */
     private void generateRecommendationEvents(@Nonnull final BiMap<EntityActionInfo, Long> newPendingActionsInfoToEntityId) {
+        final long currentTime = clock.millis();
+        final long periodStartTime = getNextPeriodStartTime();
+
+        // Attempt recovering action events if this is the first time action listener is run after
+        // the cost pod starts up and the entity savings stats tables are not empty (i.e. not the
+        // first time the feature is enabled.
+        if (!actionsCaughtUp && periodStartTime != 0) {
+            recoverActions(newPendingActionsInfoToEntityId.values(), periodStartTime, currentTime);
+        }
 
         Map<Long, EntityActionInfo> newPendingEntityIdToActionsInfo =
                                                                     newPendingActionsInfoToEntityId
@@ -384,10 +428,6 @@ public class ActionListener implements ActionsListener {
         // Query for action costs and update the action info of the new cycle actions.
         Map<Long, EntityPriceChange> entityPriceChangeMap =
                                                   getEntityCosts(newPendingEntityIdToActionsInfo);
-
-        // Use current time as the event time. We don't use the action recommendation time because
-        // the event won't be processed if the event time is before the period processing time.
-        final long eventTime = clock.millis();
 
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
         // Add new recommendation action events.
@@ -401,6 +441,12 @@ public class ActionListener implements ActionsListener {
             final Long newActionId = newActionInfo.getActionId();
             final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
+            // If the time of the recommendation is before the period start time, we will use the
+            // current time. This situation will happen when the action is updated (e.g. a new cost)
+            // Using the original recommendation time that is before the period start time will
+            // cause the event to be removed.
+            long eventTime = newActionInfo.recommendationTime < periodStartTime
+                    ? currentTime : newActionInfo.getRecommendationTime();
             if (actionPriceChange != null) {
                 logger.debug("New action price change for {}, {}, {}, {}:",
                         newActionId,
@@ -450,7 +496,7 @@ public class ActionListener implements ActionsListener {
                 if (!entitiesWithReplacedActions.contains(entityId)) {
                     SavingsEvent staleActionEvent =
                                                   createActionEvent(entityId,
-                                                            eventTime,
+                                                            currentTime,
                                                             ActionEventType.RECOMMENDATION_REMOVED,
                                                             staleActionId,
                                                             null,
@@ -476,25 +522,50 @@ public class ActionListener implements ActionsListener {
     }
 
     /**
+     * Return the time of the next savings processing cycle. It equals to the end time of the
+     * most recent processing cycle.
+     *
+     * @return start time of the next processing cycle, or 0 if the stats table is empty.
+     */
+    private long getNextPeriodStartTime() {
+        LastRollupTimes lastRollupTimes = entitySavingsStore.getLastRollupTimes();
+        if (lastRollupTimes.getLastTimeByHour() == 0) {
+            return 0;
+        }
+        return lastRollupTimes.getLastTimeByHour() + TimeUnit.HOURS.toMillis(1);
+    }
+
+    /**
      * Return a request to fetch filtered set of market actions.
      *
      * @param topologyContextId The topology context id of the Market.
      * @param cursor current page to request
+     * @param startDate start time in milliseconds
+     * @param endDate end time in milliseconds
+     * @param actionStates action states
      * @return The FilteredActionRequest.
      */
     private FilteredActionRequest filteredActionRequest(final Long topologyContextId,
-            AtomicReference<String> cursor) {
+            AtomicReference<String> cursor, @Nullable Long startDate, @Nullable Long endDate,
+            @Nullable List<ActionState> actionStates) {
+        ActionQueryFilter.Builder actionQueryFilter = ActionQueryFilter
+                .newBuilder()
+                .setVisible(true)
+                .addAllTypes(pendingActionTypes)
+                .addAllModes(pendingActionModes)
+                .setEnvironmentType(EnvironmentType.CLOUD);
+        if (startDate != null && endDate != null) {
+            actionQueryFilter.setStartDate(startDate);
+            actionQueryFilter.setEndDate(endDate);
+        }
+        if (actionStates != null) {
+            actionQueryFilter.addAllStates(actionStates);
+        }
         return FilteredActionRequest.newBuilder()
                         .setTopologyContextId(topologyContextId)
                         .setPaginationParams(PaginationParameters.newBuilder()
                                         .setCursor(cursor.getAndSet("")))
-                        .addActionQuery(ActionQuery.newBuilder().setQueryFilter(
-                                        ActionQueryFilter
-                                            .newBuilder()
-                                            .setVisible(true)
-                                            .addAllTypes(pendingActionTypes)
-                                            .addAllModes(pendingActionModes)
-                                            .setEnvironmentType(EnvironmentType.CLOUD))
+                        .addActionQuery(ActionQuery.newBuilder().setQueryFilter(actionQueryFilter)
                                         .build())
                         .build();
     }
@@ -670,6 +741,104 @@ public class ActionListener implements ActionsListener {
         logger.warn("ActionListener total number of entities with cost retrieval issues {}.", noOfEntitieswithError);
     }
 
+    private void recoverActions(Set<Long> entitiesWithActionsAfterRestart, long startTime, long currentTime) {
+        logger.info("Start recovering actions missed when cost component was down.");
+        recoverMissedExecutionSuccessEvents(startTime, currentTime);
+        recoverMissedRecommendationRemovedEvents(entitiesWithActionsAfterRestart, currentTime);
+        actionsCaughtUp = true;
+    }
+
+    /**
+     * Recover action succeeded events that happened when cost pod was down. Query the action
+     * orchestrator component for actions in the SUCCEEDED state between the time the entity savings
+     * was last processed and the current time.
+     *
+     * @param startTime start time
+     * @param endTime end time
+     */
+    @VisibleForTesting
+    void recoverMissedExecutionSuccessEvents(long startTime, long endTime) {
+        AtomicReference<String> cursor = new AtomicReference<>("0");
+        FilteredActionRequest actionRequest = filteredActionRequest(realTimeTopologyContextId,
+                cursor, startTime, endTime, Collections.singletonList(ActionState.SUCCEEDED));
+        actionsService.getAllActions(actionRequest)
+                .forEachRemaining(actionResponse -> {
+                    if (actionResponse.hasActionChunk()) {
+                        for (ActionOrchestratorAction action : actionResponse.getActionChunk().getActionsList()) {
+                            ActionSpec actionSpec = action.getActionSpec();
+                            long actionId = action.getActionId();
+                            try {
+                                ActionEntity entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                                createActionSuccessEvent(actionId, actionSpec, entity);
+                                logger.info("Execution success event happened when cost component was off. "
+                                                + "Adding it back to event journal. Action completion time: {}",
+                                        actionSpec.getExecutionStep().getCompletionTime());
+                            } catch (UnsupportedActionException e) {
+                                logger.error("Cannot create action Savings event due to unsupported action type for action {}",
+                                        actionId, e);
+                            }
+                        }
+                    } else if (actionResponse.hasPaginationResponse()) {
+                        cursor.set(actionResponse.getPaginationResponse().getNextCursor());
+                    }
+                });
+    }
+
+    /**
+     * If an entity has a pending action before the cost pod was down, but the entity no longer has
+     * an action after the cost pod restart, we will create a RECOMMENDATION_REMOVED event for this
+     * entity.
+     *
+     * @param entitiesWithActionsAfterRestart entities with action after the restart.
+     * @param eventTime The timestamp of the RECOMMENDATION_REMOVED action to be created.
+     */
+    @VisibleForTesting
+    void recoverMissedRecommendationRemovedEvents(Set<Long> entitiesWithActionsAfterRestart,
+            Long eventTime) {
+        try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates()) {
+            Set<Long> entitiesWithActionsBeforeRestart = stateStream
+                    .filter(s -> s.getCurrentRecommendation() != null
+                            && s.getCurrentRecommendation().active())
+                    .map(EntityState::getEntityId)
+                    .collect(Collectors.toSet());
+            // Find entities that had an action before but no longer have an action by removing
+            // entities of entities that currently have actions from the set of entity IDs of entities
+            // that had actions before.
+            logger.info("There were {} entities with actions before cost component was down, "
+                    + "and there are {} entities with actions now.",
+                    entitiesWithActionsBeforeRestart.size(), entitiesWithActionsAfterRestart.size());
+            entitiesWithActionsBeforeRestart.removeAll(entitiesWithActionsAfterRestart);
+            if (!entitiesWithActionsBeforeRestart.isEmpty()) {
+                Map<Long, EntityState> states =
+                        entityStateStore.getEntityStates(entitiesWithActionsBeforeRestart);
+                states.values().forEach(s -> {
+                    // Reconstruct the event. Use dummy values where needed. The algorithm
+                    // only needs the time of the event and needs to know it is a
+                    // recommendation removed event. The other values are not used by the
+                    // algorithm, but will be recorded in the audit log.
+                    long dummyActionId = 0L;
+                    String actionDescription = "Recommendation was removed after cost restarted.";
+                    EntityActionInfo actionInfo = new EntityActionInfo(dummyActionId, eventTime,
+                            new EntityActionCosts(), actionDescription, EntityType.UNKNOWN_VALUE,
+                            ActionType.SCALE, ActionCategory.EFFICIENCY_IMPROVEMENT);
+                    SavingsEvent staleActionEvent =
+                            createActionEvent(s.getEntityId(),
+                                    eventTime,
+                                    ActionEventType.RECOMMENDATION_REMOVED,
+                                    dummyActionId,
+                                    null,
+                                    actionInfo, Optional.empty());
+                    entityEventsJournal.addEvent(staleActionEvent);
+                    logger.info("Action recommendation for entity {} was removed when "
+                                    + "cost component was off. Adding it back to event journal.",
+                            s.getEntityId());
+                });
+            }
+        } catch (EntitySavingsException e) {
+            logger.error("Error occurred when getting entities states from entity state store.", e);
+        }
+    }
+
     /**
      * Internal use only: Keeps info related to action and cost of an entity. Info here is used
      * to make up the priceChange instance later.
@@ -822,6 +991,18 @@ public class ActionListener implements ActionsListener {
                 this.savingsPerHour = action.getSavingsPerHour().getAmount();
             }
             processActionType(actionSpec);
+        }
+
+        EntityActionInfo(long actionId, long recommendationTime,
+                @Nonnull EntityActionCosts entityActionCosts, String description, int entityType,
+                ActionType actionType, ActionCategory actionCategory) {
+            this.recommendationTime = recommendationTime;
+            this.entityActionCosts = entityActionCosts;
+            this.entityType = entityType;
+            this.actionId = actionId;
+            this.description = description;
+            this.actionType = actionType;
+            this.actionCategory = actionCategory;
         }
 
         /**

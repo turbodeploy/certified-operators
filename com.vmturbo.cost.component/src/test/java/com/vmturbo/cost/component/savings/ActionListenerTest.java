@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -20,6 +21,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -27,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.jetbrains.annotations.NotNull;
+import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -34,6 +39,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.mockito.stubbing.Answer;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -79,6 +85,7 @@ import com.vmturbo.cost.component.savings.ActionListener.EntityActionInfo;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -149,6 +156,10 @@ public class ActionListenerTest {
 
     private final Clock clock = Clock.systemUTC();
 
+    private EntitySavingsStore<DSLContext> entitySavingsStore = mock(EntitySavingsStore.class);
+
+    private EntityStateStore<DSLContext> entityStateStore = mock(EntityStateStore.class);
+
     /**
      * Test gRPC server to mock out actions service gRPC dependencies.
      */
@@ -173,7 +184,8 @@ public class ActionListenerTest {
                                             entityCostStore, projectedEntityCostStore,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes(), config, clock);
+                EntitySavingsConfig.getSupportedActionTypes(), config,
+                entitySavingsStore, entityStateStore, clock);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()
@@ -308,7 +320,7 @@ public class ActionListenerTest {
     /**
      * Test processing of new pending actions.
      *
-     * @throws DbException in cases there was a problem terieving entity costs.
+     * @throws DbException in cases there was a problem retrieving entity costs.
      */
     @Test
     public void testProcessNewPendingActions() throws DbException {
@@ -375,6 +387,7 @@ public class ActionListenerTest {
                 .willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(new LastRollupTimes());
 
         // Execute Actions Update.
         actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
@@ -721,5 +734,93 @@ public class ActionListenerTest {
         final CurrencyAmount currencyAmount = CurrencyAmount.newBuilder().setAmount(amount)
                 .setCurrency(currency).build();
         return currencyAmount;
+    }
+
+    /**
+     * 2 successful action executions happened when cost pod was down. When running logic to
+     * recover execution success events, make sure the 2 events are added to the journal.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testRecoverMissedExecutionSuccessEvents() throws Exception {
+        Long entity1Oid = 1L;
+        Long entity2Oid = 2L;
+        final ActionEntity actionEntityScale1 =
+                createActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale1 = createScale(actionEntityScale1);
+        final ActionEntity actionEntityScale2 =
+                createActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale2 = createScale(actionEntityScale2);
+        ActionSpec actionSucceeded1 =
+                createActionSpec(scale1, 4321L, 4321L, 1, ActionState.SUCCEEDED);
+        ActionSpec actionSucceeded2 =
+                createActionSpec(scale2, 5658L, 5658L, 2, ActionState.SUCCEEDED);
+
+        FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSucceeded1);
+        FilteredActionResponse filteredResponse2 = createFilteredActionResponse(actionSucceeded2);
+
+        doReturn(Arrays.asList(filteredResponse1, filteredResponse2))
+                .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        when(entityStateStore.getEntityStates(ImmutableSet.of(entity1Oid)))
+                .thenReturn(ImmutableMap.of(entity1Oid, createEntityState(entity1Oid)));
+        when(entityStateStore.getEntityStates(ImmutableSet.of(entity2Oid)))
+                .thenReturn(ImmutableMap.of(entity2Oid, createEntityState(entity2Oid)));
+
+        long startTime = 1627336047000L;
+        long endTime = 1627339647000L;
+        actionListener.recoverMissedExecutionSuccessEvents(startTime, endTime);
+
+        assertEquals(2, store.size());
+    }
+
+    /**
+     * Test case: There are 6 pending actions before the cost pod was restarted. There are 4 pending
+     * actions after cost pod comes back up. 2 RECOMMENDATION_REMOVED actions are added to the
+     * journal.
+     *
+     * @throws Exception any exception.
+     */
+    @Test
+    public void testRecoverMissedRecommendationRemovedEvents() throws Exception {
+        Set<Long> entitiesWithActionAfterRestart = ImmutableSet.of(1L, 2L, 3L, 4L);
+        long currentTimestamp = System.currentTimeMillis();
+
+        Answer<Stream> entitiesWithActionBeforeRestart = invocation -> Stream.of(
+                createEntityState(1L), createEntityState(2L), createEntityState(3L),
+                createEntityState(4L)
+        );
+        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+
+        actionListener.recoverMissedRecommendationRemovedEvents(entitiesWithActionAfterRestart,
+                currentTimestamp);
+        assertEquals(0, store.size());
+
+        Set<EntityState> entityStatesBeforeRestart = ImmutableSet.of(createEntityState(1L),
+                createEntityState(2L), createEntityState(3L),
+                createEntityState(4L), createEntityState(5L), createEntityState(6L));
+
+        entitiesWithActionBeforeRestart = invocation -> entityStatesBeforeRestart.stream();
+        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+
+        Map<Long, EntityState> stateMap = entityStatesBeforeRestart.stream()
+                .filter(s -> !entitiesWithActionAfterRestart.contains(s.getEntityId()))
+                .collect(Collectors.toMap(EntityState::getEntityId, Function.identity()));
+        when(entityStateStore.getEntityStates(anySet())).thenReturn(stateMap);
+
+        actionListener.recoverMissedRecommendationRemovedEvents(entitiesWithActionAfterRestart,
+                currentTimestamp);
+
+        assertEquals(2, store.size());
+    }
+
+    private EntityState createEntityState(long entityOid) {
+        EntityState state = new EntityState(entityOid);
+        state.setCurrentRecommendation(new EntityPriceChange.Builder()
+                .sourceCost(0)
+                .destinationCost(0)
+                .active(true).build());
+        return state;
     }
 }
