@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -118,6 +119,7 @@ public class ActionApprovalServiceTest {
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
         final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
         final GroupAndPolicyRetriever groupAndPolicyRetriever = Mockito.mock(GroupAndPolicyRetriever.class);
+        final SecureStorageClient secureStorageClient = Mockito.mock(SecureStorageClient.class);
         final TopologyEntityDTO vmTopology = TopologyEntityDTO.newBuilder()
                 .setOid(ENTITY_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -170,7 +172,8 @@ public class ActionApprovalServiceTest {
                 invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider));
 
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+                entityStoreMock, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever,
+                secureStorageClient);
         final ActionApprovalService svc = new ActionApprovalService(actionApprovalRequests,
                 actionStateSender, approvalResponseSender, operationManager, contextFactory,
                 targetStore, scheduledService, 10);

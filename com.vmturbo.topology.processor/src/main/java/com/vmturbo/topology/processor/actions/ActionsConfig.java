@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.auth.api.AuthClientConfig;
+import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
@@ -24,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionS
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -58,6 +62,7 @@ import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
         TargetConfig.class,
         ActionOrchestratorClientConfig.class,
         BaseKafkaProducerConfig.class,
+        AuthClientConfig.class,
         StitchingConfig.class, TopologyProcessorClientConfig.class})
 public class ActionsConfig {
 
@@ -93,6 +98,12 @@ public class ActionsConfig {
 
     @Autowired
     private TopologyProcessorClientConfig tpConfig;
+
+    @Autowired
+    private PublicKeyStoreConfig publicKeyStoreConfig;
+
+    @Autowired
+    private AuthClientConfig authClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -183,13 +194,26 @@ public class ActionsConfig {
     }
 
     @Bean
+    public ComponentJwtStore jwtStore() {
+        return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore(), targetConfig.getIdentityGeneratorPrefix(),
+                targetConfig.keyProvider());
+    }
+
+    @Bean
+    public SecureStorageClient secureStorageClient() {
+        return new SecureStorageClient(authClientConfig.getAuthHost(),
+                authClientConfig.getAuthPort(), authClientConfig.getAuthRoute(), jwtStore());
+    }
+
+    @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(),
                 entityConfig.entityStore(),
                 entityRetriever(),
                 targetConfig.targetStore(),
                 probeConfig.probeStore(),
-                groupAndPolicyRetriever());
+                groupAndPolicyRetriever(),
+                secureStorageClient());
     }
 
     @Bean

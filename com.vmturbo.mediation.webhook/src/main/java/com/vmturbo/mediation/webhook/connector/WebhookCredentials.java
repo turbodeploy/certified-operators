@@ -1,8 +1,13 @@
 package com.vmturbo.mediation.webhook.connector;
 
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
+
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
 
@@ -17,9 +22,15 @@ import com.vmturbo.mediation.connector.common.credentials.TimeoutAwareCredential
 public class WebhookCredentials
         implements TimeoutAwareCredentials, TargetAwareCredentials, SecureAwareCredentials, PortAwareCredentials {
 
+    private static final Pattern HOST_PATTERN = Pattern.compile("(https?://[^/]*)(?:/.*|$)");
+
     private final String url;
     private final String methodType;
     private final long timeout;
+    private final AuthenticationMethod authenticationMethod;
+    private final String userName;
+    private final String password;
+
 
     /**
      * Creates a {@link WebhookCredentials} instance.
@@ -27,11 +38,19 @@ public class WebhookCredentials
      * @param url - webhook url
      * @param httpMethodType - http method type used for sending webhook request
      * @param timeout - timeout value which will restrict time to interconnect with server.
+     * @param authenticationMethod the method used to authenticate to the endpoint.
+     * @param userName the username for authentication.
+     * @param password the password for authentication.
      */
-    public WebhookCredentials(@Nonnull String url, @Nonnull String httpMethodType, long timeout) {
+    public WebhookCredentials(@Nonnull String url, @Nonnull String httpMethodType, long timeout,
+                              @Nonnull AuthenticationMethod authenticationMethod, @Nullable String userName,
+                              @Nullable String password) {
         this.url = Objects.requireNonNull(url);
         this.methodType = Objects.requireNonNull(httpMethodType);
         this.timeout = timeout;
+        this.authenticationMethod = Objects.requireNonNull(authenticationMethod);
+        this.userName = userName;
+        this.password = password;
     }
 
     public String getUrl() {
@@ -84,6 +103,50 @@ public class WebhookCredentials
             .add("port", getPort())
             .add("secure", isSecure())
             .add("timeout", getTimeout())
+            .add("authenticationType", getAuthenticationMethod())
+            .add("username", getUserName())
             .toString();
+    }
+
+    /**
+     * The method of authentication used.
+     *
+     * @return method of authentication used.
+     */
+    public AuthenticationMethod getAuthenticationMethod() {
+        return authenticationMethod;
+    }
+
+    /**
+     * Gets the username for authentication.
+     *
+     * @return the username.
+     */
+    public String getUserName() {
+        return userName;
+    }
+
+    /**
+     * Get the password for authentication.
+     *
+     * @return the password.
+     */
+    public String getPassword() {
+        return password;
+    }
+
+    /**
+     * The url without the path section.
+     *
+     * @return the url without the path section.
+     */
+    public String getUrlWithoutPath() {
+        Matcher matcher = HOST_PATTERN.matcher(url);
+
+        if (matcher.matches()) {
+            return matcher.group(1);
+        } else {
+            return url;
+        }
     }
 }

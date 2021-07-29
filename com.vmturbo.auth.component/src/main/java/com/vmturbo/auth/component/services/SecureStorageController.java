@@ -24,11 +24,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.db.DBPasswordDTO;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.component.store.ISecureStore;
 
 /**
@@ -61,25 +59,6 @@ public class SecureStorageController {
     }
 
     /**
-     * Checks the authorization status of the user.
-     *
-     * @param subject The username.
-     * @return {@code HttpStatus.OK} if subject is a logged on user.
-     *         {@code HttpStatus.UNAUTHORIZED} if there is no user.
-     *         {@code HttpStatus.FORBIDDEN} if there is a user but that user does not have permission.
-     */
-    private HttpStatus checkAuthorizationStatus(final @Nonnull String subject) {
-        Optional<AuthUserDTO> currentUser = SAMLUserUtils.getAuthUserDTO();
-        if (!currentUser.isPresent()) {
-            return HttpStatus.UNAUTHORIZED; // There is no user.
-        }
-
-        return subject.equals(currentUser.get().getUser()) ?
-            HttpStatus.OK :         // The user is authorized
-            HttpStatus.FORBIDDEN;   // The user is unauthorized
-    }
-
-    /**
      * Retrieve secure data associated with a key.
      * The information may be retrieved only by the owner.
      *
@@ -97,13 +76,6 @@ public class SecureStorageController {
                                @PathVariable("subject") @Nonnull String subject,
                                @ApiParam(value = "The key", required = true)
                                @PathVariable("key") @Nonnull String key) throws Exception {
-        switch (checkAuthorizationStatus(subject)) {
-            case UNAUTHORIZED:
-                return new ResponseEntity<>("Please log in.", HttpStatus.UNAUTHORIZED);
-            case FORBIDDEN:
-                return new ResponseEntity<>("You are not authorized to view this resource.", HttpStatus.FORBIDDEN);
-        }
-
         Optional<String> result = store_.get(subject, URLDecoder.decode(key, "UTF-8"));
         if (result.isPresent()) {
             return new ResponseEntity<>(result.get(), HttpStatus.OK);
@@ -135,13 +107,6 @@ public class SecureStorageController {
                          @ApiParam(value = "The key", required = true)
                          @PathVariable("key") @Nonnull String key,
                          @RequestBody @Nonnull String data) throws Exception {
-        switch (checkAuthorizationStatus(subject)) {
-            case UNAUTHORIZED:
-                return new ResponseEntity<>("Please log in.", HttpStatus.UNAUTHORIZED);
-            case FORBIDDEN:
-                return new ResponseEntity<>("You are not authorized to modify this resource.", HttpStatus.FORBIDDEN);
-        }
-
         try {
             final String value = store_.modify(subject, URLDecoder.decode(key, "UTF-8"), data);
             return new ResponseEntity<>(value, HttpStatus.OK);
@@ -167,13 +132,6 @@ public class SecureStorageController {
                        @PathVariable("subject") @Nonnull String subject,
                        @ApiParam(value = "The key", required = true)
                        @PathVariable("key") @Nonnull String key) throws Exception {
-        switch (checkAuthorizationStatus(subject)) {
-            case UNAUTHORIZED:
-                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-            case FORBIDDEN:
-                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
-        }
-
         try {
             store_.delete(subject, URLDecoder.decode(key, "UTF-8"));
             return new ResponseEntity<>(HttpStatus.OK);

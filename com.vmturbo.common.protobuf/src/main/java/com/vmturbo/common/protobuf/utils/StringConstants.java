@@ -526,4 +526,9 @@ public class StringConstants {
      * Set of all Cloud Plan Types (not including sub plans).
      */
     public static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(OPTIMIZE_CLOUD_PLAN, CLOUD_MIGRATION_PLAN, BUY_RI_PLAN);
+
+    /**
+     * Wehbhook key subject in the secure storage
+     */
+    public static final String WEBHOOK_PASSWORD_SUBJECT = "webhook-password";
 }

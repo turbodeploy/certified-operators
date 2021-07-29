@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -42,6 +43,9 @@ public class ScaleContext extends ChangeProviderContext {
      * @param targetStore the target store.
      * @param probeStore the probe store.
      * @param groupAndPolicyRetriever the policy retriever.
+     * @param secureStorageClient the client to communicate with secure storage.
+     * @throws ContextCreationException if there is an issue with the request or some information cannot be
+     *                                  retrieved.
      */
     public ScaleContext(@Nonnull final ExecuteActionRequest request,
                         @Nonnull final ActionDataManager dataManager,
@@ -49,9 +53,11 @@ public class ScaleContext extends ChangeProviderContext {
                         @Nonnull final EntityRetriever entityRetriever,
                         @Nonnull final TargetStore targetStore,
                         @Nonnull final ProbeStore probeStore,
-                        @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+                        @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                        @Nonnull final SecureStorageClient secureStorageClient)
+            throws ContextCreationException {
         super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
-            groupAndPolicyRetriever);
+            groupAndPolicyRetriever, secureStorageClient);
     }
 
     @Override

@@ -21,6 +21,8 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.sdk.common.util.WebhookConstants;
+import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
@@ -120,7 +122,7 @@ public class WebhookProbeTest {
                             .setId("4521")
                             .build())
                     .build())
-            .setWorkflow(createWorkflow(url, template, method)).build();
+            .setWorkflow(createWorkflow(url, template, method, null, null, null)).build();
     }
 
     /**
@@ -129,30 +131,55 @@ public class WebhookProbeTest {
      * @param url the url that we are making call to.
      * @param template the template for the body of call.
      * @param method the method of the http call e.g., GET, POST,...
+     * @param authenticationMethod the method to use to do authentication.
+     * @param username the username to use for authentication
+     * @param password the password to use for authentication
      * @return the workflow object created.
      */
-    public static Workflow createWorkflow(String url, String template, String method) {
+    public static Workflow createWorkflow(String url, String template, String method,
+                              AuthenticationMethod authenticationMethod, String username, String password) {
         Workflow.Builder workflow = Workflow.newBuilder()
                 .setId("Webhook");
 
         if (url != null) {
             workflow.addProperty(Property.newBuilder()
-                    .setName("URL")
+                    .setName(WebhookConstants.URL)
                     .setValue(url)
                     .build());
         }
 
         if (template != null) {
             workflow.addProperty(Property.newBuilder()
-                    .setName("TEMPLATED_ACTION_BODY")
+                    .setName(WebhookConstants.TEMPLATED_ACTION_BODY)
                     .setValue(template)
                     .build());
         }
 
         if (method != null) {
             workflow.addProperty(Property.newBuilder()
-                    .setName("HTTP_METHOD")
+                    .setName(WebhookConstants.HTTP_METHOD)
                     .setValue(method)
+                    .build());
+        }
+
+        if (authenticationMethod != null) {
+            workflow.addProperty(Property.newBuilder()
+                    .setName(WebhookConstants.AUTHENTICATION_METHOD)
+                    .setValue(authenticationMethod.name())
+                    .build());
+        }
+
+        if (username != null) {
+            workflow.addProperty(Property.newBuilder()
+                    .setName(WebhookConstants.USER_NAME)
+                    .setValue(username)
+                    .build());
+        }
+
+        if (password != null) {
+            workflow.addProperty(Property.newBuilder()
+                    .setName(WebhookConstants.PASSWORD)
+                    .setValue(password)
                     .build());
         }
         return workflow.build();

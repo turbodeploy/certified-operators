@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -29,9 +30,11 @@ public class ActivateContext extends AbstractActionExecutionContext {
                            @Nonnull final EntityRetriever entityRetriever,
                            @Nonnull final TargetStore targetStore,
                            @Nonnull final ProbeStore probeStore,
-                           @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+                           @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                           @Nonnull final SecureStorageClient secureStorageClient)
+            throws ContextCreationException {
         super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
-            groupAndPolicyRetriever);
+            groupAndPolicyRetriever, secureStorageClient);
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.communication;
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
 import static com.vmturbo.api.component.security.IntersightIdTokenVerifierTest.JWT_TOKEN;
 import static com.vmturbo.api.component.security.IntersightIdTokenVerifierTest.PUBLIC_KEY_ONLY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -84,7 +85,7 @@ public class HeaderAuthenticationProviderTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, JWTTOKEN);
+        headers.set(AUTH_HEADER_NAME, JWTTOKEN);
         headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, null);
 
         final HttpEntity<AuthorizeUserInputDTO> entity

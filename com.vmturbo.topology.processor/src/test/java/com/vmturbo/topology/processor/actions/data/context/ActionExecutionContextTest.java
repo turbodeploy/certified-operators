@@ -8,6 +8,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -53,6 +54,8 @@ public class ActionExecutionContextTest {
 
     private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
+    private SecureStorageClient secureStorageClient = Mockito.mock(SecureStorageClient.class);
+
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
 
@@ -72,7 +75,8 @@ public class ActionExecutionContextTest {
                 entityRetrieverMock,
                 targetStoreMock,
                 probeStoreMock,
-                groupAndPolicyRetrieverMock);
+                groupAndPolicyRetrieverMock,
+                secureStorageClient);
     }
 
     /**

@@ -10,11 +10,19 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 
 import com.vmturbo.mediation.connector.common.HttpConnector;
 import com.vmturbo.mediation.connector.common.HttpConnectorException;
@@ -27,6 +35,7 @@ import com.vmturbo.mediation.connector.common.Response;
 import com.vmturbo.mediation.connector.common.http.query.converter.HttpQueryConverter;
 import com.vmturbo.mediation.webhook.WebhookProperties;
 import com.vmturbo.mediation.webhook.connector.WebHookQueries.WebhookQuery;
+import com.vmturbo.platform.sdk.common.util.WebhookConstants;
 
 /**
  * Webhook connector.
@@ -91,8 +100,26 @@ public class WebhookConnector implements HttpConnector, Closeable {
 
     @Nonnull
     private static BiFunction<WebhookCredentials, HttpConnectorSettings, HttpClientContext> getContextCreator() {
-        // TODO configure credentials for authentication here
-        return (credentials, settings) -> HttpClientContext.create();
+        return (credentials, settings) -> {
+            final HttpClientContext context = HttpClientContext.create();
+            if (credentials.getAuthenticationMethod() == WebhookConstants.AuthenticationMethod.BASIC) {
+                final CredentialsProvider credentialProvider = new BasicCredentialsProvider();
+
+                // preemptively select basic authentication.
+                final AuthCache authCache = new BasicAuthCache();
+                context.setAuthCache(authCache);
+                final String url = credentials.getUrlWithoutPath();
+                authCache.put(HttpHost.create(url), new BasicScheme());
+
+                credentialProvider.setCredentials(AuthScope.ANY,
+                        new UsernamePasswordCredentials(credentials.getUserName(),
+                                credentials.getPassword()));
+
+                context.setCredentialsProvider(credentialProvider);
+            }
+
+            return context;
+        };
     }
 
     /**

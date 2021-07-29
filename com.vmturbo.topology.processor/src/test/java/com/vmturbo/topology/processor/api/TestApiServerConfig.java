@@ -27,6 +27,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -553,6 +554,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
+     * The client for interacting with secure storage.
+     *
+     * @return the client for interacting with secure storage.
+     */
+    @Bean
+    public SecureStorageClient secureStorageClient() {
+        return Mockito.mock(SecureStorageClient.class);
+    }
+
+    /**
      * Cached topology.
      *
      * @return the bean created
@@ -565,7 +576,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(), entityRepository(),
-                entityRetriever(), targetStore(), probeStore(), groupAndPolicyRetriever());
+                entityRetriever(), targetStore(), probeStore(), groupAndPolicyRetriever(),
+                secureStorageClient());
     }
 
     @Bean

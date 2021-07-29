@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.topology.ActionExecution;
@@ -56,6 +57,9 @@ public class MoveContextTest {
 
     @Mock
     private GroupAndPolicyRetriever groupAndPolicyRetriever;
+
+    @Mock
+    private SecureStorageClient secureStorageClientMock;
 
     private final ActionDTO.ActionInfo actionInfo = ActionDTO.ActionInfo.newBuilder()
         .setMove(ActionDTO.Move.newBuilder()
@@ -105,7 +109,7 @@ public class MoveContextTest {
 
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever, secureStorageClientMock);
         Assert.assertThat(context.getSDKActionType(),
             is(ActionType.RIGHT_SIZE));
     }
@@ -127,7 +131,7 @@ public class MoveContextTest {
 
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever, secureStorageClientMock);
         Assert.assertThat(context.getSDKActionType(),
             is(ActionType.RESIZE));
     }
@@ -149,7 +153,7 @@ public class MoveContextTest {
         Mockito.when(targetStore.getTarget(TARGET_ID)).thenReturn(Optional.empty());
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever, secureStorageClientMock);
         context.getSDKActionType();
     }
 
@@ -163,7 +167,7 @@ public class MoveContextTest {
     public void testGetSDKActionTypeNoProbe() throws ContextCreationException {
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.empty());
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
+            entityRetriever, targetStore, probeStore, groupAndPolicyRetriever, secureStorageClientMock);
         context.getSDKActionType();
     }
 

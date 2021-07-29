@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -115,7 +117,7 @@ public class LicenseService implements ILicenseService {
     private HttpHeaders composeHttpHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, getLoggedInPrincipal().getToken());
+        headers.set(AUTH_HEADER_NAME, getLoggedInPrincipal().getToken());
         return headers;
     }
 

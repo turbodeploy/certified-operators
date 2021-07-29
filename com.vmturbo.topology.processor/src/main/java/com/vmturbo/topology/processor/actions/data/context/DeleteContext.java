@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -26,14 +27,17 @@ public class DeleteContext extends AbstractActionExecutionContext {
                             @Nonnull final EntityRetriever entityRetriever,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
-                            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+                            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                            @Nonnull final SecureStorageClient secureStorageClient)
+            throws ContextCreationException {
         super(Objects.requireNonNull(request),
               Objects.requireNonNull(dataManager),
               Objects.requireNonNull(entityStore),
               Objects.requireNonNull(entityRetriever),
               targetStore,
               probeStore,
-              groupAndPolicyRetriever);
+              groupAndPolicyRetriever,
+              secureStorageClient);
     }
 
     /**

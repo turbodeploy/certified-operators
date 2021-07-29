@@ -16,7 +16,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
 import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityInitializer;
@@ -26,6 +29,7 @@ import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.securekvstore.SecureKeyValueStoreConfig;
 import com.vmturbo.topology.processor.ClockConfig;
@@ -46,8 +50,11 @@ import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl;
 @Configuration
 @SuppressFBWarnings
 @Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class,
-    GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
+    GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class,
+    PublicKeyStoreConfig.class})
 public class TargetConfig {
+
+    private boolean enableExternalSecrets;
 
     @Value("${identityGeneratorPrefix:1}")
     private long identityGeneratorPrefix;
@@ -74,6 +81,9 @@ public class TargetConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
+    private PublicKeyStoreConfig publicKeyStoreConfig;
+
+    @Autowired
     private EntityConfig entityConfig;
 
     @Autowired
@@ -83,6 +93,12 @@ public class TargetConfig {
     private long globalProbeSettingsLoadRetryIntervalSec;
     @Value("${globalProbeSettingsLoadTimeoutSec:3}")
     private long globalProbeSettingsLoadTimeoutSec;
+
+    /**
+     * The location where key values are stored in persistent volume.
+     */
+    @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
+    private String keyDir;
 
     @Bean
     public TargetStore targetStore() {
@@ -103,6 +119,7 @@ public class TargetConfig {
      */
     @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
     public void setKeyProviderStatic(boolean enableExternalSecrets){
+        this.enableExternalSecrets = enableExternalSecrets;
         CryptoFacility.enableExternalSecrets = enableExternalSecrets;
         if (enableExternalSecrets) {
             CryptoFacility.encryptionKeyProvider =
@@ -117,9 +134,13 @@ public class TargetConfig {
      */
     @Bean
     public TargetDao targetDao() {
-        final KeyValueStore kvStore = enableSecureStore ?
-            vaultKeyValueStoreConfig.vaultKeyValueStore() : kvConfig.keyValueStore();
-        return new KvTargetDao(kvStore, probeConfig.probeStore());
+        return new KvTargetDao(keyValueStore(), probeConfig.probeStore());
+    }
+
+    @Bean
+    public KeyValueStore keyValueStore() {
+        return enableSecureStore ?
+                vaultKeyValueStoreConfig.vaultKeyValueStore() : kvConfig.keyValueStore();
     }
 
     /**
@@ -196,6 +217,28 @@ public class TargetConfig {
     public TargetStatusTracker targetStatusTracker() {
         return new TargetStatusTrackerImpl(targetStore(), probeConfig.probeStore(),
                 clockConfig.clock());
+    }
+
+
+    public long getIdentityGeneratorPrefix() {
+        return identityGeneratorPrefix;
+    }
+
+    /**
+     * Create a provider for private/public key pairs.
+     *
+     * @return the key provider
+     */
+    @Bean
+    public KeyProvider keyProvider() {
+        // Feature flag
+        if (enableExternalSecrets) {
+            return new KVKeyProvider(
+                    publicKeyStoreConfig.publicKeyStore(),
+                    keyValueStore());
+        }
+        // Legacy behavior
+        return new PersistentVolumeKeyProvider(publicKeyStoreConfig.publicKeyStore(), keyDir);
     }
 
 }

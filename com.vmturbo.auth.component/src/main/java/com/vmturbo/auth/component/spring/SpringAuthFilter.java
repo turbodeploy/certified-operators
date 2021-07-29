@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component.spring;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -30,10 +32,6 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  * The SpringAuthFilter implements the stateless authentication filter.
  */
 public class SpringAuthFilter extends GenericFilterBean {
-    /**
-     * The AUTH HTTP header
-     */
-    private static final String AUTH_HEADER_NAME = "x-auth-token";
     private static final String CREDENTIALS = "***";
 
     /**

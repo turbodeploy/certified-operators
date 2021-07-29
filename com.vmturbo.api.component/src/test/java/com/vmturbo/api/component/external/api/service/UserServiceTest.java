@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -452,7 +453,7 @@ public class UserServiceTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, "token");
+        headers.set(AUTH_HEADER_NAME, "token");
         HttpEntity<List> entity = new HttpEntity<>(headers);
 
         final String authRequest = UriComponentsBuilder.newInstance()
@@ -814,7 +815,7 @@ public class UserServiceTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+        headers.set(AUTH_HEADER_NAME,
             geJwtTokenFromSpringSecurityContext().orElseThrow(() ->
                 new SecurityException("Invalid JWT token")));
         return headers;
@@ -865,7 +866,7 @@ public class UserServiceTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, "token");
+        headers.set(AUTH_HEADER_NAME, "token");
         HttpEntity<List> entity = new HttpEntity<>(headers);
 
         final String authRequest = UriComponentsBuilder.newInstance()

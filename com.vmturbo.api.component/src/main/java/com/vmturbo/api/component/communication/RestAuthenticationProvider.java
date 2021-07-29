@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.communication;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTH_HEADER_NAME;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -48,10 +49,6 @@ import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 
 public class RestAuthenticationProvider implements AuthenticationProvider {
-    /**
-     * The AUTH HTTP header
-     */
-    public static final String AUTH_HEADER_NAME = "x-auth-token";
     public static final String USERS_AUTHORIZE = "/users/authorize/";
     private static final String USERS_AUTHORIZE_GROUPS = "/users/authorize/groups";
 
@@ -246,7 +243,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         final HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+        headers.set(AUTH_HEADER_NAME,
                 componentJwtStore.generateToken().getCompactRepresentation());
         headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
 
