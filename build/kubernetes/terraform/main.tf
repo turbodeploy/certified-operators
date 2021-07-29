@@ -88,11 +88,6 @@ resource "helm_release" "xl" {
   }
 
   set {
-    name  = "cloudfoundry.enabled"
-    value = "${var.cloudfoundry ? true : false}"
-  }
-
-  set {
     name  = "compellent.enabled"
     value = "${var.compellent ? true : false}"
   }
