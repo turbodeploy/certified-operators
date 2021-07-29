@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -382,10 +383,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      */
     @Test
     public void testClosingLastTransportFailsDiscoveries() throws ProbeException {
-        remoteMediationServer.registerTransport(containerInfo, transport1);
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
-        when(probeStore.isProbeConnected(probeIdVc)).thenReturn(false);
+        remoteMediationServer.registerTransport(containerInfo, transport1);
+        doReturn(false).when(probeStore).isProbeConnected(eq(probeIdVc));
         final ProbeException probeException = new ProbeException("Probe type is not connected.");
         when(discoveryBundle2.getException()).thenReturn(probeException);
         remoteMediationServer.processContainerClose(transport1);
