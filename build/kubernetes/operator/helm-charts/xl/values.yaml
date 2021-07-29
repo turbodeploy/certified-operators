@@ -190,6 +190,8 @@ awslambda:
   enabled: false
 azure:
   enabled: false
+cloudfoundry:
+  enabled: false
 compellent:
   enabled: false
 dynatrace:

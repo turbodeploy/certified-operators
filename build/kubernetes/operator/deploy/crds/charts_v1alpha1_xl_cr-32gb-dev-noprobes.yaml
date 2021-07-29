@@ -61,6 +61,8 @@ spec:
     enabled: false
   azure:
     enabled: false
+  cloudfoundry:
+    enabled: false
   compellent:
     enabled: false
   datadog:
@@ -250,6 +252,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-azurevolumes:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-cloudfoundry:
     resources:
       limits:
         memory: 512Mi

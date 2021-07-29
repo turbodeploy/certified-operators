@@ -85,6 +85,10 @@ variable "azurevolumes" {
   default = false
 }
 
+variable "cloudfoundry" {
+  default = false
+}
+
 variable "compellent" {
   default = false
 }

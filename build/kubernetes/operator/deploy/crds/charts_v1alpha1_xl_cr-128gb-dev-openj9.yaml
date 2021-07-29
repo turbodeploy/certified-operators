@@ -221,6 +221,10 @@ spec:
     resources:
       limits:
         memory: 32Gi
+  mediation-cloudfoundry:
+    resources:
+      limits:
+        memory: 32Gi
   mediation-compellent:
     resources:
       limits:

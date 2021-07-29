@@ -741,6 +741,12 @@ spec:
                   description: Enable baremetal mediation
                   type: boolean
               type: object
+            cloudfoundry:
+              properties:
+                enabled:
+                  description: Enable Cloud Foundry mediation
+                  type: boolean
+              type: object
             compellent:
               properties:
                 enabled:
