@@ -242,8 +242,6 @@ oneview:
   enabled: false
 openstack:
   enabled: false
-pivotal:
-  enabled: false
 pure:
   enabled: false
 rhv:

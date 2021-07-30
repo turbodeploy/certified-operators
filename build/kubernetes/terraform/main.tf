@@ -178,11 +178,6 @@ resource "helm_release" "xl" {
   }
 
   set {
-    name  = "pivotal.enabled"
-    value = "${var.pivotal ? true : false}"
-  }
-
-  set {
     name  = "pure.enabled"
     value = "${var.pure ? true : false}"
   }

@@ -101,8 +101,6 @@ spec:
     enabled: false
   openstack:
     enabled: false
-  pivotal:
-    enabled: false
   pure:
     enabled: false
   rhv:
@@ -334,10 +332,6 @@ spec:
       limits:
         memory: 512Mi
   mediation-openstack:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-pivotal:
     resources:
       limits:
         memory: 512Mi

@@ -301,10 +301,6 @@ spec:
     resources:
       limits:
         memory: 32Gi
-  mediation-pivotal:
-    resources:
-      limits:
-        memory: 32Gi
   mediation-pure:
     resources:
       limits:
