@@ -39,7 +39,7 @@ public abstract class AbstractKeyProvider implements KeyProvider {
      *
      * <p>Lazy loaded. It is protected by synchronization on the instance.</p>
      */
-    private PrivateKey privateKey = null;
+    protected PrivateKey privateKey = null;
 
     private PublicKey publicKey = null;
 
@@ -57,11 +57,7 @@ public abstract class AbstractKeyProvider implements KeyProvider {
      *
      * @return The private key that is stored in the dedicated docker volume.
      */
-    public synchronized @Nonnull PrivateKey getPrivateKey() {
-        if (privateKey != null) {
-            return privateKey;
-        }
-
+    protected synchronized @Nonnull PrivateKey getPrivateKeyInternal() {
         if (doesPrivateKeyExist()) {
             String cipherText = getEncryptedPrivateKey();
             privateKey = JWTKeyCodec.decodePrivateKey(CryptoFacility.decrypt(cipherText));

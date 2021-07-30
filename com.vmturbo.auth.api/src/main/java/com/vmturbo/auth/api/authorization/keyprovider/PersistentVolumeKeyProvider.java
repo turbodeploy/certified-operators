@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.PrivateKey;
 
 import javax.annotation.Nonnull;
 
@@ -78,5 +79,13 @@ public class PersistentVolumeKeyProvider extends AbstractKeyProvider {
 
     private Path getEncryptionFilePath() {
         return encryptionFilePath;
+    }
+
+    @Override
+    public PrivateKey getPrivateKey() {
+        if (super.privateKey != null) {
+            return super.privateKey;
+        }
+        return super.getPrivateKeyInternal();
     }
 }

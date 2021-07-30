@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.api.crypto.CryptoFacility;
 import com.vmturbo.common.api.crypto.IEncryptionKeyProvider;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.Lock;
 
 /**
  * Tests for {@link EncryptionKeyProvider}.
@@ -37,6 +38,11 @@ public class EncryptionKeyProviderTest {
         new EncryptionKeyProvider(keyValueStoreMock, masterKeyReaderMock);
 
     /**
+     * Consul distributed lock.
+     */
+    private final Lock lockMock = Mockito.mock(Lock.class);
+
+    /**
      * A rule for expecting exceptions in tests.
      */
     @Rule
@@ -44,9 +50,10 @@ public class EncryptionKeyProviderTest {
 
     /**
      * Test using the main interface method, to get an existing encryption key.
+     * @throws InterruptedException if the thread is interrupted.
      */
     @Test
-    public void testGetExistingEncryptionKey() {
+    public void testGetExistingEncryptionKey() throws InterruptedException {
         // Prepare
         // Generate an authentic encryption key
         final byte[] rawEncryptionKeyBytes = CryptoFacility.getRandomBytes(32);
@@ -63,6 +70,9 @@ public class EncryptionKeyProviderTest {
         // Retrieve the encoded, encrypted key from the mock store
         Mockito.when(keyValueStoreMock.get(Matchers.anyString()))
             .thenReturn(Optional.of(encodedEncryptedEncryptionKey));
+        // setup distributed lock
+        Mockito.when(keyValueStoreMock.lock(Mockito.any(), Mockito.any())).thenReturn(lockMock);
+        Mockito.when(lockMock.lock(true)).thenReturn(true);
 
         // Act
         String retrievedKey = encryptionKeyProvider.getEncryptionKey();
@@ -74,9 +84,10 @@ public class EncryptionKeyProviderTest {
 
     /**
      * Test using the main interface method, to generate a new encryption key.
+     * @throws InterruptedException if the thread is interrupted.
      */
     @Test
-    public void testGetNewEncryptionKey() {
+    public void testGetNewEncryptionKey() throws InterruptedException {
         // Prepare
         // Generate a master key used to encrypt the encryption key
         final String masterKey = BaseEncoding.base64().encode(CryptoFacility.getRandomBytes(32));
@@ -84,6 +95,12 @@ public class EncryptionKeyProviderTest {
         Mockito.when(masterKeyReaderMock.getPrimaryMasterKey()).thenReturn(Optional.of(masterKey));
         // Signal that the key does not yet exist
         Mockito.when(keyValueStoreMock.containsKey(Matchers.anyString())).thenReturn(false);
+        Mockito.when(keyValueStoreMock.lock(Mockito.any(), Mockito.any())).thenReturn(Mockito.mock(
+                Lock.class));
+
+        // setup distributed lock
+        Mockito.when(keyValueStoreMock.lock(Mockito.any(), Mockito.any())).thenReturn(lockMock);
+        Mockito.when(lockMock.lock(true)).thenReturn(true);
 
         // Act
         String retrievedKey = encryptionKeyProvider.getEncryptionKey();

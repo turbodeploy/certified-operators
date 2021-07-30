@@ -18,8 +18,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import com.ecwid.consul.ConsulException;
+import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.Response;
-import com.ecwid.consul.v1.kv.KeyValueClient;
 import com.ecwid.consul.v1.kv.model.GetValue;
 
 import org.apache.http.conn.ConnectTimeoutException;
@@ -39,13 +39,13 @@ public class ConsulKeyValueStoreTest {
     @Rule
     public final ExpectedException exception = ExpectedException.none();
     private final long timeout = 1000L;
-    private KeyValueClient keyValueClient;
+    private ConsulClient keyValueClient;
     private ConsulKeyValueStore consulKeyValueStore;
     private static final String USER_IN_CHINESE = "用户";
 
     @Before
     public void setup() {
-        keyValueClient = Mockito.mock(KeyValueClient.class);
+        keyValueClient = Mockito.mock(ConsulClient.class);
         consulKeyValueStore =
                 new ConsulKeyValueStore(keyValueClient, "test", timeout, TimeUnit.MILLISECONDS);
         Mockito.when(keyValueClient.setKVValue(any(), any())).thenReturn(emptyResponse);

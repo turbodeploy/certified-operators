@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Map-backed implementation of KeyValueStore for use in test configurations.
  */
@@ -51,6 +53,11 @@ public class MapKeyValueStore implements KeyValueStore {
     @Override
     public void removeKey(@Nonnull final String key) {
         map.remove(key);
+    }
+
+    @Override
+    public Lock lock(@NotNull String sessionId, @NotNull String checkId) {
+        throw new UnsupportedOperationException("Distributed lock is not needed for testing.");
     }
 
     public void clear() {
