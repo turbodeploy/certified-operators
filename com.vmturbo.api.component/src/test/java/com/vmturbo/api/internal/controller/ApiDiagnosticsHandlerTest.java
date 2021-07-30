@@ -14,7 +14,6 @@ import com.google.common.collect.Lists;
 
 import io.prometheus.client.CollectorRegistry;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -85,7 +84,6 @@ public class ApiDiagnosticsHandlerTest {
                 Mockito.spy(new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
         diagnosticsHandler = new DiagnosticsHandler(
                 Lists.newArrayList(versionDiagsProvider, prometheusDiagnosticsProvider));
-        CollectorRegistry.defaultRegistry.clear();
 
         when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(builder);
         when(builder.topologyContextId(eq(liveTopologyContextId))).thenReturn(builder);
@@ -102,11 +100,6 @@ public class ApiDiagnosticsHandlerTest {
         ));
 
         doReturn(supplyChain).when(builder).fetch();
-    }
-
-    @After
-    public void teardown() {
-        CollectorRegistry.defaultRegistry.clear();
     }
 
     @Test

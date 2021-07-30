@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.2.6-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.154-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.156-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -33,7 +33,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <spring.version>5.3.7</spring.version>
+        <spring.version>5.3.8</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
         <spring.security.version>5.5.1</spring.security.version>
         <spring.session.jdbc.version>2.5.0</spring.session.jdbc.version>
@@ -2454,11 +2454,6 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.proactivesupport</artifactId>
-                <version>${com.vmturbo.api.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.branding</artifactId>
                 <version>${com.vmturbo.api.version}</version>
             </dependency>
@@ -2477,6 +2472,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.commons</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.proactivesupport</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>

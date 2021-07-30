@@ -39,6 +39,10 @@
             <artifactId>common-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.proactivesupport</artifactId>
+        </dependency>
+        <dependency>
             <groupId>commons-lang</groupId>
             <artifactId>commons-lang</artifactId>
         </dependency>
