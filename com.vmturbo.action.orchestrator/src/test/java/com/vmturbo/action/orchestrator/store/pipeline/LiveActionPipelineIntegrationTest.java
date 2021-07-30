@@ -1494,7 +1494,7 @@ public class LiveActionPipelineIntegrationTest {
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
-        assertEquals(3, actionStore.size());
+        assertEquals(2, actionStore.size());
     }
 
     /**
@@ -1518,8 +1518,8 @@ public class LiveActionPipelineIntegrationTest {
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
-        assertEquals(3, actionStore.size());
-        assertActionCount(1, 2);
+        assertEquals(2, actionStore.size());
+        assertActionCount(1, 1);
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(actionPlanInfo)
@@ -1535,14 +1535,11 @@ public class LiveActionPipelineIntegrationTest {
     /**
      * Test atomic resize action OIDs when they contain resizes for multiple de-duplication targets.
      * First plan contains resizes for container1
-     * 2 Atomic Resize actions created for targets
+     * 1 Atomic Resize actions created for targets
      * WC- 31 (CS - 41)
-     * CS - 41
      * Second plan contains resizes for container1, container3
-     * 3 Atomic Resize actions created for targets
+     * 1 Atomic Resize actions created for targets
      * WC - 31 (CS - 41, 42)
-     * CS - 41
-     * CS - 42
      * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
      */
     @Test
@@ -1559,16 +1556,10 @@ public class LiveActionPipelineIntegrationTest {
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
         // check action count
-        assertActionCount(1, 1);
+        assertActionCount(1, 0);
 
         List<Action> controllerActions = getControllerActions();
         final Long oid1 = controllerActions.get(0).getRecommendationOid();
-
-        List<Action> containerSpecActions = getContainerSpecActions();
-        final Long csOid1 = containerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity1.getId())
-            .findFirst().get().getRecommendationOid();
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(actionPlanInfo)
@@ -1579,28 +1570,16 @@ public class LiveActionPipelineIntegrationTest {
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
 
         // check action count
-        assertActionCount(1, 2);
+        assertActionCount(1, 0);
 
         List<Action> secondPlanControllerActions = getControllerActions();
         final Long oid2 = secondPlanControllerActions.get(0).getRecommendationOid();
-
-        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
-        final Long csOid2 = secondPlanContainerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity1.getId())
-            .findFirst().get().getRecommendationOid();
 
         // assert that the recommendation OID for atomic action on the controller created
         // by merging resizes from the first plan
         // is not the same as the one  for the atomic action on the same controller
         // by merging resizes from the second plan
         assertNotEquals(oid1, oid2);
-
-        // assert that the recommendation OID for atomic action on the container spec created
-        // by merging resizes from the first plan
-        // is not the same as the one  for the atomic action on the same container spec
-        // by merging resizes from the second plan
-        assertEquals(csOid1, csOid2);
     }
 
     /**
@@ -1631,13 +1610,10 @@ public class LiveActionPipelineIntegrationTest {
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         // check action count
-        assertActionCount(1, 1);
+        assertActionCount(1, 0);
 
         List<Action> controllerActions = getControllerActions();
         final Long oid1 = controllerActions.get(0).getRecommendationOid();
-
-        List<Action> containerSpecActions = getContainerSpecActions();
-        final Long csOid1 = containerSpecActions.get(0).getRecommendationOid();
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(actionPlanInfo)
@@ -1647,23 +1623,17 @@ public class LiveActionPipelineIntegrationTest {
 
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
         // check action count
-        assertActionCount(1, 1);
+        assertActionCount(1, 0);
 
         List<Action> secondPlanControllerActions = getControllerActions();
         final Long oid2 = secondPlanControllerActions.get(0).getRecommendationOid();
-
-        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
-        final Long csOid2 = secondPlanContainerSpecActions.get(0).getRecommendationOid();
 
         // assert that the recommendation OID for atomic action on the controller created
         // by merging resizes from the first plan
         // is the same as the one for the atomic action on the same controller
         // by merging resizes from the second plan, even if the resizes were in different order
         assertEquals(oid1, oid2);
-
-        // Same is true for the atomic actions on the container spec
-        assertEquals(csOid1, csOid2);
-    }
+   }
 
     /**
      * Test atomic resize action OIDs when the resizes belonging to multiple de-duplication targets
@@ -1671,13 +1641,9 @@ public class LiveActionPipelineIntegrationTest {
      * First plan contains resizes for or container1::VCPU, container3::VCPU
      * 3 Atomic Resize actions created for targets
      * WC- 31 (CS - 41, 42)
-     * CS - 41
-     * CS - 42
      * Second plan contains resizes for container3::VCPU, container1::VCPU
      * 3 Atomic Resize actions created for targets
      * WC- 31 (CS - 42,41)
-     * CS - 41
-     * CS - 42
      * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
      */
     @Test
@@ -1694,21 +1660,10 @@ public class LiveActionPipelineIntegrationTest {
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
 
         // check action count
-        assertActionCount(1, 2);
+        assertActionCount(1, 0);
 
         List<Action> controllerActions = getControllerActions();
         final Long oid1 = controllerActions.get(0).getRecommendationOid();
-
-        List<Action> containerSpecActions = getContainerSpecActions();
-        final Long csOid1 = containerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity1.getId())
-            .findFirst().get().getRecommendationOid();
-
-        final Long csOid2 = containerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity2.getId())
-            .findFirst().get().getRecommendationOid();
 
         Collection<ActionDTO.Action> actions = new ArrayList<>();
         actions.add(resize3.build());
@@ -1722,31 +1677,16 @@ public class LiveActionPipelineIntegrationTest {
         pipelineFactory.actionPipeline(secondPlan).run(secondPlan);
 
         // check action count
-        assertActionCount(1, 2);
+        assertActionCount(1, 0);
 
         controllerActions = getControllerActions();
         final Long oid2 = controllerActions.get(0).getRecommendationOid();
-
-        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
-        final Long csOid3 = secondPlanContainerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity1.getId())
-            .findFirst().get().getRecommendationOid();
-
-        final Long csOid4 = secondPlanContainerSpecActions.stream()
-            .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
-                .getExecutionTarget().getId() == deDupEntity2.getId())
-            .findFirst().get().getRecommendationOid();
 
         // assert that the recommendation OID for atomic action on the controller created
         // by merging resizes from the first plan
         // is the same as the one for the atomic action on the same controller
         // by merging resizes from the second plan, even if the resizes were in different order
         assertEquals(oid1, oid2);
-
-        // Same is true for the atomic actions on both the container specs
-        assertEquals(csOid1, csOid3);
-        assertEquals(csOid2, csOid4);
     }
 
     /**
@@ -1767,7 +1707,8 @@ public class LiveActionPipelineIntegrationTest {
             .build();
 
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
-        Assert.assertEquals(2, actionStore.size());
+        // Only one atomic resize will be created
+        Assert.assertEquals(1, actionStore.size());
         Assert.assertTrue(isAllActionAreAtomic(actionStore.getActions()
             .values()
             .stream()

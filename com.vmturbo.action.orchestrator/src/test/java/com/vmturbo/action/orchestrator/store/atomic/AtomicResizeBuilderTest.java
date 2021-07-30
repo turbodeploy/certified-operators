@@ -322,13 +322,16 @@ public class AtomicResizeBuilderTest {
 
     /**
      * Test that a merged action is created if one action is recommended and the other is manual.
-     * In this case, atomicAction will have only one resize action in manual mode, while
-     * deDeuplicatedAction has 2 resize actions.
+     * In this case, the
+     * <ul>
+     * <li>aggregated atomicAction will have only 1 resize info for the action in manual mode</li>
+     * <li>deDuplicated atomicAction will have 1 resize info for the action in recommend mode</li>
+     * </ul>
      */
     @Test
     public void mergeActionsWithManualAndRecommend() {
         when(view1.getMode()).thenReturn(ActionMode.RECOMMEND);
-        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view12.getMode()).thenReturn(ActionMode.MANUAL);
 
         AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
             aggregateEntity1.getEntity(),
@@ -336,23 +339,31 @@ public class AtomicResizeBuilderTest {
         aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
         aggregatedAction.addAction(resize12, Optional.of(deDupEntity1));
         aggregatedAction.updateActionView(resize1.getId(), view1);
-        aggregatedAction.updateActionView(resize12.getId(), view2);
+        aggregatedAction.updateActionView(resize12.getId(), view12);
 
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
         Map<Action, List<Action>> deDuplicatedActions = atomicActionResult.get().deDuplicatedActions();
         assertEquals(1, deDuplicatedActions.size());
-        // ContainerSpec has 2 resizes
+        // ContainerSpec has 1 resize for the recommend mode action
         Action deDuplicatedAction = deDuplicatedActions.keySet().iterator().next();
-        AtomicResize resize = deDuplicatedAction.getInfo().getAtomicResize();
-        assertEquals(deDupEntity1.getEntity(), resize.getExecutionTarget());
-        assertEquals(2, resize.getResizesCount());
+        AtomicResize deDupedActionResize = deDuplicatedAction.getInfo().getAtomicResize();
+        assertEquals(deDupEntity1.getEntity(), deDupedActionResize.getExecutionTarget());
+        assertEquals(1, deDupedActionResize.getResizesCount());
 
-        // WorkloadController has 1 resize
+        ActionDTO.ResizeInfo deDupedResizeInfo = deDupedActionResize.getResizesList().get(0);
+        assertEquals(Arrays.asList(container1), deDupedResizeInfo.getSourceEntitiesList());
+        assertEquals(CommodityType.VCPU.getNumber(), deDupedResizeInfo.getCommodityType().getType());
+
+        // WorkloadController has 1 resize for the non-recommend mode action
         Action atomicResize = atomicActionResult.get().atomicAction().get();
         assertEquals(aggregateEntity1.getEntity(), atomicResize.getInfo().getAtomicResize().getExecutionTarget());
         assertEquals(1, atomicResize.getInfo().getAtomicResize().getResizesCount());
+        AtomicResize aggregatedActionResize = atomicResize.getInfo().getAtomicResize();
+        ActionDTO.ResizeInfo aggregatedResizeInfo = aggregatedActionResize.getResizesList().get(0);
+        assertEquals(Arrays.asList(container1), aggregatedResizeInfo.getSourceEntitiesList());
+        assertEquals(CommodityType.VMEM.getNumber(), aggregatedResizeInfo.getCommodityType().getType());
     }
 
     /**
@@ -377,14 +388,15 @@ public class AtomicResizeBuilderTest {
         Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
-        AtomicResize resize = atomicAction.getInfo().getAtomicResize();
-        assertEquals(aggregateEntity1.getEntity(), resize.getExecutionTarget());
-        assertEquals(1, resize.getResizesCount());
+        AtomicResize aggregatedActionResize = atomicAction.getInfo().getAtomicResize();
+        assertEquals(aggregateEntity1.getEntity(), aggregatedActionResize.getExecutionTarget());
+        assertEquals(1, aggregatedActionResize.getResizesCount());
 
-        assertEquals(deDupEntity2.getEntity(), resize.getResizesList().get(0).getTarget());
-        assertEquals(vcpuType, resize.getResizesList().get(0).getCommodityType());
+        ActionDTO.ResizeInfo aggregatedResizeInfo = aggregatedActionResize.getResizesList().get(0);
+        assertEquals(deDupEntity2.getEntity(), aggregatedResizeInfo.getTarget());
+        assertEquals(vcpuType, aggregatedResizeInfo.getCommodityType());
 
-        List<ActionEntity> originalTargets = resize.getResizesList().get(0).getSourceEntitiesList();
+        List<ActionEntity> originalTargets = aggregatedResizeInfo.getSourceEntitiesList();
         List<ActionEntity> expectedOriginalTargets = Arrays.asList(container2);
 
         assertEquals(expectedOriginalTargets, originalTargets);
@@ -487,7 +499,7 @@ public class AtomicResizeBuilderTest {
      * Test that RECOMMEND only actions for one of the de-duplication target are not merged.
      */
     @Test
-    public void mergeActionsWithRecomendOnlyActionForOneDeDupTarget() {
+    public void mergeActionsWithRecommendOnlyActionForOneDeDupTarget() {
         when(view1.getMode()).thenReturn(ActionMode.RECOMMEND);
         when(view2.getMode()).thenReturn(ActionMode.RECOMMEND);
 

@@ -4,8 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
@@ -19,7 +17,7 @@ public class PlanAtomicResizeBuilderTest extends AtomicResizeBuilderTest  {
 
     /**
      * Test that a merged atomic action is created for all the actions that are in RECOMMEND mode.
-     * Atomic action is also created for de-duplicated target.
+     * Atomic action is not created for de-duplicated target.
      */
     @Test
     public void mergeAllActionsInRecommendMode() {
@@ -37,13 +35,17 @@ public class PlanAtomicResizeBuilderTest extends AtomicResizeBuilderTest  {
         AtomicResizeBuilder actionBuilder = new PlanAtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionFactory.AtomicActionResult> atomicActionResult = actionBuilder.build();
 
+        // aggregated atomic action is created
         assertTrue(atomicActionResult.isPresent());
+        assertTrue(atomicActionResult.get().atomicAction().isPresent());
 
-        assertEquals(1, atomicActionResult.get().deDuplicatedActions().size());
-        Map<ActionDTO.Action, List<ActionDTO.Action>> deDuplicatedActions = atomicActionResult.get().deDuplicatedActions();
-        ActionDTO.Action deDuplicatedAction = deDuplicatedActions.keySet().iterator().next();
-        ActionDTO.AtomicResize resize = deDuplicatedAction.getInfo().getAtomicResize();
-        assertEquals(deDupEntity1.getEntity(), resize.getExecutionTarget());
+        ActionDTO.Action atomicAction = atomicActionResult.get().atomicAction().get();
+        assertTrue(atomicAction.getInfo().hasAtomicResize());
+
+        ActionDTO.AtomicResize resize = atomicAction.getInfo().getAtomicResize();
+        assertEquals(aggregateEntity1.getEntity(), resize.getExecutionTarget());
         assertEquals(1, resize.getResizesCount());
+        // de-duplicated atomic actions are not created
+        assertEquals(0, atomicActionResult.get().deDuplicatedActions().size());
     }
 }
