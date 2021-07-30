@@ -112,7 +112,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
-                .map(r -> ReservedInstanceUtil.convertRIUtilizationCoverageRecordToRIStatsRecord(r, sampleNormalizationFactor))
+                .map(r -> ReservedInstanceUtil.convertRIUtilizationCoverageRecordToRIStatsRecord(r, sampleNormalizationFactor, table))
                 .collect(Collectors.toList());
     }
 

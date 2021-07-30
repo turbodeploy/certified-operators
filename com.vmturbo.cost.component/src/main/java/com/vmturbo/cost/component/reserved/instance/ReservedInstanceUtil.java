@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -202,9 +203,18 @@ public class ReservedInstanceUtil {
      * @return a {@link ReservedInstanceStatsRecord}.
      */
     public static ReservedInstanceStatsRecord convertRIUtilizationCoverageRecordToRIStatsRecord(
-            @Nonnull final Record record, float couponNormalizationFactor) {
+            @Nonnull final Record record, float couponNormalizationFactor, Table<?> table) {
         final ReservedInstanceStatsRecord.Builder statsRecord = convertCouponValues(record, couponNormalizationFactor);
-        statsRecord.setSnapshotDate(record.getValue(SNAPSHOT_TIME, Timestamp.class).getTime());
+        /**
+         * OM-73098: In order to have the last day of the month displayed in UI, the snapshot_date is modified,
+         * the snapshot_date used to be the day before the last day of the month, added 24hrs will make it the
+         * the first day of the next month(00:00am).
+         */
+        if (table.equals(Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH) || table.equals(Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH)) {
+            statsRecord.setSnapshotDate(record.getValue(SNAPSHOT_TIME, Timestamp.class).getTime() + TimeUnit.HOURS.toMillis(24));
+        } else {
+            statsRecord.setSnapshotDate(record.getValue(SNAPSHOT_TIME, Timestamp.class).getTime());
+        };
         return statsRecord.build();
     }
 
