@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -36,11 +38,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -53,6 +57,9 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.GraphResponse;
+import com.vmturbo.common.protobuf.search.Search.OidList;
+import com.vmturbo.common.protobuf.search.Search.ResponseNode;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -65,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -546,6 +554,11 @@ public class VirtualVolumeAspectMapperTest {
                     .setCapacity(storageAccessCapacity)
                     .build())
             .build();
+
+    private final BiFunction<Long, String, ApiPartialEntity> getBusinessAccountApiPartialEntity = (businessAccountId, displayName) -> ApiPartialEntity.newBuilder()
+            .setOid(volumeConnectedBusinessAccountId)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setDisplayName(displayName).build();
     /**
      * Test mapVirtualVolume for multiple volume with same storage tier.
      * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the
@@ -561,23 +574,37 @@ public class VirtualVolumeAspectMapperTest {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 
+        final ApiPartialEntity volumeConnectedBusinessAccountPartialEntity = ApiPartialEntity.newBuilder()
+            .setOid(volumeConnectedBusinessAccountId)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setDisplayName(volumeConnectedBusinessAccountDisplayName).build();
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        serviceEntityApiDTOMap.put(volumeConnectedBusinessAccountId, volumeConnectedBusinessAccount);
+
+
+        Mockito.when(repositoryApi.graphSearch(any())).thenReturn(GraphResponse.newBuilder()
+                .putNodes("account", ResponseNode.newBuilder()
+                    .putOidMap(virtualVolumeId, OidList.newBuilder().addOids(volumeConnectedBusinessAccountId).build())
+                    .putOidMap(virtualVolumeId+1, OidList.newBuilder().addOids(volumeConnectedBusinessAccountId).build())
+                    .putEntities(volumeConnectedBusinessAccountId, PartialEntity.newBuilder().setApi(volumeConnectedBusinessAccountPartialEntity).build()).build())
+            .build());
+
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTOMap(anyList())).thenReturn(serviceEntityApiDTOMap);
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
+
             if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
-                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
-                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
-                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
+
         }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
 
         final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
@@ -590,6 +617,11 @@ public class VirtualVolumeAspectMapperTest {
             Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD), getVirtualVolumeWithId.apply(virtualVolumeId + 1, EnvironmentType.CLOUD)));
 
         assertEquals(2, aspect.getVirtualDisks().size());
+
+        // assert that business account is fetched with not via
+        // a single entity request
+        Mockito.verify(req, Mockito.never()).getSEMap();
+        Mockito.verify(req, Mockito.never()).getSEList();
 
         // check the virtual disks for each file on the wasted storage
         VirtualDiskApiDTO volumeAspect = null;
@@ -635,15 +667,31 @@ public class VirtualVolumeAspectMapperTest {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 
+        final ApiPartialEntity volumeConnectedBusinessAccountPartialEntity = ApiPartialEntity.newBuilder()
+            .setOid(volumeConnectedBusinessAccountId)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setDisplayName(volumeConnectedBusinessAccountDisplayName).build();
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        serviceEntityApiDTOMap.put(volumeConnectedBusinessAccountId, volumeConnectedBusinessAccount);
+
+
+        Mockito.when(repositoryApi.graphSearch(any())).thenReturn(GraphResponse.newBuilder()
+            .putNodes("account", ResponseNode.newBuilder()
+                .putOidMap(virtualVolumeId, OidList.newBuilder().addOids(volumeConnectedBusinessAccountId).build())
+                .putEntities(volumeConnectedBusinessAccountId, PartialEntity.newBuilder().setApi(volumeConnectedBusinessAccountPartialEntity).build()).build())
+            .build());
+
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTOMap(anyList())).thenReturn(serviceEntityApiDTOMap);
+
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
             if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
-                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+            }else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -661,6 +709,11 @@ public class VirtualVolumeAspectMapperTest {
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
                 Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD)));
+
+        // assert that business account is fetched with not via
+        // a single entity request
+        Mockito.verify(req, Mockito.never()).getSEMap();
+        Mockito.verify(req, Mockito.never()).getSEList();
 
         assertNotNull(aspect);
         assertEquals(1, aspect.getVirtualDisks().size());
@@ -712,6 +765,23 @@ public class VirtualVolumeAspectMapperTest {
         volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
         volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
 
+        final ApiPartialEntity volumeConnectedBusinessAccountPartialEntity = ApiPartialEntity.newBuilder()
+            .setOid(volumeConnectedBusinessAccountId)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setDisplayName(volumeConnectedBusinessAccountDisplayName).build();
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        serviceEntityApiDTOMap.put(volumeConnectedBusinessAccountId, volumeConnectedBusinessAccount);
+
+
+        Mockito.when(repositoryApi.graphSearch(any())).thenReturn(GraphResponse.newBuilder()
+            .putNodes("account", ResponseNode.newBuilder()
+                .putOidMap(azureVolumeId, OidList.newBuilder().addOids(volumeConnectedBusinessAccountId).build())
+                .putEntities(volumeConnectedBusinessAccountId, PartialEntity.newBuilder().setApi(volumeConnectedBusinessAccountPartialEntity).build()).build())
+            .build());
+
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTOMap(anyList())).thenReturn(serviceEntityApiDTOMap);
+
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
             if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
@@ -740,6 +810,11 @@ public class VirtualVolumeAspectMapperTest {
 
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
             Lists.newArrayList(getAzureVirtualVolume.get()));
+
+        // assert that business account is fetched with not via
+        // a single entity request
+        Mockito.verify(req, Mockito.never()).getSEMap();
+        Mockito.verify(req, Mockito.never()).getSEList();
 
         assertEquals(1, aspect.getVirtualDisks().size());
 
@@ -1001,6 +1076,8 @@ public class VirtualVolumeAspectMapperTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
+    private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
 
     private StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsHistoryServiceMole());
@@ -1017,7 +1094,7 @@ public class VirtualVolumeAspectMapperTest {
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         final StatsHistoryServiceBlockingStub historyRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcTestHistoryServer.getChannel());
-        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc,
+        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc, serviceEntityMapper,
             10));
     }
 
@@ -1208,6 +1285,8 @@ public class VirtualVolumeAspectMapperTest {
                         null, currentTime + TimeUnit.DAYS.toMillis(3)))
                     .build()));
         stubRepositoryApi();
+        stubRepositoryApiGraphSearch();
+
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1242,6 +1321,8 @@ public class VirtualVolumeAspectMapperTest {
                         lastAttachedVmName, currentTime - TimeUnit.DAYS.toMillis(3)))
                     .build()));
         stubRepositoryApi();
+        stubRepositoryApiGraphSearch();
+
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1266,6 +1347,8 @@ public class VirtualVolumeAspectMapperTest {
         when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
                 .thenReturn(Collections.emptyList());
         stubRepositoryApi();
+        stubRepositoryApiGraphSearch();
+
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1295,6 +1378,7 @@ public class VirtualVolumeAspectMapperTest {
                         null, currentTime - TimeUnit.DAYS.toMillis(3)))
                     .build()));
         stubRepositoryApi();
+        stubRepositoryApiGraphSearch();
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
@@ -1330,6 +1414,8 @@ public class VirtualVolumeAspectMapperTest {
                             currentTime - TimeUnit.DAYS.toMillis(vol2NumDaysAgoDetached)))
                     .build()));
         stubRepositoryApi();
+        stubRepositoryApiGraphSearch();
+
 
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
@@ -1382,14 +1468,25 @@ public class VirtualVolumeAspectMapperTest {
                 .build();
     }
 
+    private void stubRepositoryApiGraphSearch() throws Exception {
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+
+        Mockito.when(repositoryApi.graphSearch(any())).thenReturn(GraphResponse.newBuilder()
+            .putNodes("account", ResponseNode.newBuilder()
+                .putOidMap(virtualVolumeId, OidList.newBuilder().addOids(volumeConnectedBusinessAccountId).build())
+                .putEntities(volumeConnectedBusinessAccountId, PartialEntity.newBuilder().build()).build())
+            .build());
+
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTOMap(anyList())).thenReturn(serviceEntityApiDTOMap);
+    }
+
     private void stubRepositoryApi() throws Exception {
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.getFullEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
         when(searchRequest.getEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
         when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
         final MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
-        when(multiEntityRequest.getSEMap()).thenReturn(Collections.emptyMap())
-                .thenReturn(Collections.emptyMap());
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         final List<MinimalEntity> storageTierMinEntities = ImmutableList.of(
@@ -1397,6 +1494,10 @@ public class VirtualVolumeAspectMapperTest {
         );
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
         when(repositoryApi.entitiesRequest(eq(Sets.newHashSet(storageTierId1)))).thenReturn(req);
+        // assert that business account is fetched with not via
+        // a single entity request
+        Mockito.verify(multiEntityRequest, Mockito.never()).getSEMap();
+        Mockito.verify(multiEntityRequest, Mockito.never()).getSEList();
     }
 
     @Test
@@ -1516,6 +1617,11 @@ public class VirtualVolumeAspectMapperTest {
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
                 Lists.newArrayList(getKubeVirtualVolume.get()));
+
+        // assert that business account is fetched with not via
+        // a single entity request
+        Mockito.verify(req, Mockito.never()).getSEMap();
+        Mockito.verify(req, Mockito.never()).getSEList();
 
         assertEquals(1, aspect.getVirtualDisks().size());
 

@@ -355,6 +355,7 @@ public class MapperConfig {
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.costServiceBlockingStub(),
             communicationConfig.repositoryApi(), communicationConfig.historyRpcService(),
+            communicationConfig.serviceEntityMapper(),
             getVolumeAttachmentHistoryRpcFutureTimeoutSeconds);
     }
 
