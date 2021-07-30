@@ -45,6 +45,7 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSub
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
+import com.vmturbo.action.orchestrator.stats.rollup.IActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -77,7 +78,7 @@ public class LiveActionsStatistician {
 
     private final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories;
 
-    private final ActionStatRollupScheduler actionStatRollupScheduler;
+    private final IActionStatRollupScheduler actionStatRollupScheduler;
 
     private final ActionStatCleanupScheduler actionStatCleanupScheduler;
 
@@ -90,7 +91,7 @@ public class LiveActionsStatistician {
             @Nonnull final StatsActionViewFactory snapshotFactory,
             @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
             @Nonnull final Clock clock,
-            @Nonnull final ActionStatRollupScheduler rollupScheduler,
+            @Nonnull final IActionStatRollupScheduler rollupScheduler,
             @Nonnull final ActionStatCleanupScheduler cleanupScheduler) {
         this.dslContext = Objects.requireNonNull(dsl);
         this.batchSize = batchSize;
@@ -273,10 +274,7 @@ public class LiveActionsStatistician {
             }
         }
 
-        final int rollupsScheduled = actionStatRollupScheduler.scheduleRollups();
-        if (rollupsScheduled > 0) {
-            logger.info("Scheduled {} rollups.", rollupsScheduled);
-        }
+        actionStatRollupScheduler.scheduleRollups();
 
         final int cleanupsScheduled = actionStatCleanupScheduler.scheduleCleanups();
         if (cleanupsScheduled > 0) {

@@ -74,9 +74,9 @@ public class LatestActionStatTableTest {
 
         final RolledUpActionGroupStat ag1Stat = mock(RolledUpActionGroupStat.class);
         final RolledUpActionGroupStat ag2Stat = mock(RolledUpActionGroupStat.class);
-        when(calculator.rollupLatestRecords(1, Collections.singletonList(ag1Record)))
+        when(calculator.rollupLatestRecords(1, Collections.singletonList(ag1Record.record())))
             .thenReturn(Optional.of(ag1Stat));
-        when(calculator.rollupLatestRecords(1, Collections.singletonList(ag2Record)))
+        when(calculator.rollupLatestRecords(1, Collections.singletonList(ag2Record.record())))
             .thenReturn(Optional.of(ag2Stat));
 
         final Map<Integer, RolledUpActionGroupStat> statsByGroupId =

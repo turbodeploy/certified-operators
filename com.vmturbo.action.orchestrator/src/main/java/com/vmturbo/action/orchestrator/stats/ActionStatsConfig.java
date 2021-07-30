@@ -37,11 +37,13 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.Ro
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.DayActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.HourActionStatTable;
+import com.vmturbo.action.orchestrator.stats.rollup.IActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ImmutableRollupDirection;
 import com.vmturbo.action.orchestrator.stats.rollup.LatestActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.MonthActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.RolledUpStatCalculator;
 import com.vmturbo.action.orchestrator.stats.rollup.export.RollupExporter;
+import com.vmturbo.action.orchestrator.stats.rollup.v2.ActionStatRollupSchedulerV2;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
@@ -148,6 +150,9 @@ public class ActionStatsConfig {
      */
     @Value("${enableActionIngestion:true}")
     private boolean enableActionIngestion;
+
+    @Value("${enableNewActionStatRollups:false}")
+    private boolean enableNewActionStatRollups;
 
     /**
      * If true, rollup exports are enabled in the system. The action orchestrator will broadcast
@@ -294,25 +299,29 @@ public class ActionStatsConfig {
     }
 
     @Bean
-    public ActionStatRollupScheduler rollupScheduler() {
-        final List<RollupDirection> rollupDependencies = new ArrayList<>();
-        rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(latestTable().reader())
-                .toTableWriter(hourlyTable().writer())
-                .exporter(rollupExporter())
-                .description("latest to hourly")
-                .build());
-        rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(hourlyTable().reader())
-                .toTableWriter(dailyTable().writer())
-                .description("hourly to daily")
-                .build());
-        rollupDependencies.add(ImmutableRollupDirection.builder()
-                .fromTableReader(dailyTable().reader())
-                .toTableWriter(monthlyTable().writer())
-                .description("daily to monthly")
-                .build());
-        return new ActionStatRollupScheduler(rollupDependencies, rollupExecutorService());
+    public IActionStatRollupScheduler rollupScheduler() {
+        if (enableNewActionStatRollups) {
+            return new ActionStatRollupSchedulerV2(sqlDatabaseConfig.dsl(),
+                    globalConfig.actionOrchestratorClock(),
+                    rollupExporter(),
+                    rolledUpStatCalculator());
+        } else {
+            final List<RollupDirection> rollupDependencies = new ArrayList<>();
+            rollupDependencies.add(ImmutableRollupDirection.builder().fromTableReader(latestTable().reader()).toTableWriter(hourlyTable().writer()).exporter(
+                    rollupExporter()).description("latest to hourly").build());
+            rollupDependencies.add(ImmutableRollupDirection.builder()
+                    .fromTableReader(hourlyTable().reader())
+                    .toTableWriter(dailyTable().writer())
+                    .description("hourly to daily")
+                    .build());
+            rollupDependencies.add(ImmutableRollupDirection.builder()
+                    .fromTableReader(dailyTable().reader())
+                    .toTableWriter(monthlyTable().writer())
+                    .description("daily to monthly")
+                    .build());
+            return new ActionStatRollupScheduler(rollupDependencies, sqlDatabaseConfig.dsl(),
+                    globalConfig.actionOrchestratorClock(), rollupExecutorService());
+        }
     }
 
     @Bean

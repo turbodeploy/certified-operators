@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
@@ -38,6 +39,7 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByHourRecord
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.ActionStatRollup;
+import com.vmturbo.action.orchestrator.stats.rollup.v2.ActionRollupAlgorithmMigrator;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -66,6 +68,8 @@ public class ScheduledRollupIntegrationTest {
 
     private ExecutorService executorService = mock(ExecutorService.class);
 
+    private ActionRollupAlgorithmMigrator algorithmMigrator = mock(ActionRollupAlgorithmMigrator.class);
+
     @Before
     public void setup() {
         rollupTestUtils = new RollupTestUtils(dsl);
@@ -85,7 +89,7 @@ public class ScheduledRollupIntegrationTest {
                 .fromTableReader(latestTable.reader())
                 .toTableWriter(hourTable.writer())
                 .description("latest to hour")
-                .build()), executorService);
+                .build()), dsl, clock, executorService);
 
         // Insert three "latest" records, two for one mgmt unit subgroup, one for another
         final int mgmtSubgroup1 = 1;
@@ -341,7 +345,7 @@ public class ScheduledRollupIntegrationTest {
                 .fromTableReader(hourTable.reader())
                 .toTableWriter(dayTable.writer())
                 .description("hour to day")
-                .build()), executorService);
+                .build()), dsl, clock, executorService);
 
         // Insert three "latest" records, two for one mgmt unit subgroup, one for another
         final int mgmtSubgroup1 = 1;
@@ -619,7 +623,7 @@ public class ScheduledRollupIntegrationTest {
                 .fromTableReader(dayTable.reader())
                 .toTableWriter(monthTable.writer())
                 .description("day to month")
-                .build()), executorService);
+                .build()), dsl, clock, executorService);
 
         // Insert three "latest" records, two for one mgmt unit subgroup, one for another
         final int mgmtSubgroup1 = 1;

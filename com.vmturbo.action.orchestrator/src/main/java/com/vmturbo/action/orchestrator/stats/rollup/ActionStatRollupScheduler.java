@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.rollup;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -7,23 +8,27 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
+import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.TableInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.export.RollupExporter;
+import com.vmturbo.action.orchestrator.stats.rollup.v2.ActionRollupAlgorithmMigrator;
+import com.vmturbo.action.orchestrator.stats.rollup.v2.RollupAlgorithmVersion;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -42,7 +47,7 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
  * the action orchestrator restarts we can just re-schedule all possible rollups by checking
  * the relevant tables.
  */
-public class ActionStatRollupScheduler {
+public class ActionStatRollupScheduler implements IActionStatRollupScheduler {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -68,17 +73,25 @@ public class ActionStatRollupScheduler {
     private final Object scheduledRollupsLock = new Object();
 
     public ActionStatRollupScheduler(@Nonnull final List<RollupDirection> rollupDirections,
+                                     @Nonnull final DSLContext dsl,
+                                     @Nonnull final Clock clock,
                                      @Nonnull final ExecutorService executorService) {
-        this(rollupDirections, executorService, ActionStatRollup::new);
+        this(rollupDirections, executorService,
+            new ActionRollupAlgorithmMigrator(dsl, clock, RollupAlgorithmVersion.V1),
+            ActionStatRollup::new);
     }
 
     @VisibleForTesting
     ActionStatRollupScheduler(@Nonnull final List<RollupDirection> rollupDirections,
                               @Nonnull final ExecutorService executorService,
+                              @Nonnull final ActionRollupAlgorithmMigrator algorithmMigrator,
                               @Nonnull final ActionStatRollupFactory rollupFactory) {
         this.rollupDirections = Objects.requireNonNull(rollupDirections);
         this.executorService = Objects.requireNonNull(executorService);
         this.rollupFactory = Objects.requireNonNull(rollupFactory);
+        // The migration will delete some rows if we were using the V2 rollup algorithm and are
+        // switching back to V1.
+        new Thread(algorithmMigrator::doMigration).start();
     }
 
 
@@ -87,7 +100,8 @@ public class ActionStatRollupScheduler {
      *
      * @return The number of rollups scheduled by this call.
      */
-    public int scheduleRollups() {
+    @Override
+    public void scheduleRollups() {
         synchronized (scheduledRollupsLock) {
             // Remove completed rollups before we schedule new ones.
             // This means we will retry any failed rollups.
@@ -143,7 +157,10 @@ public class ActionStatRollupScheduler {
                     };
                 }
             }
-            return numQueued;
+
+            if (numQueued > 0) {
+                logger.info("Scheduled {} rollups.", numQueued);
+            }
         }
     }
 

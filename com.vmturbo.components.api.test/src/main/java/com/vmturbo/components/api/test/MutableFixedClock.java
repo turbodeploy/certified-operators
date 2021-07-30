@@ -2,6 +2,7 @@ package com.vmturbo.components.api.test;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -11,6 +12,8 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.vmturbo.components.api.TimeUtil;
 
 /**
  * A {@link Clock} implementation similar to {@link java.time.Clock.FixedClock}, but allowing
@@ -26,6 +29,10 @@ public class MutableFixedClock extends Clock {
 
     public MutableFixedClock(@Nonnull final Instant initialInstant, @Nonnull final ZoneId zone) {
         curFixedClock = Clock.fixed(initialInstant, zone);
+    }
+
+    public MutableFixedClock(@Nonnull final LocalDateTime time) {
+        this(TimeUtil.localDateTimeToMilli(time, Clock.systemUTC()));
     }
 
     public MutableFixedClock(final long millis) {
@@ -72,4 +79,3 @@ public class MutableFixedClock extends Clock {
         changeInstant(curFixedClock.instant().minus(amount, units));
     }
 }
-
