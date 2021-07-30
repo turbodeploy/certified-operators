@@ -1696,9 +1696,24 @@ serverFiles:
           - action: keep
             source_labels:
               - __name__
-            regex: turbo.* # Only send metrics whose name begins with 'turbo' until we have a chance
-              # to review the existing ~300 metrics (or ~3k time series) exported by XL components
-              # to decide what is safe and useful to send. Also look at OM-61607.
+            # Only send metrics which match regarding this regular expression.
+            # Please seek the security team guidance and review before changing this regular expression.
+            regex: "turbo_cloud_spend_ratio|\
+              turbo_business_accounts|\
+              turbo_plans_total|\
+              turbo_reservations_total|\
+              turbo_current_reservations|\
+              turbo_current_actions|\
+              turbo_completed_actions_total|\
+              turbo_discovered_entities|\
+              turbo_broadcast_entities|\
+              turbo_targets|\
+              turbo_version_info|\
+              turbo_api_calls_total|\
+              turbo_api_call_latency_seconds_bucket|\
+              turbo_api_call_latency_seconds_count|\
+              turbo_api_call_latency_seconds_sum|\
+              turbo_component_uptime_seconds"
 
       # Scrape config for XL mysql.
       #
