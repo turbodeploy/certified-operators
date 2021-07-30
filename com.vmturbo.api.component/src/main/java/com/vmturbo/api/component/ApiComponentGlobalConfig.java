@@ -22,10 +22,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.component.external.api.interceptor.DevFreemiumInterceptor;
 import com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor;
+import com.vmturbo.api.component.external.api.interceptor.TelemetryInterceptor;
 import com.vmturbo.api.component.external.api.interceptor.TracingInterceptor;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
-import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.commons.idgen.IdentityInitializer;
