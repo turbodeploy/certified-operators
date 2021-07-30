@@ -10,12 +10,12 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.Record;
-
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByDayRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByHourRecord;
@@ -42,7 +42,7 @@ public class RolledUpStatCalculator {
      */
     @Nonnull
     public Optional<RolledUpActionGroupStat> rollupLatestRecords(final int numSnapshotsInRange,
-             @Nonnull final List<StatWithSnapshotCnt<ActionStatsLatestRecord>> actionStats) {
+             @Nonnull final List<ActionStatsLatestRecord> actionStats) {
         // This looks very similar to rollupHourRecords and rollupDayRecords, but we're working
         // with the jOOQ-generated ActionStatsLatestRecord instead.
         logger.trace("Calculating rolled up stats for {} latest records," +
@@ -50,12 +50,6 @@ public class RolledUpStatCalculator {
             actionStats.size(), numSnapshotsInRange);
 
         if (actionStats.isEmpty()) {
-            return Optional.empty();
-        }
-
-        if (!validateSingleId(actionStats,
-            record -> record.record().getActionGroupId(),
-            record -> record.record().getMgmtUnitSubgroupId())) {
             return Optional.empty();
         }
 
@@ -80,17 +74,14 @@ public class RolledUpStatCalculator {
         // total actions = "prior actions for first stat" + sum("new actions over time range")
         // calculate the "prior actions" indirectly from "total actions" - "new actions" for
         // first stat of this time range
-        final StatWithSnapshotCnt<ActionStatsLatestRecord> firstStatOfTimeRange =
+        final ActionStatsLatestRecord firstStatOfTimeRange =
             actionStats.iterator().next();
         // calculate the "old actions" indirectly from "total actions" - "new actions"
-        int initialTotalActions = firstStatOfTimeRange.record().getTotalActionCount() - firstStatOfTimeRange.record().getNewActionCount();
+        int initialTotalActions = firstStatOfTimeRange.getTotalActionCount() - firstStatOfTimeRange.getNewActionCount();
         int totalActions = initialTotalActions;
         int newActions = 0;
 
-        for (final StatWithSnapshotCnt<ActionStatsLatestRecord> recordAndCount : actionStats) {
-            // Each "latest" record can only represent one action snapshot.
-            Preconditions.checkArgument(recordAndCount.numActionSnapshots() == 1);
-            final ActionStatsLatestRecord actionStat = recordAndCount.record();
+        for (final ActionStatsLatestRecord actionStat : actionStats) {
             minActionCount = Math.min(minActionCount, actionStat.getTotalActionCount());
             minEntityCount = Math.min(minEntityCount, actionStat.getTotalEntityCount());
             minInvestment = Math.min(minInvestment, actionStat.getTotalInvestment().doubleValue());

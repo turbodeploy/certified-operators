@@ -53,7 +53,7 @@ public class RolledUpStatCalculatorTest {
 
         // Suppose there is also an empty snapshot that doesn't apply to this action group.
         final RolledUpActionGroupStat rolledUp = calculator.rollupLatestRecords(3,
-            Arrays.asList(latestRecord1, latestRecord2)).orElseThrow(RuntimeException::new);
+            Arrays.asList(latestRecord1.record(), latestRecord2.record())).orElseThrow(RuntimeException::new);
         assertThat(rolledUp.avgEntityCount(), closeTo((10.0 + 8) / 3, 0.0001));
         assertThat(rolledUp.avgActionCount(), closeTo((10.0 + 1) / 3, 0.0001));
         assertThat(rolledUp.priorActionCount(), is(5));
@@ -72,48 +72,6 @@ public class RolledUpStatCalculatorTest {
         assertThat(rolledUp.maxActionCount(), is(10));
         assertThat(rolledUp.maxSavings(), closeTo(8.0, 0.0001));
         assertThat(rolledUp.maxInvestment(), closeTo(6.0, 0.0001));
-    }
-
-    @Test
-    public void testRollupLatestIgnoreDifferentMgmtGroupId() {
-        final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord1 =
-            RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
-        latestRecord1.record().setTotalEntityCount(10);
-        latestRecord1.record().setTotalActionCount(5);
-        latestRecord1.record().setTotalSavings(BigDecimal.valueOf(7));
-        latestRecord1.record().setTotalInvestment(BigDecimal.valueOf(6));
-        latestRecord1.record().setActionGroupId(ACTION_GROUP_ID);
-        latestRecord1.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID);
-        latestRecord1.record().setActionSnapshotTime(LocalDateTime.MAX);
-
-        final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord2 =
-            RollupTestUtils.copyRecord(latestRecord1);
-        // Different management sub-unit
-        latestRecord2.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID + 1);
-
-        assertFalse(calculator.rollupLatestRecords(2,
-            Arrays.asList(latestRecord1, latestRecord2)).isPresent());
-    }
-
-    @Test
-    public void testRollupLatestIgnoreDifferentActionGroupId() {
-        final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord1 =
-            RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
-        latestRecord1.record().setTotalEntityCount(10);
-        latestRecord1.record().setTotalActionCount(5);
-        latestRecord1.record().setTotalSavings(BigDecimal.valueOf(7));
-        latestRecord1.record().setTotalInvestment(BigDecimal.valueOf(6));
-        latestRecord1.record().setActionGroupId(ACTION_GROUP_ID);
-        latestRecord1.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID);
-        latestRecord1.record().setActionSnapshotTime(LocalDateTime.MAX);
-
-        final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord2 =
-            RollupTestUtils.copyRecord(latestRecord1);
-        // Different action group ID.
-        latestRecord2.record().setActionGroupId(ACTION_GROUP_ID + 1);
-
-        assertFalse(calculator.rollupLatestRecords(2,
-            Arrays.asList(latestRecord1, latestRecord2)).isPresent());
     }
 
     @Test

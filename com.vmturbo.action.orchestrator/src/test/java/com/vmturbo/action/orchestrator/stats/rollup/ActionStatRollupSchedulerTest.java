@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
@@ -31,6 +30,7 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.Ac
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.RollupDirection;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.ScheduledRollupInfo;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionStats;
+import com.vmturbo.action.orchestrator.stats.rollup.v2.ActionRollupAlgorithmMigrator;
 
 public class ActionStatRollupSchedulerTest {
 
@@ -48,8 +48,10 @@ public class ActionStatRollupSchedulerTest {
 
     private final ActionStatRollupFactory rollupFactory = mock(ActionStatRollupFactory.class);
 
+    private final ActionRollupAlgorithmMigrator rollupAlgorithmMigrator = mock(ActionRollupAlgorithmMigrator.class);
+
     private final ActionStatRollupScheduler rollupScheduler =
-        new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
+        new ActionStatRollupScheduler(rollupDependencies, executorService, rollupAlgorithmMigrator, rollupFactory);
 
     private static final int MGMT_UNIT_SUBGROUP_ID = 7;
     private static final LocalDateTime START_TIME =
@@ -95,7 +97,7 @@ public class ActionStatRollupSchedulerTest {
         when(rollupFactory.newRollup(any())).thenReturn(rollup);
 
         final ActionStatRollupScheduler rollupScheduler =
-            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
+            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupAlgorithmMigrator, rollupFactory);
 
         // Run to schedule the rollup.
         rollupScheduler.scheduleRollups();
@@ -115,7 +117,7 @@ public class ActionStatRollupSchedulerTest {
         when(rollupFactory.newRollup(any())).thenReturn(rollup);
 
         final ActionStatRollupScheduler rollupScheduler =
-            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
+            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupAlgorithmMigrator, rollupFactory);
 
         // Run to schedule the rollup.
         rollupScheduler.scheduleRollups();
@@ -136,7 +138,7 @@ public class ActionStatRollupSchedulerTest {
         when(rollupFactory.newRollup(any())).thenReturn(rollup);
 
         final ActionStatRollupScheduler rollupScheduler =
-            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
+            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupAlgorithmMigrator, rollupFactory);
 
         // Run to schedule the rollup.
         rollupScheduler.scheduleRollups();
@@ -160,7 +162,7 @@ public class ActionStatRollupSchedulerTest {
         when(rollupFactory.newRollup(any())).thenReturn(rollup);
 
         final ActionStatRollupScheduler rollupScheduler =
-            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupFactory);
+            new ActionStatRollupScheduler(rollupDependencies, executorService, rollupAlgorithmMigrator, rollupFactory);
 
         // Run to schedule the rollup.
         rollupScheduler.scheduleRollups();

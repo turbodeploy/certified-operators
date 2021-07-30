@@ -140,6 +140,34 @@ public class RollupTestUtils {
         assertThat(got.getTotalInvestment().doubleValue(), closeTo(expected.getTotalInvestment().doubleValue(), 0.0001));
     }
 
+    public void compareAggregateRecords(final Record got, final Record expected) {
+        assertThat(got.getClass(), is(expected.getClass()));
+        assertThat(got.get("mgmt_unit_subgroup_id", Integer.class), is(expected.get("mgmt_unit_subgroup_id", Integer.class)));
+        assertThat(got.get("action_group_id", Integer.class), is(expected.get("action_group_id", Integer.class)));
+        assertThat(got.get("new_action_count", Integer.class), is(expected.get("new_action_count", Integer.class)));
+        assertThat(got.get("prior_action_count", Integer.class), is(expected.get("prior_action_count", Integer.class)));
+        assertThat(got.get("avg_action_count", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("avg_action_count", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("min_action_count", Integer.class), is(expected.get("min_action_count", Integer.class)));
+        assertThat(got.get("max_action_count", Integer.class), is(expected.get("max_action_count", Integer.class)));
+        assertThat(got.get("avg_entity_count", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("avg_entity_count", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("min_entity_count", Integer.class), is(expected.get("min_entity_count", Integer.class)));
+        assertThat(got.get("max_entity_count", Integer.class), is(expected.get("max_entity_count", Integer.class)));
+        assertThat(got.get("min_savings", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("min_savings", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("max_savings", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("max_savings", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("avg_savings", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("avg_savings", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("min_investment", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("min_investment", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("max_investment", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("max_investment", BigDecimal.class).doubleValue(), 0.0001f));
+        assertThat(got.get("avg_investment", BigDecimal.class).doubleValue(),
+                closeTo(expected.get("avg_investment", BigDecimal.class).doubleValue(), 0.0001f));
+    }
+
     public void compareSnapshotRecords(final ActionSnapshotLatestRecord got, final ActionSnapshotLatestRecord expected) {
         assertThat(got.getTopologyId(), is(expected.getTopologyId()));
         assertThat(got.getSnapshotRecordingTime(), is(expected.getSnapshotRecordingTime()));

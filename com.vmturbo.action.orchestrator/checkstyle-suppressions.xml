@@ -10,6 +10,7 @@ The goal is for the module to become - and remain - clear of violations.
 
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]ActionOrchestratorGlobalConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]db[/\\]migration[/\\]*" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]Action.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilder.java" />
@@ -104,6 +105,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]workflow[/\\]store[/\\]WorkflowAttributeExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]workflow[/\\]store[/\\]WorkflowInfoConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]workflow[/\\]store[/\\]WorkflowStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]db[/\\]migration[/\\]*" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]ActionOrchestratorTestUtils.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilderTest.java" />

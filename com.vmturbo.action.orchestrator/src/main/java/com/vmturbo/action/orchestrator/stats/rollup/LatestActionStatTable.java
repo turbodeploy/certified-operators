@@ -16,6 +16,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
@@ -105,7 +106,7 @@ public class LatestActionStatTable implements ActionStatTable {
                 @Nonnull final Map<Integer, List<StatWithSnapshotCnt<ActionStatsLatestRecord>>> recordsByActionGroupId) {
             final Map<Integer, RolledUpActionGroupStat> rolledUpStats = new HashMap<>();
             recordsByActionGroupId.forEach((actionGroupId, recordsForGroup) -> {
-                statCalculator.rollupLatestRecords(numSnapshotsInRange, recordsForGroup)
+                statCalculator.rollupLatestRecords(numSnapshotsInRange, Lists.transform(recordsForGroup, StatWithSnapshotCnt::record))
                     .ifPresent(rolledUpGroupStat -> {
                         rolledUpStats.put(actionGroupId, rolledUpGroupStat);
                     });
