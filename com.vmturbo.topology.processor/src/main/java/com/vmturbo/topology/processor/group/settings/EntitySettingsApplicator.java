@@ -1366,6 +1366,9 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                         @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
                         @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+                return;
+            }
             Optional<CommoditySoldDTO.Builder> vcpuCommodityBuilderOptional = entity.getCommoditySoldListBuilderList().stream()
                             .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.VCPU_VALUE).findFirst();
             if (vcpuCommodityBuilderOptional.isPresent()) {
