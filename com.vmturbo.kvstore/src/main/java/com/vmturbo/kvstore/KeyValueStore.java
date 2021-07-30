@@ -77,4 +77,12 @@ public interface KeyValueStore {
      * @param key The key to be deleted
      */
     void removeKey(@Nonnull final String key);
+
+    /**
+     * Return a distributed lock.
+     *
+     * @param lockId
+     * @return distributed lock
+     */
+    Lock lock(@Nonnull final String sessionId, @Nonnull final String lockId);
 }

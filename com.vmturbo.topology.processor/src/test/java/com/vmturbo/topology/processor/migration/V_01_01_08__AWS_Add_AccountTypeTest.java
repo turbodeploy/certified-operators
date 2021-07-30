@@ -32,12 +32,14 @@ import com.google.gson.stream.JsonReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.Lock;
 
 /**
  * Test AWS Probes and Targets migration.
@@ -283,5 +285,10 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
 
         @Override
         public void removeKey(final String key) {}
+
+        @Override
+        public Lock lock(final String sessionId, final @NotNull String lockId) {
+            throw new UnsupportedOperationException("Distributed lock is not needed for testing");
+        }
     }
 }

@@ -1,6 +1,5 @@
 package com.vmturbo.kvstore;
 
-import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
@@ -25,7 +24,6 @@ import org.springframework.web.util.UriUtils;
 import com.ecwid.consul.ConsulException;
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.Response;
-import com.ecwid.consul.v1.kv.KeyValueClient;
 import com.ecwid.consul.v1.kv.model.GetValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
@@ -63,7 +61,7 @@ public class ConsulKeyValueStore implements KeyValueStore {
     /**
      * Interface to consul.
      */
-    private final KeyValueClient consul;
+    private final ConsulClient consul;
     /**
      * Time period before stop retrying.
      */
@@ -86,7 +84,7 @@ public class ConsulKeyValueStore implements KeyValueStore {
      * @throws IllegalArgumentException If the retryInterval or namespace is invalid
      */
     @VisibleForTesting
-    ConsulKeyValueStore(@Nonnull final KeyValueClient consul, @Nonnull final String namespace,
+    ConsulKeyValueStore(@Nonnull final ConsulClient consul, @Nonnull final String namespace,
             final long timeout, final TimeUnit timeoutTimeUnit) {
         validateNamespace(namespace);
         if (timeout <= 0) {
@@ -225,6 +223,17 @@ public class ConsulKeyValueStore implements KeyValueStore {
         } else {
             return consulNamespace + "/";
         }
+    }
+
+    /**
+     * Create and return a Consul specific distributed lock.
+     *
+     * @param lockId id/tag for Consul lock
+     * @return {@link ConsulDistributedLock}
+     */
+    @Nonnull
+    public ConsulDistributedLock lock(@Nonnull final String sessionId, @Nonnull final String lockId) {
+       return new ConsulDistributedLock(consul, sessionId, lockId);
     }
 
     @Nonnull

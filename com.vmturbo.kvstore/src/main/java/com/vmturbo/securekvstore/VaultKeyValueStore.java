@@ -1,6 +1,5 @@
 package com.vmturbo.securekvstore;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +15,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.vault.VaultException;
 import org.springframework.vault.core.VaultTemplate;
 import org.springframework.vault.support.VaultResponseSupport;
@@ -23,6 +23,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.util.UriUtils;
 
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.ConsulDistributedLock;
 
 /**
  * A key value store to interact with HashiCorp vault using Spring-Vault library.
@@ -149,6 +150,11 @@ public class VaultKeyValueStore implements KeyValueStore {
             vaultTemplate.delete(fullComponentKey(key));
             return Optional.empty();
         }, DELETE, key);
+    }
+
+    @Override
+    public ConsulDistributedLock lock(@NotNull String sessionId, @NotNull String lockId) {
+        throw new UnsupportedOperationException("Distributed lock is not supported yet.");
     }
 
     @Override
