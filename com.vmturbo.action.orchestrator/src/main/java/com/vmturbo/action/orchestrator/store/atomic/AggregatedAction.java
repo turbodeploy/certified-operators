@@ -202,16 +202,16 @@ public class AggregatedAction {
      * Add a market action to this aggregated action object.
      *
      * @param action market recommended {@link Action}
-     * @param deDeuplicationTarget Optional containing the {@AtomicActionEntity} representing
+     * @param deDuplicationTarget Optional containing the {@AtomicActionEntity} representing
      *                             the de-duplication entity if associated with the market action entity
      */
-    public void addAction(Action action,  Optional<AtomicActionEntity> deDeuplicationTarget) {
-        if (deDeuplicationTarget.isPresent()) {
-            ActionEntity deDupEntity = deDeuplicationTarget.get().getEntity();
+    public void addAction(Action action,  Optional<AtomicActionEntity> deDuplicationTarget) {
+        if (deDuplicationTarget.isPresent()) {
+            ActionEntity deDupEntity = deDuplicationTarget.get().getEntity();
 
             DeDupedActions deDupedActions = deDupedActionsMap.get(deDupEntity.getId());
             if (deDupedActions == null) {
-                deDupedActions = new DeDupedActions(deDupEntity, deDeuplicationTarget.get().getEntityName());
+                deDupedActions = new DeDupedActions(deDupEntity, deDuplicationTarget.get().getEntityName());
                 deDupedActionsMap.put(deDupEntity.getId(), deDupedActions);
             }
 
