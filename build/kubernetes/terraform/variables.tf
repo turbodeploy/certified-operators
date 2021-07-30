@@ -157,10 +157,6 @@ variable "openstack" {
   default = false
 }
 
-variable "pivotal" {
-  default = false
-}
-
 variable "pure" {
   default = false
 }

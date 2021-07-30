@@ -461,7 +461,6 @@
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
@@ -891,13 +890,6 @@
             <id>mediation-istio</id>
             <modules>
                 <module>../com.vmturbo.mediation.istio.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-pivotal</id>
-            <modules>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
             </modules>
         </profile>
 
@@ -1342,7 +1334,6 @@
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
