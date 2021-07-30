@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -156,9 +157,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 public class GroupRpcServiceTest {
 
     private static final long TARGET1 = 1001L;
-    private static final long TARGET2 = 1002L;
 
-    private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
     private SearchServiceMole searchServiceMole;
     private TargetsServiceMole targetsServiceMole;
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
@@ -3248,11 +3247,19 @@ public class GroupRpcServiceTest {
     }
 
     private static Grouping createGrouping(long groupId, Collection<Long> groupMemberIds) {
+        return createGrouping(groupId, groupMemberIds, null);
+    }
+
+    private static Grouping createGrouping(long groupId, Collection<Long> groupMemberIds, @Nullable Long ownerId) {
+        GroupDefinition.Builder grpDefinitionBuilder = GroupDefinition.newBuilder()
+                .setStaticGroupMembers(createStaticMembers(groupMemberIds));
+        if (ownerId != null) {
+            grpDefinitionBuilder.setOwner(ownerId);
+        }
+
         return Grouping.newBuilder()
                 .setId(groupId)
-                .setDefinition(GroupDefinition.newBuilder()
-                        .setStaticGroupMembers(createStaticMembers(groupMemberIds))
-                        .build())
+                .setDefinition(grpDefinitionBuilder)
                 .build();
     }
 
@@ -3490,7 +3497,6 @@ public class GroupRpcServiceTest {
     /**
      * Group not found, return emtpy response.
      */
-
     @Test
     public void testGetGroupAndImmediateMembersGroupNotFound() {
         //GIVEN
@@ -3516,5 +3522,147 @@ public class GroupRpcServiceTest {
         verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
         GetGroupAndImmediateMembersResponse response = captor.getValue();
         assertFalse(response.hasGroup());
+    }
+
+    /**
+     * Tests that paginated queries for Resource Groups in an Account scope.
+     */
+    @Test
+    public void testGetPaginatedGroupsForResourceGroupsInAccountRequest() throws StoreOperationException {
+        // GIVEN
+        final long resourceGroup1Id = 1L;
+        final long resourceGroup2Id = 2L;
+        final long emptyGroup1Id = 3L;
+        final long emptyResourceGroup1Id = 4L;
+        final long accountId1 = 5L;
+        final long accountId2 = 6L;
+        final List<Long> groupIds = Lists.newArrayList(resourceGroup1Id, resourceGroup2Id, emptyGroup1Id,
+                emptyResourceGroup1Id);
+        final long resourceGroup1MemberId = 11L;
+        final long resourceGroup2MemberId = 22L;
+        final Grouping resourceGrouping1 = createGrouping(resourceGroup1Id,
+                Collections.singleton(resourceGroup1MemberId), accountId1);
+        final Grouping resourceGrouping2 = createGrouping(resourceGroup2Id,
+                Collections.singleton(resourceGroup2MemberId), accountId2);
+        final Grouping emptyGrouping = createGrouping(emptyGroup1Id, Collections.EMPTY_SET);
+        final Grouping emptyResourceGrouping = createGrouping(emptyResourceGroup1Id, Collections.EMPTY_SET, accountId1);
+        groupStoreDAO.addGroup(resourceGrouping1);
+        groupStoreDAO.addGroup(resourceGrouping2);
+        groupStoreDAO.addGroup(emptyGrouping);
+        groupStoreDAO.addGroup(emptyResourceGrouping);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(Collections.singleton(accountId1), null,
+                        new ArrayOidSet(Collections.emptyList()),
+                        null);
+        // Create the request: only Resource Groups where the scope is an Account
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE))
+                .addScopes(accountId1)
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE)).build();
+
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        when(userSessionContext.getAccessScope(Collections.singletonList(accountId1)))
+                .thenReturn(accessScope);
+        when(groupMemberCalculatorSpy.getEmptyGroupIds(groupStoreDAO))
+                .thenReturn(Lists.newArrayList(emptyGroup1Id, emptyResourceGroup1Id));
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Lists.newArrayList(resourceGrouping1, resourceGrouping2, emptyResourceGrouping));
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        // WHEN
+        groupRpcService.getPaginatedGroups(request, mockObserver);
+
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(2, paginationResponse.getTotalRecordCount());
+        Set<Long> groupingSet = response.getGroupsList().stream().map(Grouping::getId).collect(Collectors.toSet());
+        assertEquals(2, groupingSet.size());
+        // Only the Resource Groups that belongs to accountId1
+        assertTrue(groupingSet.contains(resourceGroup1Id));
+        assertTrue(groupingSet.contains(emptyResourceGroup1Id));
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests that paginated queries for Resource Groups in a Group of Resource Groups scope.
+     */
+    @Test
+    public void testGetPaginatedGroupsForResourceGroupsInGroupRequest() throws StoreOperationException {
+        // GIVEN
+        final long resourceGroup1Id = 1L;
+        final long resourceGroup2Id = 2L;
+        final long emptyGroup1Id = 3L;
+        final long emptyResourceGroup1Id = 4L;
+        final long emptyResourceGroup2Id = 5L;
+        final long groupOfRGId1 = 6L;
+        final List<Long> groupIds = Lists.newArrayList(resourceGroup1Id, resourceGroup2Id, emptyGroup1Id,
+                emptyResourceGroup1Id, emptyResourceGroup2Id);
+        final long resourceGroup1MemberId = 11L;
+        final long resourceGroup2MemberId = 22L;
+        final Grouping resourceGrouping1 = createGrouping(resourceGroup1Id,
+                Collections.singleton(resourceGroup1MemberId));
+        final Grouping resourceGrouping2 = createGrouping(resourceGroup2Id,
+                Collections.singleton(resourceGroup2MemberId));
+        final Grouping emptyGrouping = createGrouping(emptyGroup1Id, Collections.EMPTY_SET);
+        final Grouping emptyResourceGrouping1 = createGrouping(emptyResourceGroup1Id, Collections.EMPTY_SET);
+        final Grouping emptyResourceGrouping2 = createGrouping(emptyResourceGroup2Id, Collections.EMPTY_SET);
+        groupStoreDAO.addGroup(resourceGrouping1);
+        groupStoreDAO.addGroup(resourceGrouping2);
+        groupStoreDAO.addGroup(emptyGrouping);
+        groupStoreDAO.addGroup(emptyResourceGrouping1);
+        groupStoreDAO.addGroup(emptyResourceGrouping2);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(Collections.singleton(groupOfRGId1), null,
+                        new ArrayOidSet(Collections.emptyList()),
+                        null);
+        // Create the request: only Resource Groups where the scope is a Group of Resource Groups
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE))
+                .addScopes(groupOfRGId1)
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE)).build();
+
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        when(userSessionContext.getAccessScope(Collections.singletonList(groupOfRGId1)))
+                .thenReturn(accessScope);
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Lists.newArrayList(resourceGrouping1, resourceGrouping2,
+                        emptyResourceGrouping1, emptyResourceGrouping2));
+        doReturn(Sets.newHashSet(resourceGroup1Id, emptyResourceGroup1Id))
+                .when(groupMemberCalculatorSpy).getGroupMembers(groupStoreDAO,
+                Collections.singleton(groupOfRGId1), false);
+        doReturn(Lists.newArrayList(emptyGroup1Id, emptyResourceGroup1Id))
+                .when(groupMemberCalculatorSpy).getEmptyGroupIds(groupStoreDAO);
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        // WHEN
+        groupRpcService.getPaginatedGroups(request, mockObserver);
+
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(2, paginationResponse.getTotalRecordCount());
+        Set<Long> groupingSet = response.getGroupsList().stream().map(Grouping::getId).collect(Collectors.toSet());
+        assertEquals(2, groupingSet.size());
+        // Only the Resource Groups that belongs to groupOfRGId1
+        assertTrue(groupingSet.contains(resourceGroup1Id));
+        assertTrue(groupingSet.contains(emptyResourceGroup1Id));
+        verify(mockObserver).onCompleted();
     }
 }

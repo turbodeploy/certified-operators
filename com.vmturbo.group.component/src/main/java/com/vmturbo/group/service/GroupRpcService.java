@@ -24,6 +24,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.protobuf.GeneratedMessageV3;
 
@@ -374,6 +375,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             logger.trace("Requested scope: {}", () -> requestScope);
             requestScope.accessibleOids().forEach(entityUuidsInScope::add);
         }
+        // By default we want to add the empty groups since they belong to all Scopes,
+        // unless the request has specific filters.
+        boolean addEmptyGroups = true;
+
         // find the groups that the entities in the scope belong to
         Set<Long> initialGroupUuids = memberCalculator.getEntityGroups(groupStore,
                 entityUuidsInScope, Collections.emptySet())
@@ -394,6 +399,25 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .collect(Collectors.toSet());
             initialGroupUuids.addAll(nestedGroups);
         }
+
+        // If the request/user is scoped and the type is Resource Groups, we need to check
+        // the members and ownerships and add only the ones inside the scope
+        if ((requestIsScoped || userIsScoped) && request.hasGroupFilter()
+                && request.getGroupFilter().getGroupType() == GroupType.RESOURCE) {
+            Set<Long> scopeIds = Sets.newHashSet(requestScope != null
+                    ? requestScope.getScopeGroupIds() : userScope.getScopeGroupIds());
+            Set<Long> resouceGroupIdsInScope = getResourceGroupUuidsInCloudScope(groupStore, scopeIds);
+            if (!resouceGroupIdsInScope.isEmpty()) {
+                groupUuidsInScope.addAll(resouceGroupIdsInScope);
+                // The empty Resource Groups are already added, so set this to false
+                addEmptyGroups = false;
+            }
+        }
+
+        if (addEmptyGroups) {
+            groupUuidsInScope.addAll(memberCalculator.getEmptyGroupIds(groupStore));
+        }
+
         // find which of those groups are actually accessible (all their members being in the scope)
         for (Long groupId : initialGroupUuids) {
             final Collection<Long> members = memberCalculator.getGroupMembers(
@@ -404,9 +428,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
             groupUuidsInScope.add(groupId);
         }
-        // also fetch empty groups (empty groups are included in all scopes by definition)
-        Collection<Long> emptyGroupIds = memberCalculator.getEmptyGroupIds(groupStore);
-        groupUuidsInScope.addAll(emptyGroupIds);
+
         // if the user has requested for specific uuids, make sure that all of them are accessible;
         // Otherwise, throw an exception
         if (!request.getGroupFilter().getIdList().isEmpty()) {
@@ -1616,6 +1638,51 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         return builder.build();
+    }
+
+    /**
+     * Get all the Resource Groups in the specified scope.
+     * If the scope is:
+     * <ul>
+     * <li>Resource Group / Group of RGs
+     * <li>Account / Group of Accounts
+     * <li>Billing Family / Group of Billing Family
+     * </ul>
+     *
+     * @param groupStore    group store
+     * @param scopeIds      list of scopes to check
+     * @return              the Resource Group Ids that are part of the scope for the specified cases
+     * @throws StoreOperationException store exception
+     */
+    private Set<Long> getResourceGroupUuidsInCloudScope(@Nonnull IGroupStore groupStore,
+                                           @Nonnull Set<Long> scopeIds) throws StoreOperationException {
+        // Find all the Groups and Entities that are members of the requested Scope
+        final Set<Long> scopedGroupAndEntitiesIds = Sets.newHashSet();
+        final Set<Long> groupsToCheck = Sets.newHashSet(scopeIds);
+        while (!groupsToCheck.isEmpty()) {
+            scopedGroupAndEntitiesIds.addAll(groupsToCheck);
+            GetMembersRequest getMembersRequest = GetMembersRequest.newBuilder()
+                    .addAllId(groupsToCheck)
+                    .setExpandNestedGroups(false)
+                    .setExpectPresent(false)
+                    .build();
+            Consumer<GetMembersResponse> getMembersResponseConsumer =
+                    (getMembersResponse -> {
+                        groupsToCheck.clear();
+                        groupsToCheck.addAll(getMembersResponse.getMemberIdList());
+                    });
+            getMembers(groupStore, getMembersRequest, getMembersResponseConsumer);
+        }
+
+        // Find all the Resource Groups that are directly under or belongs to the requested Scope
+        Set<Long> resourceGroupsInScopeIds = groupStore.getGroups(
+                GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE).build()).stream()
+                .filter(grp -> scopedGroupAndEntitiesIds.contains(grp.getId())
+                            || scopedGroupAndEntitiesIds.contains(grp.getDefinition().getOwner()))
+                .map(Grouping::getId)
+                .collect(Collectors.toSet());
+
+        return resourceGroupsInScopeIds;
     }
 
     private <T extends GeneratedMessageV3> T sanitize(Class<T> cls, T request)
