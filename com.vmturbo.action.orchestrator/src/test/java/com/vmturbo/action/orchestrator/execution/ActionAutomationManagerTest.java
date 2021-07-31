@@ -32,7 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 public class ActionAutomationManagerTest {
 
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private ActionApprovalSender actionApprovalSender = Mockito.mock(ActionApprovalSender.class);
+    private final ActionApprovalSender actionApprovalSender = Mockito.mock(ActionApprovalSender.class);
     private final ActionAutomationManager automationManager = new ActionAutomationManager(
         executor, actionApprovalSender);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
@@ -105,7 +105,7 @@ public class ActionAutomationManagerTest {
     /**
      * FutureMock.
      */
-    private class FutureMock extends ConditionalFuture {
+    private static class FutureMock extends ConditionalFuture {
 
         FutureMock(Callable<ConditionalTask> task) {
             super(task);

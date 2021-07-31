@@ -80,7 +80,7 @@ public class ActionExecutorTest {
 
     private Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
 
-    private Clock clock = new MutableFixedClock(1_000_000);
+    private final Clock clock = new MutableFixedClock(1_000_000);
 
     private final long targetEntityId = 1L;
 
@@ -97,9 +97,10 @@ public class ActionExecutorTest {
         MockitoAnnotations.initMocks(this);
         // license check client by default will act as if a valid license is installed.
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
+        final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
         // The class under test
-        actionExecutor = new ActionExecutor(server.getChannel(), executionStateFactory, 1,
-                TimeUnit.HOURS, licenseCheckClient);
+        actionExecutor = new ActionExecutor(server.getChannel(), actionExecutionStore,
+                executionStateFactory, 1, TimeUnit.HOURS, licenseCheckClient);
     }
 
     /**

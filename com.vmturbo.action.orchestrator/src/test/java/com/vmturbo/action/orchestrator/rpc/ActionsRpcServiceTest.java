@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -25,7 +26,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
-import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import org.hamcrest.CoreMatchers;
@@ -53,6 +53,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -62,6 +63,7 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -92,8 +94,8 @@ public class ActionsRpcServiceTest {
     private static final long ACTION_ID_3 = 102L;
     private static final long RECOMMENDATION_ID_3 = 202L;
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private final ActionDTO.SingleActionRequest request = ActionDTO.SingleActionRequest.newBuilder()
-        .setActionId(ACTION_LEGACY_INSTANCE_ID)
+    private final ActionDTO.MultiActionRequest request = ActionDTO.MultiActionRequest.newBuilder()
+        .addActionIds(ACTION_LEGACY_INSTANCE_ID)
         .setTopologyContextId(CONTEXT_ID)
         .build();
 
@@ -111,6 +113,7 @@ public class ActionsRpcServiceTest {
     private ActionsRpcService actionsByImpactOidRpcService;
     private ActionAuditSender actionAuditSender;
     private AuditedActionsManager auditedActionsManager;
+    private ActionExecutionStore actionExecutionStore;
 
     @Captor
     private ArgumentCaptor<Collection<? extends ActionView>> actionsCaptor;
@@ -133,34 +136,37 @@ public class ActionsRpcServiceTest {
         actionStore = mock(ActionStore.class);
         actionAuditSender = Mockito.mock(ActionAuditSender.class);
         auditedActionsManager = Mockito.mock(AuditedActionsManager.class);
+        actionExecutionStore = new ActionExecutionStore();
         actionsRpcService = new ActionsRpcService(
-            null,
-            actionStorehouse,
-            actionApprovalManager,
-            actionTranslator,
-            paginatorFactory,
-            historicalActionStatReader,
-            currentActionStatReader,
-            userSessionContext,
-            acceptedActionsStore,
-            rejectedActionsStore,
+                null,
+                actionStorehouse,
+                actionApprovalManager,
+                actionTranslator,
+                paginatorFactory,
+                historicalActionStatReader,
+                currentActionStatReader,
+                userSessionContext,
+                acceptedActionsStore,
+                rejectedActionsStore,
                 auditedActionsManager,
                 actionAuditSender,
+                actionExecutionStore,
                 10,
                 777777L);
         actionsByImpactOidRpcService = new ActionsRpcService(
-            null,
-            actionStorehouse,
-            actionApprovalManager,
-            actionTranslator,
-            paginatorFactory,
-            historicalActionStatReader,
-            currentActionStatReader,
-            userSessionContext,
-            acceptedActionsStore,
-            rejectedActionsStore,
+                null,
+                actionStorehouse,
+                actionApprovalManager,
+                actionTranslator,
+                paginatorFactory,
+                historicalActionStatReader,
+                currentActionStatReader,
+                userSessionContext,
+                acceptedActionsStore,
+                rejectedActionsStore,
                 auditedActionsManager,
                 actionAuditSender,
+                actionExecutionStore,
                 10,
                 777777L);
         when(actionStorehouse.getStore(CONTEXT_ID)).thenReturn(Optional.of(actionStore));
@@ -233,17 +239,15 @@ public class ActionsRpcServiceTest {
         Action action = executableActivateAction(ACTION_LEGACY_INSTANCE_ID, ACTION_STABLE_IMPACT_ID, 13L);
         when(actionStore.getAction(ACTION_LEGACY_INSTANCE_ID)).thenReturn(Optional.of(action));
 
-        when(actionApprovalManager.attemptAndExecute(eq(actionStore), any(), eq(action))).thenThrow(new ExecutionInitiationException("test", Status.Code.INTERNAL));
-        StreamObserver<ActionDTO.AcceptActionResponse> observer = mock(StreamObserver.class);
+        doThrow(new ExecutionInitiationException("test", Status.Code.INTERNAL))
+                .when(actionApprovalManager).attemptAndExecute(eq(actionStore), any(), eq(action));
+        StreamObserver<ActionDTO.ActionExecution> observer = mock(StreamObserver.class);
 
         // ACT
-        actionsRpcService.acceptAction(request, observer);
+        actionsRpcService.acceptActions(request, observer);
 
         // ASSERT
-        ArgumentCaptor<Throwable> argumentCaptor = ArgumentCaptor.forClass(Throwable.class);
-        verify(observer).onError(argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().getMessage(), containsString("test"));
-        verify(observer, never()).onCompleted();
+        verifyEmptyResult(observer);
     }
 
     /**
@@ -259,19 +263,13 @@ public class ActionsRpcServiceTest {
         action.setSchedule(actionSchedule);
         when(actionStore.getAction(ACTION_LEGACY_INSTANCE_ID)).thenReturn(Optional.of(action));
 
-        StreamObserver<ActionDTO.AcceptActionResponse> observer = mock(StreamObserver.class);
+        StreamObserver<ActionDTO.ActionExecution> observer = mock(StreamObserver.class);
 
         // ACT
-        actionsRpcService.acceptAction(request, observer);
+        actionsRpcService.acceptActions(request, observer);
 
         // ASSERT
-        verify(actionApprovalManager, never()).attemptAndExecute(any(), any(), any());
-        verify(observer, never()).onNext(any());
-        verify(observer, never()).onCompleted();
-        ArgumentCaptor<StatusException> argumentCaptor = ArgumentCaptor.forClass(StatusException.class);
-        verify(observer).onError(argumentCaptor.capture());
-        assertThat(argumentCaptor.getValue().getMessage(), containsString("does not have a next "
-            + "occurrence."));
+        verifyEmptyResult(observer);
     }
 
     /**
@@ -490,5 +488,13 @@ public class ActionsRpcServiceTest {
                 .build();
 
         return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator, stableImpactId));
+    }
+
+    private static void verifyEmptyResult(StreamObserver<ActionDTO.ActionExecution> observer) {
+        ArgumentCaptor<ActionExecution> actionExecutionArg = ArgumentCaptor.forClass(
+                ActionExecution.class);
+        verify(observer).onNext(actionExecutionArg.capture());
+        assertEquals(0, actionExecutionArg.getValue().getActionIdCount());
+        verify(observer).onCompleted();
     }
 }

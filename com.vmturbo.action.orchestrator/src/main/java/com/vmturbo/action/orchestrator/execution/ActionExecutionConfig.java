@@ -94,15 +94,26 @@ public class ActionExecutionConfig {
      */
     @Bean
     public ActionExecutor actionExecutor() {
-        final ActionExecutor executor =
-                new ActionExecutor(tpConfig.topologyProcessorChannel(),
-                    globalConfig.actionOrchestratorClock(),
-                    actionExecutionTimeoutMins,
-                    TimeUnit.MINUTES, licenseCheckClientConfig.licenseCheckClient());
+        final ActionExecutor executor = new ActionExecutor(
+                tpConfig.topologyProcessorChannel(),
+                actionExecutionStore(),
+                globalConfig.actionOrchestratorClock(),
+                actionExecutionTimeoutMins, TimeUnit.MINUTES,
+                licenseCheckClientConfig.licenseCheckClient());
 
         tpConfig.topologyProcessor().addActionListener(executor);
 
         return executor;
+    }
+
+    /**
+     * Bean for {@link ActionExecutionStore}.
+     *
+     * @return The {@link ActionExecutionStore}.
+     */
+    @Bean
+    public ActionExecutionStore actionExecutionStore() {
+        return new ActionExecutionStore();
     }
 
     @Bean

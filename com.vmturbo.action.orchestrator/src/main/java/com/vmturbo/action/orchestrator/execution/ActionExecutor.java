@@ -53,6 +53,8 @@ public class ActionExecutor implements ActionExecutionListener {
      */
     private final ActionExecutionServiceBlockingStub actionExecutionService;
 
+    private final ActionExecutionStore actionExecutionStore;
+
     /**
      * Futures to track success or failure of actions that are executing synchronously
      * (i.e. via the
@@ -71,21 +73,25 @@ public class ActionExecutor implements ActionExecutionListener {
     private final LicenseCheckClient licenseCheckClient;
 
     ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
+                   @Nonnull final ActionExecutionStore actionExecutionStore,
                    @Nonnull final Clock clock,
                    final int executionTimeout,
                    @Nonnull final TimeUnit executionTimeoutUnit,
                    @Nonnull final LicenseCheckClient licenseCheckClient) {
-        this(topologyProcessorChannel, new DefaultSynchronousExecutionStateFactory(clock),
-            executionTimeout, executionTimeoutUnit, licenseCheckClient);
+        this(topologyProcessorChannel, actionExecutionStore,
+                new DefaultSynchronousExecutionStateFactory(clock), executionTimeout,
+                executionTimeoutUnit, licenseCheckClient);
     }
 
     @VisibleForTesting
     ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
+                   @Nonnull final ActionExecutionStore actionExecutionStore,
                    @Nonnull final SynchronousExecutionStateFactory executionStateFactory,
                    final int executionTimeout,
                    @Nonnull final TimeUnit executionTimeoutUnit,
                    @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.actionExecutionService = ActionExecutionServiceGrpc.newBlockingStub(topologyProcessorChannel);
+        this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.synchronousExecutionStateFactory = executionStateFactory;
         this.executionTimeout = executionTimeout;
         this.executionTimeoutUnit = executionTimeoutUnit;
@@ -119,7 +125,6 @@ public class ActionExecutor implements ActionExecutionListener {
             logger.info("Completed synchronous action {}", action.getRecommendation().getId());
         } catch (TimeoutException e) {
             throw new SynchronousExecutionException(ActionFailure.newBuilder()
-
                 .setActionId(action.getRecommendation().getId())
                 .setErrorDescription("Action timed out after "
                     + executionTimeout + " " + executionTimeoutUnit.toString())
@@ -235,6 +240,7 @@ public class ActionExecutor implements ActionExecutionListener {
             logger.warn("Cannot find action ID {} in inProgressSyncActions: {}",
                     actionSuccess.getActionId(), inProgressSyncActions.keySet());
         }
+        actionExecutionStore.removeCompletedAction(actionSuccess.getActionId());
     }
 
     @Override
@@ -247,6 +253,7 @@ public class ActionExecutor implements ActionExecutionListener {
             logger.warn("Cannot find action ID {} in inProgressSyncActions: {}",
                     actionFailure.getActionId(), inProgressSyncActions.keySet());
         }
+        actionExecutionStore.removeCompletedAction(actionFailure.getActionId());
     }
 
     @Override
@@ -271,12 +278,10 @@ public class ActionExecutor implements ActionExecutionListener {
             logger.info("Lost {} actions.", lostActions.size());
         }
 
-        lostActions.forEach(id -> {
-            onActionFailure(ActionFailure.newBuilder()
-                .setActionId(id)
-                .setErrorDescription("Topology Processor lost action state.")
-                .build());
-        });
+        lostActions.forEach(id -> onActionFailure(ActionFailure.newBuilder()
+            .setActionId(id)
+            .setErrorDescription("Topology Processor lost action state.")
+            .build()));
     }
 
     /**

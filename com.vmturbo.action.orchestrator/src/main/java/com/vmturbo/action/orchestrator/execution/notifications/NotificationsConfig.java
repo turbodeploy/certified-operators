@@ -38,7 +38,8 @@ public class NotificationsConfig {
     @Autowired
     private ActionStoreConfig actionStoreConfig;
 
-    @Autowired ActionOrchestratorApiConfig apiConfig;
+    @Autowired
+    private ActionOrchestratorApiConfig apiConfig;
 
     @Autowired
     private ActionExecutionConfig actionExecutionConfig;
@@ -64,16 +65,19 @@ public class NotificationsConfig {
      */
     @Bean
     public ActionExecutionListener actionExecutionListener() {
-        final ActionExecutionListener executionListener =
-                new ActionStateUpdater(actionStoreConfig.actionStorehouse(),
-                        apiConfig.actionOrchestratorNotificationSender(),
-                        actionStoreConfig.actionHistory(), actionStoreConfig.acceptedActionsStore(),
-                        actionExecutionConfig.actionExecutor(), workflowConfig.workflowStore(),
-                        tpConfig.realtimeTopologyContextId(),
-                        actionExecutionConfig.failedCloudVMGroupProcessor(),
-                        auditCommunicationConfig.actionAuditSender(),
-                        approvalCommunicationConfig.actionStateUpdatesSender(),
-                        actionTranslationConfig.actionTranslator());
+        final ActionExecutionListener executionListener = new ActionStateUpdater(
+                actionStoreConfig.actionStorehouse(),
+                apiConfig.actionOrchestratorNotificationSender(),
+                actionStoreConfig.actionHistory(),
+                actionStoreConfig.acceptedActionsStore(),
+                actionExecutionConfig.actionExecutor(),
+                actionExecutionConfig.actionExecutionStore(),
+                workflowConfig.workflowStore(),
+                tpConfig.realtimeTopologyContextId(),
+                actionExecutionConfig.failedCloudVMGroupProcessor(),
+                auditCommunicationConfig.actionAuditSender(),
+                approvalCommunicationConfig.actionStateUpdatesSender(),
+                actionTranslationConfig.actionTranslator());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }

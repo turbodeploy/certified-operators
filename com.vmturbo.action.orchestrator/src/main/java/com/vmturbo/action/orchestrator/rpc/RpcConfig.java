@@ -123,6 +123,7 @@ public class RpcConfig {
             actionStoreConfig.rejectedActionsStore(),
             auditCommunicationConfig.auditedActionsManager(),
             auditCommunicationConfig.actionAuditSender(),
+            actionExecutionConfig.actionExecutionStore(),
             actionPaginationMaxLimit,
             topologyProcessorConfig.realtimeTopologyContextId());
     }
@@ -221,7 +222,7 @@ public class RpcConfig {
      *
      * @return code generated rest endpoint for /ActionConstraintsService.
      */
-    @Bean //
+    @Bean
     public ActionConstraintsServiceController actionConstraintsServiceController() {
         return new ActionConstraintsServiceController(actionConstraintsRpcService());
     }

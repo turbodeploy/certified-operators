@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -57,8 +58,6 @@ public class ActionDeletionRpcTest {
     private final Clock clock = new MutableFixedClock(1_000_000);
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
-    private ActionApprovalManager approvalManager;
-    private ActionsRpcService actionsRpcService;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -73,22 +72,24 @@ public class ActionDeletionRpcTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        approvalManager = Mockito.mock(ActionApprovalManager.class);
-        actionsRpcService = new ActionsRpcService(
-            clock,
-            actionStorehouse,
-            approvalManager,
-            mock(ActionTranslator.class),
-            paginatorFactory,
-            statReader,
-            liveStatReader,
-            userSessionContext,
-            acceptedActionsStore,
-            rejectedActionsStore,
-            auditedActionsManager,
-            actionAuditSender,
-            500,
-            777777L);
+        final ActionApprovalManager approvalManager = Mockito.mock(ActionApprovalManager.class);
+        final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
+        final ActionsRpcService actionsRpcService = new ActionsRpcService(
+                clock,
+                actionStorehouse,
+                approvalManager,
+                mock(ActionTranslator.class),
+                paginatorFactory,
+                statReader,
+                liveStatReader,
+                userSessionContext,
+                acceptedActionsStore,
+                rejectedActionsStore,
+                auditedActionsManager,
+                actionAuditSender,
+                actionExecutionStore,
+                500,
+                777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

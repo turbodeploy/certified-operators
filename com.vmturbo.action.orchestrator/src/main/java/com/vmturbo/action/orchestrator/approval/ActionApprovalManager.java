@@ -33,7 +33,6 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -113,12 +112,10 @@ public class ActionApprovalManager {
      * @param store action store
      * @param userNameAndUuid ID of a user accepting the action
      * @param action the action to accept
-     * @return action acceptance response
      * @throws ExecutionInitiationException if something goes wrong in the process of starting
      * the execution of the action.
      */
-    @Nonnull
-    public AcceptActionResponse attemptAndExecute(@Nonnull ActionStore store,
+    public void attemptAndExecute(@Nonnull ActionStore store,
             @Nonnull String userNameAndUuid, @Nonnull Action action) throws ExecutionInitiationException {
         final ActionState actionState = action.getState();
         if (actionState != ActionState.READY) {
@@ -127,13 +124,11 @@ public class ActionApprovalManager {
                 + " has " + actionState + " state.", Status.Code.INVALID_ARGUMENT);
         }
 
-        final AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
-                userNameAndUuid);
+        attemptAcceptAndExecute(action, userNameAndUuid);
         if (!action.isReady()) {
             store.getEntitySeverityCache().ifPresent(severityCache ->
                 severityCache.refresh(action.getTranslationResultOrOriginal(), store));
         }
-        return attemptResponse;
     }
 
     /**
@@ -141,19 +136,13 @@ public class ActionApprovalManager {
      *
      * @param action action to accept
      * @param userUuid user trying to accept
-     * @return The result of attempting to accept and execute the action.
      * @throws ExecutionInitiationException if cannot initiate the action execution.
      */
-    @Nonnull
-    private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
+    private void attemptAcceptAndExecute(@Nonnull final Action action,
             @Nonnull final String userUuid) throws ExecutionInitiationException {
         long actionTargetId;
         if (action.getSchedule().isPresent()) {
-            final Optional<AcceptActionResponse> errors =
-                    persistAcceptanceForActionWithSchedule(action, userUuid);
-            if (errors.isPresent()) {
-                return errors.get();
-            }
+            persistAcceptanceForActionWithSchedule(action, userUuid);
         }
         final ActionTargetInfo actionTargetInfo =
                 actionTargetSelector.getTargetForAction(action.getTranslationResultOrOriginal(),
@@ -186,9 +175,8 @@ public class ActionApprovalManager {
                     .targetName(String.valueOf(action.getId()))
                     .audit();
             // postpone action execution, because action has related execution window
-            return AcceptActionResponse.newBuilder()
-                    .setActionSpec(actionTranslator.translateToSpec(action))
-                    .build();
+            actionTranslator.translateToSpec(action);
+            return;
         } else {
             AuditLog.newEntry(AuditAction.ACCEPT_ACTION, action.getDescription(), true)
                     .targetName(String.valueOf(action.getId()))
@@ -196,7 +184,7 @@ public class ActionApprovalManager {
             action.receive(new QueuedEvent());
         }
 
-        return attemptActionExecution(action, actionTargetId);
+        attemptActionExecution(action, actionTargetId);
     }
 
     /**
@@ -224,7 +212,7 @@ public class ActionApprovalManager {
         return Optional.empty();
     }
 
-    private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
+    private void attemptActionExecution(@Nonnull final Action action,
             final long targetId) throws ExecutionInitiationException {
         try {
             // Start action execution
@@ -236,9 +224,7 @@ public class ActionApprovalManager {
                 // execute the action, passing the workflow override (if any)
                 actionExecutor.execute(targetId, actionTranslator.translateToSpec(action),
                         action.getWorkflow(workflowStore, action.getState()));
-                return AcceptActionResponse.newBuilder()
-                        .setActionSpec(actionTranslator.translateToSpec(action))
-                        .build();
+                actionTranslator.translateToSpec(action);
             } else {
                 final String errorMsg = String.format(
                         "Failed to translate action %d for execution.", action.getId());
@@ -254,7 +240,7 @@ public class ActionApprovalManager {
         }
     }
 
-    private Optional<AcceptActionResponse> persistAcceptanceForActionWithSchedule(
+    private void persistAcceptanceForActionWithSchedule(
             @Nonnull Action action, @Nonnull String acceptingUser) throws ExecutionInitiationException {
         boolean isFailedPersisting = false;
         try {
@@ -287,8 +273,6 @@ public class ActionApprovalManager {
         }
         if (isFailedPersisting) {
             throw new ExecutionInitiationException("Failed to persist acceptance for action " + action.getId(), Status.Code.INTERNAL);
-        } else {
-            return Optional.empty();
         }
     }
 

@@ -41,6 +41,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -82,11 +83,12 @@ public class ActionStateUpdaterTest {
     private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final ActionExecutor actionExecutorMock = mock(ActionExecutor.class);
+    private final ActionExecutionStore actionExecutionStore = mock(ActionExecutionStore.class);
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final long externalApprovalId = 123456;
     private final long manualId = 12345667;
@@ -123,9 +125,9 @@ public class ActionStateUpdaterTest {
         actionStateUpdatesSender = Mockito.mock(IMessageSender.class);
         actionStateUpdater =
                 new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
-                        acceptedActionsStore, actionExecutorMock, workflowStoreMock,
-                        realtimeTopologyContextId, failedCloudVMGroupProcessor, actionAuditSender,
-                        actionStateUpdatesSender, actionTranslator);
+                        acceptedActionsStore, actionExecutorMock, actionExecutionStore,
+                        workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor,
+                        actionAuditSender, actionStateUpdatesSender, actionTranslator);
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId1))).thenReturn(
                 makeActionModeSetting(ActionMode.EXTERNAL_APPROVAL));
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId2))).thenReturn(
