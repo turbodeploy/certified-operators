@@ -28,6 +28,7 @@ import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.diagnostics.PlanOrchestratorDiagnosticsConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
+import com.vmturbo.plan.orchestrator.plan.export.PlanExportConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
@@ -46,6 +47,7 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
         TemplatesConfig.class,
         ApiSecurityConfig.class,
         GlobalConfig.class,
+        PlanExportConfig.class,
         PlanOrchestratorDBConfig.class,
         PlanProjectSchedulerConfig.class,
         PlanProjectConfig.class,
@@ -75,6 +77,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private PlanOrchestratorDBConfig dbConfig;
+
+    @Autowired
+    private PlanExportConfig planExportConfig;
 
     @Autowired
     private PlanProjectConfig planProjectConfig;
@@ -146,6 +151,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
             templatesConfig.templateSpecService(),
             templatesConfig.discoveredTemplateDeploymentProfileService(),
             deploymentProfileConfig.deploymentProfileRpcService(),
+            planExportConfig.planExportService(),
             planProjectConfig.planProjectService(),
             reservationConfig.reservationRpcService(),
             cpuCapacityConfig.cpuCapacityService());

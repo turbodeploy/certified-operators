@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.topology";
 import "common/EnvironmentTypeEnum.proto";
 import "plan/PlanProject.proto";
 import "plan/Scenario.proto";
+import "plan/PlanExportDTO.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";
@@ -1736,6 +1737,26 @@ message EntitiesWithNewState {
     // This represent the same incremental id used for topologies. With this we can easily
     // compare topologies that have been built after the events were detected
     optional int64 state_change_id = 2;
+}
+
+// A notification describing changes regarding a plan export operation.
+message PlanExportNotification {
+    oneof type {
+        // Updates regarding activity of an in-progress export.
+        PlanExportUpdate progress_update = 1;
+
+        // Updates state changes to an export operation.
+        PlanExportUpdate state_change = 2;
+    }
+}
+
+// A message describing changes in the status of a plan export operation.
+message PlanExportUpdate {
+    // The OID for the plan destination to which the export is directed.
+    required int64 plan_destination_id = 1;
+
+    // The new state for the export operation.
+    required plan.PlanExportStatus status = 2;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

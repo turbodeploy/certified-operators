@@ -32,6 +32,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -53,6 +54,10 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse.PlanExportResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
@@ -66,6 +71,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportProgress;
+import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
@@ -103,9 +111,13 @@ import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAuditMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
+import com.vmturbo.topology.processor.operation.planexport.PlanExport;
+import com.vmturbo.topology.processor.operation.planexport.PlanExportMessageHandler;
+import com.vmturbo.topology.processor.operation.planexport.PlanExportMessageHandler.PlanExportOperationCallback;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
@@ -176,6 +188,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     protected final long actionTimeoutMs;
 
+    protected final long planExportTimeoutMs;
+
     /**
      *  Executor service for handling async responses from the probe.
      */
@@ -240,6 +254,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private DiscoveredCloudCostUploader discoveredCloudCostUploader;
 
+    private DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
+
     private final int maxConcurrentTargetDiscoveriesPerProbeCount;
 
     private final int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
@@ -273,6 +289,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
+                            @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
@@ -282,6 +299,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds,
+                            final long planExportTimeoutSeconds,
                             final int maxConcurrentTargetDiscoveriesPerProbeCount,
                             final int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
                             final int probeDiscoveryPermitWaitTimeoutMins,
@@ -298,6 +316,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.entityStore = Objects.requireNonNull(entityStore);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
+        this.discoveredPlanDestinationUploader = Objects.requireNonNull(discoveredPlanDestinationUploader);
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.derivedTargetParser = Objects.requireNonNull(derivedTargetParser);
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
@@ -306,6 +325,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
         this.actionTimeoutMs = TimeUnit.MILLISECONDS.convert(actionTimeoutSeconds, TimeUnit.SECONDS);
+        this.planExportTimeoutMs = TimeUnit.MILLISECONDS.convert(planExportTimeoutSeconds, TimeUnit.SECONDS);
         this.maxConcurrentTargetDiscoveriesPerProbeCount = maxConcurrentTargetDiscoveriesPerProbeCount;
         this.maxConcurrentTargetIncrementalDiscoveriesPerProbeCount = maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
@@ -403,6 +423,62 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
         operationStart(messageHandler);
         return action;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public synchronized PlanExport exportPlan(@Nonnull PlanExportDTO planData,
+                                              @Nonnull NonMarketEntityDTO planDestination,
+                                              final long destinationOid,
+                                              final long targetId)
+        throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
+        final Target target = targetStore.getTarget(targetId)
+            .orElseThrow(() -> new TargetNotFoundException(targetId));
+
+        final PlanExport export = new PlanExport(destinationOid, target.getProbeId(),
+            targetId, identityProvider);
+        final PlanExportOperationCallback callback = new PlanExportOperationCallback() {
+            @Override
+            public void onPlanExportProgress(@NotNull final PlanExportProgress progress) {
+                notifyPlanExportProgress(export, progress);
+            }
+
+            @Override
+            public void onSuccess(@NotNull final PlanExportResult response) {
+                notifyPlanExportResult(export, response);
+            }
+
+            @Override
+            public void onFailure(@Nonnull String error) {
+                final PlanExportResult result = PlanExportResult.newBuilder().setResponse(
+                    PlanExportResponse.newBuilder()
+                        .setState(PlanExportResponseState.FAILED)
+                        .setDescription(error)
+                        .setProgress(export.getProgress())
+                        .build()).build();
+                notifyPlanExportResult(export, result);
+            }
+        };
+        final PlanExportRequest request = PlanExportRequest.newBuilder()
+            .setPlanData(planData)
+            .setPlanDestination(planDestination)
+            .setTarget(createTargetId(target))
+            .build();
+        final PlanExportMessageHandler messageHandler = new PlanExportMessageHandler(
+            export,
+            remoteMediationServer.getMessageHandlerExpirationClock(),
+            planExportTimeoutMs, callback);
+
+        logger.info("Sending plan export request to destination {} (oid {}) to probe",
+            planDestination.getId(), destinationOid);
+        remoteMediationServer.sendPlanExportRequest(target, request, messageHandler);
+
+        logger.info("Beginning {}", export);
+        operationStart(messageHandler);
+
+        return export;
     }
 
     /**
@@ -788,6 +864,18 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         return getAllInProgress(Action.class);
     }
 
+    @Override
+    @Nonnull
+    public Optional<PlanExport> getInProgressPlanExport(final long id) {
+        return getInProgress(id, PlanExport.class);
+    }
+
+    @Override
+    @Nonnull
+    public List<PlanExport> getInProgressPlanExports() {
+        return getAllInProgress(PlanExport.class);
+    }
+
     /**
      * Get the latest validation result for a target.
      *
@@ -871,6 +959,34 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             if (shouldUpdateEntityActionTable(action)) {
                 updateControllableAndSuspendableState(action);
             }
+        });
+    }
+
+    /**
+     * Notify the {@link OperationManager} that a {@link Operation} completed
+     * with a response returned by the probe.
+     *
+     * @param operation The {@link Operation} that completed.
+     * @param message The message from the probe containing the response.
+     */
+    public void notifyPlanExportResult(@Nonnull final PlanExport operation,
+                                       @Nonnull final PlanExportResult message) {
+        resultExecutor.execute(() -> {
+            processPlanExportResponse(operation, message);
+        });
+    }
+
+    /**
+     * Notifies plan export progress.
+     *
+     * @param export operation
+     * @param progress action progress message
+     */
+    public void notifyPlanExportProgress(@Nonnull final PlanExport export,
+                                         @Nonnull PlanExportProgress progress) {
+        resultExecutor.execute(() -> {
+            export.updateProgress(progress.getResponse());
+            operationListeners.forEach(operationListener -> operationListener.notifyOperationState(export));
         });
     }
 
@@ -1001,6 +1117,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .flatMap(
                 probe -> Optional.ofNullable(ProbeCategory.create(probe.getProbeCategory())));
         discoveredCloudCostUploader.targetRemoved(targetId, probeCategory);
+        discoveredPlanDestinationUploader.targetRemoved(targetId);
     }
 
     /**
@@ -1170,6 +1287,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         responseUsed.getNonMarketEntityDTOList(),
                                         responseUsed.getCostDTOList(),
                                         responseUsed.getPriceTable());
+                                discoveredPlanDestinationUploader.recordPlanDestinations(targetId,
+                                    responseUsed.getNonMarketEntityDTOList());
                                 // Flows
                                 matrix.update(responseUsed.getFlowDTOList());
                             }
@@ -1254,6 +1373,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         logger.trace("Received action result from target {}: {}", action.getTargetId(), result);
         operationComplete(action, success, errors);
+    }
+
+    private void processPlanExportResponse(@Nonnull final PlanExport export,
+                                           @Nonnull final PlanExportResult result) {
+        final PlanExportResponse response = result.getResponse();
+        export.updateProgress(response);
+        final boolean success = response.getState() == PlanExportResponseState.SUCCEEDED;
+        List<ErrorDTO> errors = success ?
+            Collections.emptyList() :
+            Collections.singletonList(SDKUtil.createCriticalError(response.getDescription()));
+
+        logger.trace("Received plan export result from target {}: {}", export.getTargetId(), result);
+        operationComplete(export, success, errors);
     }
 
     /**

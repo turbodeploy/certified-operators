@@ -80,6 +80,7 @@ import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingO
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -120,6 +121,7 @@ public class OperationManagerWithQueueTest {
     private final DiscoveredGroupUploader discoveredGroupUploader = mock(DiscoveredGroupUploader.class);
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = mock(DiscoveredCloudCostUploader.class);
+    private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader = mock(DiscoveredPlanDestinationUploader.class);
 
     private TrackingOperationListener operationListener = spy(new TrackingOperationListener());
 
@@ -203,10 +205,10 @@ public class OperationManagerWithQueueTest {
         MockitoAnnotations.initMocks(this);
         operationManager = new OperationManagerWithQueue(identityProvider, targetStore,
                 probeStore, remoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
-                discoveredWorkflowUploader, discoveredCloudCostUploader,
+                discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredPlanDestinationUploader,
                 discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
                 groupScopeResolver, targetDumpingSettings, systemNotificationProducer,
-                discoveryQueue, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
+                discoveryQueue, 10, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
                 licenseCheckClient);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());

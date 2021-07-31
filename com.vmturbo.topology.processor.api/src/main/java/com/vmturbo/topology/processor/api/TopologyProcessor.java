@@ -216,4 +216,12 @@ public interface TopologyProcessor {
      */
     void addEntitiesWithNewStatesListener(@Nonnull EntitiesWithNewStateListener listener);
 
+    /**
+     * Register a listener for events related to exporting a plan to a target.
+     *
+     * @param listener listener to register
+     * @throws IllegalArgumentException if specified listener is {@code null}
+     * @throws IllegalStateException if there is no subscription to this event
+     */
+    void addPlanExportToTargetListener(@Nonnull PlanExportNotificationListener listener);
 }

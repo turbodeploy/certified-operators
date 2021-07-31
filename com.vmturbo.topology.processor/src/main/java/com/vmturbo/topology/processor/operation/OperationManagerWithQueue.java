@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
@@ -71,6 +72,7 @@ public class OperationManagerWithQueue extends OperationManager {
      * @param discoveredGroupUploader DiscoveredGroupUploader where discovered groups go.
      * @param discoveredWorkflowUploader where discovered Workflows go.
      * @param discoveredCloudCostUploader where Cloud Cost goes.
+     * @param discoveredPlanDestinationUploader where Plan Destinations data goes.
      * @param discoveredTemplateDeploymentProfileNotifier where discovered templates go.
      * @param entityActionDao where entity actions are persisted.
      * @param derivedTargetParser where derived targets in the discovery response get handled.
@@ -81,6 +83,7 @@ public class OperationManagerWithQueue extends OperationManager {
      * @param discoveryTimeoutSeconds discovery timeout.
      * @param validationTimeoutSeconds validation timeout.
      * @param actionTimeoutSeconds action timeout.
+     * @param planExportTimeoutSeconds plan export timeout.
      * @param matrix MatrixInterface.
      * @param binaryDiscoveryDumper handles recording discovery responses in binary.
      * @param enableDiscoveryResponsesCaching whether or not to cache discovery responses.
@@ -95,6 +98,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
+                            @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
@@ -105,17 +109,19 @@ public class OperationManagerWithQueue extends OperationManager {
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds,
+                            final long planExportTimeoutSeconds,
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
                             final boolean enableDiscoveryResponsesCaching,
                             final LicenseCheckClient licenseCheckClient) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-                discoveredCloudCostUploader, discoveredTemplateDeploymentProfileNotifier,
-                entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
+                discoveredCloudCostUploader, discoveredPlanDestinationUploader,
+                discoveredTemplateDeploymentProfileNotifier, entityActionDao,
+                derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryTimeoutSeconds, validationTimeoutSeconds,
-                actionTimeoutSeconds, 0, 0, 0, 0, matrix, binaryDiscoveryDumper,
-                enableDiscoveryResponsesCaching, licenseCheckClient);
+                actionTimeoutSeconds, planExportTimeoutSeconds, 0, 0, 0, 0, matrix,
+                binaryDiscoveryDumper, enableDiscoveryResponsesCaching, licenseCheckClient);
 
         this.discoveryQueue = discoveryQueue;
     }

@@ -22,8 +22,12 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.plan.PlanExportDTO.PlanExportStatus;
+import com.vmturbo.common.protobuf.plan.PlanExportDTO.PlanExportStatus.PlanExportState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportUpdate;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
@@ -41,6 +45,7 @@ import com.vmturbo.components.api.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse.PlanExportResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -55,7 +60,9 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.api.PlanExportNotificationListener;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
@@ -66,7 +73,8 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
  */
 public class TopologyProcessorNotificationSender
         extends ComponentNotificationSender<TopologyProcessorNotification>
-        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener, EntitiesWithNewStateListener {
+        implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener,
+           EntitiesWithNewStateListener, PlanExportNotificationListener {
 
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
     private final IMessageSender<Topology> liveTopologySender;
@@ -75,6 +83,7 @@ public class TopologyProcessorNotificationSender
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
     private final IMessageSender<TopologySummary> topologySummarySender;
     private final IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender;
+    private final IMessageSender<PlanExportNotification> planExportNotificationSender;
     private final ExecutorService threadPool;
     private final Clock clock;
 
@@ -86,7 +95,8 @@ public class TopologyProcessorNotificationSender
             @Nonnull IMessageSender<Topology> schedPlanTopologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender,
             @Nonnull IMessageSender<TopologySummary> topologySummarySender,
-            @Nonnull IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender) {
+            @Nonnull IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender,
+            @Nonnull IMessageSender<PlanExportNotification> planExportNotificationSender) {
         super();
         this.clock = Objects.requireNonNull(clock);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -96,6 +106,7 @@ public class TopologyProcessorNotificationSender
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.topologySummarySender = Objects.requireNonNull(topologySummarySender);
         this.entitiesWithNewStateSender = Objects.requireNonNull(entitiesWithNewStateSender);
+        this.planExportNotificationSender = Objects.requireNonNull(planExportNotificationSender);
 
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
@@ -104,6 +115,8 @@ public class TopologyProcessorNotificationSender
                         operation -> notifyDiscoveryState((Discovery)operation));
         // TODO (roman, Aug 2016): Add notifications for actions.
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
+
+        operationsListeners.put(PlanExport.class, operation -> notifyPlanExport((PlanExport)operation));
 
         // No-ops because we do not need notifications, but we also do not want getOperationListener
         // to fail when these operations finish.
@@ -335,6 +348,60 @@ public class TopologyProcessorNotificationSender
             @Nonnull TopologyProcessorNotification topologyProcessorNotification) {
         return topologyProcessorNotification.getTypeCase().name() + " broadcast #" +
                 topologyProcessorNotification.getBroadcastId();
+    }
+
+    private void notifyPlanExport(@Nonnull final PlanExport export) {
+        if (export.getState() == PlanExportResponseState.IN_PROGRESS) {
+            onPlanExportProgress(export.getDestinationId(), export.getProgress(), export.getDescription());
+        } else {
+            PlanExportState state = PlanExportState.valueOf(export.getState().toString());
+
+            onPlanExportStateChanged(export.getDestinationId(), PlanExportStatus.newBuilder()
+                .setState(state)
+                .setProgress(export.getProgress())
+                .setDescription(export.getDescription())
+                .build()
+            );
+        }
+    }
+
+    @Override
+    public void onPlanExportProgress(final long planDestinationOid, final int progress,
+                                     @Nonnull final String progressMessage) {
+        getLogger().debug("Sending onPlanExportProgress notification progress {} destination {}",
+            progress, planDestinationOid);
+        final PlanExportNotification message = PlanExportNotification.newBuilder()
+            .setProgressUpdate(PlanExportUpdate.newBuilder()
+                .setPlanDestinationId(planDestinationOid)
+                .setStatus(PlanExportStatus.newBuilder()
+                    .setState(PlanExportState.IN_PROGRESS)
+                    .setProgress(progress)
+                    .setDescription(progressMessage)))
+            .build();
+
+        try {
+            planExportNotificationSender.sendMessage(message);
+        } catch (CommunicationException|InterruptedException e) {
+            getLogger().error("Could not send Plan Export Progress message", e);
+        }
+    }
+
+    @Override
+    public void onPlanExportStateChanged(final long planDestinationOid,
+                                         @Nonnull final PlanExportStatus status) {
+        getLogger().debug(() -> "Sending onPlanExportStateChanged notification status "
+            + status.toString() + " destination " + planDestinationOid);
+        final PlanExportNotification message = PlanExportNotification.newBuilder()
+            .setStateChange(PlanExportUpdate.newBuilder()
+                .setPlanDestinationId(planDestinationOid)
+                .setStatus(status))
+            .build();
+
+        try {
+            planExportNotificationSender.sendMessage(message);
+        } catch (CommunicationException|InterruptedException e) {
+            getLogger().error("Could not send Plan Export State Change message", e);
+        }
     }
 
     /**

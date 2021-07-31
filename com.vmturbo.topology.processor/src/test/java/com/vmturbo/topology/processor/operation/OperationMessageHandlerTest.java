@@ -24,6 +24,9 @@ import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler.ActionOperationCallback;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
+import com.vmturbo.topology.processor.operation.planexport.PlanExport;
+import com.vmturbo.topology.processor.operation.planexport.PlanExportMessageHandler;
+import com.vmturbo.topology.processor.operation.planexport.PlanExportMessageHandler.PlanExportOperationCallback;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 
@@ -162,4 +165,20 @@ public class OperationMessageHandlerTest {
         assertEquals(HandlerStatus.IN_PROGRESS, status);
     }
 
+    /**
+     * Test Plan Export message handler receiving an unexpected message.
+     */
+    @Test
+    public void testPlanExportWrongMessage() {
+        final PlanExport export = new PlanExport(0, 0, 0, identityProvider);
+        final PlanExportOperationCallback callback = Mockito.mock(PlanExportOperationCallback.class);
+
+        final BaseMessageHandler handler = new PlanExportMessageHandler(export, Clock.systemUTC(), 1000,
+            callback);
+        final MediationClientMessage clientMessage = MediationClientMessage.newBuilder()
+            .setDiscoveryResponse(DiscoveryResponse.newBuilder())
+            .build();
+        final HandlerStatus status = handler.onReceive(clientMessage);
+        assertEquals(HandlerStatus.IN_PROGRESS, status);
+    }
 }

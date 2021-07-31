@@ -26,6 +26,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
@@ -39,6 +40,7 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
@@ -137,6 +139,14 @@ public class FakeRemoteMediation implements RemoteMediation {
             @Nonnull ActionAuditRequest actionAuditRequest,
             @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
             throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendPlanExportRequest(@Nonnull final Target target,
+                                      @Nonnull final PlanExportRequest exportRequest,
+                                      @Nonnull final IOperationMessageHandler<PlanExport> planExportMessageHandler)
+        throws InterruptedException, ProbeException, CommunicationException {
         throw new NotImplementedException("Not implemented yet");
     }
 
