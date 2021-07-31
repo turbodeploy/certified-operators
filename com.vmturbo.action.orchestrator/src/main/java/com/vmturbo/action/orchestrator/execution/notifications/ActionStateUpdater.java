@@ -23,6 +23,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
@@ -35,6 +36,7 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -58,9 +60,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String PREVIOUS_FAILURE_MESSAGE =
-        "Failing due to a failure in a previous execution phase.";
-
     private final ActionStorehouse actionStorehouse;
 
     private final ActionOrchestratorNotificationSender notificationSender;
@@ -73,6 +72,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * Used to execute actions (by sending them to Topology Processor).
      */
     private final ActionExecutor actionExecutor;
+
+    private final ActionExecutionStore actionExecutionStore;
 
     /**
      * The store for all the known {@link WorkflowDTO.Workflow} items.
@@ -102,6 +103,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param actionHistoryDao dao layer persists information about executed actions
      * @param acceptedActionsStore dao layer works with acceptances for actions
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
+     * @param actionExecutionStore {@link ActionExecution} store.
      * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      * @param realtimeTopologyContextId The ID of the topology context for realtime market analysis
      * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
@@ -114,6 +116,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull final ActionHistoryDao actionHistoryDao,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
             @Nonnull final ActionExecutor actionExecutor,
+            @Nonnull final ActionExecutionStore actionExecutionStore,
             @Nonnull final WorkflowStore workflowStore,
             final long realtimeTopologyContextId,
             final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor,
@@ -125,6 +128,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         this.acceptedActionsStore = acceptedActionsStore;
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
+        this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.failedCloudVMGroupProcessor = failedCloudVMGroupProcessor;
@@ -220,6 +224,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                             .build();
                     notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
                 }
+                actionExecutionStore.removeCompletedAction(action.getId());
             } else {
                 logger.error("Unable to mark success for " + actionSuccess);
             }
@@ -271,6 +276,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             if (storedAction.isPresent()) {
                 Action action = storedAction.get();
                 failAction(action, actionFailure);
+                actionExecutionStore.removeCompletedAction(action.getId());
             } else {
                 logger.error("Unable to mark failure for " + actionFailure);
             }
@@ -299,7 +305,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     // actions) before the "before time".
                     //
                     // The time check is mainly a safeguard against long delays in message
-                    // reception (e.g. if Kafka is down or overloaded/unresponsibe). By using
+                    // reception (e.g. if Kafka is down or overloaded/unresponsive). By using
                     // timestamps we are introducing the possibility of some errors if the clocks
                     // between components are out of sync. However, it should be safe to assume
                     // that they will be loosely in sync and that's all we need: this is mainly to
@@ -318,10 +324,13 @@ public class ActionStateUpdater implements ActionExecutionListener {
             Optional<Action> storedAction =
                 liveActionStore.getAction(actionView.getId());
             storedAction
-                .ifPresent(action -> failAction(action, ActionFailure.newBuilder()
-                .setErrorDescription("Topology Processor lost action state.")
-                .setActionId(actionView.getId())
-                .build()));
+                .ifPresent(action -> {
+                    failAction(action, ActionFailure.newBuilder()
+                            .setErrorDescription("Topology Processor lost action state.")
+                            .setActionId(actionView.getId())
+                            .build());
+                    actionExecutionStore.removeCompletedAction(action.getId());
+                });
         });
     }
 

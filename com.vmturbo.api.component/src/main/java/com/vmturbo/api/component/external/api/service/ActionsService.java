@@ -17,19 +17,19 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.springframework.validation.Errors;
-
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -184,23 +184,7 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
-        final long id = getActionId(uuid);
-
-        if (accept) {
-            // accept the action
-            try {
-                log.info("Accepting action with id: {}", id);
-                actionOrchestratorRpc.acceptAction(actionRequest(id));
-                return true;
-            } catch (StatusRuntimeException e) {
-                log.error("Execute action error: {}", e.getMessage(), e);
-                throw convertToApiException(e);
-            }
-        } else {
-            // reject the action
-            log.info("Rejecting action with id: {}", id);
-            throw new NotImplementedException("!!!!!! Reject Action not implemented");
-        }
+        return executeActions(ImmutableList.of(uuid), accept);
     }
 
     @Override
@@ -209,13 +193,14 @@ public class ActionsService implements IActionsService {
             final boolean accept) throws Exception {
         if (accept) {
             try {
-                // TODO: (OM-68923) Send single gRPC call to Action Orchestrator instead of
-                //  sending multiple requests in a loop when Action Orchestrator supports this.
+                final MultiActionRequest.Builder request = MultiActionRequest.newBuilder()
+                        .setTopologyContextId(realtimeTopologyContextId);
                 for (final String uuid : actionUuids) {
                     final long id = getActionId(uuid);
                     log.info("Accepting action with id: {}", id);
-                    actionOrchestratorRpc.acceptAction(actionRequest(id));
+                    request.addActionIds(id);
                 }
+                actionOrchestratorRpc.acceptActions(request.build());
                 return true;
             } catch (StatusRuntimeException e) {
                 log.error("Execute action error: {}", e.getMessage(), e);

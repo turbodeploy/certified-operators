@@ -58,6 +58,7 @@ import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -124,6 +125,7 @@ public class ActionQueryRpcTest {
     private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+    private final ActionExecutionStore actionExecutionStore = mock(ActionExecutionStore.class);
 
     private final ActionTranslator actionTranslatorWithFailedTranslation =
         ActionOrchestratorTestUtils.passthroughTranslator();
@@ -140,11 +142,6 @@ public class ActionQueryRpcTest {
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
-
-    private ActionsRpcService actionsRpcService;
-    private ActionsRpcService actionsRpcServiceWithFailedTranslator;
-    private ActionApprovalManager approvalManager;
-
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -158,39 +155,40 @@ public class ActionQueryRpcTest {
      */
     @Before
     public void setup() throws Exception {
-        approvalManager = Mockito.mock(ActionApprovalManager.class);
-        actionsRpcService =
-                new ActionsRpcService(
-                    clock,
-                    actionStorehouse,
-                    approvalManager,
-                    actionTranslator,
-                    paginatorFactory,
-                    historicalStatReader,
-                    liveStatReader,
-                    userSessionContext,
-                    acceptedActionsStore,
-                    rejectedActionsStore,
-                    auditedActionsManager,
-                    actionAuditSender,
-                    500,
-                    777777L);
+        ActionApprovalManager approvalManager = Mockito.mock(ActionApprovalManager.class);
+        ActionsRpcService actionsRpcService = new ActionsRpcService(
+                clock,
+                actionStorehouse,
+                approvalManager,
+                actionTranslator,
+                paginatorFactory,
+                historicalStatReader,
+                liveStatReader,
+                userSessionContext,
+                acceptedActionsStore,
+                rejectedActionsStore,
+                auditedActionsManager,
+                actionAuditSender,
+                actionExecutionStore,
+                500,
+                777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
-        actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
-            clock,
-            actionStorehouse,
-            approvalManager,
-            actionTranslatorWithFailedTranslation,
-            paginatorFactory,
-            historicalStatReader,
-            liveStatReader,
-            userSessionContext,
-            acceptedActionsStore,
-            rejectedActionsStore,
+        ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
+                clock,
+                actionStorehouse,
+                approvalManager,
+                actionTranslatorWithFailedTranslation,
+                paginatorFactory,
+                historicalStatReader,
+                liveStatReader,
+                userSessionContext,
+                acceptedActionsStore,
+                rejectedActionsStore,
                 auditedActionsManager,
                 actionAuditSender,
+                actionExecutionStore,
                 500,
                 777777L);
         IdentityGenerator.initPrefix(0);

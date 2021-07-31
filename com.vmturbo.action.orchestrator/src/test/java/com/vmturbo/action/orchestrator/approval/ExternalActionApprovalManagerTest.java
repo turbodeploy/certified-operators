@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.approval;
 
+import static org.mockito.Mockito.doThrow;
+
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
@@ -73,9 +75,9 @@ public class ExternalActionApprovalManagerTest {
         MockitoAnnotations.initMocks(this);
         mgr = Mockito.mock(ActionApprovalManager.class);
         rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
-        Mockito.when(mgr.attemptAndExecute(Mockito.any(), Mockito.anyString(),
-                Mockito.any(Action.class)))
-                .thenThrow(new ExecutionInitiationException("Some error", Status.Code.INTERNAL));
+        doThrow(new ExecutionInitiationException("Some error", Status.Code.INTERNAL))
+                .when(mgr).attemptAndExecute(Mockito.any(), Mockito.anyString(),
+                Mockito.any(Action.class));
         actionStore = Mockito.mock(ActionStore.class);
         storehouse = Mockito.mock(ActionStorehouse.class);
         Mockito.when(storehouse.getStore(CTX_ID))

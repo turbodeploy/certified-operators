@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -53,7 +52,7 @@ import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
@@ -87,14 +86,13 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
+import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -125,7 +123,7 @@ import com.vmturbo.topology.processor.api.ActionExecutionListener;
  *
  * Covered gRPC server classes:
  * {@link ActionOrchestratorComponent}
- * {@link ActionsRpcService#acceptAction}
+ * {@link ActionsRpcService#acceptActions}
  * {@link SecurityConstant}
  */
 public class ActionExecutionSecureRpcTest {
@@ -144,11 +142,11 @@ public class ActionExecutionSecureRpcTest {
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
-    private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader currentActionStatReader = mock(CurrentActionStatReader.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
+    private final ActionExecutionStore actionExecutionStore = new ActionExecutionStore();
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
@@ -193,16 +191,16 @@ public class ActionExecutionSecureRpcTest {
         rejectedActionsStore,
         auditedActionsManager,
         actionAuditSender,
+            actionExecutionStore,
         500,
         777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
-    private ActionStore actionStoreSpy;
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private IdentityServiceImpl actionIdentityService;
-    private EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
+    private final EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
 
     // utility for creating / interacting with a debugging JWT context
     JwtContextUtil jwtContextUtil;
@@ -291,12 +289,12 @@ public class ActionExecutionSecureRpcTest {
         });
 
         // mock action store
-        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+        ActionStore actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, entitySettingsCache, actionHistoryDao,
-            actionTranslator, clock,
+                actionTranslator, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-            entitySeverityCache, workflowStore));
+                entitySeverityCache, workflowStore));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
@@ -324,8 +322,8 @@ public class ActionExecutionSecureRpcTest {
         ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(
                 ACTION_ID_1);
         final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID_1)
+        final MultiActionRequest acceptActionRequest = MultiActionRequest.newBuilder()
+            .addActionIds(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -335,14 +333,13 @@ public class ActionExecutionSecureRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         pipelineFactory.actionPipeline(plan).run(plan);
-        AcceptActionResponse response = actionOrchestratorServiceClient
+        ActionExecution response = actionOrchestratorServiceClient
             .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
                 .getCompactRepresentation()))
-            .acceptAction(acceptActionRequest);
+            .acceptActions(acceptActionRequest);
 
-        assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
-        assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+        assertEquals(1, response.getActionIdCount());
+        assertEquals(ACTION_ID_1, response.getActionId(0));
         // verify log message includes admin user.
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
@@ -359,10 +356,10 @@ public class ActionExecutionSecureRpcTest {
     public void testAcceptActionWithClientInterceptor() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
         final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID_1)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
+        final MultiActionRequest acceptActionRequest = MultiActionRequest.newBuilder()
+                .addActionIds(ACTION_ID_1)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -370,12 +367,11 @@ public class ActionExecutionSecureRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         pipelineFactory.actionPipeline(plan).run(plan);
-        AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
-            .acceptAction(acceptActionRequest);
+        ActionExecution response = actionOrchestratorServiceClientWithInterceptor
+            .acceptActions(acceptActionRequest);
 
-        assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
-        assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+        assertEquals(1, response.getActionIdCount());
+        assertEquals(ACTION_ID_1, response.getActionId(0));
         // verify log message include admin user
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
@@ -391,8 +387,8 @@ public class ActionExecutionSecureRpcTest {
     public void testAcceptActionWithInvalidJwtToken() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
         final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID_1)
+        final MultiActionRequest acceptActionRequest = MultiActionRequest.newBuilder()
+            .addActionIds(ACTION_ID_1)
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -406,7 +402,7 @@ public class ActionExecutionSecureRpcTest {
             .descriptionContains("JWT strings must contain exactly 2 period characters"));
         actionOrchestratorServiceClient
             .withCallCredentials(new JwtCallCredential("wrong token"))
-            .acceptAction(acceptActionRequest);
+            .acceptActions(acceptActionRequest);
     }
 
     /**
@@ -418,10 +414,10 @@ public class ActionExecutionSecureRpcTest {
     public void testAcceptActionWithoutJwtToken() throws Exception {
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
         final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID_1)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
+        final MultiActionRequest acceptActionRequest = MultiActionRequest.newBuilder()
+                .addActionIds(ACTION_ID_1)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -429,12 +425,11 @@ public class ActionExecutionSecureRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         pipelineFactory.actionPipeline(plan).run(plan);
-        AcceptActionResponse response = actionOrchestratorServiceClient
-            .acceptAction(acceptActionRequest); // don't pass JWT token
+        ActionExecution response = actionOrchestratorServiceClient
+            .acceptActions(acceptActionRequest); // don't pass JWT token
 
-        assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
-        assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+        assertEquals(1, response.getActionIdCount());
+        assertEquals(ACTION_ID_1, response.getActionId(0));
     }
 
     // we want to ensure gRPC service can still be functional even the public key is NOT available
@@ -461,10 +456,10 @@ public class ActionExecutionSecureRpcTest {
         // perform actual action execution test
         Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID_1);
         final ActionPlan plan = actionPlan(Collections.singleton(recommendation));
-        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
-            .setActionId(ACTION_ID_1)
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .build();
+        final MultiActionRequest acceptActionRequest = MultiActionRequest.newBuilder()
+                .addActionIds(ACTION_ID_1)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
@@ -472,20 +467,17 @@ public class ActionExecutionSecureRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         pipelineFactory.actionPipeline(plan).run(plan);
-        AcceptActionResponse response = actionOrchestratorServiceTestClient
+        ActionExecution response = actionOrchestratorServiceTestClient
             .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken()
                 .getCompactRepresentation()))
-            .acceptAction(acceptActionRequest);
+            .acceptActions(acceptActionRequest);
 
-
-        assertTrue(response.hasActionSpec());
-        assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
-        assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+        assertEquals(1, response.getActionIdCount());
+        assertEquals(ACTION_ID_1, response.getActionId(0));
 
         // clean up
         managedChannel.shutdown();
         secureGrpcServerWithNullPublicKeyInInterceptor.shutdown();
-
     }
 
     /**
@@ -508,8 +500,8 @@ public class ActionExecutionSecureRpcTest {
 
         when(userSessionContext.isUserScoped()).thenReturn(true);
 
-        final SingleActionRequest acceptActionRequest1 = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID_1)
+        final MultiActionRequest acceptActionRequest1 = MultiActionRequest.newBuilder()
+                .addActionIds(ACTION_ID_1)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -522,11 +514,10 @@ public class ActionExecutionSecureRpcTest {
                         null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScopeOK);
 
-        final AcceptActionResponse response1 =
-                actionOrchestratorServiceClient.acceptAction(acceptActionRequest1);
+        actionOrchestratorServiceClient.acceptActions(acceptActionRequest1);
 
-        final SingleActionRequest acceptActionRequest2 = SingleActionRequest.newBuilder()
-                .setActionId(ACTION_ID_2)
+        final MultiActionRequest acceptActionRequest2 = MultiActionRequest.newBuilder()
+                .addActionIds(ACTION_ID_2)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
         // A user WITHOUT access to at least one entity related to this action CANNOT execute it.
@@ -539,6 +530,6 @@ public class ActionExecutionSecureRpcTest {
         // this test.
         expectedException.expect(
                 GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
-        actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
+        actionOrchestratorServiceClient.acceptActions(acceptActionRequest2);
     }
 }

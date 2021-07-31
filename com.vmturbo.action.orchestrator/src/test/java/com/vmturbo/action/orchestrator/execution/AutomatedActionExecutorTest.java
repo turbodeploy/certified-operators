@@ -46,7 +46,6 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
-import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalTask;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitterTest.CountDownSubmitter;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
@@ -75,17 +74,18 @@ public class AutomatedActionExecutorTest {
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
-    private final ActionExecutor actionExecutor =
-            Mockito.spy(new ActionExecutor(channel, clock, 1, TimeUnit.HOURS, licenseCheckClient));
+    private final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
+    private final ActionExecutor actionExecutor = Mockito.spy(new ActionExecutor(channel,
+            actionExecutionStore, clock, 1, TimeUnit.HOURS, licenseCheckClient));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
         Mockito.mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
 
-    private WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
+    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
-    private ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
+    private final ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
 
     private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
 
@@ -107,7 +107,7 @@ public class AutomatedActionExecutorTest {
 
     private final Map<Long, Action> actionMap = new HashMap<>();
 
-    private Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
+    private final Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
 
     @Before
     public void setup() throws Exception {
@@ -567,22 +567,6 @@ public class AutomatedActionExecutorTest {
                 new AutomatedActionExecutor(testActionExecutor, submitter,
                         workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator);
         long actionId = 1L;
-        ConditionalTask mockCallable = new ConditionalTask() {
-            @Override
-            public ConditionalTask call() throws Exception {
-                return null;
-            }
-
-            @Override
-            public int compareTo(ConditionalTask o) {
-                return 0;
-            }
-
-            @Override
-            public Action getAction() {
-                return null;
-            }
-        };
         ActionDTO.Action testRecommendation = makeRec(
                 TestActionBuilder.makeMoveInfo(targetId1, entityId1, pmType, entityId2, pmType),
                 1, true, SupportLevel.SUPPORTED).build();

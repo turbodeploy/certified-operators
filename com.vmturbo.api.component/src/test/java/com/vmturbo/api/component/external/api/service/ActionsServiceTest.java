@@ -75,7 +75,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
@@ -211,7 +211,7 @@ public class ActionsServiceTest {
     @Test
     public void testExecuteActionThrowException() throws Exception {
         expectedException.expect(UnknownObjectException.class);
-        when(actionsServiceBackend.acceptActionError(any())).thenReturn(Optional.of(Status.NOT_FOUND
+        when(actionsServiceBackend.acceptActionsError(any())).thenReturn(Optional.of(Status.NOT_FOUND
             .withDescription("test").asException()));
         actionsServiceUnderTest.executeAction(UUID, true, false);
     }
@@ -223,22 +223,19 @@ public class ActionsServiceTest {
      */
     @Test
     public void testExecuteActions() throws Exception {
-        when(actionsServiceBackend.acceptAction(any()))
-                .thenReturn(AcceptActionResponse.getDefaultInstance());
+        when(actionsServiceBackend.acceptActions(any()))
+                .thenReturn(ActionExecution.getDefaultInstance());
         final List<Long> actionOids = ImmutableList.of(1L, 2L);
         final List<String> actionUuids = actionOids.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
         actionsServiceUnderTest.executeActions(actionUuids, true);
 
-        // Check that Action Orchestrator stub was invoked for each of the actions in the list
-        actionOids.forEach(actionOid -> {
-            final SingleActionRequest request = SingleActionRequest.newBuilder()
-                    .setTopologyContextId(REALTIME_TOPOLOGY_ID)
-                    .setActionId(actionOid)
-                    .build();
-            verify(actionsServiceBackend, times(1)).acceptAction(request);
-        });
+        final MultiActionRequest request = MultiActionRequest.newBuilder()
+                .setTopologyContextId(REALTIME_TOPOLOGY_ID)
+                .addAllActionIds(actionOids)
+                .build();
+        verify(actionsServiceBackend, times(1)).acceptActions(request);
     }
 
     @Test
@@ -685,9 +682,9 @@ public class ActionsServiceTest {
 
         // ASSERT
         assertTrue(successful);
-        ArgumentCaptor<SingleActionRequest> requestCaptor = ArgumentCaptor.forClass(SingleActionRequest.class);
-        verify(actionsServiceBackend).acceptAction(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().getActionId(), equalTo(FIRST_ACTION_ID));
+        ArgumentCaptor<MultiActionRequest> requestCaptor = ArgumentCaptor.forClass(MultiActionRequest.class);
+        verify(actionsServiceBackend).acceptActions(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getActionIds(0), equalTo(FIRST_ACTION_ID));
         assertThat(requestCaptor.getValue().getTopologyContextId(), equalTo(REALTIME_TOPOLOGY_ID));
     }
 

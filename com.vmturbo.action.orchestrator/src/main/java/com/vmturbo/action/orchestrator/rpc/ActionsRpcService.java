@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -48,6 +49,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
@@ -61,9 +63,11 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -71,6 +75,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
@@ -156,6 +162,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final ActionAuditSender actionAuditSender;
 
+    private final ActionExecutionStore actionExecutionStore;
+
     private final int actionPaginationMaxLimit;
 
     private final long realtimeTopologyContextId;
@@ -175,6 +183,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param auditedActionsManager object responsible for maintaining the book keeping
      * @param actionAuditSender receives and sends action events for audit
+     * @param actionExecutionStore keeps track of action executions
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      * @param realtimeTopologyContextId the ID of the topology context for realtime market analysis
      */
@@ -189,8 +198,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
             @Nonnull final RejectedActionsDAO rejectedActionsStore,
             @Nonnull final AuditedActionsManager auditedActionsManager,
-            @Nonnull final ActionAuditSender actionAuditSender, final int actionPaginationMaxLimit,
-            long realtimeTopologyContextId) {
+            @Nonnull final ActionAuditSender actionAuditSender,
+            @Nonnull final ActionExecutionStore actionExecutionStore,
+            final int actionPaginationMaxLimit,
+            final long realtimeTopologyContextId) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
@@ -203,60 +214,62 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
         this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
+        this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
-    public void acceptAction(SingleActionRequest request,
-                             StreamObserver<AcceptActionResponse> responseObserver) {
-        String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
-        logger.debug("Getting action request from: " + requestUserName);
-        if (!request.hasTopologyContextId()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Missing required "
-                + "parameter TopologyContextId").asException());
-            return;
-        }
-        if (!request.hasActionId()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Missing required "
-                + "parameter ActionId").asException());
-            return;
-        }
+    public void acceptActions(MultiActionRequest request,
+                              StreamObserver<ActionExecution> responseObserver) {
+        final String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
+        logger.debug("Received Accept Actions request from: " + requestUserName);
 
-        final Optional<ActionStore> optionalStore = actionStorehouse.getStore(request.getTopologyContextId());
-        if (!optionalStore.isPresent()) {
-            responseObserver.onError(Status.NOT_FOUND.withDescription(
-                "Unknown topology context: " + request.getTopologyContextId()).asException());
-            return;
-        }
-
-        final ActionStore store = optionalStore.get();
-        final Optional<Action> actionOpt = store.getAction(request.getActionId());
-
-        if (!actionOpt.isPresent()) {
-            responseObserver.onError(Status.NOT_FOUND.withDescription(
-                "Action " + request.getActionId() + " doesn't exist.").asException());
-            return;
-        }
-        final Action action = actionOpt.get();
-
-        // check if the action is manually scheduled and it does not have next occurrence and is
-        // not currently active
-        if (hasExpiredSchedule(action)) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Action " + request.getActionId()
-                + " has execution window " + action.getSchedule().get().getScheduleDisplayName()
-                + " which does not have a next occurrence. Therefore, the action cannot be "
-                + "accepted").asException());
-            return;
-        }
-
-        final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-
-        final AcceptActionResponse response;
         try {
-            response = actionApprovalManager.attemptAndExecute(store,
-                    userNameAndUuid, action);
-            responseObserver.onNext(response);
+            if (!request.hasTopologyContextId()) {
+                throw new ExecutionInitiationException(
+                        "Missing required parameter TopologyContextId", Status.Code.INVALID_ARGUMENT);
+            }
+
+            final long topologyContextId = request.getTopologyContextId();
+            final ActionStore store = actionStorehouse.getStore(topologyContextId)
+                    .orElseThrow(() -> new ExecutionInitiationException(
+                            "Unknown topology context: " + topologyContextId,
+                            Status.Code.NOT_FOUND));
+            final List<Long> actionIds = new ArrayList<>(request.getActionIdsList().size());
+            final List<SkippedAction> skippedActions = new ArrayList<>();
+            for (final long actionId : request.getActionIdsList()) {
+                try {
+                    final Optional<Action> actionOpt = store.getAction(actionId);
+                    if (!actionOpt.isPresent()) {
+                        throw new ExecutionInitiationException("Action " + actionId + " doesn't exist.",
+                                Status.Code.NOT_FOUND);
+                    }
+                    final Action action = actionOpt.get();
+
+                    // check if the action is manually scheduled and it does not have next occurrence and is
+                    // not currently active
+                    if (hasExpiredSchedule(action)) {
+                        throw new ExecutionInitiationException("Action " + actionId
+                                + " has execution window " + action.getSchedule().get().getScheduleDisplayName()
+                                + " which does not have a next occurrence. Therefore, the action cannot be "
+                                + "accepted",
+                                Status.Code.INVALID_ARGUMENT);
+                    }
+
+                    final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
+                    actionApprovalManager.attemptAndExecute(store, userNameAndUuid, action);
+                    actionIds.add(actionId);
+                } catch (ExecutionInitiationException e) {
+                    skippedActions.add(SkippedAction.newBuilder()
+                            .setActionId(actionId)
+                            .setReason(e.getMessage())
+                            .build());
+                    logger.error("Failed to accept action with ID {}", actionId, e);
+                }
+            }
+            responseObserver.onNext(actionExecutionStore.createExecution(
+                    actionIds, skippedActions));
             responseObserver.onCompleted();
         } catch (ExecutionInitiationException e) {
             responseObserver.onError(e.toStatus());
@@ -268,6 +281,32 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             && action.getSchedule().get().getExecutionWindowActionMode() == ActionMode.MANUAL
             && action.getSchedule().get().getScheduleStartTimestamp() == null
             && !action.getSchedule().get().isActiveScheduleNow();
+    }
+
+    @Override
+    public void getActionExecution(ActionExecutionRequest request,
+                                    StreamObserver<ActionExecution> responseObserver) {
+        final long executionId = request.getExecutionId();
+        final Optional<ActionExecution> execution = actionExecutionStore.getActionExecution(
+                executionId);
+        if (execution.isPresent()) {
+            responseObserver.onNext(execution.get());
+            responseObserver.onCompleted();
+        } else {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription("Cannot find action execution with OID: " + executionId)
+                    .asException());
+        }
+    }
+
+    @Override
+    public void getAllActionExecutions(AllActionExecutionsRequest request,
+                                        StreamObserver<AllActionExecutionsResponse> responseObserver) {
+        final AllActionExecutionsResponse response = AllActionExecutionsResponse.newBuilder()
+                .addAllExecutions(actionExecutionStore.getAllActionExecutions())
+                .build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -914,7 +953,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     /**
      *  A helper class for accumulating the stats for each action category.
      */
-    private class ActionCategoryStats {
+    private static class ActionCategoryStats {
 
         private int numActions;
 
