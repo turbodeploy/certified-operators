@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
+import com.vmturbo.api.PlanDestinationNotificationDTO.PlanDestinationNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
@@ -22,6 +23,13 @@ public interface UINotificationChannel {
      * @param notification The notification to send.
      */
     void broadcastMarketNotification(@Nonnull final MarketNotification notification);
+
+    /**
+     * Broadcast a notification related to a plan destination (for plan export).
+     *
+     * @param notification The notification to send.
+     */
+    void broadcastPlanDestinationNotification(@Nonnull final PlanDestinationNotification notification);
 
     /**
      * Broadcast a notification related to actions to the UI.

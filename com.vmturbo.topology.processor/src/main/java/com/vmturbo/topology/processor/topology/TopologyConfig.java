@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.mediation.common.features.PlanExport;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
@@ -31,6 +32,8 @@ import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.planexport.PlanDestinationConfig;
+import com.vmturbo.topology.processor.planexport.PlanExportConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
@@ -65,6 +68,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     WorkflowConfig.class,
     HistoryClientConfig.class,
     CloudCostConfig.class,
+    PlanExportConfig.class,
     OperationConfig.class,
     MatrixConfig.class,
     HistoryAggregationConfig.class,
@@ -122,6 +126,9 @@ public class TopologyConfig {
 
     @Autowired
     private CloudCostConfig cloudCostConfig;
+
+    @Autowired
+    private PlanDestinationConfig planDestinationConfig;
 
     @Autowired
     private TopologyProcessorDBConfig topologyProcessorDBConfig;
@@ -245,6 +252,7 @@ public class TopologyConfig {
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostConfig.discoveredCloudCostUploader(),
+                planDestinationConfig.discoveredPlanDestinationUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
                 environmentTypeInjector(),

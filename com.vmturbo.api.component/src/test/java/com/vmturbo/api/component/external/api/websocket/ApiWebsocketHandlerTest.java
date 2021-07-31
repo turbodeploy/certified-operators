@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.websocket;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -28,6 +30,8 @@ import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
 import com.vmturbo.api.NotificationDTO.Notification;
+import com.vmturbo.api.PlanDestinationNotificationDTO.PlanDestinationNotification;
+import com.vmturbo.api.PlanDestinationNotificationDTO.PlanDestinationStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
@@ -38,6 +42,7 @@ import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.TargetNotificationDTO.TargetsNotification;
+import com.vmturbo.api.component.external.api.service.PlanDestinationService;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
 public class ApiWebsocketHandlerTest {
@@ -74,6 +79,37 @@ public class ApiWebsocketHandlerTest {
         assertEquals("1", notification.getMarketNotification().getMarketId());
         assertEquals(Status.DELETED,
             notification.getMarketNotification().getStatusNotification().getStatus());
+    }
+
+    /**
+     * Test that broadcastPlanDestinationNotification() publishes the notification.
+     *
+     * @throws Exception if the test fails.
+     */
+    @Test
+    public void testBroadcastPlanDestinationNotification() throws Exception {
+        PlanDestinationNotification notification = PlanDestinationNotification.newBuilder()
+            .setPlanDestinationId("42")
+            .setPlanDestinationName("Destinatin name")
+            .setPlanDestinationAccountId("accountId")
+            .setPlanDestinationAccountName("accountName")
+            .setPlanDestinationHasExportedData(true)
+            .setPlanDestinationMarketId("12345")
+            .setPlanDestinationProgressNotification(PlanDestinationStatusNotification.newBuilder()
+                .setStatus(PlanDestinationStatusNotification.Status.IN_PROGRESS)
+                .setProgressPercentage(42)
+                .setDescription("A status description message")
+                .build())
+            .build();
+
+        websocketHandler.broadcastPlanDestinationNotification(notification);
+
+        verify(session).sendMessage(notificationCaptor.capture());
+        final Notification received = Notification.parseFrom(
+            notificationCaptor.getValue().getPayload().array());
+
+        assertTrue(received.hasPlanDestinationNotification());
+        assertEquals(notification, received.getPlanDestinationNotification());
     }
 
     /**

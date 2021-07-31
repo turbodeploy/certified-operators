@@ -36,7 +36,8 @@ public class TopologyProcessorKafkaSender {
                         TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN, TopologyProcessorKafkaSender::generateMessageKey),
                 kafkaMessageProducer.messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC),
                 kafkaMessageProducer.messageSender(TopologyProcessorClient.TOPOLOGY_SUMMARIES),
-                kafkaMessageProducer.messageSender(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE));
+                kafkaMessageProducer.messageSender(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE),
+                kafkaMessageProducer.messageSender(TopologyProcessorClient.PLAN_EXPORT));
     }
 
     /**

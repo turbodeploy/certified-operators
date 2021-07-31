@@ -33,6 +33,7 @@ import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.ExportNotificationDTO.ExportNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.NotificationDTO.Notification;
+import com.vmturbo.api.PlanDestinationNotificationDTO.PlanDestinationNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
@@ -207,6 +208,17 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
                 .setTime(Instant.now().toEpochMilli())
                 .setMarketNotification(Objects.requireNonNull(notification))
                 .build());
+    }
+
+    @Override
+    public void broadcastPlanDestinationNotification(
+        @Nonnull final PlanDestinationNotification notification) {
+        logger_.debug("Broadcasting plan destination notification: {}", notification);
+        broadcastNotification(Notification.newBuilder()
+            .setId(IdentityGenerator.next())
+            .setTime(Instant.now().toEpochMilli())
+            .setPlanDestinationNotification(Objects.requireNonNull(notification))
+            .build());
     }
 
     @Override

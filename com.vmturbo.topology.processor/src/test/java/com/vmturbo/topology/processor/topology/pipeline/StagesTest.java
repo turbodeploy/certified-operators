@@ -96,6 +96,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -131,6 +132,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisiti
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadPlanDestinationsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
@@ -169,6 +171,22 @@ public class StagesTest {
         stage.setContext(context);
         stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups(topology);
+    }
+
+    /**
+     * Verify that UploadPlanDestinationsStage initiates upload of plan destinations.
+     *
+     * @throws PipelineStageException should not happen in this test and indicates a failure.
+     */
+    @Test
+    public void testUploadPlanDestinationsStage() throws PipelineStageException {
+        StitchingContext stitchingContext = mock(StitchingContext.class);
+        final DiscoveredPlanDestinationUploader uploader = mock(DiscoveredPlanDestinationUploader.class);
+        final UploadPlanDestinationsStage stage = new UploadPlanDestinationsStage(uploader);
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        stage.setContext(context);
+        stage.passthrough(stitchingContext);
+        verify(uploader).uploadPlanDestinations(stitchingContext);
     }
 
     /**
