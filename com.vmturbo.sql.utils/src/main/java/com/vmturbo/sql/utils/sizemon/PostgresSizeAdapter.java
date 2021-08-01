@@ -259,7 +259,13 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
         public SizeItem toSizeItem() {
             // if we're a chunk we're at level 1, else we're a top-level item
             final Granularity granularity = chunkName != null ? PARTITION : TABLE;
-            final String desc = (chunkName != null ? chunkName : "Table " + tableName) + ": " + this;
+            // Sometimes total description length is closer to 200 (max DB field size), so as a
+            // workaround replace '15:_hyper_8_104_chunk[2021-07-02...' in chunk name with:
+            // '15:8_104[2021-07-02...'
+            final String shortChunkName = chunkName != null
+                    ? chunkName.replace("_hyper_", "").replace("_chunk", "")
+                    : null;
+            final String desc = (shortChunkName != null ? shortChunkName : "Table " + tableName) + ": " + this;
             return new SizeItem(granularity, size(), desc);
         }
 
@@ -286,7 +292,8 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
             final Long compressedTotalSize = compressedDataSize != null
                     ? compressedDataSize + compressedIndexSize + compressedToastSize
                     : null;
-            return String.format("(%d%s data, %d%s index, %d%s toast, %d%s total, %d rows)",
+            // D: data, I: index, T: toast, S: sum total, R: rows.
+            return String.format("(D: %d%s, I: %d%s, T: %d%s, S: %d%s, R: %d)",
                     dataSize, compression(dataSize, compressedDataSize),
                     indexSize, compression(indexSize, compressedIndexSize),
                     toastSize, compression(toastSize, compressedToastSize),

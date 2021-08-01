@@ -193,6 +193,7 @@ public class DbSizeMonitor {
                 .map(Entry::getValue)
                 .collect(Collectors.toList());
         long runNumber = (System.currentTimeMillis() - offsetMillis) / freqMillis;
+        logger.info("Running {} reports at run #: {}", reports.size(), runNumber);
         reporters.forEach((reporter, frequency) -> {
             if (runNumber % frequency == 0) {
                 reporter.process(reports);
