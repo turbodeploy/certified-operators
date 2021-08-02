@@ -422,6 +422,56 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
     }
 
     /**
+     * testInjectMinThresholdsFromUsageWithUsageFromParentSpec.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageWithUsageFromParentSpec() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+        final CommoditySoldDTO.Builder commForSpec =
+            addCommoditySold(containerSpec, CommodityType.VCPU_VALUE, 80.0, 50.0, true);
+        commForSpec.setThresholds(Thresholds.newBuilder().setMin(71.0));
+
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 80.0, 50.0, true);
+
+        addControlledEntity(container, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        injector.injectMinThresholdsFromUsage(graph);
+
+        assertTrue(comm.hasThresholds());
+        assertEquals(71.0, comm.getThresholds().getMin(), 0);
+    }
+
+    /**
+     * Test that we take the larger of the parent spec and current usage as the min threshold.
+     */
+    @Test
+    public void testInjectMinThresholdsTakesMax() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+        final CommoditySoldDTO.Builder commForSpec =
+            addCommoditySold(containerSpec, CommodityType.VCPU_VALUE, 80.0, 50.0, true);
+        commForSpec.setThresholds(Thresholds.newBuilder().setMin(71.0));
+
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 80.0, 72.0, true);
+
+        addControlledEntity(container, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        injector.injectMinThresholdsFromUsage(graph);
+
+        assertTrue(comm.hasThresholds());
+        assertEquals(72.0, comm.getThresholds().getMin(), 0);
+    }
+
+    /**
      * injectMinThresholdsFromReservationEmpty.
      */
     @Test

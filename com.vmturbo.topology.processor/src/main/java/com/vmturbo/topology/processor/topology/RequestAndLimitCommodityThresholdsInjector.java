@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -187,7 +188,8 @@ public class RequestAndLimitCommodityThresholdsInjector {
      * Inject commodity min threshold as current usage to prevent resizing down limit or request below
      * current usage so as to avoid container running out of memory.
      * <p/>
-     * Update min threshold of individual container as the max current usage from all container replicas.
+     * Update min threshold of individual container as the max current usage from all container replicas
+     * and the min threhsold of the parent ContainerSpec (may have been set by MovingStatisticsEditor).
      *
      * @param entity Given entity whose commodities on which we wish to inject min thresholds from usage.
      * @param stats  For summarizing the changes made. Stats will be incremented depending to indicate
@@ -196,6 +198,16 @@ public class RequestAndLimitCommodityThresholdsInjector {
     private void injectMinThresholdsFromUsage(@Nonnull final TopologyEntity entity,
                                               @Nonnull final InjectionStats stats) {
         final Map<Integer, Double> commodityTypeToMaxUsageMap = new HashMap<>();
+
+        // MovingStatisticsEditor may have already set lower bounds on ContainerSpec commodities that should
+        // also be copied over to their associated Container entities.
+        final Map<Integer, Double> parentSpecMinThresholdMap = entity.getTopologyEntityDtoBuilder()
+            .getCommoditySoldListList()
+            .stream()
+            .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
+            .filter(comm -> comm.hasThresholds() && comm.getThresholds().hasMin())
+            .collect(Collectors.toMap(comm -> comm.getCommodityType().getType(), comm -> comm.getThresholds().getMin()));
+
         entity.getAggregatedAndControlledEntities().forEach(container ->
             container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
                 // Update min thresholds only for limit and request commodities.
@@ -211,11 +223,16 @@ public class RequestAndLimitCommodityThresholdsInjector {
                 .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
                     || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
                 .forEach(comm -> {
-                    double maxUsage = commodityTypeToMaxUsageMap.get(comm.getCommodityType().getType());
+                    double newMinThresholds = commodityTypeToMaxUsageMap.get(comm.getCommodityType().getType());
+                    Double parentThreshold = parentSpecMinThresholdMap.get(comm.getCommodityType().getType());
+                    if (parentThreshold != null) {
+                        newMinThresholds = Math.max(newMinThresholds, parentThreshold);
+                    }
+
                     // If commodity has existing thresholds, update min threshold as the max of existing
                     // min threshold and max commodity usage from all container replicas.
                     if (comm.hasThresholds()) {
-                        double newMinThresholds = Math.max(comm.getThresholds().getMin(), maxUsage);
+                        newMinThresholds = Math.max(comm.getThresholds().getMin(), newMinThresholds);
                         // If commodity max threshold is set, new min threshold cannot be larger than
                         // max threshold.
                         // For example, request commodity max threshold is request capacity. When
@@ -228,7 +245,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
                         }
                         comm.getThresholdsBuilder().setMin(newMinThresholds);
                     } else {
-                        comm.setThresholds(Thresholds.newBuilder().setMin(maxUsage));
+                        comm.setThresholds(Thresholds.newBuilder().setMin(newMinThresholds));
                     }
                     stats.incrementCommoditiesModified();
                 });
