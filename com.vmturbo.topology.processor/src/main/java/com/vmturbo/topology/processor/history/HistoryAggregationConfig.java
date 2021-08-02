@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.history;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -30,6 +32,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
+import com.vmturbo.topology.processor.history.movingstats.MovingStatisticsEditor;
+import com.vmturbo.topology.processor.history.movingstats.MovingStatisticsHistoricalEditorConfig;
+import com.vmturbo.topology.processor.history.movingstats.MovingStatisticsPersistenceTask;
+import com.vmturbo.topology.processor.history.movingstats.MovingStatisticsSamplingConfiguration.ThrottlingSamplerConfiguration;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTask;
@@ -96,6 +102,24 @@ public class HistoryAggregationConfig {
 
     @Value("${enableExpiredOidFiltering:false}")
     private boolean enableExpiredOidFiltering;
+
+    @Value("${historyAggregation.movingStatisticsEnabled:false}")
+    private boolean movingStatisticsEnabled;
+
+    @Value("${historyAggregation.throttlingFastHalflifeHours:6}")
+    private long throttlingFastHalflifeHours;
+
+    @Value("${historyAggregation.throttlingSlowHalflifeHours:72}")
+    private long throttlingSlowHalflifeHours;
+
+    @Value("${historyAggregation.throttlingRetentionPeriodDays:90}")
+    private long throttlingRetentionPeriodDays;
+
+    @Value("${historyAggregation.throttlingAnalysisStandardDeviationsAbove:2.0}")
+    private double throttlingAnalysisStandardDeviationsAbove;
+
+    @Value("${historyAggregation.throttlingDesiredStateTargetPercentage:3.5}")
+    private double throttlingDesiredStateTargetPercentage;
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
@@ -197,7 +221,8 @@ public class HistoryAggregationConfig {
         @SuppressWarnings("unchecked")
         final E result = (E)new PercentileEditor(percentileEditorConfig(),
                         nonBlockingHistoryClient(), historyClient(), clockConfig.clock(),
-            (statsHistoryClient, range) -> new PercentilePersistenceTask(statsHistoryClient, range, enableExpiredOidFiltering), systemNotificationProducer,
+            (statsHistoryClient, range) -> new PercentilePersistenceTask(statsHistoryClient, clockConfig.clock(),
+                range, enableExpiredOidFiltering), systemNotificationProducer,
             identityProviderConfig.identityProvider(), enableExpiredOidFiltering);
         return result;
     }
@@ -209,7 +234,7 @@ public class HistoryAggregationConfig {
      */
     @Nonnull
     public Collection<BinaryDiagsRestorable> statefulEditors() {
-        return Arrays.asList(percentileHistoryEditor(), timeslotHistoryEditor());
+        return Arrays.asList(percentileHistoryEditor(), timeslotHistoryEditor(), movingStatisticsHistoryEditor());
     }
 
     /**
@@ -236,6 +261,50 @@ public class HistoryAggregationConfig {
     }
 
     /**
+     * Sampling configuration for throttling moving statistics.
+     *
+     * @return The sampling configuration for throttling moving statistics.
+     */
+    @Bean
+    public ThrottlingSamplerConfiguration throttlingSamplingConfiguration() {
+        return new ThrottlingSamplerConfiguration(Duration.ofHours(throttlingFastHalflifeHours),
+            Duration.ofHours(throttlingSlowHalflifeHours),
+            Duration.ofDays(throttlingRetentionPeriodDays),
+            throttlingAnalysisStandardDeviationsAbove,
+            throttlingDesiredStateTargetPercentage);
+    }
+
+    /**
+     * Moving statistics commodities editor.
+     *
+     * @return the moving statistics commodities editor.
+     */
+    @Bean
+    public MovingStatisticsHistoricalEditorConfig movingStatisticsHistoricalEditorConfig() {
+        return new MovingStatisticsHistoricalEditorConfig(
+            Collections.singletonList(throttlingSamplingConfiguration()),
+            historyAggregationLoadingChunkSize, historyAggregationCalculationChunkSize, realtimeTopologyContextId,
+            clockConfig.clock(), kvConfig, grpcStreamTimeoutSec, blobReadWriteChunkSizeKb);
+    }
+
+    /**
+     * Percentile commodities history editor.
+     *
+     * @param <E> type of the editor that is going to be created.
+     * @return percentile editor bean
+     */
+    @Bean
+    public <E extends IHistoricalEditor<?> & BinaryDiagsRestorable> E movingStatisticsHistoryEditor() {
+        @SuppressWarnings("unchecked")
+        final E result = (E)new MovingStatisticsEditor(movingStatisticsHistoricalEditorConfig(),
+            nonBlockingHistoryClient(), (statsHistoryClient, range) ->
+                new MovingStatisticsPersistenceTask(statsHistoryClient, clockConfig.clock(), range,
+                        enableExpiredOidFiltering, movingStatisticsHistoricalEditorConfig()),
+                clockConfig.clock(), systemNotificationProducer, identityProviderConfig.identityProvider());
+        return result;
+    }
+
+    /**
      * Historical values aggregation topology pipeline stage.
      *
      * @return pipeline stage bean
@@ -248,6 +317,9 @@ public class HistoryAggregationConfig {
         }
         if (timeslotEnabled) {
             editors.add(timeslotHistoryEditor());
+        }
+        if (movingStatisticsEnabled) {
+            editors.add(movingStatisticsHistoryEditor());
         }
         return new HistoryAggregator(historyAggregationThreadPool(), ImmutableSet.copyOf(editors));
     }

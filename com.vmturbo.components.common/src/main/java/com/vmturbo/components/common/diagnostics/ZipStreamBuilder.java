@@ -45,6 +45,32 @@ public class ZipStreamBuilder {
     }
 
     /**
+     * Get the backing bytes behind the zipStream. Also closes the backing zip stream.
+     *
+     * @return the backing bytes for the zip stream.
+     * @throws IOException If the zipStream throws an exception.
+     */
+    public byte[] getBytes() throws IOException {
+        zipStream.close();
+        return byteStream.toByteArray();
+    }
+
+    /**
+     * Add a file by contents to the zip stream.
+     *
+     * @param name The name of the file.
+     * @param content The file contents.
+     * @return ZipStreamBuilder the builder
+     * @throws IOException if an error occurs
+     */
+    public ZipStreamBuilder withFile(String name, byte[] content) throws IOException {
+        zipStream.putNextEntry(new ZipEntry(name));
+        zipStream.write(content);
+        zipStream.closeEntry();
+        return this;
+    }
+
+    /**
      * Add a binary file to the builder.
      *
      * @param name the name of the file
@@ -56,13 +82,6 @@ public class ZipStreamBuilder {
         return withFile(name, intsToBytes(values));
     }
 
-    private ZipStreamBuilder withFile(String name, byte[] content) throws IOException {
-        zipStream.putNextEntry(new ZipEntry(name));
-        zipStream.write(content);
-        zipStream.closeEntry();
-        return this;
-    }
-
     ZipStreamBuilder withDirectory(String name) throws IOException {
         zipStream.putNextEntry(new ZipEntry(name + "/"));
         return this;
@@ -72,11 +91,6 @@ public class ZipStreamBuilder {
         zipStream.putNextEntry(new ZipEntry(name));
         zipStream.write(embedded.getBytes());
         return this;
-    }
-
-    private byte[] getBytes() throws IOException {
-        zipStream.close();
-        return byteStream.toByteArray();
     }
 
     /**

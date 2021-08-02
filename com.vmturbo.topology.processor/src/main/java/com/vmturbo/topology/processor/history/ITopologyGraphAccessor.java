@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -64,10 +65,31 @@ public interface ITopologyGraphAccessor {
             @Nonnull Consumer<Builder> setter, @Nonnull String description);
 
     /**
+     * Change the thresholds on a commodity. Can only be successfully
+     * applied to sold commodities. Thresholds affect commodity
+     * capacity upper/lower bounds in the market.
+     *
+     * @param commRef The commodity whose thresholds should be updated.
+     * @param setter The setter for updating the thresholds.
+     * @param description updating source, for gathering statistics
+     */
+    void updateThresholds(@Nonnull EntityCommodityReference commRef,
+                          @Nonnull Consumer<Thresholds.Builder> setter, @Nonnull String description);
+
+    /**
      * How many times updateHistoryValue was called so far with a given description.
      *
      * @param description caller identifier
      * @return non-negative count
      */
     int getUpdateCount(@Nonnull String description);
+
+    /**
+     * Get the time the associated entity was last updated.
+     *
+     * @param commRef commodityReference
+     * @return the time the associated entity was last updated, null if unavailable.
+     */
+    @Nullable
+    Long getLastUpdatedTime(@Nonnull EntityCommodityReference commRef);
 }

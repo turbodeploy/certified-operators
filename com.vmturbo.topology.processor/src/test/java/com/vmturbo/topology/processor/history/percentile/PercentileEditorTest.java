@@ -30,6 +30,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -39,17 +42,16 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
@@ -61,11 +63,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.utils.ThrowingFunction;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -77,6 +79,7 @@ import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor.CacheBackup;
+import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEditorTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -109,7 +112,8 @@ public class PercentileEditorTest extends PercentileBaseTest {
     private static final int MAINTENANCE_WINDOW_HOURS = 12;
     private static final long MAINTENANCE_WINDOW_MS = TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
     private static final String PERCENTILE_BUCKETS_SPEC = "0,1,5,99,100";
-    private static final KVConfig KV_CONFIG = createKvConfig();
+    private static final KVConfig KV_CONFIG = BlobPersistingCachingHistoricalEditorTest.createKvConfig(
+        PercentileHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY);
     private static final PercentileHistoricalEditorConfig PERCENTILE_HISTORICAL_EDITOR_CONFIG =
                     new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 777777L, 10,
                                     100,
@@ -162,18 +166,23 @@ public class PercentileEditorTest extends PercentileBaseTest {
      */
     @Before
     public void setUp() throws IOException, IdentityUninitializedException {
+        history = Mockito.spy(new StatsHistoryServiceMole());
+        grpcServer = GrpcTestServer.newServer(history);
+        grpcServer.start();
+
         setUpTopology();
         LongSet oidsInIdentityCache = new LongOpenHashSet();
         oidsInIdentityCache.addAll(Arrays.asList(VIRTUAL_MACHINE_OID, VIRTUAL_MACHINE_OID_2,
             BUSINESS_USER_OID, BUSINESS_USER_OID_2,
             DATABASE_SERVER_OID, CONTAINER_OID, CONTAINER_POD_OID, DESKTOP_POOL_PROVIDER_OID));
         percentilePersistenceTasks = new ArrayList<>();
+        final StatsHistoryServiceStub mockStatsHistoryClient = StatsHistoryServiceGrpc.newStub(grpcServer.getChannel());
         percentileEditor =
-                        new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG, null,
+                        new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG, mockStatsHistoryClient,
                                         setUpBlockingStub(MAINTENANCE_WINDOW_HOURS),
                                         clock, (service, range) -> {
                             final PercentileTaskStub result =
-                                            Mockito.spy(new PercentileTaskStub(service, range));
+                                            Mockito.spy(new PercentileTaskStub(service, clock, range));
                             percentilePersistenceTasks.add(result);
                             return result;
                         }, identityProvider);
@@ -625,11 +634,12 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                 PERCENTILE_BUCKETS_SPEC), KV_CONFIG,
                         Clock.systemUTC());
         final long firstCheckpoint = TIMESTAMP_AUG_28_2019_12_00;
-        percentileEditor = new PercentileEditorCacheAccess(config, null,
+        final StatsHistoryServiceStub mockStatsHistoryClient = StatsHistoryServiceGrpc.newStub(grpcServer.getChannel());
+        percentileEditor = new PercentileEditorCacheAccess(config, mockStatsHistoryClient,
                     setUpBlockingStub(MAINTENANCE_WINDOW_HOURS),
                     clock, (service, range) -> {
             final PercentileTaskStub result =
-                    Mockito.spy(new PercentileTaskStub(service, range));
+                    Mockito.spy(new PercentileTaskStub(service, clock, range));
             if (percentilePersistenceTasks.isEmpty() && range.getFirst() == 0) {
                 Mockito.when(result.getLastCheckpointMs()).thenReturn(firstCheckpoint);
             }
@@ -1160,7 +1170,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         // First initializing history from db.
         percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
                         false), Collections.emptyList());
-        createKvConfig();
+        BlobPersistingCachingHistoricalEditorTest.createKvConfig(PercentileHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY);
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             percentileEditor.collectDiags(output);
             percentileEditor.restoreDiags(output.toByteArray(), null);
@@ -1196,7 +1206,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         // First initializing history from db
         percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
             false), Collections.emptyList());
-        createKvConfig();
+        BlobPersistingCachingHistoricalEditorTest.createKvConfig(PercentileHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY);
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             percentileEditor.collectDiags(output);
             final Iterable<Diags> diagsReader = new DiagsZipReader(
@@ -1224,20 +1234,6 @@ public class PercentileEditorTest extends PercentileBaseTest {
         throws IOException {
         final PercentileCounts counts = parser.apply(diags);
         Assert.assertEquals(expectedCount, counts.getPercentileRecordsList().size());
-    }
-
-    private static KVConfig createKvConfig() {
-        final KVConfig result = Mockito.mock(KVConfig.class);
-        final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
-        Mockito.when(result.keyValueStore()).thenReturn(kvStore);
-        Mockito.when(kvStore.get(Mockito.any())).thenAnswer(invocation -> {
-            final String parameter = invocation.getArgumentAt(0, String.class);
-            if (parameter.equals(PercentileHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)) {
-                return Optional.of("true");
-            }
-            return Optional.empty();
-        });
-        return result;
     }
 
     /**
@@ -1424,8 +1420,8 @@ public class PercentileEditorTest extends PercentileBaseTest {
             }
         }
 
-        PercentileTaskStub(StatsHistoryServiceStub unused, Pair<Long, Long> range) {
-            super(unused, range, false);
+        PercentileTaskStub(StatsHistoryServiceStub unused, @Nonnull  Clock clock, Pair<Long, Long> range) {
+            super(unused, clock, range, false);
             currentUtilization = new HashMap<>(DEFAULT_UTILISATION);
             PercentileRecord virtualMachinePercentileRecord = PercentileRecord.newBuilder()
                             .setEntityOid(VIRTUAL_MACHINE_OID)

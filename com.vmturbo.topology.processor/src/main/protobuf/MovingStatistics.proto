@@ -1,0 +1,76 @@
+syntax = "proto2";
+package com.vmturbo.topology.processor;
+
+option java_package = "com.vmturbo.topology.processor.history.moving.statistics";
+option java_outer_classname = "MovingStatisticsDto";
+
+// Internal representation of moving statistics data record. These records
+// are chunked together. We keep a moving average and variance (the variance
+// is used to compute a standard deviation).
+//
+// We maintain multiple moving statistics (usually a fast and a slow) in order to balance
+// the need to quickly respond to sudden spikes in utilization (via the faster statistics)
+// against the need to remember any past spikes in demand for a fairly long
+// period of time (via the slow statistics).
+message MovingStatistics {
+    // Per-statistic sampler records.
+    repeated MovingStatisticsRecord statistic_records = 1;
+
+    // Moving average of commodity statistics for a given entity. If an entity has more
+    // than one commodity, all its commodity records will be bundled together in an
+    // entity record.
+    message MovingStatisticsRecord {
+        // Entity oid.
+        optional int64 entity_oid = 1;
+
+        // Records for different moving statistics sampling types
+        oneof MovingStatisticsSamplerData {
+            ThrottlingMovingStatisticsRecord throttling_record = 10;
+        }
+
+        // Throttling moving statistics data
+        message ThrottlingMovingStatisticsRecord {
+            // We may have statistics for multiple capacities
+            repeated ThrottlingCapacityMovingStatistics capacity_records = 1;
+
+            // The vcpu capacity for the last known active size for the entity, if there is one.
+            optional double active_vcpu_capacity = 2;
+        }
+
+        // The VCPU or VCPU_THROTTLING statistics recorded when an entity was
+        // sized to a particular VCPU capacity
+        message ThrottlingCapacityMovingStatistics {
+            // The VCPU capacity at which these statistics were recorded.
+            optional double vcpu_capacity = 1;
+
+            // The timestamp at which we last recorded a sample that was accumulated into the statistics.
+            optional int64 last_sample_timestamp = 2;
+
+            // The number of samples recorded at this VCPU capacity
+            optional int32 sample_count = 3;
+
+            // Statistics for the VCPU commodity
+            optional ThrottlingCommodityMovingStatistics vcpu_statistics = 4;
+
+            // Statistics for the VCPU throttling commodity
+            optional ThrottlingCommodityMovingStatistics throttling_statistics = 5;
+        }
+
+        message ThrottlingCommodityMovingStatistics {
+            // The maximum value for any sample for this commodity
+            optional double max_sample = 1;
+
+            // The moving average sampled at the shorter halflife
+            optional double fast_moving_average = 2;
+
+            // The moving variance sampled at the shorter halflife
+            optional double fast_moving_variance = 3;
+
+            // The moving average sampled at the longer halflife
+            optional double slow_moving_average = 4;
+
+            // The moving variance sampled at the longer halflife
+            optional double slow_moving_variance = 5;
+        }
+    }
+}

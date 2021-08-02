@@ -149,4 +149,12 @@ public class PercentileCommodityData
     public UtilizationCountStore getUtilizationCountStore() {
         return utilizationCounts;
     }
+
+    public PercentileRecord.Builder getFullCountsRecord() {
+        return utilizationCounts.getFullCountsRecord();
+    }
+
+    public PercentileRecord.Builder getLatestCountsRecord() {
+        return utilizationCounts.getLatestCountsRecord();
+    }
 }

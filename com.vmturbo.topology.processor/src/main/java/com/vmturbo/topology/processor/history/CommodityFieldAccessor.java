@@ -17,8 +17,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -160,8 +162,36 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     }
 
     @Override
+    public void updateThresholds(@Nonnull EntityCommodityReference commRef,
+                                 @Nonnull Consumer<Thresholds.Builder> setter,
+                                 @Nonnull String description) {
+        if (commRef.getProviderOid() == null) {
+            Optional<CommoditySoldDTO.Builder> soldBuilder =
+                                           getCommodityBuilder(soldBuilders, commRef,
+                                                               SOLD_BUILDER_EXTRACTOR);
+            applyIfPresent(soldBuilder
+                               .map(b -> soldBuilder.get().getThresholdsBuilder())
+                               .orElse(null),
+                           setter);
+
+            updateStatistics.compute(description, (desc, count) -> count == null ? 0 : ++count);
+        } else {
+            logger.error("Unable to set thresholds on bought commodity field reference {}", commRef);
+        }
+    }
+
+    @Override
     public int getUpdateCount(@Nonnull String description) {
         return updateStatistics.getOrDefault(description, 0);
+    }
+
+    @Nullable
+    @Override
+    public Long getLastUpdatedTime(@Nonnull EntityCommodityReference commRef) {
+        return graph.getEntity(commRef.getEntityOid())
+            .flatMap(TopologyEntity::getDiscoveryOrigin)
+            .map(DiscoveryOrigin::getLastUpdatedTime)
+            .orElse(null);
     }
 
     private static <T> void applyIfPresent(@Nullable T arg, @Nonnull Consumer<T> valueSetter) {
@@ -217,5 +247,4 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
         }
         //TODO:implementation for BusinessUser use-case.
     }
-
 }
