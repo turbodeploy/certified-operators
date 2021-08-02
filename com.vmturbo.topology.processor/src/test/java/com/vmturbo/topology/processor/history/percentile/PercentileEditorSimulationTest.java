@@ -42,10 +42,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -130,6 +133,10 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
      */
     @Before
     public void setup() throws IOException, IdentityUninitializedException {
+        history = Mockito.spy(new StatsHistoryServiceMole());
+        grpcServer = GrpcTestServer.newServer(history);
+        grpcServer.start();
+
         final KVConfig kvConfig = createKvConfig(new HashMap<>());
         // Mock time
         currentTime = PERIOD_START_TIMESTAMP;
@@ -141,9 +148,10 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         identityProvider = Mockito.mock(IdentityProvider.class);
         Function<GetTimestampsRangeRequest, List<Long>> stampsGetter =
                         (req) -> Lists.newArrayList(persistenceTable.keySet());
-        percentileEditor = new PercentileEditor(config, null,
+        final StatsHistoryServiceStub mockStatsHistoryClient = StatsHistoryServiceGrpc.newStub(grpcServer.getChannel());
+        percentileEditor = new PercentileEditor(config, mockStatsHistoryClient,
                         setUpBlockingStub(stampsGetter), clock,
-                        (service, range) -> new PercentileTaskStub(service, range, persistenceTable,
+                        (service, range) -> new PercentileTaskStub(service, clock, range, persistenceTable,
                                         (checkpoint) -> {
                                             checkpointTime = checkpoint;
                                         }), Mockito.mock(SystemNotificationProducer.class), identityProvider, false);
@@ -421,16 +429,18 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
          * Construct the task to load percentile data for the 'full window' from the persistent store.
          *
          * @param statsHistoryClient persistent store grpc interface
+         * @param clock              The clock for timing
          * @param range              range from start timestamp till end timestamp for which we need
          * @param persistenceTable   the table that we keep the persisted percentile info based
          *                           on timestamp.
          * @param checkpointSetter   consumer to update the latest checkpoint moment
          */
         PercentileTaskStub(@Nonnull StatsHistoryServiceGrpc.StatsHistoryServiceStub statsHistoryClient,
+                           @Nonnull Clock clock,
                            @Nonnull Pair<Long, Long> range,
                            @Nonnull Map<Long, PercentileCounts> persistenceTable,
                            @Nonnull Consumer<Long> checkpointSetter) {
-            super(statsHistoryClient, range, false);
+            super(statsHistoryClient, clock, range, false);
             this.persistenceTable = persistenceTable;
             this.checkpointSetter = checkpointSetter;
         }

@@ -1669,6 +1669,11 @@ message HistoricalValues {
 
     // Nth percentile of utilizations across specified observation window.
     optional double percentile = 4;
+
+    // A combination of the moving mean and moving standard deviation of
+    // the usage. A common value might be something like:
+    // mean + 2 * std_deviation.
+    optional double moving_mean_plus_standard_deviations = 5;
 }
 
 // Represents a collection of utilization data points.

@@ -17,13 +17,14 @@ import com.vmturbo.components.common.setting.PercentileSettingSpecs;
 import com.vmturbo.components.common.setting.PercentileSettingSpecs.EntityTypePercentileSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.KVConfig;
+import com.vmturbo.topology.processor.history.AbstractBlobsHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
 /**
  * Configuration parameters for percentile commodity editor.
  */
-public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorConfig {
+public class PercentileHistoricalEditorConfig extends AbstractBlobsHistoricalEditorConfig {
     /**
      * Default value how often to checkpoint observation window.
      */
@@ -46,8 +47,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
 
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
-    private final int grpcStreamTimeoutSec;
-    private final int blobReadWriteChunkSizeKb;
 
 
     /**
@@ -66,7 +65,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                     int blobReadWriteChunkSizeKb,
                     @Nonnull Map<CommodityType, String> commType2Buckets,
                     @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
-        super(0, calculationChunkSize, realtimeTopologyContextId, clock, kvConfig);
+        super(0, calculationChunkSize, realtimeTopologyContextId, clock, kvConfig,
+                grpcStreamTimeoutSec, blobReadWriteChunkSizeKb);
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
@@ -74,8 +74,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         .min(maintenanceWindowHours <= 0 ? DEFAULT_MAINTENANCE_WINDOW_HOURS
                                         : maintenanceWindowHours,
                              minMaxObservationPeriod * 24);
-        this.grpcStreamTimeoutSec = grpcStreamTimeoutSec;
-        this.blobReadWriteChunkSizeKb = blobReadWriteChunkSizeKb;
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
     }
@@ -133,24 +131,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     public int getMinObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
         return getNumberSetting(context, oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
                 getDefaultMinObservationPeriod()).intValue();
-    }
-
-    /**
-     * Get the stream read/write operations timeout.
-     *
-     * @return timeout in seconds
-     */
-    public int getGrpcStreamTimeoutSec() {
-        return grpcStreamTimeoutSec;
-    }
-
-    /**
-     * Get the size of chunks for reading and writing from persistent store.
-     *
-     * @return chunk size
-     */
-    public int getBlobReadWriteChunkSizeKb() {
-        return blobReadWriteChunkSizeKb;
     }
 
     private static int getDefaultAggressiveness() {

@@ -31,7 +31,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.stub.AbstractStub;
-import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -241,7 +240,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                                   @Nonnull List<EntityCommodityReference> commodityRefs) {
         // calculate only fields for commodities present in the cache
         List<EntityCommodityFieldReference> cachedFields = commodityRefs.stream()
-            .flatMap(commRef -> Arrays.stream(CommodityField.values())
+            .flatMap(commRef -> commodityFieldsForCalculationTasks()
                 .map(field -> {
                     final EntityCommodityFieldReference fieldReference =
                         new EntityCommodityFieldReference(commRef, field);
@@ -323,6 +322,16 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                             return true;
                         })
                         .collect(Collectors.toList());
+    }
+
+    /**
+     * Fetch which commodity fields (ie used, peak, or both) for which the editor needs calculation tasks.
+     *
+     * @return The commodity fields for which the editor needs calculation tasks.
+     */
+    @Nonnull
+    protected Stream<CommodityField> commodityFieldsForCalculationTasks() {
+        return Arrays.stream(CommodityField.values());
     }
 
     /**

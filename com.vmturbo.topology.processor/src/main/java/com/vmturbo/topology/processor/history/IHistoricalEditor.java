@@ -106,6 +106,9 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * This should be initialized when the stage begins.
      * Also editor may have to access persistent store in a single-threaded way.
      *
+     * this call loads percentile blobs (percentile) synchronously during first broadcast
+     * timeslot loads in the background and may skip the first one or two broadcasts
+     *
      * @param context invocation context i.e current graph
      * @param eligibleComms relevant commodities in the current topology
      * @throws HistoryCalculationException when initialization fails

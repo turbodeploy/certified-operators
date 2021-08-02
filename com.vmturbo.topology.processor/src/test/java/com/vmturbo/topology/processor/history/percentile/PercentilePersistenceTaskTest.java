@@ -63,9 +63,10 @@ public class PercentilePersistenceTaskTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private static final int chunkSizeKb = 102;
+    private static final Clock clock = Clock.systemUTC();
     private static final PercentileHistoricalEditorConfig config =
                     new PercentileHistoricalEditorConfig(10, 18, 777777L, 10, chunkSizeKb,
-                                    Collections.emptyMap(), null, Clock.systemUTC());
+                                    Collections.emptyMap(), null, clock);
     private static final long oid1 = 1;
     private static final long oid2 = 2;
     private static final long oid3 = 3;
@@ -142,7 +143,7 @@ public class PercentilePersistenceTaskTest {
         final LongSet oidsToUse = new LongOpenHashSet();
         oidsToUse.addAll(Arrays.asList(oid1, oid2, oid3));
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, true);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, true);
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
                         .load(Collections.emptyList(), config, oidsToUse);
         Assert.assertNotNull(comms);
@@ -201,7 +202,7 @@ public class PercentilePersistenceTaskTest {
         final LongSet oidsToUse = new LongOpenHashSet();
         oidsToUse.addAll(Arrays.asList(oid1, oid2));
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-            StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, true);
+            StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, true);
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
             .load(Collections.emptyList(), config, oidsToUse);
         Assert.assertNotNull(comms);
@@ -233,7 +234,7 @@ public class PercentilePersistenceTaskTest {
                 .getPercentileCounts(Mockito.any(), Mockito.any());
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to load");
         task.load(Collections.emptyList(), config, null);
@@ -266,7 +267,7 @@ public class PercentilePersistenceTaskTest {
                                                                             Mockito.any());
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to deserialize");
         task.load(Collections.emptyList(), config, null);
@@ -296,7 +297,7 @@ public class PercentilePersistenceTaskTest {
                 .setPercentileCounts(Mockito.any(StreamObserver.class));
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         task.save(counts, periodMs, config);
         Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
     }
@@ -332,10 +333,10 @@ public class PercentilePersistenceTaskTest {
         }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                        StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                        StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         final PercentileCounts counts = PercentileCounts.newBuilder().build();
         expectedException.expect(HistoryCalculationException.class);
-        expectedException.expectMessage("Failed to persist percentile data for");
+        expectedException.expectMessage("Failed to persist PercentilePersistenceTask data for");
         expectedException.expectCause(CoreMatchers
                         .allOf(CoreMatchers.instanceOf(StatusRuntimeException.class),
                                         Matchers.hasProperty("message",
@@ -368,7 +369,7 @@ public class PercentilePersistenceTaskTest {
         }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
         PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         final PercentileCounts counts = PercentileCounts.newBuilder().build();
         task.save(counts, 0, config);
 
@@ -380,12 +381,12 @@ public class PercentilePersistenceTaskTest {
     }
 
     /**
-     * Test that  {@link PercentilePersistenceTask#PercentilePersistenceTask(StatsHistoryServiceStub)} creates a task that will load/save total value in DB.
+     * Test that  {@link PercentilePersistenceTask#PercentilePersistenceTask(StatsHistoryServiceStub, Clock, Pair, boolean)} creates a task that will load/save total value in DB.
      */
     @Test
     public void testDefaultConstructor() {
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
-                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE, false);
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         Assert.assertEquals(PercentilePersistenceTask.TOTAL_TIMESTAMP, task.getStartTimestamp());
     }
 

@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
  * - percentile
  * - time slot (several values)
  * - system load
+ * - moving statistics
  * Covers the following aspects:
  * - most (not all) aggregations will have a state between pipeline invocations -
  *   they cache intermediate pre-calculated data and must perform initial loading of

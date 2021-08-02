@@ -1,13 +1,10 @@
 package com.vmturbo.topology.processor.history.percentile;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,8 +16,6 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -32,13 +27,10 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,8 +38,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -55,25 +45,18 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
-import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
-import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor;
-import com.vmturbo.topology.processor.history.CommodityField;
+import com.vmturbo.topology.processor.history.BlobPersistingCachingHistoricalEditor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
@@ -82,19 +65,19 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 
 /**
  * Calculate and provide percentile historical value for topology commodities.
  */
 public class PercentileEditor extends
-                AbstractCachingHistoricalEditor<PercentileCommodityData,
+    BlobPersistingCachingHistoricalEditor<PercentileCommodityData,
                     PercentilePersistenceTask,
                     PercentileHistoricalEditorConfig,
                     PercentileRecord,
                     StatsHistoryServiceStub,
-                    PercentileRecord.Builder> {
+                    PercentileRecord.Builder,
+                    PercentileCounts.Builder> {
     private static final Logger logger = LogManager.getLogger();
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
@@ -146,10 +129,7 @@ public class PercentileEditor extends
     private static final String FAILED_TO_LOAD_LATEST_BLOB_MESSAGE =
                     "Failed to load percentile latest window data, proceeding with empty";
 
-    private final Clock clock;
     private final StatsHistoryServiceBlockingStub statsHistoryBlockingClient;
-    private final SystemNotificationProducer systemNotificationProducer;
-    private final IdentityProvider identityProvider;
     private final boolean enableExpiredOidFiltering;
 
     private boolean historyInitialized;
@@ -194,11 +174,9 @@ public class PercentileEditor extends
                             @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator,
                             @Nonnull SystemNotificationProducer systemNotificationProducer,
                             @Nonnull IdentityProvider identityProvider, boolean enableExpiredOidFiltering) {
-        super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
-        this.clock = clock;
+        super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new,
+                clock, systemNotificationProducer, identityProvider);
         this.statsHistoryBlockingClient = statsHistoryBlockingClient;
-        this.systemNotificationProducer = systemNotificationProducer;
-        this.identityProvider = identityProvider;
         this.enableExpiredOidFiltering = enableExpiredOidFiltering;
     }
 
@@ -273,19 +251,19 @@ public class PercentileEditor extends
                             @Nonnull List<EntityCommodityReference> eligibleComms)
                     throws HistoryCalculationException, InterruptedException {
         super.initContext(context, eligibleComms);
+
+        // will be required for initial loading, maintenance, observation period change check
         final boolean isRealtime = !context.isPlan();
         if (isRealtime) {
             entitiesToReassemble.clear();
         }
-        initializeCacheValues(context, eligibleComms);
-        // will be required for initial loading, maintenance, observation period change check
         if (isRealtime || !historyInitialized) {
             entity2period = getEntityToPeriod(context);
         }
 
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
 
-            LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache(identityProvider);
+            LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache();
             // read the latest and full window blobs if haven't yet, set into cache
             loadPersistedData(context, latestTimestamp -> {
                 // latest
@@ -324,38 +302,12 @@ public class PercentileEditor extends
         // We don't need to clean up cache for percentile
     }
 
-    private LongSet getCurrentOidsInInIdentityCache(@Nonnull final IdentityProvider identityProvider) throws HistoryCalculationException {
-        try {
-            return identityProvider.getCurrentOidsInIdentityCache();
-        } catch (IdentityUninitializedException e) {
-            throw new HistoryCalculationException("Could not get existing oids from the " +
-                "identity cache", e);
-        }
-    }
-
-    private void initializeCacheValues(@Nonnull HistoryAggregationContext context,
-                    @Nonnull Collection<? extends EntityCommodityReference> commodityRefs) {
-        // percentile data will be loaded in a single-threaded way into blobs (not chunked)
-        // initialize cache values for entries from topology
-        // in order to get the percentiles for them calculated as well if they do not get read
-        commodityRefs.forEach(commRef -> {
-            EntityCommodityFieldReference field =
-                (new EntityCommodityFieldReference(commRef, CommodityField.USED))
-                    .getLiveTopologyFieldReference(context);
-            getCache().computeIfAbsent(field, fieldRef -> {
-                PercentileCommodityData data = historyDataCreator.get();
-                data.init(field, null, getConfig(), context);
-                return data;
-            });
-        });
-    }
-
     @Override
     public synchronized void completeBroadcast(@Nonnull HistoryAggregationContext context)
                     throws HistoryCalculationException, InterruptedException {
         super.completeBroadcast(context);
         if (!context.isPlan() && historyInitialized) {
-            final long potentialNewCheckpoint = clock.millis();
+            final long potentialNewCheckpoint = getClock().millis();
 
             // clean up the empty entries
             int entriesBefore = getCache().size();
@@ -376,7 +328,7 @@ public class PercentileEditor extends
               as full record.
              */
             persistBlob(lastCheckpointMs, getMaintenanceWindowInMs(),
-                            UtilizationCountStore::getLatestCountsRecord);
+                            PercentileCommodityData::getLatestCountsRecord);
             final boolean maintenanceRequired = shouldRegularMaintenanceHappen(potentialNewCheckpoint);
             if (!maintenanceRequired) {
                 logger.trace("Percentile cache checkpoint skipped - not enough time passed since last checkpoint "
@@ -420,7 +372,7 @@ public class PercentileEditor extends
                     throws InterruptedException {
         try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
             if (enableExpiredOidFiltering) {
-                expireStaleOidsFromCache(identityProvider);
+                expireStaleOidsFromCache();
             }
             final PercentileCounts.Builder full =
                             createFullForPersistence(potentialNewCheckpoint, reassembleRequired,
@@ -428,7 +380,7 @@ public class PercentileEditor extends
             if (full != null) {
                 writeBlob(full, potentialNewCheckpoint, PercentilePersistenceTask.TOTAL_TIMESTAMP);
                 persistBlob(potentialNewCheckpoint, getMaintenanceWindowInMs(),
-                                UtilizationCountStore::getLatestCountsRecord);
+                    PercentileCommodityData::getLatestCountsRecord);
                 logger.info("Last percentile checkpoint is going to be changed from {} to {}.",
                                 Instant.ofEpochMilli(lastCheckpointMs),
                                 Instant.ofEpochMilli(potentialNewCheckpoint));
@@ -446,7 +398,7 @@ public class PercentileEditor extends
                             String.format("%s failed for '%s' checkpoint, last checkpoint was at '%s'",
                                             operation, Instant.ofEpochMilli(potentialNewCheckpoint),
                                             Instant.ofEpochMilli(lastCheckpointMs));
-            sendNotification(message, Severity.CRITICAL);
+            sendNotification(NOTIFICATION_EVENT, message, Severity.CRITICAL);
             logger.error(message, ex);
         } finally {
             entitiesToReassemble.clear();
@@ -480,24 +432,9 @@ public class PercentileEditor extends
             return removeOutdated(potentialNewCheckpoint);
         }
         if (!entitiesToReassemble.isEmpty()) {
-            return createBlob(store -> store.checkpoint(Collections.emptyList(), true));
+            return createBlob(data -> data.checkpoint(Collections.emptyList()));
         }
         return null;
-    }
-
-    /**
-     * Remove all the oids in the cache that are not contained in the identity cache.
-     * @param identityProvider that has access to the identity cache
-     * @throws HistoryCalculationException is oids can't be read from the identity cache
-     */
-    private void expireStaleOidsFromCache(final IdentityProvider identityProvider) throws HistoryCalculationException {
-        LongSet currentOidsInIdentityCache = getCurrentOidsInInIdentityCache(identityProvider);
-        int originalCacheSize = getCache().keySet().size();
-        getCache().keySet().removeIf(entityRef -> !currentOidsInIdentityCache.contains(entityRef.getEntityOid()));
-        int sizeAfterExpiration = originalCacheSize - getCache().keySet().size();
-        Level level = sizeAfterExpiration > 0 ? Level.INFO : Level.DEBUG;
-        logger.log(level, "{} expired oids were filtered out during maintenance",
-            sizeAfterExpiration);
     }
 
     private boolean shouldReassemble(long now) {
@@ -547,31 +484,30 @@ public class PercentileEditor extends
                         .orElse(PercentileHistoricalEditorConfig.getDefaultObservationPeriod());
     }
 
-    private HistoryAggregationContext createEmptyContext() {
-        final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyId(
-                getConfig().getRealtimeTopologyContextId()).build();
-        final Map<Integer, Collection<TopologyEntity>> typeToIndex = new HashMap<>();
-        final Long2ObjectMap<TopologyEntity> oidToEntity = new Long2ObjectOpenHashMap<>();
-        final TopologyGraph<TopologyEntity> graph = new TopologyGraph<>(oidToEntity, typeToIndex);
-        final Map<Long, EntitySettings> oidToSettings = new HashMap<>();
-        final Map<Long, SettingPolicy> defaultPolicies = new HashMap<>();
-        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, oidToSettings,
-                defaultPolicies);
-        return new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
-    }
-
     private void persistBlob(long taskTimestamp, long periodMs,
-                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> countStoreToRecordStore)
+                    ThrowingFunction<PercentileCommodityData, Builder, HistoryCalculationException> countStoreToRecordStore)
                     throws HistoryCalculationException, InterruptedException {
         writeBlob(createBlob(countStoreToRecordStore), periodMs, taskTimestamp);
     }
 
-    private PercentileCounts.Builder createBlob(
-                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> countStoreToRecordStore)
+    @Nonnull
+    @Override
+    protected List<Pair<String, ThrowingFunction<PercentileCommodityData, Builder, HistoryCalculationException>>>
+    getStateExportingFunctions() {
+        return Arrays.asList(
+            Pair.create(getDiagsSubFileName(FULL_DIAG_NAME_SUFFIX), PercentileCommodityData::getFullCountsRecord),
+            Pair.create(getDiagsSubFileName(LATEST_DIAG_NAME_SUFFIX), PercentileCommodityData::getLatestCountsRecord)
+        );
+    }
+
+    @Nonnull
+    @Override
+    protected PercentileCounts.Builder createBlob(
+        @Nonnull ThrowingFunction<PercentileCommodityData, Builder, HistoryCalculationException> countStoreToRecordStore)
                     throws HistoryCalculationException, InterruptedException {
         final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         for (PercentileCommodityData data : getCache().values()) {
-            PercentileRecord.Builder record = countStoreToRecordStore.apply(data.getUtilizationCountStore());
+            PercentileRecord.Builder record = countStoreToRecordStore.apply(data);
             if (record != null) {
                 builder.addPercentileRecords(record);
             }
@@ -579,8 +515,9 @@ public class PercentileEditor extends
         return builder;
     }
 
-    private PercentilePersistenceTask createTask(long startTimestamp) {
-        return createLoadingTask(Pair.create(startTimestamp, null));
+    @Override
+    protected int getRecordCount(@Nonnull PercentileCounts.Builder builder) {
+        return builder.getPercentileRecordsCount();
     }
 
     private synchronized void loadPersistedData(@Nonnull HistoryAggregationContext context,
@@ -589,7 +526,7 @@ public class PercentileEditor extends
                     throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             // assume today's midnight
-            long now = clock.millis();
+            long now = getClock().millis();
             lastCheckpointMs = getDefaultMaintenanceCheckpointTimeMs(now);
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
@@ -616,7 +553,7 @@ public class PercentileEditor extends
                 logger.info("Initialized percentile full window data for {} commodities in {}",
                              fullPage::size, sw::toString);
             } catch (InvalidHistoryDataException e) {
-                sendNotification(FAILED_TO_READ_FULL_BLOB_MESSAGE, Severity.MAJOR);
+                sendNotification(NOTIFICATION_EVENT, FAILED_TO_READ_FULL_BLOB_MESSAGE, Severity.MAJOR);
                 logger.warn(FAILED_TO_READ_FULL_BLOB_MESSAGE, e);
                 entitiesToReassemble.putAll(getCache());
                 /*
@@ -654,7 +591,7 @@ public class PercentileEditor extends
                 logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
                                 lastCheckpointMs, latestPage.size(), sw);
             } catch (InvalidHistoryDataException e) {
-                sendNotification(FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, Severity.MAJOR);
+                sendNotification(NOTIFICATION_EVENT, FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, Severity.MAJOR);
                 logger.warn(FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, e);
             }
             historyInitialized = true;
@@ -726,9 +663,9 @@ public class PercentileEditor extends
                 final Map<EntityCommodityFieldReference, PercentileRecord> page;
                 try {
                     page = createTask(timestamp).load(Collections.emptyList(), getConfig(),
-                        getCurrentOidsInInIdentityCache(identityProvider));
+                        getCurrentOidsInInIdentityCache());
                 } catch (InvalidHistoryDataException e) {
-                    sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
+                    sendNotification(NOTIFICATION_EVENT, String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
                                     startTimestamp, "full page reassembly"), Severity.MAJOR);
                     logger.warn("Failed to read percentile daily blob for {}, skipping it for full page reassembly",
                                     timestamp, e);
@@ -770,16 +707,6 @@ public class PercentileEditor extends
                             entitiesToReassemble.size(), maxOfPeriods, sw);
             return timestamps.stream().reduce((f, s) -> s).orElse(lastCheckpointMs);
         }
-    }
-
-    private void sendNotification(@Nonnull String description, @Nonnull Severity severity) {
-        systemNotificationProducer.sendSystemNotification(
-                        Collections.singletonList(NotificationDTO.newBuilder()
-                                        .setEvent(NOTIFICATION_EVENT)
-                                        .setSeverity(severity)
-                                        .setCategory(NotificationCategoryDTO.NOTIFICATION.name())
-                                        .setDescription(description)
-                                        .build()), null);
     }
 
     @Nullable
@@ -841,9 +768,9 @@ public class PercentileEditor extends
                 final Map<EntityCommodityFieldReference, PercentileRecord> oldValues;
                 try {
                     oldValues = loadOutdated.load(Collections.emptyList(), getConfig(),
-                        getCurrentOidsInInIdentityCache(identityProvider));
+                        getCurrentOidsInInIdentityCache());
                 } catch (InvalidHistoryDataException e) {
-                    sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
+                    sendNotification(NOTIFICATION_EVENT, String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
                                     outdatedTimestamp, "maintenance"), Severity.MAJOR);
                     logger.warn("Failed to read percentile daily blob for {}, skipping it for maintenance",
                                     outdatedTimestamp, e);
@@ -875,7 +802,7 @@ public class PercentileEditor extends
      * @throws HistoryCalculationException in case {@link CacheBackup} cannot be created.
      */
     @Nonnull
-    protected CacheBackup<PercentileCommodityData> createCacheBackup() throws HistoryCalculationException {
+    CacheBackup<PercentileCommodityData> createCacheBackup() throws HistoryCalculationException {
         return new CacheBackup<>(getCache(), PercentileCommodityData::new);
     }
 
@@ -928,67 +855,17 @@ public class PercentileEditor extends
     }
 
     @Override
-    protected void restoreState(@Nonnull final byte[] bytes) throws DiagnosticsException {
-        final Map<String, byte[]> diags = getDiagsMaping(bytes);
-        final byte[] fullDiags = getSubDiags(diags, FULL_DIAG_NAME_SUFFIX);
-        final byte[] latestDiags = getSubDiags(diags, LATEST_DIAG_NAME_SUFFIX);
-        final HistoryAggregationContext context = createEmptyContext();
-        try (InputStream latest = new ByteArrayInputStream(latestDiags);
-             InputStream full = new ByteArrayInputStream(fullDiags)) {
-            historyInitialized = false;
-            getCache().clear();
-            loadPersistedData(context,
-                            (timestamp) -> loadCachePart(timestamp, latest, LATEST_DIAG_NAME_SUFFIX),
-                            (timestamp) -> loadCachePart(timestamp, full, FULL_DIAG_NAME_SUFFIX));
-        } catch (HistoryCalculationException | InterruptedException | IOException e) {
-            getCache().clear();
-            throw new DiagnosticsException(
-                            String.format("Cannot load percentile cache from '%s' file",
-                                            getFileName()), e);
-        }
-    }
+    protected void restorePersistedData(@Nonnull Map<String, InputStream> diagsMapping,
+                                        @Nonnull HistoryAggregationContext context)
+        throws HistoryCalculationException, InterruptedException {
 
-    /**
-     * Get mapping of percentile diags names to bits.
-     *
-     * Percentile are split into 2 files: full and latest diags, and stored
-     * in its own zip with the following file structure:
-     * ------ Percentile.Editor.state.binary
-     * ------------- Percentile.Editor.state.full.binary
-     * ------------- Percentile.Editor.state.latest.binary
-     * @param compressedDiags Percentile diags zip
-     * @return combined diags (full + latest) to be consumed by the loading logic
-     */
-    @Nonnull
-    private static Map<String, byte[]> getDiagsMaping(@Nonnull final byte[] compressedDiags)  {
-        final Map<String, byte[]> nameToBytes = new HashMap<>();
-        final Iterable<Diags> diagsReader = new DiagsZipReader(
-            new ByteArrayInputStream(compressedDiags), null, true);
-        diagsReader.iterator().forEachRemaining(diags -> {
-            nameToBytes.putIfAbsent(diags.getName(), diags.getBytes());
-        });
-        return nameToBytes;
-    }
-
-    /**
-     * Get diags bits of the specified type.
-     *
-     * @param diagsMapping mapping of diags name to diags content
-     * @param type type of subdiags requested: full or latest
-     * @return requested subdiags content
-     * @throws DiagnosticsException if requested subdiags are missing
-     */
-    @Nonnull
-    private final byte[] getSubDiags(@Nonnull final Map<String, byte[]> diagsMapping,
-                                     @Nonnull final String type)
-        throws DiagnosticsException {
-        final byte[] subDiags = diagsMapping.getOrDefault(getDiagsSubFileName(type), null);
-        if (subDiags == null) {
-            throw new DiagnosticsException(
-                String.format("Cannot load percentile cache from '%s' file due to missing %s percentile part",
-                    getFileName(), type));
-        }
-        return subDiags;
+        historyInitialized = false;
+        getCache().clear();
+        loadPersistedData(context,
+            (timestamp) -> loadCachePart(timestamp, diagsMapping.get(getDiagsSubFileName(LATEST_DIAG_NAME_SUFFIX)),
+                LATEST_DIAG_NAME_SUFFIX),
+            (timestamp) -> loadCachePart(timestamp, diagsMapping.get(getDiagsSubFileName(FULL_DIAG_NAME_SUFFIX)),
+                FULL_DIAG_NAME_SUFFIX));
     }
 
     @Nonnull
@@ -1009,67 +886,9 @@ public class PercentileEditor extends
         }
     }
 
-    @Override
-    protected void exportState(@Nonnull final OutputStream appender)
-                    throws DiagnosticsException, IOException {
-        try {
-            // Two diag files containing full and latest counts will be compressed in its own zip
-            final ByteArrayOutputStream percentileDiagsOutput = new ByteArrayOutputStream();
-            try (ZipOutputStream percentileZos = new ZipOutputStream(percentileDiagsOutput)) {
-                final String fullZipEntryName = getDiagsSubFileName(FULL_DIAG_NAME_SUFFIX);
-                final int fullSize = dumpDiagsToZipEntry(percentileZos, fullZipEntryName,
-                    UtilizationCountStore::getFullCountsRecord);
-
-                final String latestZipEntryName = getDiagsSubFileName(LATEST_DIAG_NAME_SUFFIX);
-                final int latestSize = dumpDiagsToZipEntry(percentileZos, latestZipEntryName,
-                    UtilizationCountStore::getLatestCountsRecord);
-
-                logger.info("Full percentile cache stored in '{}' diagnostic file, latest percentile "
-                        + "stored in '{}' diagnostic file. Latest has '{}' record(s). Full has '{}' record(s).",
-                    () -> fullZipEntryName, () -> latestZipEntryName, () -> latestSize, () -> fullSize);
-            }
-            percentileDiagsOutput.writeTo(appender);
-        } catch (HistoryCalculationException | InterruptedException e) {
-            throw new DiagnosticsException(
-                            String.format("Cannot write percentile cache into '%s' file",
-                                            getFileName()));
-        }
-    }
-
-    /**
-     * Dump percentile diags to zip entry.
-     *
-     * @param percentileZos Percentile zip output stream to append
-     * @param zipEntryName Zip entry name
-     * @param dumpingFunction Function to generate counts
-     * @return Number or records dumped
-     * @throws IOException when failed to write zip entry
-     * @throws InterruptedException when interrupted
-     * @throws HistoryCalculationException when failed
-     */
-    private int dumpDiagsToZipEntry(@Nonnull final ZipOutputStream percentileZos,
-                                    @Nonnull final String zipEntryName,
-                                    @Nonnull ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> dumpingFunction)
-        throws IOException, InterruptedException, HistoryCalculationException {
-        final ZipEntry ze = new ZipEntry(zipEntryName);
-        ze.setTime(clock.millis());
-        percentileZos.putNextEntry(ze);
-        final int size = dumpPercentileCounts(percentileZos, dumpingFunction);
-        percentileZos.closeEntry();
-        return size;
-    }
-
     @Nonnull
     private String getDiagsSubFileName(@Nonnull String type) {
         return getFileName() + "." + type + DiagsZipReader.BINARY_DIAGS_SUFFIX;
-    }
-
-    private int dumpPercentileCounts(OutputStream output,
-                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> dumpingFunction)
-                    throws HistoryCalculationException, InterruptedException, IOException {
-        final PercentileCounts counts = createBlob(dumpingFunction).build();
-        counts.writeDelimitedTo(output);
-        return counts.getPercentileRecordsCount();
     }
 
     private List<Long> getTimestampsInRange(long startMs, long endMs, String operation)
