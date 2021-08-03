@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.HttpMethod;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
@@ -77,6 +78,12 @@ public class WorkflowMapper {
             if (webhookInfo.hasTemplate()) {
                 webhookApiDTO.setTemplate(webhookInfo.getTemplate());
             }
+            if (webhookInfo.hasAuthenticationMethod()) {
+                webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.valueOf(webhookInfo.getAuthenticationMethod().name()));
+            }
+            if (webhookInfo.hasUsername()) {
+                webhookApiDTO.setUsername(webhookInfo.getUsername());
+            }
             answer.setTypeSpecificDetails(webhookApiDTO);
         }
         // fixed response fields - for compatibility
@@ -129,6 +136,12 @@ public class WorkflowMapper {
             builder.setHttpMethod(WebhookInfo.HttpMethod.valueOf(webhookApiDTO.getMethod().name()));
             if (webhookApiDTO.getTemplate() != null) {
                 builder.setTemplate(webhookApiDTO.getTemplate());
+            }
+            if (webhookApiDTO.getAuthenticationMethod() != null) {
+                builder.setAuthenticationMethod(WebhookInfo.AuthenticationMethod.valueOf(webhookApiDTO.getAuthenticationMethod().name()));
+            }
+            if (webhookApiDTO.getUsername() != null) {
+                builder.setUsername(webhookApiDTO.getUsername());
             }
             workflowInfo.setWebhookInfo(builder);
         }

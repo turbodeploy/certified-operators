@@ -16,41 +16,52 @@ import com.google.common.collect.Lists;
 import io.grpc.StatusRuntimeException;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
+import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.TypeSpecificInfoCase;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
+import com.vmturbo.communication.CommunicationException;
 
 /**
  * Service Layer to implement the /workflows endpoints.
  **/
 public class WorkflowsService implements IWorkflowsService {
 
+    private static final Logger logger = LogManager.getLogger();
     private final WorkflowServiceBlockingStub workflowServiceRpc;
     private final TargetsService targetsService;
     private final WorkflowMapper workflowMapper;
     private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
+    private final SecureStorageClient secureStorageClient;
 
     public WorkflowsService(@Nonnull WorkflowServiceBlockingStub workflowServiceRpc,
                             @Nonnull TargetsService targetsService,
                             @Nonnull WorkflowMapper workflowMapper,
-                            @Nonnull SettingPolicyServiceBlockingStub settingsPoliciesService) {
+                            @Nonnull SettingPolicyServiceBlockingStub settingsPoliciesService,
+                            @Nonnull SecureStorageClient secureStorageClient) {
         this.workflowServiceRpc = Objects.requireNonNull(workflowServiceRpc);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.workflowMapper = Objects.requireNonNull(workflowMapper);
         this.settingPolicyRpcService = Objects.requireNonNull(settingsPoliciesService);
+        this.secureStorageClient = Objects.requireNonNull(secureStorageClient);
     }
 
     /**
@@ -124,14 +135,35 @@ public class WorkflowsService implements IWorkflowsService {
                 + "\" cannot be added through API.");
         }
 
+        final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+
+        // password must be selected given that the authentication method is also selected.
+        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC
+                && StringUtils.isEmpty(webhookApiDTO.getPassword())) {
+            throw new IllegalArgumentException("The \"password\" must not be empty.");
+        }
+
         final WorkflowDTO.Workflow workflow = workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO,
                 UUID.randomUUID().toString());
-        final WorkflowDTO.Workflow addedWorkflow =  workflowServiceRpc.createWorkflow(
+        final WorkflowDTO.Workflow addedWorkflow = workflowServiceRpc.createWorkflow(
             WorkflowDTO.CreateWorkflowRequest
                 .newBuilder()
                 .setWorkflow(workflow)
                 .build())
             .getWorkflow();
+
+        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC) {
+            try {
+                secureStorageClient.updateValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT,
+                        Long.toString(addedWorkflow.getId()), webhookApiDTO.getPassword());
+            } catch (CommunicationException e) {
+                logger.error("Failed to store webhook password credentials.", e);
+                workflowServiceRpc.deleteWorkflow(WorkflowDTO.DeleteWorkflowRequest.newBuilder()
+                        .setId(addedWorkflow.getId())
+                        .build());
+                throw new IllegalStateException("Failed to create workflow because of internal issue.");
+            }
+        }
 
         return workflowMapper.toUiWorkflowApiDTO(addedWorkflow, new TargetApiDTO());
     }
@@ -160,6 +192,25 @@ public class WorkflowsService implements IWorkflowsService {
                 .build())
             .getWorkflow();
 
+        final WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+
+        if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC
+                && webhookApiDTO.getPassword() != null) {
+            try {
+                secureStorageClient.updateValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT,
+                        Long.toString(workflowId), webhookApiDTO.getPassword());
+            } catch (CommunicationException e) {
+                logger.error("Failed to store webhook password credentials, "
+                        + "reverting back to original workflow.", e);
+                workflowServiceRpc.updateWorkflow(
+                        WorkflowDTO.UpdateWorkflowRequest
+                                .newBuilder()
+                                .setId(workflowId)
+                                .setWorkflow(currentWorkflow)
+                                .build());
+                throw new IllegalStateException("Failed to update workflow because of internal issue.");
+            }
+        }
         return workflowMapper.toUiWorkflowApiDTO(updatedWorkflow, new TargetApiDTO());
     }
 
@@ -186,6 +237,14 @@ public class WorkflowsService implements IWorkflowsService {
         workflowServiceRpc.deleteWorkflow(WorkflowDTO.DeleteWorkflowRequest.newBuilder()
             .setId(workflowId)
             .build());
+
+        if (currentWorkflow.getWorkflowInfo().getTypeSpecificInfoCase() == TypeSpecificInfoCase.WEBHOOK_INFO) {
+            try {
+                secureStorageClient.deleteValue(StringConstants.WEBHOOK_PASSWORD_SUBJECT, Long.toString(workflowId));
+            } catch (CommunicationException e) {
+                logger.error("Failed to delete webhook password credentials.", e);
+            }
+        }
     }
 
     @Override
@@ -216,6 +275,18 @@ public class WorkflowsService implements IWorkflowsService {
                   && !webhookApiDTO.getUrl().startsWith("https://") ) {
                 throw new IllegalArgumentException("The \"url\" field should start with \"http://\" or "
                     + " \"https://\".");
+            }
+
+            if (webhookApiDTO.getAuthenticationMethod() == AuthenticationMethod.BASIC) {
+                // username must be selected given that the authentication method is also selected.
+                if (StringUtils.isEmpty(webhookApiDTO.getUsername())) {
+                    throw new IllegalArgumentException("The \"username\" must not be empty.");
+                }
+
+                // username can't contain a colon: see https://datatracker.ietf.org/doc/html/rfc7617#section-2 page 4
+                if (webhookApiDTO.getUsername().contains(":")) {
+                    throw new IllegalArgumentException("The \"username\" must not contain a colon.");
+                }
             }
         }
     }

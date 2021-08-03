@@ -70,6 +70,7 @@ import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
 import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -295,6 +296,14 @@ public class ServiceConfig {
                 communicationConfig.serviceRestTemplate(),
                 targetStore(),
                 sessionTimeoutSeconds);
+    }
+
+    @Bean
+    public SecureStorageClient secureStorageClient() {
+        return new SecureStorageClient(authConfig.getAuthHost(),
+                authConfig.getAuthPort(),
+                authConfig.getAuthRoute(),
+                targetStore());
     }
 
     /**
@@ -792,7 +801,8 @@ public class ServiceConfig {
     @Bean
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
-                targetService(), mapperConfig.workflowMapper(), communicationConfig.settingPolicyRpcService());
+                targetService(), mapperConfig.workflowMapper(), communicationConfig.settingPolicyRpcService(),
+                secureStorageClient());
     }
 
     @Bean
