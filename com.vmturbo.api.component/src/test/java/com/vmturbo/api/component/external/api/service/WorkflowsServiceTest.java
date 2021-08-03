@@ -32,14 +32,17 @@ import com.vmturbo.api.component.external.api.mapper.WorkflowMapperTest;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
+import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowResponse;
@@ -49,6 +52,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -82,6 +86,8 @@ public class WorkflowsServiceTest {
     // No need to mock this one. It could easily be a static utility library.
     private final WorkflowMapper workflowMapper = new WorkflowMapper();
 
+    private SecureStorageClient secureStorageClient = mock(SecureStorageClient.class);
+
     /**
      * Expect no exceptions, by default.
      */
@@ -99,7 +105,7 @@ public class WorkflowsServiceTest {
         workflowServiceRpc = WorkflowServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         settingPolicyServiceRpc = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         workflowsService = new WorkflowsService(workflowServiceRpc, targetsService, workflowMapper,
-            settingPolicyServiceRpc);
+            settingPolicyServiceRpc, secureStorageClient);
     }
 
     /**
@@ -598,6 +604,147 @@ public class WorkflowsServiceTest {
             fail();
         } catch (IllegalArgumentException ex) {
         }
+
+        // test validating username for BASIC auth (cannot be empty)
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("");
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test validating username for BASIC auth (cannot contain colon)
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("abc:123");
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test 'addWorkFlow' password validation (cannot be empty)
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setPassword("");
+        try {
+            workflowsService.addWorkflow(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException | InvalidOperationException e) {
+        }
     }
 
+    /**
+     * Test correct args are passed to secureStorageClient when adding workflow.
+     *
+     * @throws CommunicationException if something goes wrong.
+     * @throws InvalidOperationException if something goes wrong.
+     */
+    @Test
+    public void testAddingWorkflowWithBasicAuthUsingSecureStorage()
+            throws CommunicationException, InvalidOperationException {
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("abc");
+        webhookApiDTO.setPassword("123");
+        workflowsService.addWorkflow(workflowApiDTO);
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> password = ArgumentCaptor.forClass(String.class);
+        verify(secureStorageClient).updateValue(subject.capture(), Mockito.any(),
+                password.capture());
+        assertEquals(StringConstants.WEBHOOK_PASSWORD_SUBJECT, subject.getValue());
+        assertEquals(webhookApiDTO.getPassword(), password.getValue());
+    }
+
+    /**
+     * Test correct args are passed to secureStorageClient when deleting workflow.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws CommunicationException if something goes wrong.
+     * @throws UnknownObjectException if something goes wrong.
+     */
+    @Test
+    public void testDeletingWorkflowWithBasicAuthUsingSecureStorage()
+            throws InvalidOperationException, CommunicationException, UnknownObjectException {
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("abc");
+        webhookApiDTO.setPassword("123");
+        long id = 0L;
+        FetchWorkflowResponse fetchWorkflowResponse =
+                FetchWorkflowResponse.newBuilder().setWorkflow(
+                        workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, "test")).build();
+        Mockito.when(workflowServiceMole.fetchWorkflow(any())).thenReturn(fetchWorkflowResponse);
+        workflowsService.addWorkflow(workflowApiDTO);
+        workflowsService.deleteWorkflow(Long.toString(id));
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> idToDelete = ArgumentCaptor.forClass(String.class);
+        verify(secureStorageClient).deleteValue(subject.capture(), idToDelete.capture());
+        assertEquals(StringConstants.WEBHOOK_PASSWORD_SUBJECT, subject.getValue());
+        assertEquals(idToDelete.getValue(), Long.toString(id));
+    }
+
+    /**
+     * Test correct args are passed to secureStorageClient when editing workflow.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws CommunicationException if something goes wrong.
+     */
+    @Test
+    public void testEditingWorkflowWithBasicAuthUsingSecureStorage()
+            throws UnknownObjectException, InvalidOperationException, CommunicationException {
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("abc");
+        webhookApiDTO.setPassword("123");
+        FetchWorkflowResponse fetchWorkflowResponse =
+                FetchWorkflowResponse.newBuilder().setWorkflow(
+                        workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, "test")).build();
+        Mockito.when(workflowServiceMole.fetchWorkflow(any())).thenReturn(fetchWorkflowResponse);
+        workflowsService.editWorkflow(Long.toString(0L), workflowApiDTO);
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> password = ArgumentCaptor.forClass(String.class);
+        verify(secureStorageClient).updateValue(subject.capture(), Mockito.any(),
+                password.capture());
+        assertEquals(StringConstants.WEBHOOK_PASSWORD_SUBJECT, subject.getValue());
+        assertEquals(webhookApiDTO.getPassword(), password.getValue());
+    }
+
+    /**
+     * Test reverting workflow upon failed password update using secure storage.
+     *
+     * @throws UnknownObjectException if something goes wrong.
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws CommunicationException if something goes wrong.
+     */
+    @Test
+    public void testRevertWorkflowOnFailedPasswordUpdateUsingSecureStorage()
+            throws UnknownObjectException, InvalidOperationException, CommunicationException {
+        WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        WebhookApiDTO webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setAuthenticationMethod(AuthenticationMethod.BASIC);
+        webhookApiDTO.setUsername("abc");
+        webhookApiDTO.setPassword("123");
+        FetchWorkflowResponse fetchWorkflowResponse =
+                FetchWorkflowResponse.newBuilder().setWorkflow(
+                        workflowMapper.fromUiWorkflowApiDTO(workflowApiDTO, "test")).build();
+        Mockito.when(workflowServiceMole.fetchWorkflow(any())).thenReturn(fetchWorkflowResponse);
+        doThrow(new CommunicationException("")).when(secureStorageClient).updateValue(Mockito.any(),
+                Mockito.any(), Mockito.any());
+        try {
+            workflowsService.editWorkflow(Long.toString(0L), workflowApiDTO);
+        } catch (IllegalStateException e) {
+            // first time to update work flow, second time to revert it.
+            verify(workflowServiceMole, times(2)).updateWorkflow(any());
+        }
+    }
 }
