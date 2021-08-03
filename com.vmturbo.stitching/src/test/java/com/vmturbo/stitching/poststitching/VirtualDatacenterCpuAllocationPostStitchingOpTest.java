@@ -13,6 +13,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,7 +32,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
     private final VirtualDatacenterCpuAllocationPostStitchingOperation op =
         new VirtualDatacenterCpuAllocationPostStitchingOperation();
 
-    private final double hostCapacity = 20;
+    private static final double hostCapacity = 20;
 
     private final CommoditySoldDTO baseEmptyCommoditySold = makeCommoditySold(CommodityType.CPU_ALLOCATION);
     private final CommoditySoldDTO baseFullCommoditySold =
@@ -42,6 +44,9 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
     private final TopologyEntity.Builder basicHostProvider =
         makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
             Collections.singletonList(baseFullCommoditySold), Collections.emptyList());
+    private final TopologyEntity.Builder secondHostProvider =
+                    makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
+                                    Collections.singletonList(baseFullCommoditySold), Collections.emptyList());
 
     private final TopologyEntity.Builder basicLayerProvider =
         makeTopologyEntityBuilder(EntityType.PHYSICAL_MACHINE_VALUE,
@@ -95,11 +100,13 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
             makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
                 Collections.singletonList(baseEmptyCommoditySold), Collections.emptyList());
         base.addProvider(basicHostProvider);
-        base.addProvider(basicHostProvider);
+        base.addProvider(secondHostProvider);
 
         final TopologyEntity te = base.build();
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+        Assert.assertThat(te.getTopologyEntityDtoBuilder().getCommoditySoldListList().iterator()
+                        .next().getCapacity(), CoreMatchers.is(20D));
     }
 
     @Test
@@ -121,7 +128,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
     public void testConsumerHostHasMultipleQualifyingCommodities() {
         final TopologyEntity.Builder hostWithNoGoodCommodities =
             makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
-                Arrays.asList(baseFullCommoditySold, baseFullCommoditySold), Collections.emptyList());
+                Arrays.asList(makeCommoditySold(CommodityType.CPU_ALLOCATION, hostCapacity, "abcdefj"), baseFullCommoditySold), Collections.emptyList());
         final TopologyEntity.Builder main = makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
             Collections.singletonList(baseEmptyCommoditySold), Collections.emptyList());
         main.addProvider(hostWithNoGoodCommodities);
@@ -158,7 +165,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        assertEquals(resultBuilder.getChanges().size(), 1);
+        assertEquals(resultBuilder.getChanges().size(), 0);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
             .forEach(commodity -> assertEquals(commodity.getCapacity(), 0, 0.1));
     }
@@ -210,7 +217,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(commodity ->
-            assertEquals(commodity.getCapacity(), hostCapacity * 2, 0.1));
+            assertEquals(commodity.getCapacity(), hostCapacity, 0.1));
     }
 
     @Test
@@ -249,9 +256,39 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        assertEquals(resultBuilder.getChanges().size(), 1);
+        assertEquals(resultBuilder.getChanges().size(), 0);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
             .forEach(commodity -> assertEquals(commodity.getCapacity(), 0, 0.1));
+    }
+
+    /**
+     * Checks that in case there is more than one VDC in hierarchy without capacity, then capacity
+     * will be set to all VDCs in hierarchy.
+     */
+    @Test
+    public void checkVdcHierarchyWithoutCapacity() {
+        final TopologyEntity.Builder leaf = makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
+                        Collections.singletonList(baseEmptyCommoditySold),
+                        Collections.singletonList(makeCommodityBought(CommodityType.CPU_ALLOCATION)));
+        leaf.getEntityBuilder().setOid(1);
+        final TopologyEntity.Builder root = makeTopologyEntityBuilder(EntityType.VIRTUAL_DATACENTER_VALUE,
+                        Collections.singletonList(baseEmptyCommoditySold), Collections.singletonList(baseCommodityBought));
+        root.getEntityBuilder().setOid(2);
+        leaf.addProvider(root);
+        root.addProvider(basicLayerProvider);
+        final TopologyEntity te = leaf.build();
+
+        op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+
+        assertEquals(resultBuilder.getChanges().size(), 2);
+        Assert.assertThat(getCapacity(te), CoreMatchers.is(hostCapacity));
+        Assert.assertThat(getCapacity(root.build()), CoreMatchers.is(hostCapacity));
+    }
+
+    private static double getCapacity(TopologyEntity te) {
+        return te.getTopologyEntityDtoBuilder().getCommoditySoldListList().iterator().next()
+                        .getCapacity();
     }
 
     @Test
@@ -267,7 +304,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        assertEquals(resultBuilder.getChanges().size(), 1);
+        assertEquals(resultBuilder.getChanges().size(), 0);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
             .forEach(commodity -> assertEquals(commodity.getCapacity(), 0, 0.1));
     }
@@ -284,8 +321,6 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final CommodityBoughtDTO bought3 = makeCommodityBought(CommodityType.CPU_ALLOCATION);
         final CommodityBoughtDTO bought4 = makeCommodityBought(CommodityType.CPU_ALLOCATION);
 
-        final List<Double> possibleCapacities = Arrays.asList((double) 10008, (double) 9);
-
         final TopologyEntity.Builder provider =
             makeTopologyEntityBuilder(EntityType.PHYSICAL_MACHINE_VALUE,
                 Arrays.asList(sold1, sold2, sold3, sold4), Collections.emptyList());
@@ -300,9 +335,9 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         op.performOperation(Stream.of(main), settingsCollection, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        main.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(cs ->
-            assertTrue(possibleCapacities.contains(cs.getCapacity())));
-
+        // Expected is 6 because: 1 + 2 + 3 = 6
+        Assert.assertThat(main.getTopologyEntityDtoBuilder().getCommoditySoldListList().iterator()
+                        .next().getCapacity(), CoreMatchers.is(6D));
     }
 
     @Test
