@@ -9,10 +9,14 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Condition;
+import org.springframework.context.annotation.ConditionContext;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.env.Environment;
+import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
@@ -47,6 +51,8 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
         ConsulRegistrationConfig.class})
 public class BaseVmtComponentConfig {
 
+    private static final String REMOVE_HEAP_DUMP_SERVICE_PLACEHOLDER = "${removeHeapDumpService:false}";
+
     @Autowired
     private Environment environment;
 
@@ -56,7 +62,7 @@ public class BaseVmtComponentConfig {
     @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
-    @Value("${removeHeapDumpService:false}")
+    @Value(REMOVE_HEAP_DUMP_SERVICE_PLACEHOLDER)
     private boolean removeHeapDumpService;
 
     @Value("${enableHeapDumping:false}")
@@ -220,6 +226,7 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
+    @Conditional(ShouldRetainHeapDumpService.class)
     public HeapDumpServiceController heapDumpServiceController() {
         return heapDumpRpcService()
             .map(HeapDumpServiceController::new)
@@ -252,6 +259,20 @@ public class BaseVmtComponentConfig {
             // resources for the internal debug swagger UI for a component
             ResourceHandlerRegistration reg = registry.addResourceHandler("/swagger/**")
                     .addResourceLocations("file:/swagger/");
+        }
+    }
+
+    /**
+     * Helper condition to decide whether or not to add the heap dump service.
+     * An easier way to resolve this is using @ConditionalOnProperty but that would require including
+     * spring boot as a dependency which would increase component and binary size.
+     */
+    public static class ShouldRetainHeapDumpService implements Condition {
+        @Override
+        public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+            final boolean removeHeapDumpService = Boolean.parseBoolean(
+                context.getEnvironment().resolvePlaceholders(REMOVE_HEAP_DUMP_SERVICE_PLACEHOLDER));
+            return !removeHeapDumpService;
         }
     }
 }
