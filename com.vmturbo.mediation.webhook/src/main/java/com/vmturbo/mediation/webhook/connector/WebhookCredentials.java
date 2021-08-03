@@ -30,7 +30,7 @@ public class WebhookCredentials
     private final AuthenticationMethod authenticationMethod;
     private final String userName;
     private final String password;
-
+    private final boolean trustSelfSignedCertificates;
 
     /**
      * Creates a {@link WebhookCredentials} instance.
@@ -41,16 +41,19 @@ public class WebhookCredentials
      * @param authenticationMethod the method used to authenticate to the endpoint.
      * @param userName the username for authentication.
      * @param password the password for authentication.
+     * @param trustSelfSignedCertificates true, if the user has indicated that this webhook should
+     *        trust self-signed certificates when connecting
      */
     public WebhookCredentials(@Nonnull String url, @Nonnull String httpMethodType, long timeout,
                               @Nonnull AuthenticationMethod authenticationMethod, @Nullable String userName,
-                              @Nullable String password) {
+                              @Nullable String password, boolean trustSelfSignedCertificates) {
         this.url = Objects.requireNonNull(url);
         this.methodType = Objects.requireNonNull(httpMethodType);
         this.timeout = timeout;
         this.authenticationMethod = Objects.requireNonNull(authenticationMethod);
         this.userName = userName;
         this.password = password;
+        this.trustSelfSignedCertificates = trustSelfSignedCertificates;
     }
 
     public String getUrl() {
@@ -59,6 +62,17 @@ public class WebhookCredentials
 
     public String getMethod() {
         return methodType;
+    }
+
+    /**
+     * Returns true if the user has indicated that this webhook should trust self-signed
+     * certificates when connecting.
+     *
+     * @return true, if the user has indicated that this webhook should trust self-signed
+     *         certificates when connecting; Otherwise, false.
+     */
+    public boolean isTrustSelfSignedCertificates() {
+        return trustSelfSignedCertificates;
     }
 
     @Override
@@ -78,6 +92,11 @@ public class WebhookCredentials
 
     /**
      * Only need this so that WebhookQueryConverter will work.
+     *
+     * <p>The reason we don't use this is that we allow the user to customize the URI using the
+     * velocity template engine. Therefore, the URI is already constructed and will not be
+     * assembled based on these parameters.</p>
+     *
      * @return False since it's not used.
      */
     @Override
@@ -87,6 +106,11 @@ public class WebhookCredentials
 
     /**
      * Only need this so that WebhookQueryConverter will work.
+     *
+     * <p>The reason we don't use this is that we allow the user to customize the URI using the
+     * velocity template engine. Therefore, the URI is already constructed and will not be
+     * assembled based on these parameters.</p>
+     *
      * @return 0 since it's not used.
      */
     @Override

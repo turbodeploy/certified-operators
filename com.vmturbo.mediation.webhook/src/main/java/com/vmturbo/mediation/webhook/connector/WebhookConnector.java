@@ -3,10 +3,14 @@ package com.vmturbo.mediation.webhook.connector;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
+import javax.net.ssl.SSLContext;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -16,13 +20,20 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.TrustAllStrategy;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.ssl.SSLContexts;
 
 import com.vmturbo.mediation.connector.common.HttpConnector;
 import com.vmturbo.mediation.connector.common.HttpConnectorException;
@@ -48,19 +59,20 @@ public class WebhookConnector implements HttpConnector, Closeable {
     /**
      * Constructor for webhook connector.
      *
-     * @param webhookCredentials webhook credentials
+     * @param webhookCredentials webhook credentials containing details of the connection parameters
      * @param propertyProvider property provide
      */
     public WebhookConnector(@Nonnull WebhookCredentials webhookCredentials,
             @Nonnull WebhookProperties propertyProvider) {
         this.credentials = Objects.requireNonNull(webhookCredentials);
-        this.connectorFactory = getConnectorFactory(propertyProvider.getConnectionTimeout());
+        this.connectorFactory = getConnectorFactory(propertyProvider.getConnectionTimeout(),
+                webhookCredentials);
     }
 
     /**
      * Constructor directly injects webhook credentials and connector factory.
      *
-     * @param webhookCredentials webhook credentials
+     * @param webhookCredentials webhook credentials containing details of the connection parameters
      * @param connectorFactory connector factory
      */
     @VisibleForTesting
@@ -74,28 +86,75 @@ public class WebhookConnector implements HttpConnector, Closeable {
      * Creates {@link HttpConnectorFactory} instance that used by the Webhook probe.
      *
      * @param timeout connection and socket timeout.
+     * @param webhookCredentials webhook credentials containing details of the connection parameters
      * @return HTTP cached connector factory.
      */
     @Nonnull
     private HttpConnectorFactory<HttpConnectorSettings, WebhookCredentials> getConnectorFactory(
-            int timeout) {
+            final int timeout, WebhookCredentials webhookCredentials) {
         final HttpConnectorFactoryBuilder<HttpConnectorSettings, WebhookCredentials>
-                connectorFactoryBuilder = createConnectorFactoryBuilder().setTimeout(timeout);
+                connectorFactoryBuilder = createConnectorFactoryBuilder(timeout, webhookCredentials)
+                // It doesn't hurt to set this, but it won't be used if we manually create the
+                // HTTP client (below).
+                .setTimeout(timeout);
         return connectorFactoryBuilder.build();
     }
 
-    protected static HttpConnectorFactoryBuilder<HttpConnectorSettings, WebhookCredentials> createConnectorFactoryBuilder() {
+    protected static HttpConnectorFactoryBuilder<HttpConnectorSettings, WebhookCredentials> createConnectorFactoryBuilder(
+            final int timeout, WebhookCredentials webhookCredentials) {
         // TODO: register responseProcessors for succeeded and failed status codes specified for webhook;
         //  register queryConverters for other http method types
         final WebhookQueryConverter queryConverter = new WebhookQueryConverter();
         return HttpConnectorFactory.<HttpConnectorSettings, WebhookCredentials>jsonConnectorFactoryBuilder()
                 .setContextCreator(getContextCreator())
+                .setHttpClient(createHttpClient(timeout, webhookCredentials))
                 .registerMethodTypeToQueryConverter(HttpMethodType.GET, queryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.POST, queryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.PUT, queryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.DELETE, queryConverter)
                 .registerStatusCodeToResponseProcessor(HttpStatus.SC_OK,
                         new WebhookSuccessResponseProcessor());
+    }
+
+    private static CloseableHttpClient createHttpClient(final int timeout,
+            WebhookCredentials webhookCredentials) {
+        HttpClientBuilder builder = HttpClientBuilder.create();
+        if (webhookCredentials.isTrustSelfSignedCertificates()) {
+            trustAllCertificates(builder);
+        }
+        // Set the timeout
+        final RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeout)
+                .setSocketTimeout(timeout).build();
+        builder.setDefaultRequestConfig(requestConfig);
+        return builder.build();
+    }
+
+    /**
+     * Configure the builder to trust all certificates.
+     *
+     * @param builder The HTTP builder to configure
+     *
+     * @return an SSL socket factory that accepts all certificates. This has already been
+     *         applied to the builder.
+     */
+    private static SSLConnectionSocketFactory trustAllCertificates(HttpClientBuilder builder) {
+        // Allow all certificates. We have no (easy) way for customers to
+        // install their own CA certificates right now.
+        try {
+            SSLContext sslcontext = SSLContexts.custom()
+                    .loadTrustMaterial(null, new TrustAllStrategy())
+                    .build();
+            SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslcontext,
+                    new NoopHostnameVerifier());
+            builder.setSSLSocketFactory(sslsf);
+
+            // In case anyone else wants this
+            return sslsf;
+        } catch ( KeyManagementException | NoSuchAlgorithmException | KeyStoreException e ) {
+            // We're not actually accessing any trust store here so none of these
+            // exceptions should be possible.
+            throw new RuntimeException("Could not set up to trust self-signed certificates (this should never happen)", e);
+        }
     }
 
     @Nonnull

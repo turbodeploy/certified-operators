@@ -100,7 +100,7 @@ public class WorkflowsService implements IWorkflowsService {
                     continue;
                 }
             }
-            WorkflowApiDTO dto = workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
+            WorkflowApiDTO dto = workflowMapper.toWorkflowApiDTO(workflow, targetApiDTO);
             answer.add(dto);
         }
         return answer;
@@ -125,7 +125,7 @@ public class WorkflowsService implements IWorkflowsService {
         TargetApiDTO targetApiDTO = targetsService.getTarget(
                 workflowTargetOid, TargetDetailLevel.BASIC);
         // map the workflow and the target to {@link WorkflowApiDTO} and return it
-        return workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
+        return workflowMapper.toWorkflowApiDTO(workflow, targetApiDTO);
     }
 
     @Override
@@ -165,7 +165,7 @@ public class WorkflowsService implements IWorkflowsService {
             }
         }
 
-        return workflowMapper.toUiWorkflowApiDTO(addedWorkflow, new TargetApiDTO());
+        return workflowMapper.toWorkflowApiDTO(addedWorkflow, new TargetApiDTO());
     }
 
     @Override
@@ -211,7 +211,7 @@ public class WorkflowsService implements IWorkflowsService {
                 throw new IllegalStateException("Failed to update workflow because of internal issue.");
             }
         }
-        return workflowMapper.toUiWorkflowApiDTO(updatedWorkflow, new TargetApiDTO());
+        return workflowMapper.toWorkflowApiDTO(updatedWorkflow, new TargetApiDTO());
     }
 
     @Override

@@ -1,10 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -54,7 +52,7 @@ public class WorkflowMapperTest {
         target.setType(TARGET_TYPE);
         WorkflowMapper workflowMapper = new WorkflowMapper();
         // act
-        WorkflowApiDTO result = workflowMapper.toUiWorkflowApiDTO(workflow, target);
+        WorkflowApiDTO result = workflowMapper.toWorkflowApiDTO(workflow, target);
         // assert
         assertThat(result.getClassName(), equalTo(WORKFLOW_CLASSNAME));
         assertThat(result.getUuid(), equalTo(Long.toString(WORKFLOW_OID)));
@@ -81,7 +79,7 @@ public class WorkflowMapperTest {
         WorkflowMapper workflowMapper = new WorkflowMapper();
 
         // ACT
-        WorkflowApiDTO workflowApiDTO = workflowMapper.toUiWorkflowApiDTO(workflow, new TargetApiDTO());
+        WorkflowApiDTO workflowApiDTO = workflowMapper.toWorkflowApiDTO(workflow, new TargetApiDTO());
 
         // ASSERT
         verifyWebhookWorkflowEquality(workflowApiDTO, createWebhookWorkflowApiDto());
@@ -120,6 +118,7 @@ public class WorkflowMapperTest {
         webhookApiDTO.setUrl(WEBHOOK_URL);
         webhookApiDTO.setMethod(HttpMethod.POST);
         webhookApiDTO.setTemplate(TEMPLATE);
+        webhookApiDTO.setTrustSelfSignedCertificates(true);
         workflowApiDTO.setTypeSpecificDetails(webhookApiDTO);
         return workflowApiDTO;
     }
@@ -147,6 +146,7 @@ public class WorkflowMapperTest {
                 .setUrl(WEBHOOK_URL)
                 .setHttpMethod(WorkflowDTO.WorkflowInfo.WebhookInfo.HttpMethod.POST)
                 .setTemplate(TEMPLATE)
+                .setTrustSelfSignedCertificates(true)
                 .build());
         if (populateName) {
             workflowInfo.setName(WORKFLOW_1_NAME);
@@ -226,5 +226,7 @@ public class WorkflowMapperTest {
         assertThat(firstWebhookApiDTO.getUrl(), equalTo(secondWebhookApiDTO.getUrl()));
         assertThat(firstWebhookApiDTO.getMethod(), equalTo(secondWebhookApiDTO.getMethod()));
         assertThat(firstWebhookApiDTO.getTemplate(), equalTo(secondWebhookApiDTO.getTemplate()));
+        assertThat(firstWebhookApiDTO.getTrustSelfSignedCertificates(),
+                equalTo(secondWebhookApiDTO.getTrustSelfSignedCertificates()));
     }
 }
