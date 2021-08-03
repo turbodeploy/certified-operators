@@ -219,6 +219,8 @@ public class ConditionalSubmitter implements Executor, Closeable {
 
         private final ConditionalTask originalTask;
 
+        private volatile boolean started = false;
+
         /**
          * Create conditional future.
          *
@@ -228,6 +230,17 @@ public class ConditionalSubmitter implements Executor, Closeable {
             super(task);
             this.originalTask = (ConditionalTask)task;
         }
+
+        @Override
+        public void run() {
+            started = true;
+            super.run();
+        }
+
+        public boolean isStarted() {
+            return started;
+        }
+
 
         /**
          * Get original task.
