@@ -54,6 +54,7 @@ public class CommodityConverterTest {
     private static final long PM_OID = 1L;
     private static final long APP_OID = 2L;
     private static final Float SCALING_FACTOR = 1.5F;
+    private static final Float MEAN_PLUS_DEV_USED = 0.6F;
     private static final Float RAW_USED = 0.5F;
     private static final Float RAW_CAPACITY = 2.0F;
     private static final Float MARKET_USED = RAW_USED * SCALING_FACTOR;
@@ -94,17 +95,22 @@ public class CommodityConverterTest {
     @Parameters({"100", "80", "120"})
     @TestCaseName("Test #{index}: (set|get)EffectiveCapacityPercentage({0})")
     public final void testCreateCommonCommoditySoldTO(double effectiveCapacityPercentage) {
-        HistoricalValues histUsed = HistoricalValues.newBuilder()
+        HistoricalValues comm1HistUsed = HistoricalValues.newBuilder()
                         .setHistUtilization(RAW_USED)
                         .setPercentile(PERCENTILE_USED)
                         .build();
+        HistoricalValues comm2HistUsed = HistoricalValues.newBuilder()
+                .setMovingMeanPlusStandardDeviations(MEAN_PLUS_DEV_USED)
+                .setHistUtilization(RAW_USED)
+                .setPercentile(PERCENTILE_USED)
+                .build();
         final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(PM_OID)
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
+                        .addCommoditySoldList(createSoldCommodity(comm1HistUsed, SCALING_FACTOR,
                                         CommodityDTO.CommodityType.CPU, effectiveCapacityPercentage))
                         .addCommoditySoldList(
-                                        createSoldCommodity(histUsed, null,
+                                        createSoldCommodity(comm2HistUsed, null,
                                                         CommodityDTO.CommodityType.MEM,
                                                         effectiveCapacityPercentage))
                         .build();
@@ -118,7 +124,7 @@ public class CommodityConverterTest {
         checkSoldCommodityTO(cpuCommodityTO,
                         SCALING_FACTOR, MARKET_CAPACITY, MARKET_USED);
         checkSoldCommodityTO(getCommodityByType(result, CommodityDTO.CommodityType.MEM), null,
-                        RAW_CAPACITY, RAW_USED);
+                        RAW_CAPACITY, MEAN_PLUS_DEV_USED);
         assertEquals(cpuCommodityTO.getSettings().getUtilizationUpperBound(),
                 (effectiveCapacityPercentage / 100.0) > 1.0f ? 1.0f :
                         (effectiveCapacityPercentage / 100.0), .001f);
