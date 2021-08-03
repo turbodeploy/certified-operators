@@ -1,10 +1,8 @@
 package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,10 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
-import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.kvstore.KeyValueStoreOperationException;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
@@ -36,7 +31,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
@@ -51,7 +45,6 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
-import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -308,41 +301,6 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         }
     }
 
-    private void sendChunkedMessageToProbe(@Nonnull final Target target,
-                                           List<MediationServerMessage> chunks,
-                                           @Nullable IOperationMessageHandler<?> responseHandler)
-        throws CommunicationException, InterruptedException, ProbeException {
-        if (chunks.size() < 1) {
-            throw new CommunicationException("Attempted to send empty chunked message");
-        }
-
-        boolean success = false;
-        final MediationServerMessage firstChunk = chunks.get(0);
-        final int messageId = firstChunk.getMessageID();
-        try {
-            final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                containerChooser.choose(target, firstChunk);
-
-            // Register the handler before sending the first message so there is no gap where there
-            // is no registered handler for an outgoing message. Of course this means cleanup is
-            // necessary!
-            if (responseHandler != null) {
-                messageHandlers.put(messageId, new MessageAnticipator(transport, responseHandler));
-            }
-            for (int chunkNumber = 0; chunkNumber < chunks.size(); chunkNumber++) {
-                final int oneBasedChunkNumber = chunkNumber + 1;
-                getLogger().trace("Sending chunk {}/{} to {} through {}",
-                    () -> oneBasedChunkNumber, chunks::size, target::getNoSecretDto, () -> transport);
-                transport.send(chunks.get(chunkNumber));
-            }
-            success = true;
-        } finally {
-            if (!success) {
-                messageHandlers.remove(messageId);
-            }
-        }
-    }
-
     @Override
     public int sendDiscoveryRequest(final Target target,
                                      @Nonnull final DiscoveryRequest discoveryRequest,
@@ -381,34 +339,6 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setActionRequest(actionRequest).build();
 
         sendMessageToProbe(target, message, actionMessageHandler);
-    }
-
-    @Override
-    public void sendPlanExportRequest(@Nonnull final Target target,
-                                      @Nonnull final PlanExportRequest exportRequest,
-                                      @Nonnull final IOperationMessageHandler<PlanExport> planExportMessageHandler)
-        throws InterruptedException, ProbeException, CommunicationException {
-        int messageId = nextMessageId();
-
-        // Note: optional fields are only sent in the first chunk, but messageId is optional
-        // and we need it in every message sent. So, we can't chunk the MediationServerMessage.
-        //
-        // Further, the message chunker only looks one level deep, and what we need chunked due to
-        // potential size is the planData. So, chunk that and build MediationServerMessages from
-        // each chunk.
-
-        final MessageChunker<PlanExportDTO> planDataChunker =
-            new MessageChunker<>(PlanExportDTO.getDescriptor(), PlanExportDTO::newBuilder);
-
-        final List<MediationServerMessage> chunks = planDataChunker.chunk(exportRequest.getPlanData())
-            .stream()
-            .map(planDataChunk -> MediationServerMessage.newBuilder()
-                .setMessageID(messageId)
-                .setPlanExportRequest(exportRequest.toBuilder().setPlanData(planDataChunk))
-                .build())
-            .collect(Collectors.toList());
-
-        sendChunkedMessageToProbe(target, chunks, planExportMessageHandler);
     }
 
     @Override

@@ -74,8 +74,7 @@ public class GlobalConfig {
     @Bean
     public TopologyProcessor tpNotificationClient() {
         return tpClientConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(
-            TopologyProcessorSubscription.Topic.TopologySummaries),
-            TopologyProcessorSubscription.forTopic(TopologyProcessorSubscription.Topic.PlanExport));
+            TopologyProcessorSubscription.Topic.TopologySummaries));
     }
 
     /**

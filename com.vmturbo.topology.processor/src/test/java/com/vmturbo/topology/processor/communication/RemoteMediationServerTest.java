@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -24,23 +23,16 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.kvstore.KeyValueStoreOperationException;
 import com.vmturbo.kvstore.MapKeyValueStore;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -51,7 +43,6 @@ import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
-import com.vmturbo.topology.processor.operation.planexport.PlanExportMessageHandler;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -312,52 +303,5 @@ public class RemoteMediationServerTest {
         return ContainerInfo.newBuilder()
                 .addProbes(probeInfo)
                 .build();
-    }
-
-    /**
-     * Test that initiating a plan export sends messages to the probe. This uses a plan
-     * with a large number of actions to ensure that chunking happens, and verifies
-     * that several messages are sent.
-     *
-     * @throws Exception if the probe can't be found in the ProbeStore
-     */
-    @Test
-    public void testPlanExportRequest() throws Exception {
-        final ProbeInfo probeInfo = Probes.defaultProbe;
-
-        long probeId = identityProvider.getProbeId(probeInfo);
-
-        final PlanExportRequest exportRequest = buildPlanExportRequest();
-        Mockito.when(target1.getProbeId()).thenReturn(probeId);
-
-        final PlanExportMessageHandler handler = mock(PlanExportMessageHandler.class);
-
-        remoteMediationServer.sendPlanExportRequest(target1, exportRequest, handler);
-
-        verify(transport, atLeast(3)).send(any());
-    }
-
-    private PlanExportRequest buildPlanExportRequest() {
-        PlanExportDTO.Builder builder = PlanExportDTO.newBuilder()
-            .setPlanName("foo")
-            .setMarketId("bar");
-
-        // Create lots of actions so that the message will be chunked
-        for (int i = 0; i < 5000; i++) {
-            builder.addActions(ActionExecutionDTO.newBuilder()
-                .setActionType(ActionType.MOVE)
-                .build());
-        }
-
-        return PlanExportRequest.newBuilder()
-            .setPlanData(builder)
-            .setTarget(RequestTargetId.newBuilder()
-                .setProbeType(Probes.defaultProbe.getProbeType())
-                .build())
-            .setPlanDestination(NonMarketEntityDTO.newBuilder()
-                .setId("doesn't matter")
-                .setEntityType(NonMarketEntityType.PLAN_DESTINATION)
-                .build())
-            .build();
     }
 }

@@ -11,7 +11,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.communication.CommunicationException;
@@ -22,7 +21,6 @@ import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
-import com.vmturbo.topology.processor.api.PlanExportNotificationListener;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetData;
@@ -60,11 +58,6 @@ public class TopologyProcessorClient extends
             "tp-external-action-approval-responses";
 
     /**
-     * Topic used to notify about plan export operations.
-     */
-    public static final String PLAN_EXPORT = "tp-plan-export";
-
-    /**
      * Represent the kafka topic containing host state change messages.
      */
     public static final String ENTITIES_WITH_NEW_STATE = "entities-with-new-state";
@@ -82,11 +75,10 @@ public class TopologyProcessorClient extends
             @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable IMessageReceiver<Topology> planTopologyReceiver,
             @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver,
-            @Nullable IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver,
-            @Nullable IMessageReceiver<PlanExportNotification> planExportReceiver) {
+            @Nullable IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver) {
         return new TopologyProcessorClient(connectionConfig, messageReceiver, liveTopologyReceiver,
                 planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
-            planExportReceiver, executorService);
+            executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -105,7 +97,6 @@ public class TopologyProcessorClient extends
      * @param planTopologyReceiver the receiver for plan topologies
      * @param topologySummaryReceiver the receiver for topology summaries
      * @param entitiesWithNewStateReceiver the receiver for host state changes
-     * @param planExportInfoReceiver the receiver for plan export operation updates
      * @param threadPool thread pool to use
      */
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
@@ -114,13 +105,12 @@ public class TopologyProcessorClient extends
             @Nullable IMessageReceiver<Topology> planTopologyReceiver,
             @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver,
             @Nullable IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver,
-            @Nullable IMessageReceiver<PlanExportNotification> planExportInfoReceiver,
             @Nonnull ExecutorService threadPool) {
         super(connectionConfig);
         this.notificationClient =
                 new TopologyProcessorNotificationReceiver(messageReceiver, liveTopologyReceiver,
                         planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
-                    planExportInfoReceiver, threadPool);
+                    threadPool);
     }
 
     @Nonnull
@@ -241,11 +231,6 @@ public class TopologyProcessorClient extends
     @Override
     public void addEntitiesWithNewStatesListener(@Nonnull final EntitiesWithNewStateListener listener) {
         getNotificationClient().addEntitiesWithNewStateListener(listener);
-    }
-
-    @Override
-    public void addPlanExportToTargetListener(@Nonnull final PlanExportNotificationListener listener) {
-        getNotificationClient().addPlanExportToTargetListener(listener);
     }
 
     @Nonnull

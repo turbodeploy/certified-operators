@@ -14,7 +14,6 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDi
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
-import com.vmturbo.plan.orchestrator.plan.export.PlanExportConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
@@ -23,7 +22,7 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  * Configuration from plan orchestrator component diagnostics
  */
 @Configuration
-@Import({TemplatesConfig.class, PlanConfig.class, PlanExportConfig.class, PlanProjectConfig.class, PlanOrchestratorDBConfig.class,
+@Import({TemplatesConfig.class, PlanConfig.class, PlanProjectConfig.class, PlanOrchestratorDBConfig.class,
     ScenarioConfig.class, DeploymentProfileConfig.class})
 public class PlanOrchestratorDiagnosticsConfig {
 
@@ -32,9 +31,6 @@ public class PlanOrchestratorDiagnosticsConfig {
 
     @Autowired
     private PlanConfig planConfig;
-
-    @Autowired
-    private PlanExportConfig planExportConfig;
 
     @Autowired
     private PlanProjectConfig planProjectConfig;
@@ -56,8 +52,7 @@ public class PlanOrchestratorDiagnosticsConfig {
     @Bean
     public DiagnosticsHandlerImportable diagnosticsHandler() {
         return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
-                Arrays.asList(planConfig.planDao(), planExportConfig.planDestinationDao(),
-                        planProjectConfig.planProjectDao(),
+                Arrays.asList(planConfig.planDao(), planProjectConfig.planProjectDao(),
                         planOrchestratorDBConfig.reservationDao(), scenarioConfig.scenarioDao(),
                         templatesConfig.templatesDao(), templatesConfig.templateSpecParser(),
                         deploymentProfileConfig.deploymentProfileDao()));

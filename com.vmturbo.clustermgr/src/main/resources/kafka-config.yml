@@ -63,9 +63,6 @@ topics:
   - topic: plan-orchestrator-status-changed
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
-  - topic: plan-orchestrator-export-status
-    properties:
-      retention.ms: 86400000 # 86400k ms = 24 hr
   - topic: reservation-status-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
@@ -114,6 +111,3 @@ topics:
     properties:
       retention.ms: 3600000 # 1 hour
       compression.type: snappy # reduce kafka disk usage with compression on the json object
-  - topic: tp-plan-export
-    properties:
-      retention.ms: 86400000 # 86400k ms = 24 hr
