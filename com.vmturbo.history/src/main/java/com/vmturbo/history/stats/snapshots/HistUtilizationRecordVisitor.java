@@ -22,10 +22,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 
 /**
  * {@link HistUtilizationRecordVisitor} visits {@link HistUtilizationRecord}s only and extracts from
@@ -79,7 +78,7 @@ public class HistUtilizationRecordVisitor extends
         final Integer valueType = record.getValueType();
         try {
             return HistoryUtilizationType.forNumber(valueType);
-        } catch (VmtDbException ex) {
+        } catch (IllegalArgumentException ex) {
             LOGGER.error("Cannot find '{}' value by '{}' identifier for '{}' record",
                             HistoryUtilizationType.class.getSimpleName(), valueType, record, ex);
         }

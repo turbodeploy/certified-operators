@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;

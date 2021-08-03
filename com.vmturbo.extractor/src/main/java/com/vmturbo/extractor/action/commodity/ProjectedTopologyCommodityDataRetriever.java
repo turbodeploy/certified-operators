@@ -22,7 +22,7 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.history.schema.RelationType;
 
 /**
@@ -109,7 +109,7 @@ class ProjectedTopologyCommodityDataRetriever {
 
                 statRecord.getHistUtilizationValueList().stream()
                     .filter(histValue -> histValue.getType()
-                            .equalsIgnoreCase(StringConstants.PERCENTILE))
+                            .equalsIgnoreCase(HistoryUtilizationType.Percentile.getApiParameterName()))
                     .findFirst()
                     .ifPresent(percentileUtilization -> {
                         final float capacity = percentileUtilization.getCapacity().getTotal();

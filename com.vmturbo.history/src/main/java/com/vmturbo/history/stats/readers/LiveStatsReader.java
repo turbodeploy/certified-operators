@@ -30,7 +30,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.TextFormat;
 
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;

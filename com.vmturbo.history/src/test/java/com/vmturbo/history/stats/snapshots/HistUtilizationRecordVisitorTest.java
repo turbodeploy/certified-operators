@@ -19,8 +19,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.PropertySubType;
 
 /**

@@ -76,6 +76,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.history.schema.RelationType;
 
 /**
@@ -439,7 +440,7 @@ public class StatsMapper {
         if (!convertedStatRecord.getHistUtilizationValueList().isEmpty()) {
             final Optional<HistUtilizationValue> percentileValue =
                             convertedStatRecord.getHistUtilizationValueList().stream()
-                                            .filter(value -> StringConstants.PERCENTILE.equals(value.getType()))
+                                            .filter(value -> HistoryUtilizationType.Percentile.getApiParameterName().equals(value.getType()))
                                             .findAny();
             percentileValue.map(StatsMapper::calculatePercentile)
                             .map(StatsMapper::createPercentileApiDto)

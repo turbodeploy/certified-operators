@@ -2,12 +2,9 @@
  * (C) Turbonomic 2020.
  */
 
-package com.vmturbo.history.stats;
+package com.vmturbo.components.common;
 
 import javax.annotation.Nonnull;
-
-import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 
 /**
  * {@link HistoryUtilizationType} describes all supported history aggregations. {@link
@@ -40,18 +37,17 @@ public enum HistoryUtilizationType {
      *                 value.
      * @return {@link HistoryUtilizationType} value corresponding to the specified
      *                 identifier.
-     * @throws VmtDbException in case number does not correspond to any of the
+     * @throws IllegalArgumentException in case number does not correspond to any of the
      *                 {@link HistoryUtilizationType} value ordinals.
      */
     @Nonnull
-    public static HistoryUtilizationType forNumber(int number) throws VmtDbException {
+    public static HistoryUtilizationType forNumber(int number) throws IllegalArgumentException {
         for (HistoryUtilizationType value : values()) {
             if (value.ordinal() == number) {
                 return value;
             }
         }
-        throw new VmtDbException(VmtDbException.READ_ERR,
-                        HistUtilization.HIST_UTILIZATION.getName());
+        throw new IllegalArgumentException("Invalid HistoryUtilizationType number " + number);
     }
 
     /**

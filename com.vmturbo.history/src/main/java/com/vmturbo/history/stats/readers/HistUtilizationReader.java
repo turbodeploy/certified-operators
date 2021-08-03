@@ -23,9 +23,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.components.common.utils.Strings;
-import com.vmturbo.history.stats.live.LiveStatsStore;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Result;
@@ -37,13 +34,13 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.INonPaginatingStatsReader;
-import org.springframework.security.core.parameters.P;
+import com.vmturbo.history.stats.live.LiveStatsStore;
 
 /**
  * {@link HistUtilizationReader} reads from {@link HistUtilization#HIST_UTILIZATION} table.
