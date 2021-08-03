@@ -1,13 +1,14 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,20 +51,50 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
     performOperation(@Nonnull final Stream<TopologyEntity> entities,
                      @Nonnull final EntitySettingsCollection settingsCollection,
                      @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
-        entities.filter(entity -> !getFillableCommodities(entity).isEmpty()).forEach(entity -> {
-            try {
-                final Optional<TopologyEntity> virtualDatacenterProvider =
-                    findVdcProvider(entity.getProviders(), entity.getOid());
-                if (virtualDatacenterProvider.isPresent()) {
-                    handleConsumerVirtualDatacenter(entity, virtualDatacenterProvider.get(), resultBuilder);
-                } else {
-                    handleProviderVirtualDatacenter(entity, resultBuilder);
-                }
-            } catch (IllegalStateException e) {
-                logger.error(e.getMessage());
+        entities.filter(entity -> !getCommoditiesWithoutCapacity(entity).isEmpty()).forEach(entity -> {
+            final TopologyEntity nearestTopCapacityAwareVdc =
+                            getNearestTopCapacityAwareVdc(entity);
+            if (nearestTopCapacityAwareVdc == null) {
+                populateCapacityFromProviders(entity, resultBuilder, entity.getProviders());
+                return;
             }
+            final boolean providerHasCapacity =
+                            getCommoditiesWithoutCapacity(nearestTopCapacityAwareVdc).isEmpty();
+            if (providerHasCapacity) {
+                handleConsumerVirtualDatacenter(entity, nearestTopCapacityAwareVdc,
+                                resultBuilder);
+                return;
+            }
+            final double capacity = populateCapacityFromProviders(nearestTopCapacityAwareVdc,
+                            resultBuilder, nearestTopCapacityAwareVdc.getProviders());
+            if (entity.getOid() == nearestTopCapacityAwareVdc.getOid() || capacity <= 0) {
+                return;
+            }
+            resultBuilder.queueUpdateEntityAlone(entity,
+                            entityForUpdate -> getCommoditiesWithoutCapacity(entityForUpdate)
+                                            .forEach(commodity -> {
+                                                logger.debug("Updating CPU Allocation capacity for Virtual Datacenter {} to {}",
+                                                                entityForUpdate.getOid(),
+                                                                capacity);
+                                                commodity.setCapacity(capacity);
+                                            }));
         });
         return resultBuilder.build();
+    }
+
+    @Nullable
+    private static TopologyEntity getNearestTopCapacityAwareVdc(@Nonnull TopologyEntity entity) {
+        final Collection<TopologyEntity> parentVdcs = entity.getProviders().stream()
+                        .filter(p -> p.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .collect(Collectors.toSet());
+        if (parentVdcs.isEmpty()) {
+            return entity;
+        }
+        final Optional<TopologyEntity> anyVdcWithCapacity =
+                        parentVdcs.stream().filter(p -> getCommoditiesWithoutCapacity(p).isEmpty())
+                                        .findAny();
+        return anyVdcWithCapacity.orElseGet(() -> parentVdcs.stream()
+                        .map(p -> getNearestTopCapacityAwareVdc(p)).findAny().orElse(null));
     }
 
     /**
@@ -73,32 +104,14 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @param entity the entity to check
      * @return a list of all commodities that need updates (may be empty)
      */
-    private List<CommoditySoldDTO.Builder> getFillableCommodities(@Nonnull final TopologyEntity entity) {
+    @Nonnull
+    private static Collection<CommoditySoldDTO.Builder> getCommoditiesWithoutCapacity(
+                    @Nonnull final TopologyEntity entity) {
         return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
             .filter(commodity ->
                 commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE &&
-                    (!commodity.hasCapacity() || commodity.getCapacity() == 0))
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Determines whether a Virtual Datacenter has a provider Virtual Datacenter serving as host.
-     * If an entity has exactly one Virtual Datacenter provider, it has a consumer role. Otherwise
-     * it has a provider role. Note: there cannot be more than one Virtual Datacenter provider.
-     *
-     * @param providers the entities to filter
-     * @param oid oid of the original Virtual Datacenter (for logging only)
-     * @return an Optional of the Virtual Datacenter provider, or empty if there is none
-     * @throws IllegalStateException if there are multiple Virtual Datacenter providers
-     */
-    private Optional<TopologyEntity> findVdcProvider(@Nonnull final List<TopologyEntity> providers,
-                                                     final long oid) {
-        return providers.stream()
-            .filter(provider -> provider.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
-            .reduce((expected, unexpected) -> {
-                throw new IllegalStateException("Found multiple Virtual Datacenter hosts for " +
-                    "VirtualDatacenter " + oid + ". No change made to CPU Allocation capacity.");
-            });
+                    (!commodity.hasCapacity() || commodity.getCapacity() <= 0))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -109,15 +122,15 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @param provider The virtual datacenter that the CPU allocation capacity should be drawn from
      * @param resultBuilder The resultBuilder with which to queue necessary changes
      */
-    private void handleConsumerVirtualDatacenter(@Nonnull final TopologyEntity entity,
-                                                 @Nonnull final TopologyEntity provider,
-                                                 @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    private static void handleConsumerVirtualDatacenter(@Nonnull final TopologyEntity entity,
+                    @Nonnull final TopologyEntity provider,
+                    @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         final Optional<CommoditySoldDTO> providerCpuAllocCommodity = findProviderCommodity(provider);
 
         providerCpuAllocCommodity.ifPresent(providerCommodity -> {
             final double providerCapacity = providerCommodity.getCapacity();
             resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
-                getFillableCommodities(entityForUpdate).forEach(commodity -> {
+                getCommoditiesWithoutCapacity(entityForUpdate).forEach(commodity -> {
                     logger.debug("Setting CPU Allocation capacity of Virtual Datacenter {} to {} " +
                         "from host Virtual Datacenter {}", entityForUpdate.getOid(), providerCapacity,
                         provider.getOid());
@@ -133,48 +146,59 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      *
      * @param entity The entity to search for the applicable commodity
      * @return An optional of the commodity if the entity has it and empty otherwise
-     * @throws IllegalStateException if more than one qualifying commodity is found
      */
-    private Optional<CommoditySoldDTO> findProviderCommodity(@Nonnull final TopologyEntity entity) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-            .filter(commodity ->
-                commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE &&
-                    commodity.hasCapacity() && commodity.getCapacity() > 0)
-            .reduce((expectedCommodity, unexpectedCommodity) -> {
-                throw new IllegalStateException("Multiple CPU Allocation commodities sold by entity " +
-                    entity.getOid());
-            });
+    @Nonnull
+    private static Optional<CommoditySoldDTO> findProviderCommodity(
+                    @Nonnull final TopologyEntity entity) {
+        final Collection<CommoditySoldDTO> soldCommodities =
+                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                                        .filter(commodity -> commodity.getCommodityType().getType()
+                                                        == CommodityType.CPU_ALLOCATION_VALUE
+                                                        && commodity.hasCapacity()
+                                                        && commodity.getCapacity() > 0)
+                                        .collect(Collectors.toSet());
+        final int soldCommoditiesNumber = soldCommodities.size();
+        if (soldCommoditiesNumber > 1) {
+            logger.error("Multiple CPU Allocation commodities sold by entity {}", entity.getOid());
+            return Optional.empty();
+        }
+        return soldCommodities.stream().findAny();
     }
 
     /**
-     * Determine and queue the necessary changes, if any, for a Virtual Datacenter entity with a
-     * "provider" role.
+     * Calculates sum of the relevant commodity capacities bought from all specified providers.
+     *
      * @param entity The virtual datacenter entity to be changed if necessary
      * @param resultBuilder The resultBuilder with which to queue necessary changes
+     * @param providers collection of providers which capacity might be considered
+     *                 as part of VDC capacity.
+     * @return capacity calculated for entity from specified providers.
      */
-    private void handleProviderVirtualDatacenter(@Nonnull final TopologyEntity entity,
-                                                 @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
-        Multiset<String> relevantKeys =
-            entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
-                .flatMap(commodityAndProvider ->
-                    commodityAndProvider.getCommodityBoughtList().stream())
-                .filter(commodity ->
-                    commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE)
-                .map(commodity -> commodity.getCommodityType().getKey())
-                .collect(Collector.of(HashMultiset::create, Multiset::add, (set1, set2) -> {
-                    set1.addAll(set2);
-                    return set1;
-                }));
-
-        final double capacity = calculateCapacity(entity.getProviders(), relevantKeys);
-
+    private static double populateCapacityFromProviders(@Nonnull final TopologyEntity entity,
+                    @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder,
+                    @Nonnull Collection<TopologyEntity> providers) {
+        final Collection<String> relevantKeys =
+                        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                                        .stream()
+                                        .flatMap(cbfp -> cbfp.getCommodityBoughtList().stream()
+                                                        .filter(bought -> bought.getCommodityType()
+                                                                        .getType()
+                                                                        == CommodityType.CPU_ALLOCATION_VALUE)
+                                                        .map(bought -> bought.getCommodityType()
+                                                                        .getKey()))
+                                        .collect(Collectors.toSet());
+        final double capacity = calculateCapacity(providers, relevantKeys);
+        if (capacity <= 0) {
+            return capacity;
+        }
         resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
-            getFillableCommodities(entityForUpdate).forEach(commodity -> {
+            getCommoditiesWithoutCapacity(entityForUpdate).forEach(commodity -> {
                 logger.debug("Updating CPU Allocation capacity for Virtual Datacenter {} to {}",
                     entityForUpdate.getOid(), capacity);
                 commodity.setCapacity(capacity);
             })
         );
+        return capacity;
     }
 
 
@@ -196,14 +220,15 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      *                     matched with commodities sold by PM providers.
      * @return the total capacity of the VDC provider
      */
-    private double calculateCapacity(@Nonnull final List<TopologyEntity> providers,
-                                     final Multiset<String> relevantKeys) {
-        return providers.stream()
-            .filter(provider -> provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-            .flatMap(this::filterProviderCommodities)
-            .map(commodity -> commodity.getCapacity() *
-                relevantKeys.count(commodity.getCommodityType().getKey())
-            ).reduce((double) 0, Double::sum);
+    private static double calculateCapacity(@Nonnull Collection<TopologyEntity> providers,
+                    @Nonnull Collection<String> relevantKeys) {
+        return providers.stream().filter(provider -> provider.getEntityType()
+                        == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .flatMap(VirtualDatacenterCpuAllocationPostStitchingOperation::filterProviderCommodities)
+                        .filter(commodity -> relevantKeys
+                                        .contains(commodity.getCommodityType().getKey()))
+                        .map(CommoditySoldDTO::getCapacity)
+                        .reduce((double)0, Double::sum);
     }
 
     /**
@@ -211,8 +236,10 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
      * @param provider the TopologyEntity whose commodities sold are being filtered
      * @return a stream of the provider's CPU Allocation commodities with unique keys
      */
-    private Stream<CommoditySoldDTO> filterProviderCommodities(@Nonnull final TopologyEntity provider) {
-        final Set<String> uniqueKeys = new HashSet<>();
+    @Nonnull
+    private static Stream<CommoditySoldDTO> filterProviderCommodities(
+                    @Nonnull final TopologyEntity provider) {
+        final Collection<String> uniqueKeys = new HashSet<>();
         return provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
             .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE)
             .filter(commodity -> uniqueKeys.add(commodity.getCommodityType().getKey()));
