@@ -103,7 +103,7 @@ public class VcpuThrottlingSamplerTest {
 
         elapseHours(50.0, 100.0, FAST_HALFLIFE_HOURS, sampler);
         assertHistoricalThrottling(25.0, sampler, SMALL_DELTA);
-        assertHistoricalVcpu(50.0, sampler, SMALL_DELTA);
+        assertNull(sampler.meanPlusSigma(VCPU_FIELD, 0));
     }
 
     /**
@@ -119,7 +119,6 @@ public class VcpuThrottlingSamplerTest {
 
         elapseHours(0, 0, SLOW_HALFLIFE_HOURS, sampler);
         assertHistoricalThrottling(25.0, sampler, SMALL_DELTA);
-        assertHistoricalVcpu(50.0, sampler, SMALL_DELTA);
     }
 
     /**
@@ -141,7 +140,6 @@ public class VcpuThrottlingSamplerTest {
         }
 
         assertHistoricalThrottling(25.0, sampler, 0.5);
-        assertHistoricalVcpu(50.0, sampler, 1.0);
     }
 
     /**
@@ -159,10 +157,6 @@ public class VcpuThrottlingSamplerTest {
         // cap the value for analysis at 50.0 because that's the highest value that's
         // actually been received.
         assertEquals(50.0, sampler.meanPlusSigma(THROTTLING_FIELD, 2.0), SMALL_DELTA);
-        // At this point mean+2*sigma should be 150.0 for Historical VCPU but we should
-        // cap the value for analysis at 100.0 because that's the highest value that's
-        // actually been received.
-        assertEquals(100.0, sampler.meanPlusSigma(VCPU_FIELD, 2.0), SMALL_DELTA);
     }
 
     /**
@@ -361,10 +355,5 @@ public class VcpuThrottlingSamplerTest {
     private void assertHistoricalThrottling(final double expectedThrottling,
                                             @Nonnull VcpuThrottlingSampler sampler, double delta) {
         assertEquals(expectedThrottling, sampler.meanPlusSigma(THROTTLING_FIELD, 0), delta);
-    }
-
-    private void assertHistoricalVcpu(final double expectedVcpu,
-                                      @Nonnull VcpuThrottlingSampler sampler, double delta) {
-        assertEquals(expectedVcpu, sampler.meanPlusSigma(VCPU_FIELD, 0), delta);
     }
 }
