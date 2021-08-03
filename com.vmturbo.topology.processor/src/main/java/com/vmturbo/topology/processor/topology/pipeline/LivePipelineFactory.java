@@ -34,7 +34,6 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
-import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
@@ -83,7 +82,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConst
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadAtomicActionSpecsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadPlanDestinationsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
@@ -112,8 +110,6 @@ public class LivePipelineFactory {
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
-
-    private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader;
 
     private final EntitySettingsApplicator settingsApplicator;
 
@@ -180,7 +176,6 @@ public class LivePipelineFactory {
             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
             @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
-            @Nonnull final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader,
             @Nonnull final EntitySettingsResolver entitySettingsResolver,
             @Nonnull final EntitySettingsApplicator settingsApplicator,
             @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
@@ -216,7 +211,6 @@ public class LivePipelineFactory {
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         this.discoveredCloudCostUploader = cloudCostUploader;
-        this.discoveredPlanDestinationUploader = discoveredPlanDestinationUploader;
         this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
         this.entitySettingsResolver = entitySettingsResolver;
         this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
@@ -333,7 +327,6 @@ public class LivePipelineFactory {
                 .addStage(new StitchingStage(stitchingManager, journalFactory, new StitchingJournalContainer()))
                 .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
-                .addStage(new UploadPlanDestinationsStage(discoveredPlanDestinationUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
                 .addStage(new UploadActionConstraintsStage(actionConstraintsUploader, groupServiceClient))

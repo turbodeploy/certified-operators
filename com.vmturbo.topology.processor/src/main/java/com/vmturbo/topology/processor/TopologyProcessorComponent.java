@@ -35,7 +35,6 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.migration.MigrationsConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
-import com.vmturbo.topology.processor.planexport.PlanExportConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
@@ -67,7 +66,6 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockin
     KVConfig.class,
     MigrationsConfig.class,
     OperationConfig.class,
-    PlanExportConfig.class,
     ProbeConfig.class,
     RepositoryConfig.class,
     RESTConfig.class,
@@ -128,8 +126,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
 
-    @Autowired
-    private PlanExportConfig planExportConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -170,8 +166,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             topologyProcessorRpcConfig.discoveredGroupRpcService(),
             probeConfig.probeActionPoliciesService(),
             topologyProcessorRpcConfig.probeService(),
-            topologyProcessorRpcConfig.targetRpcService(),
-            planExportConfig.planExportToTargetService());
+            topologyProcessorRpcConfig.targetRpcService());
     }
 
     /**

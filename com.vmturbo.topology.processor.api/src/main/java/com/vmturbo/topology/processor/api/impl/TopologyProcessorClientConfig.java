@@ -22,7 +22,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
@@ -153,18 +152,6 @@ public class TopologyProcessorClientConfig {
                     EntitiesWithNewState::parseFrom));
     }
 
-    protected IMessageReceiver<PlanExportNotification> planExportNotificationReceiver(
-        @Nonnull final Optional<StartFrom> startFromOverride) {
-        return startFromOverride
-            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
-                .messageReceiverWithSettings(
-                    new TopicSettings(TopologyProcessorClient.PLAN_EXPORT, startFrom),
-                    PlanExportNotification::parseFrom))
-            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
-                .messageReceiver(TopologyProcessorClient.PLAN_EXPORT,
-                    PlanExportNotification::parseFrom));
-    }
-
     /**
      * This is a lazy bean prototype. It will subscribe on different topics based on the input
      * parameters. Everithing will be later collected by Spring to destroy automatically.
@@ -198,13 +185,9 @@ public class TopologyProcessorClientConfig {
             = subscriptionsByTopic.containsKey(Topic.EntitiesWithNewState)
             ? entitiesWithNewStateReceiver(subscriptionsByTopic.get(Topic.EntitiesWithNewState).getStartFrom())
             : null;
-        final IMessageReceiver<PlanExportNotification> planExportReceiver
-            = subscriptionsByTopic.containsKey(Topic.PlanExport)
-            ? planExportNotificationReceiver(subscriptionsByTopic.get(Topic.PlanExport).getStartFrom())
-            : null;
         return TopologyProcessorClient.rpcAndNotification(topologyProcessorClientConnectionConfig(),
             topologyProcessorClientThreadPool(), notificationsReceiver, liveReceiver,
-            planReceiver, summaryReceiver, entitiesWithNewStateReceiver, planExportReceiver);
+            planReceiver, summaryReceiver, entitiesWithNewStateReceiver);
     }
 
     public TopologyProcessor topologyProcessorRpcOnly() {

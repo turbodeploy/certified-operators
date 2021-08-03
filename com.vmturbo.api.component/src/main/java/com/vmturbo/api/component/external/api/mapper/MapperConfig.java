@@ -249,12 +249,6 @@ public class MapperConfig {
     }
 
     @Bean
-    public PlanDestinationMapper planDestinationMapper() {
-        return new PlanDestinationMapper(serviceConfig.businessAccountRetriever(),
-                marketMapper(), communicationConfig.planRpcService());
-    }
-
-    @Bean
     public TagsPaginationMapper tagsPaginationMapper() { return new TagsPaginationMapper();}
 
     @Bean

@@ -546,9 +546,7 @@ public class ServiceConfig {
 
     @Bean
     public PlanDestinationService planDestinationService() {
-        return new PlanDestinationService(communicationConfig.planExportServiceBlockingRpcService(),
-            mapperConfig.uuidMapper(),
-            mapperConfig.planDestinationMapper());
+        return new PlanDestinationService();
     }
 
     @Bean

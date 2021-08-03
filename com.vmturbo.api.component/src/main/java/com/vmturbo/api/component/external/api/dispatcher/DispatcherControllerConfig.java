@@ -27,7 +27,6 @@ import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.LicensesController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.controller.NotificationsController;
-import com.vmturbo.api.controller.PlanDestinationController;
 import com.vmturbo.api.controller.PoliciesController;
 import com.vmturbo.api.controller.ProbesController;
 import com.vmturbo.api.controller.ReservationsController;
@@ -132,11 +131,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public NotificationsController notificationsController() {
         return new NotificationsController();
-    }
-
-    @Bean
-    public PlanDestinationController planDestinationController() {
-        return  new PlanDestinationController(serviceConfig.planDestinationService());
     }
 
     @Bean

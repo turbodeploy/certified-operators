@@ -69,21 +69,12 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.NoChange;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.PlanDestinationData;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse;
-import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse.PlanExportResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportProgress;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
@@ -114,11 +105,9 @@ import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingO
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
-import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
-import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
@@ -179,7 +168,6 @@ public class OperationManagerTest {
     private final DiscoveredGroupUploader discoveredGroupUploader = Mockito.mock(DiscoveredGroupUploader.class);
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = Mockito.mock(DiscoveredWorkflowUploader.class);
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader = Mockito.mock(DiscoveredCloudCostUploader.class);
-    private final DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader = Mockito.mock(DiscoveredPlanDestinationUploader.class);
 
     private TrackingOperationListener operationListener = Mockito.spy(new TrackingOperationListener());
 
@@ -200,7 +188,6 @@ public class OperationManagerTest {
     private static final long DEACTIVATE_VM_ID = 200L;
     private static final long MOVE_SOURCE_ID = 20L;
     private static final long MOVE_DESTINATION_ID = 30L;
-    private static final long PLAN_DESTINATION_ID = 42L;
 
     private static final String LICENSE_ERROR
                     = "CRITICAL: Requires an active license with the following features: "
@@ -232,11 +219,9 @@ public class OperationManagerTest {
                 360, 360, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
-            discoveredWorkflowUploader, discoveredCloudCostUploader,
-            discoveredPlanDestinationUploader, discoveredTemplatesUploader, entityActionDao,
-            derivedTargetParser, groupScopeResolver, targetDumpingSettings,
-            systemNotificationProducer, 10, 10, 10, 10, 5, 10, 1, 1, TheMatrix.instance(),
-            binaryDiscoveryDumper, false, licenseCheckClient);
+            discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
+            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,
+            5, 10, 1, 1, TheMatrix.instance(), binaryDiscoveryDumper, false, licenseCheckClient);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
@@ -727,7 +712,6 @@ public class OperationManagerTest {
                 .deleteTemplateDeploymentProfileByTarget(targetId);
         verify(discoveredWorkflowUploader).targetRemoved(targetId);
         verify(discoveredCloudCostUploader).targetRemoved(targetId, Optional.of(ProbeCategory.COST));
-        verify(discoveredPlanDestinationUploader).targetRemoved(targetId);
     }
 
     /**
@@ -1262,142 +1246,5 @@ public class OperationManagerTest {
             .setUuid("test")
             .setTargetSE(target)
             .build());
-    }
-
-    /**
-     * Test starting a plan export.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testStartPlanExport() throws Exception {
-        final PlanExport export = operationManager.exportPlan(planExportDTO(), planDestination(),
-            0, targetId);
-        Mockito.verify(mockRemoteMediationServer).sendPlanExportRequest(any(Target.class),
-            any(PlanExportRequest.class), any(OperationMessageHandler.class));
-        Assert.assertTrue(operationManager.getInProgressPlanExport(export.getId()).isPresent());
-    }
-
-    /**
-     * Tests process action success.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testProcessPlanExportSuccess() throws Exception {
-        final PlanExport export = operationManager.exportPlan(planExportDTO(), planDestination(),
-            0, targetId);
-
-        final PlanExportProgress progress = PlanExportProgress.newBuilder()
-            .setResponse(PlanExportResponse.newBuilder()
-                .setState(PlanExportResponseState.IN_PROGRESS)
-                .setProgress(50)
-                .setDescription("Running!"))
-            .build();
-        operationManager.notifyPlanExportProgress(export, progress);
-
-        final PlanExportResult result = PlanExportResult.newBuilder()
-            .setResponse(PlanExportResponse.newBuilder()
-                .setState(PlanExportResponseState.SUCCEEDED)
-                .setProgress(100)
-                .setDescription("Huzzah!"))
-            .build();
-        operationManager.notifyPlanExportResult(export, result);
-
-        OperationTestUtilities.waitForPlanExport(operationManager, export);
-
-        Assert.assertEquals(100, export.getProgress());
-        Assert.assertEquals(Status.SUCCESS, export.getStatus());
-        Assert.assertEquals(PlanExportResponseState.SUCCEEDED, export.getState());
-
-        // We should have received three notifications - start, progress, and complete
-        Mockito.verify(operationListener, times(3)).notifyOperationState(export);
-    }
-
-    /**
-     * Tests plan export failure.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testPlanExportFailure() throws Exception {
-        final PlanExport export = operationManager.exportPlan(planExportDTO(), planDestination(),
-            0, targetId);
-
-        final PlanExportProgress progress = PlanExportProgress.newBuilder()
-            .setResponse(PlanExportResponse.newBuilder()
-                .setState(PlanExportResponseState.IN_PROGRESS)
-                .setProgress(42)
-                .setDescription("Running!"))
-            .build();
-        operationManager.notifyPlanExportProgress(export, progress);
-
-        final PlanExportResult result = PlanExportResult.newBuilder()
-            .setResponse(PlanExportResponse.newBuilder()
-                .setState(PlanExportResponseState.FAILED)
-                .setProgress(42)
-                .setDescription("Boo!"))
-            .build();
-        operationManager.notifyPlanExportResult(export, result);
-
-        OperationTestUtilities.waitForPlanExport(operationManager, export);
-
-        // Wait until we receive notification of the failure
-        OperationTestUtilities.waitForEvent(() ->
-            operationListener.getLastNotifiedStatus()
-                .map(status -> status == Status.FAILED)
-                .orElse(false));
-
-        Assert.assertEquals(42, export.getProgress());
-        Assert.assertEquals(Status.FAILED, export.getStatus());
-        Assert.assertEquals(PlanExportResponseState.FAILED, export.getState());
-
-        // We should have received three notifications - start, progress, and complete
-        Mockito.verify(operationListener, times(3)).notifyOperationState(export);
-    }
-
-    /**
-     * Tests processing plan export when target is removed.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testProcessPlanExportTargetRemoval() throws Exception {
-        final Target target = targetStore.getTarget(targetId).get();
-
-        final PlanExport export = operationManager.exportPlan(planExportDTO(), planDestination(),
-            0, targetId);
-
-        Assert.assertTrue(operationManager.getInProgressPlanExport(export.getId()).isPresent());
-        operationManager.onTargetRemoved(target);
-        OperationTestUtilities.waitForPlanExport(operationManager, export);
-
-        final List<String> errors = export.getErrors();
-        Assert.assertEquals(1, errors.size());
-        final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage,
-            CoreMatchers.containsString("Target " + targetId + " removed"));
-        Assert.assertFalse(operationManager.getInProgressAction(export.getId()).isPresent());
-    }
-
-    @Nonnull
-    private PlanExportDTO planExportDTO() {
-        return PlanExportDTO.newBuilder()
-            .setMarketId("0")
-            .setPlanName("Test Plan")
-            .build();
-    }
-
-    @Nonnull
-    private NonMarketEntityDTO planDestination() {
-        return NonMarketEntityDTO.newBuilder()
-            .setEntityType(NonMarketEntityType.PLAN_DESTINATION)
-            .setId(String.valueOf(PLAN_DESTINATION_ID))
-            .setDisplayName("Testing")
-            .setDescription("Testing Destination")
-            .setPlanDestinationData(PlanDestinationData.newBuilder()
-                .setHasExportedData(false)
-                .build())
-            .build();
     }
 }

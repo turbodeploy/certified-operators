@@ -20,8 +20,6 @@ import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc;
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc.AtomicActionSpecsUploadServiceStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -235,12 +233,6 @@ public class ActionsConfig {
         return ActionConstraintsServiceGrpc.newStub(
             aoClientConfig.actionOrchestratorChannel());
     }
-
-    @Bean
-    public ActionsServiceBlockingStub actionsServiceBlockingStub() {
-        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
-    }
-
 
     @Bean
     public ActionConstraintsUploader actionConstraintsUploader() {

@@ -12,7 +12,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
@@ -24,7 +23,6 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
-import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.Target;
@@ -150,21 +148,6 @@ public interface RemoteMediation {
             @Nonnull ActionAuditRequest actionAuditRequest,
             @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
             throws InterruptedException, ProbeException, CommunicationException;
-
-    /**
-     * Request that a plan export to a target.
-     *
-     * @param target the target to which the request should be sent
-     * @param exportRequest describes the export to be performed
-     * @param planExportMessageHandler handler to receive all the messages received for this request
-     * @throws InterruptedException if current thread has been interrupted
-     * @throws ProbeException if probe requested does not exist
-     * @throws CommunicationException if some communication error occurred
-     */
-    void sendPlanExportRequest(@Nonnull Target target,
-                               @Nonnull PlanExportRequest exportRequest,
-                               @Nonnull IOperationMessageHandler<PlanExport> planExportMessageHandler)
-        throws InterruptedException, ProbeException, CommunicationException;
 
     /**
      * Sends a "set-properties" request.  No response is expected to this request.

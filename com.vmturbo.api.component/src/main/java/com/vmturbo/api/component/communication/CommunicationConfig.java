@@ -69,8 +69,6 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanExportServiceGrpc;
-import com.vmturbo.common.protobuf.plan.PlanExportServiceGrpc.PlanExportServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
@@ -294,11 +292,6 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public PlanExportServiceBlockingStub planExportServiceBlockingRpcService() {
-        return PlanExportServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
-    }
-
-    @Bean
     public PlanServiceFutureStub planRpcServiceFuture() {
         return PlanServiceGrpc.newFutureStub(planClientConfig.planOrchestratorChannel());
     }
@@ -384,12 +377,6 @@ public class CommunicationConfig {
         return new ApiComponentPlanListener(websocketConfig.websocketHandler());
     }
 
-    @Bean
-    public ApiComponentPlanExportListener apiComponentPlanExportListener() {
-        return new ApiComponentPlanExportListener(websocketConfig.websocketHandler(),
-            mapperConfig.planDestinationMapper());
-    }
-
     // overriding the repository client receiver because we don't want to read from beginning.
     @Primary
     @Bean
@@ -413,7 +400,6 @@ public class CommunicationConfig {
     public PlanOrchestrator planOrchestrator() {
         final PlanOrchestrator planOrchestrator = planClientConfig.planOrchestrator();
         planOrchestrator.addPlanListener(apiComponentPlanListener());
-        planOrchestrator.addPlanExportListener(apiComponentPlanExportListener());
         planOrchestrator.addReservationListener(apiComponentReservationListener());
         return planOrchestrator;
     }
