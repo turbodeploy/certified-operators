@@ -635,7 +635,7 @@ public class LiveActionPipelineIntegrationTest {
                 TOPOLOGY_CONTEXT_ID);
         when(entitySettingsCache.newSnapshot(any(), anyLong())).thenReturn(snapshot);
 
-        Mockito.doNothing().when(listener).sendOnGenerationEvents(actionsCaptor.capture(), any());
+        Mockito.when(listener.sendOnGenerationEvents(actionsCaptor.capture(), any())).thenReturn(1);
         pipelineFactory.actionPipeline(firstPlan).run(firstPlan);
         final Collection<ActionView> actions = actionsCaptor.getValue();
         Assert.assertEquals(ActionState.READY, ((Action)((ArrayList)actions).get(0)).getState());

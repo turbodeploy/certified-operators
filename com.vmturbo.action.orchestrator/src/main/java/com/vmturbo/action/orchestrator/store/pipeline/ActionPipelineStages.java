@@ -1420,24 +1420,26 @@ public class ActionPipelineStages {
             // We need to call auditOnGeneration once so that the book keeping can determine what
             // is new and what needs to be cleared by comparing what was provided in the last cycle.
             // As a result, this should not be called multiple times per market cycle.
-            auditOnGeneration(actionsForAudit, entitiesAndSettingsSnapshot.get());
+            final int auditedActions = auditOnGeneration(actionsForAudit, entitiesAndSettingsSnapshot.get());
 
-            return Status.success("Audit on generation for "
-                + String.format("%,d", actionsForAudit.size()) + " actions");
+            return Status.success(String.format(
+                    "Found %d actions for on generation audit. %d of them were audited at this cycle. The remaining actions have been already audited earlier.",
+                    actionsForAudit.size(), auditedActions));
         }
 
-        private void auditOnGeneration(
+        private int auditOnGeneration(
             @Nonnull Collection<? extends ActionView> newActions,
             @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
             throws InterruptedException {
             try {
                 // Even if the list is empty, we need ActionAuditSender to update it's book keeping.
                 // Previously there was an optimization that checked if the list was non-empty.
-                actionAuditSender.sendOnGenerationEvents(newActions, entitiesAndSettingsSnapshot);
+                return actionAuditSender.sendOnGenerationEvents(newActions, entitiesAndSettingsSnapshot);
             } catch (CommunicationException | UnsupportedActionException | ExecutionInitiationException e) {
                 logger.warn(
                     "Failed sending audit event \"on generation event\" for actions " + newActions,
                     e);
+                return 0;
             }
         }
     }
