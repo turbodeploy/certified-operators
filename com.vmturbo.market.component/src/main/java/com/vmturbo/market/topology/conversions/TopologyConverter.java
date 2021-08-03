@@ -4480,16 +4480,21 @@ public class TopologyConverter {
 
         if (originalCommoditySold.isPresent()) {
             commoditySoldBuilder.setScalingFactor(originalCommoditySold.get().getScalingFactor());
-
-            if (originalCommoditySold.get().hasHistoricalUsed()
-                    && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+            if (originalCommoditySold.get().hasHistoricalUsed()) {
+                if (originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+                    // populate the projected percentile.
                     float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
-                        .getPercentile();
+                            .getPercentile();
                     double existingCapacity = originalCommoditySold.get().getCapacity();
                     float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
                     commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
-                        .setPercentile(projectedPercentile)
-                        .build());
+                            .setPercentile(projectedPercentile)
+                            .build());
+                } else if (originalCommoditySold.get().getHistoricalUsed().hasMovingMeanPlusStandardDeviations()) {
+                    // populate the projected moving average. This is same as the re-scaled projected quantity.
+                    commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                            .setMovingMeanPlusStandardDeviations(reverseScaleQuantity).build());
+                }
             }
         }
 

@@ -615,6 +615,10 @@ public class CommodityConverter {
                         @Nullable Function<DtoTypeT, HistoricalValues> historicalExtractor) {
         if (historicalExtractor != null) {
             HistoricalValues hv = historicalExtractor.apply(commDto);
+            if (hv.hasMovingMeanPlusStandardDeviations()) {
+                // if present then return moving mean with stdDeviation
+                return (float)hv.getMovingMeanPlusStandardDeviations();
+            }
             if (hv.hasHistUtilization()) {
                 // if present then hist utilization
                 return (float)hv.getHistUtilization();

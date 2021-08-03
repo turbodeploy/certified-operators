@@ -155,10 +155,17 @@ public class LiveStatsStore implements MemReporter {
                 soldCommodities.forEachRemaining(sold -> {
                     final int index = commodityTypePack.toIndex(sold.getCommodityType());
                     entityCapacities.put(index, (float)sold.getCapacity());
-                    if (sold.hasHistoricalUsed() && sold.getHistoricalUsed().hasHistUtilization()) {
-                        // The HistUtilization attribute contains the smoothed historical used. We convert the usage into
-                        // utilization and save it into the entitySmoothedUsageMap
-                        entitySmoothedUsageMap.put(index, (float)(sold.getHistoricalUsed().getHistUtilization() / sold.getCapacity()));
+                    if (sold.hasHistoricalUsed()) {
+                        TopologyDTO.HistoricalValues historicalValues = sold.getHistoricalUsed();
+                        if (historicalValues.hasMovingMeanPlusStandardDeviations()) {
+                            entitySmoothedUsageMap.put(index,
+                                (float)(historicalValues.getMovingMeanPlusStandardDeviations() / sold.getCapacity()));
+                        } else if (historicalValues.hasHistUtilization()) {
+                            // The HistUtilization attribute contains the smoothed historical used. We convert the usage into
+                            // utilization and save it into the entitySmoothedUsageMap
+                            entitySmoothedUsageMap.put(index,
+                                (float)(historicalValues.getHistUtilization() / sold.getCapacity()));
+                        }
                     }
                 });
             }
