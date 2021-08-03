@@ -631,11 +631,21 @@ public class AdminService implements IAdminService {
         return productVersion;
     }
 
+    private boolean healthStateFilter(@Nonnull HealthCategoryReponseDTO categoryResponse,
+                    @Nullable HealthState state) {
+        if (state == null)  {
+            //If the health state is not specified then the default is to take all health states.
+            return true;
+        }
+        return categoryResponse.getCategoryHealthState() == state;
+    }
+
     @Override
     @Nonnull
     public List<HealthCategoryReponseDTO> getHealth(@Nullable HealthCheckCategory healthCheckCategory,
                     @Nullable HealthState state) {
-        //HealthState is not used for now, tbd.
-        return healthAggregator.getAggregatedHealth(healthCheckCategory);
+        return healthAggregator.getAggregatedHealth(healthCheckCategory).stream()
+            .filter(categoryResponse -> healthStateFilter(categoryResponse, state))
+            .collect(Collectors.toList());
     }
 }
