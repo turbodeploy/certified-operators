@@ -1,16 +1,20 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,6 +25,7 @@ import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.components.api.FormattedString;
 
 /**
  * Manages the automated execution of actions.
@@ -58,15 +63,38 @@ public class ActionAutomationManager {
         try {
             synchronized (actionExecutionFuturesLock) {
                 cancelActionsWithoutActiveExecutionWindow();
+                MutableInt removalCount = new MutableInt(0);
                 actionExecutionFutures.removeIf(future -> {
                     Action action = future.getOriginalTask().getAction();
                     ActionState state = action.getState();
-                    return future.isDone()
+                    final boolean shouldRemove =  future.isDone()
                             || state == ActionState.CLEARED
                             || state == ActionState.FAILED
                             || state == ActionState.SUCCEEDED;
+                    if (shouldRemove) {
+                        removalCount.increment();
+                    }
+                    return shouldRemove;
                 });
-                actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
+                final List<ConditionalFuture> newExecuted = automatedExecutor.executeAutomatedFromStore(store);
+                actionExecutionFutures.addAll(newExecuted);
+
+                final Map<String, MutableInt> byStatus = new HashMap<>();
+                actionExecutionFutures.forEach(future -> {
+                    if (future.isStarted()) {
+                        byStatus.computeIfAbsent("Running", k -> new MutableInt()).increment();
+                    } else {
+                        byStatus.computeIfAbsent("Queued", k -> new MutableInt()).increment();
+                    }
+                });
+                logger.info("{} completed actions cleared from execution queue." + " {} actions added. {}",
+                        removalCount.getAndDecrement(), newExecuted.size(),
+                        actionExecutionFutures.isEmpty()
+                            ? "Queue is empty."
+                            : FormattedString.format("Queue has {} total actions: {}.", actionExecutionFutures.size(), byStatus.entrySet()
+                                .stream()
+                                .map(entry -> entry.getValue().getValue() + " " + entry.getKey())
+                                .collect(Collectors.joining(", "))));
             }
             approvalRequester.sendApprovalRequests(store);
         } catch (RuntimeException e) {
