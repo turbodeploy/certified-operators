@@ -225,6 +225,12 @@ public class AtomicResizeBuilderTest {
     private static ActionDTO.Action createResizeAction(long actionId,
                                                        long entityId, int entityType,
                                                        CommodityType commType) {
+        return createResizeAction(actionId, entityId, entityType, commType, 10, 20);
+    }
+
+    private static ActionDTO.Action createResizeAction(long actionId, long entityId, int entityType,
+                                                       CommodityType commType, float oldCapacity,
+                                                       float newCapacity) {
         ResizeExplanation resizeExplanation = ResizeExplanation.newBuilder()
                 .setDeprecatedStartUtilization(20)
                 .setDeprecatedEndUtilization(90)
@@ -238,7 +244,9 @@ public class AtomicResizeBuilderTest {
                                 .setTarget(ActionEntity.newBuilder()
                                         .setId(entityId).setType(entityType))
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                        .setType(commType.getNumber())))
+                                        .setType(commType.getNumber()))
+                                .setOldCapacity(oldCapacity)
+                                .setNewCapacity(newCapacity))
                 )
                 .setExplanation(Explanation.newBuilder()
                         .setResize(resizeExplanation))
@@ -576,5 +584,77 @@ public class AtomicResizeBuilderTest {
                 .map(r -> r.getTarget()).collect(Collectors.toList());
 
         assertThat(resizeTargets, CoreMatchers.hasItems(container7, container8));
+    }
+
+    /**
+     * Test AtomicAction new capacity from multiple resize up actions with different new capacity values.
+     * Final new capacity of AtomicAction is the closet new capacity (smaller one) to old capacity.
+     */
+    @Test
+    public void testAtomicActionNewCapacityFromDifferentResizeUp() {
+        final float oldCapacity = 10;
+        final float newCapacitySmall = 20;
+        final float newCapacityLarge = 30;
+
+        final ActionDTO.Action resize1 = createResizeAction(11, 1111, EntityType.CONTAINER_VALUE,
+            CommodityType.VCPU, oldCapacity, newCapacitySmall);
+        final ActionDTO.Action resize2 = createResizeAction(22, 2222, EntityType.CONTAINER_VALUE,
+            CommodityType.VCPU, oldCapacity, newCapacityLarge);
+        final com.vmturbo.action.orchestrator.action.Action view1 =
+            Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        final com.vmturbo.action.orchestrator.action.Action view2 =
+            Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        when(view1.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+
+        final AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+            aggregateEntity1.getEntity(),
+            aggregateEntity1.getEntityName());
+        aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
+        aggregatedAction.addAction(resize2, Optional.of(deDupEntity1));
+        aggregatedAction.updateActionView(resize1.getId(), view1);
+        aggregatedAction.updateActionView(resize2.getId(), view2);
+
+        final AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
+        final Action action = atomicActionResult.get().atomicAction().get();
+        assertEquals(1, action.getInfo().getAtomicResize().getResizesCount());
+        assertEquals(newCapacitySmall, action.getInfo().getAtomicResize().getResizes(0).getNewCapacity(), 0);
+    }
+
+    /**
+     * Test AtomicAction new capacity from multiple resize down actions with different new capacity values.
+     * Final new capacity of AtomicAction is the closet new capacity (larger one) to old capacity.
+     */
+    @Test
+    public void testAtomicActionNewCapacityFromDifferentResizeDown() {
+        final float oldCapacity = 30;
+        final float newCapacitySmall = 10;
+        final float newCapacityLarge = 20;
+
+        final ActionDTO.Action resize1 = createResizeAction(11, 1111, EntityType.CONTAINER_VALUE,
+            CommodityType.VCPU, oldCapacity, newCapacitySmall);
+        final ActionDTO.Action resize2 = createResizeAction(22, 2222, EntityType.CONTAINER_VALUE,
+            CommodityType.VCPU, oldCapacity, newCapacityLarge);
+        final com.vmturbo.action.orchestrator.action.Action view1 =
+            Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        final com.vmturbo.action.orchestrator.action.Action view2 =
+            Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        when(view1.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+
+        final AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+            aggregateEntity1.getEntity(),
+            aggregateEntity1.getEntityName());
+        aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
+        aggregatedAction.addAction(resize2, Optional.of(deDupEntity1));
+        aggregatedAction.updateActionView(resize1.getId(), view1);
+        aggregatedAction.updateActionView(resize2.getId(), view2);
+
+        final AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
+        final Action action = atomicActionResult.get().atomicAction().get();
+        assertEquals(1, action.getInfo().getAtomicResize().getResizesCount());
+        assertEquals(newCapacityLarge, action.getInfo().getAtomicResize().getResizes(0).getNewCapacity(), 0);
     }
 }

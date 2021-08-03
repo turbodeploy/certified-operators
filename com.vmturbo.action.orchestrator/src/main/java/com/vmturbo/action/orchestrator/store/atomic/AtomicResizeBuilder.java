@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -406,7 +405,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
      *                          and containing identical resize info
      * @return  a single {@link ResizeInfo} and explanation for this set of actions.
       */
-    @Nullable
+    @Nonnull
     private ResizeInfoAndExplanation resizeInfoAndExplanation(@Nonnull final String targetName,
                                                               @Nonnull final ActionEntity targetEntity,
                                                               @Nonnull final CommodityType resizeCommType,
@@ -425,6 +424,9 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         ActionDTO.Resize origResize = origAction.getInfo().getResize();
         Explanation.ResizeExplanation origResizeExplanation = origAction.getExplanation().getResize();
 
+        final float newCapacity =
+            getResizeNewCapacity(origResize.getOldCapacity(), origResize.getNewCapacity(), actionList);
+
         // ResizeInfo object for atomic resize by de-duplicating the list of given actions
         ActionDTO.ResizeInfo.Builder resizeInfoBuilder =
                 ActionDTO.ResizeInfo.newBuilder()
@@ -433,7 +435,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                         .setCommodityType(resizeCommType)
                         .setCommodityAttribute(origResize.getCommodityAttribute())
                         .setOldCapacity(origResize.getOldCapacity())
-                        .setNewCapacity(origResize.getNewCapacity());
+                        .setNewCapacity(newCapacity);
 
         ActionDTO.ResizeInfo resizeInfo = resizeInfoBuilder.build();
 
@@ -457,6 +459,35 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         return ImmutableResizeInfoAndExplanation.builder()
                 .resizeInfo(resizeInfo)
                 .explanation(explanationPerEntity.build()).build();
+    }
+
+    /**
+     * Get resize new capacity based on given action list. In a homogeneous environment, new capacity
+     * values are always consistent in actionList. While in a heterogeneous environment, with move
+     * actions, it could be possible that resize actions of the same consistent scaling group have
+     * different new capacity. In this case, to be conservative and avoid unexpected performance issue
+     * after executing the action, always use the closet new capacity to the old capacity, which means
+     * to resize up to the smallest possible value or to resize down to the largest possible value.
+     * Note that old capacity values of a given action list are always consistent.
+     *
+     * @param oldCapacity Given old capacity of consistent scaling actions.
+     * @param newCapacity Given new capacity of the first resize action in the action list.
+     * @param actionList  Given resize action list from which final new capacity is extracted.
+     * @return Final new capacity of action list to be used as new capacity of the constructed atomic
+     * resize action. Final new capacity is the closet new capacity to old capacity from action list.
+     */
+    private float getResizeNewCapacity(final float oldCapacity, float newCapacity,
+                                       @Nonnull final List<Action> actionList) {
+        float minDiff = Math.abs(newCapacity - oldCapacity);
+        for (Action action : actionList) {
+            float capacity = action.getInfo().getResize().getNewCapacity();
+            float diff = Math.abs(capacity - oldCapacity);
+            if (diff < minDiff) {
+                minDiff = diff;
+                newCapacity = capacity;
+            }
+        }
+        return newCapacity;
     }
 
     // Create one merged resize info and explanation for the given set of actions
