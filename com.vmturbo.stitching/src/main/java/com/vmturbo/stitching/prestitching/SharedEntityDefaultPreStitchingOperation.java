@@ -78,6 +78,13 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
         return scopeGetter.apply(stitchingScopeFactory);
     }
 
+    protected Comparator<StitchingEntity> comparator() {
+        return Comparator
+                // Prefer "real" entities over proxy and replaceable entities.
+                .comparing(SharedEntityDefaultPreStitchingOperation::isRealEntity)
+                .thenComparing(StitchingEntity::getLastUpdatedTime);
+    }
+
     @Nonnull
     @Override
     public TopologicalChangelog<StitchingEntity> performOperation(
@@ -86,10 +93,7 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
         EntityScopeFilters.sharedEntitiesByOid(entities).forEach(sharedEntities -> {
             // Merge into the most recently updated non-proxy entity.
             sharedEntities.stream()
-                    .max(Comparator
-                            // Prefer "real" entities over proxy and replaceable entities.
-                            .comparing(SharedEntityDefaultPreStitchingOperation::isRealEntity)
-                            .thenComparing(StitchingEntity::getLastUpdatedTime))
+                    .max(comparator())
                     .ifPresent(entityToKeep -> {
                         final List<StitchingEntity> duplicateEntities = sharedEntities.stream()
                                 .filter(duplicateEntity -> duplicateEntity != entityToKeep)

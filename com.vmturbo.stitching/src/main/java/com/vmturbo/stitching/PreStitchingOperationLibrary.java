@@ -16,6 +16,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.AwsBusinessAccountPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.CloudCommitmentPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ContainerClusterPreStitchingOperation;
@@ -49,6 +50,7 @@ public class PreStitchingOperationLibrary {
                     .put(EntityType.STORAGE_TIER, false)
                     .put(EntityType.REGION, false)
                     .put(EntityType.AVAILABILITY_ZONE, false)
+                    .put(EntityType.CLOUD_COMMITMENT, true)
                     .build();
 
     /**
@@ -110,6 +112,7 @@ public class PreStitchingOperationLibrary {
                         "common_dto.EntityDTO.BusinessUserData.sessionData",
                         Comparator.comparing(lhs -> ((SessionData)lhs).getVirtualMachine()))),
                 new SharedEntityCustomProbePreStitchingOperation(),
+                new AwsBusinessAccountPreStitchingOperation(),
                 // This operation should go after SharedCloudEntityPreStitchingOperation because it
                 // depends on merging shared Regions.
                 new CloudCommitmentPreStitchingOperation(),
