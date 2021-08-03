@@ -28,7 +28,7 @@
         <com.vmturbo.api.version>3.1.156-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.4.0</cpu.capacity.version>
+        <cpu.capacity.version>1.5.0</cpu.capacity.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
