@@ -57,8 +57,7 @@ public class ConsulDistributeLockIntegrationTest {
     }
 
     /**
-     * Verify if set the `isBlock` to false, it should return right away with false (failing to
-     * acquire lock).
+     * Verify session will be forcibly invalidated after 120 seconds even `lock.unlock()` is not called.
      */
     @Test
     public void testLockWithoutBlocking() {
@@ -85,6 +84,27 @@ public class ConsulDistributeLockIntegrationTest {
         }
         long stop = System.currentTimeMillis();
         logger.info("Time used:{} seconds", TimeUnit.MILLISECONDS.toSeconds(stop - start));
+    }
+
+    /**
+     * Verify if same session trying to acquire lock again, it will return right away with
+     * exception:
+     * current session already hold the lock.
+     */
+    @Test
+    public void testReentrantLock() {
+        final Lock lock = new ConsulDistributedLock(new ConsulClient(), LOCK_SESSION, LOCK_KEY);
+        try {
+            if (lock.lock(true)) {
+                lock.lock(true);
+                fail("should throw exception");
+            }
+        } catch (Exception e) {
+            assertTrue("The error message should indicate current session already hold the lock",
+                    e.getMessage().contains("Already locked"));
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
