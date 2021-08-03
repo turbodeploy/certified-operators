@@ -132,12 +132,16 @@ public class ConsulDistributedLock implements Lock {
      */
     @Override
     public synchronized boolean unlock() {
-        final PutParams putParams = new PutParams();
-        putParams.setReleaseSession(sessionId);
-        final boolean result = consulClient.setKVValue(keyPath, "unlock:" + LocalDateTime.now(),
-                putParams).getValue();
-
-        destroySession();
+        boolean result = false;
+        // Adding try/finally block to ensure this.destroySession() is always called.
+        try {
+            final PutParams putParams = new PutParams();
+            putParams.setReleaseSession(sessionId);
+            result = consulClient.setKVValue(keyPath, "unlock:" + LocalDateTime.now(), putParams)
+                    .getValue();
+        } finally {
+            destroySession();
+        }
         return result;
     }
 }
