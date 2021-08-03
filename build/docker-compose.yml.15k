@@ -344,13 +344,6 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
-#  mediation-openstack:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-openstack-prod
-#    mem_limit: 1024M
-#    depends_on: *clustermgrdep
-#
 #  mediation-ucsdirector:
 #    extends:
 #      file: prod-services.yml

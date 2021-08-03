@@ -153,10 +153,6 @@ variable "oneview" {
   default = false
 }
 
-variable "openstack" {
-  default = false
-}
-
 variable "pure" {
   default = false
 }

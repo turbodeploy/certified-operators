@@ -51,8 +51,6 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
                 null));
         probeCategoryAndLicense.put(SDKProbeType.HYPERV.getProbeType(), Pair.of(ProbeCategory.HYPERVISOR.getCategory(),
                 null));
-        probeCategoryAndLicense.put(SDKProbeType.OPENSTACK.getProbeType(), Pair.of(ProbeCategory.PRIVATE_CLOUD.getCategory(),
-                ProbeLicense.CLOUD_TARGETS.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.VMM.getProbeType(), Pair.of(ProbeCategory.PRIVATE_CLOUD.getCategory(),
                 ProbeLicense.CLOUD_TARGETS.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.VCD.getProbeType(), Pair.of(ProbeCategory.PRIVATE_CLOUD.getCategory(),

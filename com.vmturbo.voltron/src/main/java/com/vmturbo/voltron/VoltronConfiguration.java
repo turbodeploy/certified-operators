@@ -714,11 +714,6 @@ public class VoltronConfiguration {
         MEDIATION_ONEVIEW(Component.MEDIATION_ONEVIEW),
 
         /**
-         * OpenStack.
-         */
-        MEDIATION_OPENSTACK(Component.MEDIATION_OPENSTACK),
-
-        /**
          * Pivotal.
          */
         MEDIATION_PIVOTAL(Component.MEDIATION_PIVOTAL),

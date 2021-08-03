@@ -160,14 +160,6 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.openstack.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.openstack.sdk-${vmturbo.mt.branch.version}</outputDirectory>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.pivotal.opsman</artifactId>
                                     <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>

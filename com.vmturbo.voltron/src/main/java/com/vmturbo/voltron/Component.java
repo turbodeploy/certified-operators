@@ -350,11 +350,6 @@ public enum Component {
     MEDIATION_ONEVIEW("oneview", "com.vmturbo.mediation.oneview.component"),
 
     /**
-     * OpenStack.
-     */
-    MEDIATION_OPENSTACK("openstack", "com.vmturbo.mediation.openstack.component"),
-
-    /**
      * Pivotal.
      */
     MEDIATION_PIVOTAL("pivotal", "com.vmturbo.mediation.pivotal.component"),

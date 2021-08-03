@@ -460,7 +460,6 @@
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
@@ -683,13 +682,6 @@
             <id>mediation-rhv</id>
             <modules>
                 <module>../com.vmturbo.mediation.rhv.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-openstack</id>
-            <modules>
-                <module>../com.vmturbo.mediation.openstack.component</module>
             </modules>
         </profile>
 
@@ -1333,7 +1325,6 @@
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
-                <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>

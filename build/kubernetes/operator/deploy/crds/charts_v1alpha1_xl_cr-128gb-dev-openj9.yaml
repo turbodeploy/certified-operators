@@ -297,10 +297,6 @@ spec:
     resources:
       limits:
         memory: 32Gi
-  mediation-openstack:
-    resources:
-      limits:
-        memory: 32Gi
   mediation-pure:
     resources:
       limits:

@@ -41,20 +41,6 @@
         "userName": "vmtRemoteMediation",
         "userPassword": "vmtRemoteMediation"
       }
-    },
-    "mediation-openstack_1": {
-      "componentType": "mediation-openstack",
-      "node": "default",
-      "properties": {
-        "probeCategory": "Cloud Management",
-        "probeType": "OpenStack",
-        "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
-        "silentRetryTime": "0",
-        "sslKeystorePassword": " ",
-        "sslKeystorePath": " ",
-        "userName": "vmtRemoteMediation",
-        "userPassword": "vmtRemoteMediation"
-      }
     }
   },
   "component_types": {
@@ -81,16 +67,6 @@
     "mediation-hyperv": {
       "probeCategory": "HYPERVISOR",
       "probeType": "Hyper-V",
-      "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
-      "silentRetryTime": "0",
-      "sslKeystorePassword": " ",
-      "sslKeystorePath": " ",
-      "userName": "vmtRemoteMediation",
-      "userPassword": "vmtRemoteMediation"
-    },
-    "mediation-openstack": {
-      "probeCategory": "Cloud Management",
-      "probeType": "OpenStack",
       "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
       "silentRetryTime": "0",
       "sslKeystorePassword": " ",
