@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class PlanEntityStatsExtractorTest {
      * Test the process to extract stats for a single entity.
      */
     @Test
-    public void testExtractStats() {
+    public void testExtractStatsForPlanProjectedEntity() {
         // Prepare
 
         final double cpuUsedValue = 20;
@@ -191,7 +192,13 @@ public class PlanEntityStatsExtractorTest {
         assertEquals(vMemUsedValue, vMemStat.getUsed().getTotal(), 0);
         assertEquals(vMemCapacity, vMemStat.getCapacity().getTotal(), 0);
         assertEquals(StringConstants.RELATION_SOLD, vMemStat.getRelation());
-        assertEquals(0, vMemStat.getHistUtilizationValueList().size());
+        // Check VMem sold stat for "smoothed" values
+        // PLAN_PROJECTED stat will have "smoothed" usage which is same as used value
+        assertEquals(1, vMemStat.getHistUtilizationValueList().size());
+        assertEquals("smoothed", vMemStat.getHistUtilizationValueList().get(0).getType());
+        assertEquals(vMemUsedValue, vMemStat.getHistUtilizationValueList().get(0).getUsage().getAvg(), 0);
+        assertEquals(vMemCapacity, vMemStat.getHistUtilizationValueList().get(0).getCapacity().getAvg(), 0);
+
         // Check VCPU sold stat for percentile values
         final List<StatRecord> vCpuStats = statSnapshot.getStatRecordsList().stream()
                 .filter(StatRecord::hasName)
@@ -199,10 +206,101 @@ public class PlanEntityStatsExtractorTest {
                 .collect(Collectors.toList());
         assertEquals(1, vCpuStats.size());
         StatRecord vCpuStat = vCpuStats.iterator().next();
-        assertEquals(1, vCpuStat.getHistUtilizationValueList().size());
+        assertEquals(2, vCpuStat.getHistUtilizationValueList().size());
         assertEquals("percentile", vCpuStat.getHistUtilizationValueList().get(0).getType());
         assertEquals(vcpuCapacity, vCpuStat.getHistUtilizationValueList().get(0).getCapacity().getAvg(), 0);
         assertEquals(vcpuPercentileValue, vCpuStat.getHistUtilizationValueList().get(0).getUsage().getAvg(), 0);
+        // Check VCPU sold stat for "smoothed" values
+        // "smoothed" usage is histUtilization.
+        assertEquals("smoothed", vCpuStat.getHistUtilizationValueList().get(1).getType());
+        assertEquals(vcpuCapacity, vCpuStat.getHistUtilizationValueList().get(1).getCapacity().getAvg(), 0);
+        assertEquals(vcpuPercentileValue, vCpuStat.getHistUtilizationValueList().get(1).getUsage().getAvg(), 0);
+    }
+
+    /**
+     * Test the process to extract stats for PLAN_SOURCE entity.
+     */
+    @Test
+    public void testExtractStatsForPlanSourceEntity() {
+        final double cpuUsedValue = 20;
+        final double cpuPeakValue = 30;
+        final double vcpuPercentileValue = 50;
+        final double vcpuCapacity = 100;
+
+        CommoditySoldDTO cpuCommoditySold =
+            CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                .setUsed(cpuUsedValue)
+                .setPeak(cpuPeakValue)
+                .setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setPercentile(vcpuPercentileValue / vcpuCapacity)
+                    .setHistUtilization(vcpuPercentileValue)
+                    .build())
+                .setCapacity(vcpuCapacity)
+                .build();
+
+        final double vMemUsedValue = 1024;
+        final double vMemCapacity = 8196;
+
+        CommoditySoldDTO memCommoditySold =
+            CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                .setUsed(vMemUsedValue)
+                .setCapacity(vMemCapacity)
+                .build();
+
+        ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setOid(767676)
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setDisplayName("SomeBusyVM")
+                .setEntityState(EntityState.POWERED_ON)
+                .addCommoditySoldList(cpuCommoditySold)
+                .addCommoditySoldList(memCommoditySold))
+            .setProjectedPriceIndex(500D)
+            .build();
+
+        StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
+        final EntityStats stats =
+            statsExtractor.extractStats(entity, statEpoch,
+                new HashMap<>(), Collections.emptyMap(), Collections.emptyMap(),
+                SNAPSHOT_DATE)
+                .build();
+
+        assertEquals(1, stats.getStatSnapshotsCount());
+        final StatSnapshot statSnapshot = stats.getStatSnapshotsList().iterator().next();
+        assertEquals(statEpoch, statSnapshot.getStatEpoch());
+        assertEquals(SNAPSHOT_DATE, statSnapshot.getSnapshotDate());
+
+        // Check VCPU stats
+        final List<StatRecord> vCPUStats = statSnapshot.getStatRecordsList().stream()
+            .filter(StatRecord::hasName)
+            .filter(statRecord -> statRecord.getName().equalsIgnoreCase(CommodityDTO.CommodityType.VCPU.toString()))
+            .collect(Collectors.toList());
+        assertEquals(1, vCPUStats.size());
+        StatRecord vCpuStat = vCPUStats.iterator().next();
+        // Check VCPU sold stat for "percentile" values
+        assertEquals(2, vCpuStat.getHistUtilizationValueList().size());
+        assertEquals("percentile", vCpuStat.getHistUtilizationValueList().get(0).getType());
+        assertEquals(vcpuCapacity, vCpuStat.getHistUtilizationValueList().get(0).getCapacity().getAvg(), 0);
+        assertEquals(vcpuPercentileValue, vCpuStat.getHistUtilizationValueList().get(0).getUsage().getAvg(), 0);
+        // Check VCPU sold stat for "smoothed" values
+        assertEquals("smoothed", vCpuStat.getHistUtilizationValueList().get(1).getType());
+        assertEquals(vcpuCapacity, vCpuStat.getHistUtilizationValueList().get(1).getCapacity().getAvg(), 0);
+        assertEquals(vcpuPercentileValue, vCpuStat.getHistUtilizationValueList().get(1).getUsage().getAvg(), 0);
+
+        // Check VMem stats
+        final List<StatRecord> vMemStats = statSnapshot.getStatRecordsList().stream()
+            .filter(StatRecord::hasName)
+            .filter(statRecord -> statRecord.getName().equalsIgnoreCase(CommodityDTO.CommodityType.VMEM.toString()))
+            .collect(Collectors.toList());
+        assertEquals(1, vMemStats.size());
+        StatRecord vMemStat = vMemStats.iterator().next();
+        // No histUtilizationValue available because PLAN_SOURCE entity doesn't have historicalUsed
+        // set up for VMem
+        assertEquals(0, vMemStat.getHistUtilizationValueList().size());
     }
 
     /**

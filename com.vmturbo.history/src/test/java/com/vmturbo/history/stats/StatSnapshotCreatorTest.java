@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.CntStatsLatestRecord;

@@ -11,9 +11,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.projected.BoughtCommoditiesInfo.BoughtCommodity;
 import com.vmturbo.history.stats.projected.SoldCommoditiesInfo.SoldCommodity;
 

@@ -72,7 +72,6 @@ public class StringConstants {
     public static final String METRICS_TURBO_PREFIX = "turbo_";
     public static final String PLATFORM = "platform";
     public static final String TENANCY = "tenancy";
-    public static final String PERCENTILE = "percentile";
     /**
      * Cloud commitment like savings plans.
      */

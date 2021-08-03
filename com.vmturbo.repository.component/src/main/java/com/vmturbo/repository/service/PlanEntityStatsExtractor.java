@@ -7,10 +7,12 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -46,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Contain
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
@@ -165,9 +168,13 @@ interface PlanEntityStatsExtractor {
                     final StatValue usedValues = accumulator.toStatValue();
                     final HistUtilizationValue percentileValue =
                         createPercentileUtilization(commodityBoughtDTOS, capacityValues);
+                    final HistUtilizationValue smoothedUtilizationValue =
+                        createSmoothedUtilization(statEpoch, commodityBoughtDTOS, capacityValues);
+                    final List<HistUtilizationValue> histUtilizationValues =
+                        Arrays.asList(percentileValue, smoothedUtilizationValue);
                     final StatRecord statRecord =
                         buildStatRecord(entityType, commodityType, key, usedValues, capacityValues,
-                            providerOidString, StringConstants.RELATION_BOUGHT, percentileValue);
+                            providerOidString, StringConstants.RELATION_BOUGHT, histUtilizationValues);
                     snapshot.addStatRecords(statRecord);
                 });
             }
@@ -205,10 +212,14 @@ interface PlanEntityStatsExtractor {
 
                 final HistUtilizationValue percentileValue =
                     createPercentileUtilization(commoditySoldDTOS, capacityValue);
+                final HistUtilizationValue smoothedUtilizationValue =
+                    createSmoothedUtilization(statEpoch, commoditySoldDTOS, capacityValue);
+                final List<HistUtilizationValue> histUtilizationValues =
+                    Arrays.asList(percentileValue, smoothedUtilizationValue);
 
                 final StatRecord statRecord =
                     buildStatRecord(entityType, commodityType, key, usedValues, capacityValue,
-                        entityOidString, StringConstants.RELATION_SOLD, percentileValue);
+                        entityOidString, StringConstants.RELATION_SOLD, histUtilizationValues);
                 snapshot.addStatRecords(statRecord);
             });
 
@@ -249,7 +260,7 @@ interface PlanEntityStatsExtractor {
                         .setAvg((float)(capacityStat.getAvg() * percentile))
                         .build();
                     return HistUtilizationValue.newBuilder()
-                        .setType(StringConstants.PERCENTILE)
+                        .setType(HistoryUtilizationType.Percentile.getApiParameterName())
                         .setUsage(percentileUsage)
                         .setCapacity(capacityStat)
                         .build();
@@ -259,13 +270,67 @@ interface PlanEntityStatsExtractor {
         }
 
         @Nullable
-        private static <T> HistoricalValues getHistoricalUsedValue(T commodityDTO) {
+        private <T> HistUtilizationValue createSmoothedUtilization(@Nullable final StatEpoch statEpoch,
+                                                                   @Nonnull final Collection<T> commodityDTOs,
+                                                                   @Nonnull final StatValue capacityStat) {
+            // If the histUtilization value is available and only 1 commodity exists for this
+            // commodity type (i.e. no aggregation is needed), include the smoothed utilization
+            // value in the stat record. We cannot aggregate smoothed utilization values of different
+            // commodities.
+            if (commodityDTOs.size() == 1) {
+                final T commodityDTO = commodityDTOs.iterator().next();
+                return getSmoothedAvgUsage(statEpoch, commodityDTO)
+                    .map(smoothedAvgUsage -> {
+                        final StatValue smoothedAvgUsageStatValue = StatValue.newBuilder()
+                            .setAvg(smoothedAvgUsage.floatValue())
+                            .build();
+                        return HistUtilizationValue.newBuilder()
+                            .setType(HistoryUtilizationType.Smoothed.getApiParameterName())
+                            .setUsage(smoothedAvgUsageStatValue)
+                            .setCapacity(capacityStat)
+                            .build();
+                    }).orElse(null);
+            }
+            return null;
+        }
+
+        @Nonnull
+        private <T> Optional<Double> getSmoothedAvgUsage(@Nullable final StatEpoch statEpoch,
+                                                         @Nonnull final T commodityDTO) {
+            // Get histSmoothedAvgUsage from histUtilization of HistoricalValues if exists.
+            // Note that histUtilization of HistoricalValues actually represents the usage value
+            // instead of utilization (usage / capacity).
+            final HistoricalValues historicalValues = getHistoricalUsedValue(commodityDTO);
+            if (historicalValues != null && historicalValues.hasHistUtilization()) {
+                return Optional.of(historicalValues.getHistUtilization());
+            }
+            // Get the used value of commodity if it is PLAN_PROJECTED because the used value
+            // represents the projected value based on historical smoothed average usage.
+            if (statEpoch == StatEpoch.PLAN_PROJECTED) {
+                return getUsedValue(commodityDTO);
+            }
+            return Optional.empty();
+        }
+
+        @Nullable
+        private static <T> HistoricalValues getHistoricalUsedValue(@Nonnull final T commodityDTO) {
             if (commodityDTO instanceof CommodityBoughtDTO) {
                 return ((CommodityBoughtDTO)commodityDTO).getHistoricalUsed();
             } else if (commodityDTO instanceof CommoditySoldDTO) {
                 return ((CommoditySoldDTO)commodityDTO).getHistoricalUsed();
             } else {
                 return null;
+            }
+        }
+
+        @Nonnull
+        private static <T> Optional<Double> getUsedValue(@Nonnull final T commodityDTO) {
+            if (commodityDTO instanceof CommodityBoughtDTO) {
+                return Optional.of(((CommodityBoughtDTO)commodityDTO).getUsed());
+            } else if (commodityDTO instanceof CommoditySoldDTO) {
+                return Optional.of(((CommoditySoldDTO)commodityDTO).getUsed());
+            } else {
+                return Optional.empty();
             }
         }
 
@@ -402,7 +467,7 @@ interface PlanEntityStatsExtractor {
          * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
          *                          SE for bought commodities
          * @param relation the relation ("bought" or "sold") of the commodity to the entity
-         * @param histUtilizationValue historical utilization value
+         * @param histUtilizationValues list of historical utilization values
          * @return a new StatRecord initialized from the given values
          */
         private StatRecord buildStatRecord(final int entityType,
@@ -412,7 +477,7 @@ interface PlanEntityStatsExtractor {
                                            @Nonnull final StatValue capacity,
                                            @Nonnull final String providerOidString,
                                            @Nonnull final String relation,
-                                           @Nullable final HistUtilizationValue histUtilizationValue) {
+                                           @Nonnull final List<HistUtilizationValue> histUtilizationValues) {
             StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                 .setName(CommodityTypeMapping.getApiCommodityType(commodityType.getType()))
                 .setCurrentValue(used.getAvg())
@@ -422,9 +487,7 @@ interface PlanEntityStatsExtractor {
                 .setStatKey(key)
                 .setProviderUuid(providerOidString)
                 .setRelation(relation);
-            if (histUtilizationValue != null) {
-                statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
-            }
+            histUtilizationValues.stream().filter(Objects::nonNull).forEach(statRecordBuilder::addHistUtilizationValue);
             final String typeUnits = CommodityTypeMapping.getUnitForEntityCommodityType(entityType, commodityType.getType());
             if (typeUnits != null) {
                 statRecordBuilder.setUnits(typeUnits);
