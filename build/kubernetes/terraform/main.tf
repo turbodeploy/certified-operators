@@ -173,11 +173,6 @@ resource "helm_release" "xl" {
   }
 
   set {
-    name  = "openstack.enabled"
-    value = "${var.openstack ? true : false}"
-  }
-
-  set {
     name  = "pure.enabled"
     value = "${var.pure ? true : false}"
   }

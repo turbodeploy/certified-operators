@@ -95,8 +95,6 @@ spec:
     enabled: false
   oneview:
     enabled: false
-  openstack:
-    enabled: false
   pure:
     enabled: false
   rhv:

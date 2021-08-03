@@ -192,8 +192,6 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.CLOUD_FOUNDRY);
             case MICROSOFTAZUREAPPLICATIONINSIGHTS:
                 return Collections.singleton(SDKProbeType.APPINSIGHTS);
-            case OPENSTACK:
-                return Collections.singleton(SDKProbeType.OPENSTACK);
             case KUBERNETES:
                 return Collections.singleton(SDKProbeType.KUBERNETES);
             default:

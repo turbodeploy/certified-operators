@@ -72,8 +72,7 @@ public class ApiDiagnosticsHandlerTest {
         "plan-orchestrator: 7.4.0-SNAPSHOT\n" +
         "mediation-hyperv: <unknown>\n" +
         "api: 7.4.0-SNAPSHOT\n" +
-        "mediation-hds: <unknown>\n" +
-        "mediation-openstack: <unknown>";
+        "mediation-hds: <unknown>\n";
 
     @Before
     public void setup() throws Exception {

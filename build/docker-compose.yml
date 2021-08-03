@@ -1204,28 +1204,6 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
-  mediation-openstack:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.openstack.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_OPENSTACK_PORT}"
-      - "${MEDIATION_OPENSTACK_DEBUG_PORT}"
-    environment:
-      component_type: mediation-openstack
-      instance_id: mediation-openstack-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_OPENSTACK_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_OPENSTACK_MEM_LIMIT_MB}M
-
   mediation-ucsdirector:
     extends:
       file: common-services.yml
