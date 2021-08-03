@@ -22,7 +22,6 @@ import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCapacityMovingStatistics;
-import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCommodityMovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingMovingStatisticsRecord;
 
 /**
@@ -75,35 +74,33 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
             return;
         }
 
-        final Double vcpuUsed = commodityFieldAccessor.getRealTimeValue(principalCommodityField);
         final Double vcpuCapacity = commodityFieldAccessor.getCapacity(principalCommodityField);
         final Double throttlingUsed = commodityFieldAccessor.getRealTimeValue(
             partnerFields.get(THROTTLING_COMMODITY_PARTNER_POSITION));
         final Long lastUpdatedTime = commodityFieldAccessor.getLastUpdatedTime(principalCommodityField);
 
-        if (vcpuUsed == null || vcpuCapacity == null || lastUpdatedTime == null || throttlingUsed == null) {
+        if (vcpuCapacity == null || lastUpdatedTime == null || throttlingUsed == null) {
             logger.debug("Unable to add MovingStatistics sample for {}. "
-                    + "vcpuUsed {}, vcpuCapacity {}, throttlingUsed {}, lastUpdatedTime {}",
-                principalCommodityField, vcpuUsed, vcpuCapacity, lastUpdatedTime, throttlingUsed);
+                    + "vcpuCapacity {}, throttlingUsed {}, lastUpdatedTime {}",
+                principalCommodityField, vcpuCapacity, lastUpdatedTime, throttlingUsed);
             return;
         }
 
         activateCapacity(vcpuCapacity);
-        active.sample(vcpuUsed, throttlingUsed, lastUpdatedTime, configuration);
+        active.sample(throttlingUsed, lastUpdatedTime, configuration);
     }
 
     @Nullable
     @Override
     public Double meanPlusSigma(@Nonnull EntityCommodityFieldReference field,
                                              double standardDeviationsAboveMean) {
+        // We only set the mean plus standard deviations on the THROTTLING commodity, not the VCPU commodity.
         if (active == null) {
             return null;
         }
 
-        if (field.getCommodityType().getType() == CommodityDTO.CommodityType.VCPU_VALUE) {
-            return active.vcpuStatistics.meanPlusSigma(standardDeviationsAboveMean);
-        } else if (field.getCommodityType().getType() == CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE) {
-            return active.throttlingStatistics.meanPlusSigma(standardDeviationsAboveMean);
+        if (field.getCommodityType().getType() == CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE) {
+            return active.meanPlusSigma(standardDeviationsAboveMean);
         }
 
         return null;
@@ -141,12 +138,7 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
 
         if (allCapacityStatistics != null) {
             for (CapacityMovingStatistics stats : allCapacityStatistics) {
-                statsBuilder.addCapacityRecords(ThrottlingCapacityMovingStatistics.newBuilder()
-                    .setVcpuCapacity(stats.vcpuCapacity)
-                    .setLastSampleTimestamp(stats.lastSampleTimestamp)
-                    .setSampleCount(stats.sampleCount)
-                    .setVcpuStatistics(stats.vcpuStatistics.serialize())
-                    .setThrottlingStatistics(stats.throttlingStatistics.serialize()));
+                statsBuilder.addCapacityRecords(stats.serialize());
             }
         }
 
@@ -179,11 +171,7 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
         }
 
         for (ThrottlingCapacityMovingStatistics capacityRecord : throttlingRecord.getCapacityRecordsList()) {
-            final CapacityMovingStatistics stats = new CapacityMovingStatistics(capacityRecord.getVcpuCapacity());
-            stats.lastSampleTimestamp = capacityRecord.getLastSampleTimestamp();
-            stats.sampleCount = capacityRecord.getSampleCount();
-            stats.vcpuStatistics.deserialize(capacityRecord.getVcpuStatistics());
-            stats.throttlingStatistics.deserialize(capacityRecord.getThrottlingStatistics());
+            final CapacityMovingStatistics stats = new CapacityMovingStatistics(capacityRecord);
             allCapacityStatistics.add(stats);
         }
 
@@ -274,7 +262,7 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
         double throttlingValueAbove = Double.MAX_VALUE;
 
         for (CapacityMovingStatistics stats : allCapacityStatistics) {
-            final double throttlingValue = stats.throttlingStatistics.meanPlusSigma(sigmaCoefficient);
+            final double throttlingValue = stats.meanPlusSigma(sigmaCoefficient);
 
             if (throttlingValue > targetMaxThrottling) {
                 // Pick the highest VCPU cpapacity with throttling above the target
@@ -359,16 +347,36 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
         private long lastSampleTimestamp;
         private int sampleCount;
 
-        private final CommodityMovingStatistics vcpuStatistics;
-        private final CommodityMovingStatistics throttlingStatistics;
+        private double throttlingMaxSample;
+
+        private double throttlingFastMovingAverage;
+        private double throttlingFastMovingVariance;
+
+        private double throttlingSlowMovingAverage;
+        private double throttlingSlowMovingVariance;
+
+        /**
+         * Speed (fast or slow) at which statistics are accumulated.
+         */
+        private enum StatisticsSpeed {
+            FAST,
+            SLOW
+        }
 
         private CapacityMovingStatistics(double vcpuCapacity) {
             this.vcpuCapacity = vcpuCapacity;
             lastSampleTimestamp = -1;
             sampleCount = 0;
+        }
 
-            vcpuStatistics = new CommodityMovingStatistics();
-            throttlingStatistics = new CommodityMovingStatistics();
+        private CapacityMovingStatistics(@Nonnull final ThrottlingCapacityMovingStatistics stats) {
+            vcpuCapacity = stats.getVcpuCapacity();
+            lastSampleTimestamp = stats.getLastSampleTimestamp();
+            sampleCount = stats.getSampleCount();
+            throttlingFastMovingAverage = stats.getThrottlingFastMovingAverage();
+            throttlingFastMovingVariance = stats.getThrottlingFastMovingVariance();
+            throttlingSlowMovingAverage = stats.getThrottlingSlowMovingAverage();
+            throttlingSlowMovingVariance = stats.getThrottlingSlowMovingVariance();
         }
 
         public double getCapacity() {
@@ -411,12 +419,11 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
         /**
          * Sample the most recent VCPU and Throttling used values at a given timestamp.
          *
-         * @param vcpuUsed The used value of the VCPU commodity.
          * @param throttlingUsed The used value of the VCPU_THROTTLING commodity.
          * @param lastUpdatedTime The timestamp at which we received the commodity used samples.
          * @param configuration The configuration
          */
-        private void sample(final double vcpuUsed, final double throttlingUsed, final long lastUpdatedTime,
+        private void sample(final double throttlingUsed, final long lastUpdatedTime,
                            @Nonnull MovingStatisticsSamplingConfiguration<?> configuration) {
             if (this.lastSampleTimestamp == lastUpdatedTime) {
                 return;
@@ -428,68 +435,17 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
                 computeExponentialSmoothingCoefficient(configuration.getSlowHalflife(), lastUpdatedTime);
 
             if (sampleCount == 0) {
-                vcpuStatistics.initialize(vcpuUsed);
-                throttlingStatistics.initialize(throttlingUsed);
+                throttlingFastMovingAverage = throttlingUsed;
+                throttlingSlowMovingAverage = throttlingUsed;
+                throttlingMaxSample = throttlingUsed;
             } else {
-                vcpuStatistics.sample(vcpuUsed, fastExponentialSmoothingCoefficient,
-                    slowExponentialSmoothingCoefficient);
-                throttlingStatistics.sample(throttlingUsed, fastExponentialSmoothingCoefficient,
-                    slowExponentialSmoothingCoefficient);
+                sample(StatisticsSpeed.FAST, throttlingUsed, fastExponentialSmoothingCoefficient);
+                sample(StatisticsSpeed.SLOW, throttlingUsed, slowExponentialSmoothingCoefficient);
+                throttlingMaxSample = Math.max(throttlingMaxSample, throttlingUsed);
             }
 
             lastSampleTimestamp = lastUpdatedTime;
             sampleCount++;
-        }
-
-        /**
-         * Check whether the stats are within the retention period.
-         *
-         * @param currentTimeMs The current time in milliseconds.
-         * @param retentionPeriodMs The retention period in milliseconds.
-         * @return whether the stats are within the retention period.
-         */
-        private boolean isWithinRetentionPeriod(final long currentTimeMs, final long retentionPeriodMs) {
-            final long timeDifferenceMs = currentTimeMs - lastSampleTimestamp;
-            return timeDifferenceMs < retentionPeriodMs;
-        }
-    }
-
-    /**
-     * Moving statistics for a particular commodity (either VCPU or THROTTLING). Keeps both
-     * fast and slow moving statistics.
-     */
-    private static class CommodityMovingStatistics {
-        private double maxSample;
-
-        private double fastMovingAverage;
-        private double fastMovingVariance;
-
-        private double slowMovingAverage;
-        private double slowMovingVariance;
-
-        /**
-         * Speed (fast or slow) at which statistics are accumulated.
-         */
-        private enum StatisticsSpeed {
-            FAST,
-            SLOW
-        }
-
-        private CommodityMovingStatistics() {
-            maxSample = Double.MIN_VALUE;
-        }
-
-        private void initialize(final double sample) {
-            fastMovingVariance = sample;
-            slowMovingAverage = sample;
-            maxSample = sample;
-        }
-
-        private void sample(final double sample, final double fastAlpha, final double slowAlpha) {
-            sample(StatisticsSpeed.FAST, sample, fastAlpha);
-            sample(StatisticsSpeed.SLOW, sample, slowAlpha);
-
-            maxSample = Math.max(sample, maxSample);
         }
 
         /**
@@ -505,8 +461,8 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
          *                                  the closer to 1.0 the alpha, the longer you will remember the past.
          */
         private void sample(final StatisticsSpeed speed, final double sample, final double exponentialSmoothingAlpha) {
-            final double movingAverage = speed == StatisticsSpeed.FAST ? fastMovingAverage : slowMovingAverage;
-            final double movingVariance = speed == StatisticsSpeed.FAST ? fastMovingVariance : slowMovingVariance;
+            final double movingAverage = speed == StatisticsSpeed.FAST ? throttlingFastMovingAverage : throttlingSlowMovingAverage;
+            final double movingVariance = speed == StatisticsSpeed.FAST ? throttlingFastMovingVariance : throttlingSlowMovingVariance;
             double sampleDelta = sample - movingAverage;
 
             // From formula 125 in https://fanf2.user.srcf.net/hermes/doc/antiforgery/stats.pdf
@@ -517,50 +473,59 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
                 + exponentialSmoothingAlpha * (sampleDelta) * (sample - movingAverage);
 
             if (speed == StatisticsSpeed.FAST) {
-                fastMovingAverage = newMovingAverage;
-                fastMovingVariance = newMovingVariance;
+                throttlingFastMovingAverage = newMovingAverage;
+                throttlingFastMovingVariance = newMovingVariance;
             } else {
-                slowMovingAverage = newMovingAverage;
-                slowMovingVariance = newMovingVariance;
+                throttlingSlowMovingAverage = newMovingAverage;
+                throttlingSlowMovingVariance = newMovingVariance;
             }
+        }
+
+        /**
+         * Check whether the stats are within the retention period.
+         *
+         * @param currentTimeMs The current time in milliseconds.
+         * @param retentionPeriodMs The retention period in milliseconds.
+         * @return whether the stats are within the retention period.
+         */
+        private boolean isWithinRetentionPeriod(final long currentTimeMs, final long retentionPeriodMs) {
+            final long timeDifferenceMs = currentTimeMs - lastSampleTimestamp;
+            return timeDifferenceMs < retentionPeriodMs;
         }
 
         private double meanPlusSigma(final double standardDeviationsAboveMean) {
             return Math.min(
                 Math.max(meanPlusSigma(StatisticsSpeed.FAST, standardDeviationsAboveMean),
-                    meanPlusSigma(StatisticsSpeed.SLOW, standardDeviationsAboveMean)), maxSample);
+                    meanPlusSigma(StatisticsSpeed.SLOW, standardDeviationsAboveMean)), throttlingMaxSample);
         }
 
         private double meanPlusSigma(final StatisticsSpeed speed,
                                      final double standardDeviationsAboveMean) {
             return speed == StatisticsSpeed.FAST
-                ? fastMovingAverage + Math.sqrt(fastMovingVariance) * standardDeviationsAboveMean
-                : slowMovingAverage + Math.sqrt(slowMovingVariance) * standardDeviationsAboveMean;
+                ? throttlingFastMovingAverage + Math.sqrt(throttlingFastMovingVariance) * standardDeviationsAboveMean
+                : throttlingSlowMovingAverage + Math.sqrt(throttlingSlowMovingVariance) * standardDeviationsAboveMean;
+        }
 
+        private ThrottlingCapacityMovingStatistics.Builder serialize() {
+            return ThrottlingCapacityMovingStatistics.newBuilder()
+                .setVcpuCapacity(vcpuCapacity)
+                .setLastSampleTimestamp(lastSampleTimestamp)
+                .setSampleCount(sampleCount)
+                .setThrottlingMaxSample(throttlingMaxSample)
+                .setThrottlingFastMovingAverage(throttlingFastMovingAverage)
+                .setThrottlingFastMovingVariance(throttlingFastMovingVariance)
+                .setThrottlingSlowMovingAverage(throttlingSlowMovingAverage)
+                .setThrottlingSlowMovingVariance(throttlingSlowMovingVariance);
         }
 
         public String toString(final double standardDeviationsAboveMean) {
-            return "\n\t\thistUtilization: " + meanPlusSigma(standardDeviationsAboveMean)
-                + "\n\t\tMax: " + maxSample
-                + "\n\t\tFastAvg: " + fastMovingAverage + "; FastStdDev: " + Math.sqrt(fastMovingVariance)
-                + "\n\t\tSlowAvg: " + slowMovingAverage + "; SlowStdDev: " + Math.sqrt(slowMovingVariance);
-        }
-
-        private ThrottlingCommodityMovingStatistics.Builder serialize() {
-            return ThrottlingCommodityMovingStatistics.newBuilder()
-                .setMaxSample(maxSample)
-                .setFastMovingAverage(fastMovingAverage)
-                .setFastMovingVariance(fastMovingVariance)
-                .setSlowMovingAverage(slowMovingAverage)
-                .setSlowMovingVariance(slowMovingVariance);
-        }
-
-        private void deserialize(@Nonnull ThrottlingCommodityMovingStatistics commodityStats) {
-            maxSample = commodityStats.getMaxSample();
-            fastMovingAverage = commodityStats.getFastMovingAverage();
-            fastMovingVariance = commodityStats.getFastMovingVariance();
-            slowMovingAverage = commodityStats.getSlowMovingAverage();
-            slowMovingVariance = commodityStats.getSlowMovingVariance();
+            return "\n\t\tmeanPlusSigma: " + meanPlusSigma(standardDeviationsAboveMean)
+                + "\n\t\tMax: " + throttlingMaxSample + "; sampleCount" + sampleCount
+                + "; lastSampleTimestamp" + lastSampleTimestamp
+                + "\n\t\tFastAvg: " + throttlingFastMovingAverage
+                + "; FastStdDev: " + Math.sqrt(throttlingFastMovingVariance)
+                + "\n\t\tSlowAvg: " + throttlingSlowMovingAverage
+                + "; SlowStdDev: " + Math.sqrt(throttlingSlowMovingVariance);
         }
     }
 }

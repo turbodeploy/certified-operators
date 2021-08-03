@@ -37,7 +37,7 @@ message MovingStatistics {
             optional double active_vcpu_capacity = 2;
         }
 
-        // The VCPU or VCPU_THROTTLING statistics recorded when an entity was
+        // The VCPU_THROTTLING statistics recorded when an entity was
         // sized to a particular VCPU capacity
         message ThrottlingCapacityMovingStatistics {
             // The VCPU capacity at which these statistics were recorded.
@@ -49,28 +49,20 @@ message MovingStatistics {
             // The number of samples recorded at this VCPU capacity
             optional int32 sample_count = 3;
 
-            // Statistics for the VCPU commodity
-            optional ThrottlingCommodityMovingStatistics vcpu_statistics = 4;
-
-            // Statistics for the VCPU throttling commodity
-            optional ThrottlingCommodityMovingStatistics throttling_statistics = 5;
-        }
-
-        message ThrottlingCommodityMovingStatistics {
             // The maximum value for any sample for this commodity
-            optional double max_sample = 1;
+            optional double throttling_max_sample = 4;
 
             // The moving average sampled at the shorter halflife
-            optional double fast_moving_average = 2;
+            optional double throttling_fast_moving_average = 5;
 
             // The moving variance sampled at the shorter halflife
-            optional double fast_moving_variance = 3;
+            optional double throttling_fast_moving_variance = 6;
 
             // The moving average sampled at the longer halflife
-            optional double slow_moving_average = 4;
+            optional double throttling_slow_moving_average = 7;
 
             // The moving variance sampled at the longer halflife
-            optional double slow_moving_variance = 5;
+            optional double throttling_slow_moving_variance = 8;
         }
     }
 }

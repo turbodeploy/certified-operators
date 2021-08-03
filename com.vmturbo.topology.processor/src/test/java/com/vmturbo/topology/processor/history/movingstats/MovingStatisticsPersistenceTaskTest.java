@@ -29,7 +29,6 @@ import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCapacityMovingStatistics;
-import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCommodityMovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingMovingStatisticsRecord;
 
 /**
@@ -78,15 +77,10 @@ public class MovingStatisticsPersistenceTaskTest extends MovingStatisticsBaseTes
                     .setLastSampleTimestamp(2L)
                     .setSampleCount(50)
                     .setVcpuCapacity(1.0)
-                    .setThrottlingStatistics(ThrottlingCommodityMovingStatistics.newBuilder()
-                        .setFastMovingAverage(100.0)
-                        .setSlowMovingAverage(200.0)
-                        .setMaxSample(500.0))
-                    .setVcpuStatistics(ThrottlingCommodityMovingStatistics.newBuilder()
-                        .setFastMovingAverage(1000.0)
-                        .setSlowMovingAverage(2000.0)
-                        .setMaxSample(5000.0))
-                )).build();
+                    .setThrottlingFastMovingAverage(100.0)
+                    .setThrottlingSlowMovingAverage(200.0)
+                    .setThrottlingMaxSample(500.0))
+                ).build();
         final MovingStatistics stats = MovingStatistics.newBuilder()
             .addStatisticRecords(record)
             .build();

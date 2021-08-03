@@ -81,7 +81,6 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCapacityMovingStatistics;
-import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCommodityMovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingMovingStatisticsRecord;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
@@ -232,8 +231,7 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
         movingStatisticsEditor.initContext(realTimeContext, Collections.emptyList());
 
         final Map<Pair<EntityCommodityFieldReference, EntityCommodityFieldReference>, Double> originalMeans =
-            Stream.of(Pair.create(VCPU_REF1, VCPU_REF1), Pair.create(VCPU_REF1, THROTTLING_REF1),
-                Pair.create(VCPU_REF2, VCPU_REF2), Pair.create(VCPU_REF2, THROTTLING_REF2))
+            Stream.of(Pair.create(VCPU_REF1, THROTTLING_REF1), Pair.create(VCPU_REF2, THROTTLING_REF2))
                 .collect(Collectors.toMap(p -> p,
                     p -> movingStatisticsEditor.getCache().get(p.getFirst())
                         .getSampler()
@@ -523,10 +521,8 @@ public class MovingStatisticsEditorTest extends MovingStatisticsBaseTest {
                 .addCapacityRecords(ThrottlingCapacityMovingStatistics.newBuilder()
                     .setLastSampleTimestamp(100L)
                     .setSampleCount(50)
-                    .setThrottlingStatistics(ThrottlingCommodityMovingStatistics.newBuilder()
-                        .setFastMovingAverage(20.0)
-                        .setSlowMovingAverage(30.0)
-                        .build())
+                    .setThrottlingFastMovingAverage(20.0)
+                    .setThrottlingSlowMovingAverage(30.0)
                     .setVcpuCapacity(10.0)
                     .build())
                 .build())
