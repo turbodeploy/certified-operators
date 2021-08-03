@@ -33,8 +33,9 @@ public class WebhookConnectorTest {
     @Before
     public void init() {
         webhookCredentials = new WebhookCredentials("http://fake_webhook:142/endpoint",
-                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null);
-        connectorFactory = Mockito.spy(WebhookConnector.createConnectorFactoryBuilder().build());
+                HttpMethodType.POST.name(), 30000L, AuthenticationMethod.BASIC, null, null, false);
+        connectorFactory = Mockito.spy(WebhookConnector.createConnectorFactoryBuilder(30000,
+                webhookCredentials).build());
         webhookConnector = new WebhookConnector(webhookCredentials, connectorFactory);
         httpConnector = Mockito.spy(HttpConnector.class);
         webhookPostQuery = new WebhookQuery(HttpMethodType.POST, new WebhookBody("Fake webhook body"));

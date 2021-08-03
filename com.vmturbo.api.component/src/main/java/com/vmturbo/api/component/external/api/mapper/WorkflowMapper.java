@@ -29,7 +29,7 @@ public class WorkflowMapper {
     public static final String WORKFLOW_API_DTO_CLASSNAME = "Workflow";
 
     /**
-     * Map an internal Workflow item to the UI WorkflowApiDTO, including
+     * Map an internal Workflow item to the API WorkflowApiDTO, including
      * 'discoveredBy' containing the targetId of the Orchestration target from which
      * the workflow was discovered.
      *
@@ -38,7 +38,7 @@ public class WorkflowMapper {
      * @return a {@link WorkflowApiDTO} for this workflow to return to the UI
      */
     @Nonnull
-    public WorkflowApiDTO toUiWorkflowApiDTO(@Nonnull Workflow workflow,
+    public WorkflowApiDTO toWorkflowApiDTO(@Nonnull Workflow workflow,
                                              @Nullable TargetApiDTO target) {
         Objects.requireNonNull(workflow);
         WorkflowApiDTO answer = new WorkflowApiDTO();
@@ -84,6 +84,7 @@ public class WorkflowMapper {
             if (webhookInfo.hasUsername()) {
                 webhookApiDTO.setUsername(webhookInfo.getUsername());
             }
+            webhookApiDTO.setTrustSelfSignedCertificates(webhookInfo.getTrustSelfSignedCertificates());
             answer.setTypeSpecificDetails(webhookApiDTO);
         }
         // fixed response fields - for compatibility
@@ -142,6 +143,10 @@ public class WorkflowMapper {
             }
             if (webhookApiDTO.getUsername() != null) {
                 builder.setUsername(webhookApiDTO.getUsername());
+            }
+            Boolean trustSelfSignedCertificates = webhookApiDTO.getTrustSelfSignedCertificates();
+            if (trustSelfSignedCertificates != null) {
+                builder.setTrustSelfSignedCertificates(trustSelfSignedCertificates);
             }
             workflowInfo.setWebhookInfo(builder);
         }

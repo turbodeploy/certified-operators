@@ -5,6 +5,7 @@ import static com.vmturbo.platform.sdk.common.util.WebhookConstants.Authenticati
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
@@ -248,8 +249,14 @@ public class WebhookProbe
         final String password = getWebhookPropertyValue(PASSWORD, webhookProperties)
                 .orElse(null);
 
+        // get HTTPS configuration parameters
+        final boolean trustSelfSignedCertificates = getWebhookPropertyValue(TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME, webhookProperties)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+
         return new WebhookCredentials(templatedUrl, webhookHttpMethodType.get(),
-                probeConfiguration.getConnectionTimeout(), authenticationMethod, userName, password);
+                probeConfiguration.getConnectionTimeout(), authenticationMethod, userName,
+                password, trustSelfSignedCertificates);
     }
 
     private Optional<String> getWebhookPropertyValue(@Nonnull final String webhookPropertyName,

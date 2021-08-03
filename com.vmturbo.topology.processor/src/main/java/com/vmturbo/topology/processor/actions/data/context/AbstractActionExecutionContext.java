@@ -5,6 +5,7 @@ import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATI
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
@@ -67,11 +68,6 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Contains logic common to all action execution contexts.
  */
 public abstract class AbstractActionExecutionContext implements ActionExecutionContext {
-
-    /**
-     * The TRUST_SELF_SIGNED_CERTIFICATES parameter name for the Webhook workflow.
-     */
-    public static final String TRUST_SELF_SIGNED_CERTIFICATES = "TRUST_SELF_SIGNED_CERTIFICATES";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -852,7 +848,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
         String trustedValue = Boolean.toString(webhookInfo.getTrustSelfSignedCertificates());
         webhookProperties.add(Workflow.Property.newBuilder()
-                .setName(TRUST_SELF_SIGNED_CERTIFICATES)
+                .setName(TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME)
                 .setValue(trustedValue)
                 .build());
 
