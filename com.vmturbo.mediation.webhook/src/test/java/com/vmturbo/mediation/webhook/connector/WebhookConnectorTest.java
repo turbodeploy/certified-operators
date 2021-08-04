@@ -65,7 +65,8 @@ public class WebhookConnectorTest {
     public void testSuccessWebhookResponse() throws Exception {
         // ARRANGE
         Mockito.when(connectorFactory.getConnector(webhookCredentials)).thenReturn(httpConnector);
-        Mockito.when(httpConnector.execute(Mockito.any())).thenReturn(new WebhookResponse("This is the response body"));
+        Mockito.when(httpConnector.execute(Mockito.any())).thenReturn(new WebhookResponse(200,
+                "This is the response body"));
 
         // ACT
         final WebhookResponse webhookResponse = webhookConnector.execute(webhookPostQuery);

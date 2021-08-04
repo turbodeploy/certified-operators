@@ -112,7 +112,21 @@ public class WebhookConnector implements HttpConnector, Closeable {
                 .registerMethodTypeToQueryConverter(HttpMethodType.POST, queryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.PUT, queryConverter)
                 .registerMethodTypeToQueryConverter(HttpMethodType.DELETE, queryConverter)
+                // registering all the code that has been listed as successful
+                // in https://datatracker.ietf.org/doc/html/rfc2616#section-10.2
                 .registerStatusCodeToResponseProcessor(HttpStatus.SC_OK,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_CREATED,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_ACCEPTED,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_NON_AUTHORITATIVE_INFORMATION,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_NO_CONTENT,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_RESET_CONTENT,
+                        new WebhookSuccessResponseProcessor())
+                .registerStatusCodeToResponseProcessor(HttpStatus.SC_PARTIAL_CONTENT,
                         new WebhookSuccessResponseProcessor());
     }
 
@@ -209,7 +223,9 @@ public class WebhookConnector implements HttpConnector, Closeable {
             return connectorFactory.getConnector(credentials).execute(query);
         } catch (HttpConnectorException originalException) {
             throw new WebhookException(
-                "Failed to initialize webhook connection using the credentials " + credentials,
+                "Failed to initialize webhook connection to URL " + credentials.getUrl(),
+                originalException.getErrorStatus().orElse(null),
+                originalException.getRawResponse(),
                 originalException);
         }
     }

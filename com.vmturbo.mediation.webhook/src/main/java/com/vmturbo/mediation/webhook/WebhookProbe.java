@@ -10,6 +10,7 @@ import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.velocity.exception.MethodInvocationException;
@@ -36,6 +36,8 @@ import com.vmturbo.mediation.webhook.connector.WebhookConnector;
 import com.vmturbo.mediation.webhook.connector.WebhookCredentials;
 import com.vmturbo.mediation.webhook.connector.WebhookException;
 import com.vmturbo.mediation.webhook.template.Velocity;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -47,19 +49,21 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.platform.sdk.probe.ActionResult;
+import com.vmturbo.platform.sdk.probe.IActionAudit;
 import com.vmturbo.platform.sdk.probe.IActionExecutor;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
  * Webhook probe supports sending HTTP requests to specified URL endpoint for PRE,POST, and REPLACE events.
  */
 public class WebhookProbe
-        implements IDiscoveryProbe<WebhookAccount>,
-            IActionExecutor<WebhookAccount> {
+        implements IDiscoveryProbe<WebhookAccount>, IActionExecutor<WebhookAccount>,
+        IActionAudit<WebhookAccount> {
 
     private WebhookProperties probeConfiguration;
 
@@ -120,6 +124,21 @@ public class WebhookProbe
         }
     }
 
+    @Nonnull
+    @Override
+    public Collection<ActionErrorDTO> auditActions(@Nonnull final WebhookAccount account,
+            @Nonnull final Collection<ActionEventDTO> actionEvents)
+            throws TargetOperationException, InterruptedException {
+        for (ActionEventDTO actionEventDTO : actionEvents) {
+            try {
+                prepareAndExecuteWebhookQuery(actionEventDTO.getAction());
+            } catch (IOException | WebhookException | ParseException | MethodInvocationException ex) {
+                handleException(ex, actionEventDTO.getAction());
+            }
+        }
+        return Collections.emptyList();
+    }
+
     @Override
     public boolean supportsVersion2ActionTypes() {
         return true;
@@ -131,40 +150,14 @@ public class WebhookProbe
             @Nonnull final WebhookAccount accountValues,
             @Nullable final Map<String, Discovery.AccountValue> secondaryAccountValuesMap,
             @Nonnull final IProgressTracker progressTracker) throws InterruptedException {
-        // get the ActionApiDTO
-        final ActionApiDTO actionApiDTO = CONVERTER.convert(
-                new SdkActionInformationProvider(actionExecutionDto),
-                true,
-                0L,
-                false);
-
-        try (WebhookConnector webhookConnector = new WebhookConnector(
-                createWebhookCredentials(actionExecutionDto.getWorkflow().getPropertyList(), actionApiDTO),
-                probeConfiguration)) {
-
-            final WebhookBody body;
-            try {
-                body = getWebhookBody(actionExecutionDto, actionApiDTO);
-            } catch (WebhookException ex) {
-                logger.error("failed to apply template for body action with ID {}",
-                        actionExecutionDto.getActionOid(), ex);
-                return new ActionResult(
-                        ActionResponseState.FAILED,
-                        "Applying template to action failed.");
-            }
-
-            final WebhookQuery webhookQuery = new WebhookQuery(
-                    getWebhookMethodType(actionExecutionDto.getWorkflow().getPropertyList()),
-                    body);
-
-            final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
-            logger.trace("Response from webhook endpoint: {}", webhookResponse.getResponseBody());
+        final String exceptionMessage;
+        try {
+            prepareAndExecuteWebhookQuery(actionExecutionDto);
             return new ActionResult(ActionResponseState.SUCCEEDED,
-                "Webhook successfully executed the action.");
-        } catch (WebhookException | IOException e) {
-            logger.error("There was an issue contacting the webhook", e);
-            return new ActionResult(ActionResponseState.FAILED,
-                    ExceptionUtils.getMessage(e) + "\n" + ExceptionUtils.getStackTrace(e));
+                    "The call to webhook endpoint was successful.");
+        } catch (IOException | WebhookException | ParseException | MethodInvocationException ex) {
+            exceptionMessage = handleException(ex, actionExecutionDto);
+            return new ActionResult(ActionResponseState.FAILED, exceptionMessage);
         }
     }
 
@@ -174,11 +167,16 @@ public class WebhookProbe
      * @param actionExecutionDto the action execution request.
      * @param actionApiDTO the API object representation of the action.
      * @return the {@link WebhookBody} used in request or null.
-     * @throws WebhookException if the applying template fails.
+     * @throws WebhookException if there are more than one body template property.
+     * @throws ParseException is thrown when parse errors are encountered when applying template to body template.
+     * @throws MethodInvocationException is thrown when a reference method is invoked and exception is thrown
+     *                                   when applying template to body template.
+     * @throws IOException when failed to write the templated string.
      */
     @Nullable
     private WebhookBody getWebhookBody(@Nonnull final ActionExecutionDTO actionExecutionDto,
-                                       @Nonnull ActionApiDTO actionApiDTO) throws WebhookException {
+                                       @Nonnull ActionApiDTO actionApiDTO) throws WebhookException,
+            ParseException, IOException, MethodInvocationException {
         final Optional<String> template = getWebhookPropertyValue(TEMPLATED_ACTION_BODY,
                 actionExecutionDto.getWorkflow().getPropertyList());
 
@@ -197,15 +195,14 @@ public class WebhookProbe
      * @param template the message template.
      * @param apiDTO the {@link ActionApiDTO} used for applying template.
      * @return the result message after applying template.
-     * @throws WebhookException if somethings goes wrong in applying template.
+     * @throws ParseException is thrown when parse errors are encountered.
+     * @throws MethodInvocationException is thrown when a reference method is invoked and exception is thrown.
+     * @throws IOException when failed to write the templated string.
      */
     @Nonnull
-    private String applyTemplate(@Nonnull String template, @Nonnull ActionApiDTO apiDTO) throws WebhookException {
-        try {
-            return Velocity.apply(template, apiDTO);
-        } catch (ParseException | IOException | MethodInvocationException e) {
-            throw new WebhookException(String.format("Applying template \"%s\" failed.", template), e);
-        }
+    private String applyTemplate(@Nonnull String template, @Nonnull ActionApiDTO apiDTO) throws ParseException,
+            MethodInvocationException, IOException {
+        return Velocity.apply(template, apiDTO);
     }
 
     private HttpMethodType getWebhookMethodType(final List<Property> webhookProperties)
@@ -225,10 +222,14 @@ public class WebhookProbe
      * @param actionApiDTO the {@link ActionApiDTO} object
      * @return the webhook credentials
      * @throws WebhookException if all data required for sending request to webhook server weren't provided
+     * @throws ParseException is thrown when parse errors are encountered when applying template to url.
+     * @throws MethodInvocationException is thrown when a reference method is invoked and exception is thrown
+     *                                   when applying template to url.
+     * @throws IOException when failed to write a response.
      */
     @Nonnull
     private WebhookCredentials createWebhookCredentials(final List<Property> webhookProperties, ActionApiDTO actionApiDTO)
-            throws WebhookException {
+            throws WebhookException, ParseException, IOException {
         final String webhookURL = getWebhookPropertyValue(URL,
                 webhookProperties).orElseThrow(() -> new WebhookException(
                 "Webhook url was not provided in the list of workflow properties."));
@@ -286,5 +287,73 @@ public class WebhookProbe
          */
         return Collections.singletonList(
             ActionPolicyDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build());
+    }
+
+    private void prepareAndExecuteWebhookQuery(final ActionExecutionDTO actionExecutionDto)
+            throws WebhookException, IOException, InterruptedException, ParseException, MethodInvocationException {
+        // get the ActionApiDTO
+        final ActionApiDTO actionApiDTO = CONVERTER.convert(
+                new SdkActionInformationProvider(actionExecutionDto),
+                true,
+                0L,
+                false);
+
+        try (WebhookConnector webhookConnector = new WebhookConnector(
+                createWebhookCredentials(actionExecutionDto.getWorkflow().getPropertyList(), actionApiDTO),
+                probeConfiguration)) {
+
+            final WebhookBody body = getWebhookBody(actionExecutionDto, actionApiDTO);
+
+            final WebhookQuery webhookQuery = new WebhookQuery(
+                    getWebhookMethodType(actionExecutionDto.getWorkflow().getPropertyList()),
+                    body);
+
+            final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
+            logger.info("The webhook call for action {} succeeded http status code {}.",
+                    actionExecutionDto.getActionOid(), webhookResponse.getResponseCode());
+            logger.trace("Response from webhook endpoint: {}", webhookResponse.getResponseBody());
+        }
+    }
+
+    private String handleException(Exception ex, ActionExecutionDTO actionExecutionDTO) {
+        if (ex instanceof WebhookException) {
+            return handleWebhookException((WebhookException)ex, actionExecutionDTO);
+        } else if (ex instanceof ParseException) {
+            return handleParserException((ParseException)ex, actionExecutionDTO);
+        } else if (ex instanceof MethodInvocationException) {
+            return handleMethodInvocationException((MethodInvocationException)ex, actionExecutionDTO);
+        } else {
+            logger.error("Calling webhook endpoint failed for action with id {} because of an exception.",
+                    actionExecutionDTO, ex);
+            return "Failed as the result of an exception";
+        }
+    }
+
+    private String handleWebhookException(WebhookException ex, ActionExecutionDTO actionExecutionDto) {
+        if (ex.getResponseCode() != null) {
+            logger.error("Calling webhook endpoint failed for action with id {} as endpoint return status code {} "
+              + "and body: \n {}", actionExecutionDto.getActionOid(), ex.getResponseCode(), ex.getResponseBody());
+            // this error happened because of unexpected http response code, we return the response code and body
+            return "Status code " + ex.getResponseCode() + " was returned from server with body:\n"
+                    + ex.getResponseBody();
+        } else {
+            logger.error("Calling webhook endpoint failed for action with id {}", actionExecutionDto, ex);
+            // there another cause for the exception. Just return exception message
+            return ex.getMessage();
+        }
+    }
+
+    private String handleMethodInvocationException(MethodInvocationException ex, ActionExecutionDTO actionExecutionDto) {
+        logger.error("Calling webhook endpoint failed for action with id {} because of an MethodInvocationException.",
+                actionExecutionDto.getActionOid(), ex);
+        // the message includes information information about what is the issue so return it
+        return "Exception while applying template: " + ex.getMessage();
+    }
+
+    private String handleParserException(ParseException ex, ActionExecutionDTO actionExecutionDto) {
+        logger.error("Calling webhook endpoint failed for action with id {} because of an ParserException.",
+                actionExecutionDto.getActionOid(), ex);
+        // the message includes information information about what is the issue so return it
+        return "Exception while applying template: " + ex.getMessage();
     }
 }
