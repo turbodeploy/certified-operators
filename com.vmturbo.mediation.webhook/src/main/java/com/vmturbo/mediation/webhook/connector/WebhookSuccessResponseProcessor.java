@@ -30,9 +30,10 @@ public class WebhookSuccessResponseProcessor implements
         try {
             final HttpEntity entity = response.getEntity();
             if (entity == null) {
-                return new WebhookResponse("");
+                return new WebhookResponse(response.getStatusLine().getStatusCode(), "");
             } else {
-                return new WebhookResponse(EntityUtils.toString(response.getEntity(), "UTF-8"));
+                return new WebhookResponse(response.getStatusLine().getStatusCode(),
+                        EntityUtils.toString(response.getEntity(), "UTF-8"));
             }
         } catch (IOException e) {
             throw new HttpConnectorException(e);

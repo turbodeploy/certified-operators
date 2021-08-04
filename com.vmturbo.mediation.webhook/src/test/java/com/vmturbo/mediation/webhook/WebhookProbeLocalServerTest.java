@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +28,13 @@ import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -39,6 +43,7 @@ import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMetho
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
 /**
@@ -179,6 +184,30 @@ public class WebhookProbeLocalServerTest {
         verifyResults(result, ActionResponseState.SUCCEEDED, "GET", "/get/method", null);
     }
 
+
+    /**
+     * Tests the case that workflow is a simple get call without body. The success code is 201 rather 200.
+     *
+     * @throws InterruptedException if something goes wrong.
+     */
+    @Test
+    public void testSuccessfulGetMethod201() throws InterruptedException {
+        // ARRANGE
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
+                .toBuilder()
+                .setWorkflow(createWorkflow("http://localhost:28121/get/method", null, "GET",
+                        null, null, null))
+                .build();
+
+        handler.setResponseCode(201);
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
+
+        // ASSERT
+        verifyResults(result, ActionResponseState.SUCCEEDED, "GET", "/get/method", null);
+    }
+
     /**
      * Tests the case that workflow is get call with  a templated body without body that results in failure.
      *
@@ -194,12 +223,15 @@ public class WebhookProbeLocalServerTest {
                 .build();
 
         handler.setResponseCode(404);
+        handler.setResponseBody("XYXYXY");
 
         // ACT
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
         verifyResults(result, ActionResponseState.FAILED, "GET", "/get/" + ACTION_UUID, null);
+        assertTrue(result.getDescription().contains("404"));
+        assertTrue(result.getDescription().contains("XYXYXY"));
     }
 
     /**
@@ -299,6 +331,72 @@ public class WebhookProbeLocalServerTest {
                 equalTo(Collections.singletonList("Basic dGVzdFVzZXI6dGVzdFBhc3M=")));
     }
 
+    /**
+     * Test sending newly generated actions to a webhook.
+     *
+     * @throws InterruptedException if something goes wrong.
+     * @throws TargetOperationException if probe did not manage to communicate with a target.
+     */
+    @Test
+    public void testSendingOnGenActionsToWebhook() throws InterruptedException, TargetOperationException {
+        // ARRANGE
+        final String address = "/actions/$action.uuid";
+        final String payload = "{\"description\": \"$action.details\"}";
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
+                .toBuilder()
+                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "PUT",
+                        AuthenticationMethod.NONE, null, null))
+                .build();
+        final ActionEventDTO actionEventDTO = ActionEventDTO.newBuilder()
+                .setAction(actionExecutionDTO)
+                .setOldState(ActionResponseState.PENDING_ACCEPT)
+                .setNewState(ActionResponseState.PENDING_ACCEPT)
+                .setTimestamp(System.currentTimeMillis())
+                .build();
+
+        // ACT
+        final Collection<ActionErrorDTO> actionErrorDTOS = probe.auditActions(account,
+                Collections.singletonList(actionEventDTO));
+
+        // ASSERT
+        Assert.assertTrue(actionErrorDTOS.isEmpty());
+    }
+
+    /**
+     * Tests audit actions to webhook.
+     *
+     * @throws InterruptedException if something goes wrong.
+     * @throws TargetOperationException if probe did not manage to communicate with a target.
+     */
+    @Test
+    public void testSendingOnGenActionsToWebhookFailure() throws InterruptedException, TargetOperationException {
+        // ARRANGE
+        final String address = "/actions/$action.uuid";
+        final String payload = "{\"description\": \"$action.details\"}";
+        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
+                .toBuilder()
+                .setWorkflow(createWorkflow("http://localhost:28121" + address, payload, "PUT",
+                        AuthenticationMethod.NONE, null, null))
+                .build();
+        final ActionEventDTO actionEventDTO = ActionEventDTO.newBuilder()
+                .setAction(actionExecutionDTO)
+                .setOldState(ActionResponseState.PENDING_ACCEPT)
+                .setNewState(ActionResponseState.PENDING_ACCEPT)
+                .setTimestamp(System.currentTimeMillis())
+                .build();
+
+        handler.setResponseCode(404);
+
+        // ACT
+        final Collection<ActionErrorDTO> actionErrorDTOS = probe.auditActions(account,
+                Collections.singletonList(actionEventDTO));
+
+        // ASSERT
+        Assert.assertTrue(actionErrorDTOS.isEmpty());
+    }
+
+
+
     private void verifyResults(ActionResult result, ActionResponseState expectedState, String expectedMethod,
                                String expectedAddress, String expectedPayload) {
         assertThat(result.getState(), is(expectedState));
@@ -315,6 +413,7 @@ public class WebhookProbeLocalServerTest {
     private static class CachingHttpHandler implements HttpHandler {
         private Request lastRequest = null;
         private int responseCode = 200;
+        private String responseBody = null;
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -328,12 +427,22 @@ public class WebhookProbeLocalServerTest {
             lastRequest = new Request(exchange.getRequestMethod(), exchange.getRequestURI().toString(), body,
                     exchange.getRequestHeaders());
 
-            exchange.sendResponseHeaders(responseCode, 0);
+            if (responseBody != null) {
+                final byte[] response = responseBody.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(responseCode, response.length);
+                exchange.getResponseBody().write(response);
+            } else {
+                exchange.sendResponseHeaders(responseCode, 0);
+            }
             exchange.getResponseBody().close();
         }
 
         void setResponseCode(int responseCode) {
             this.responseCode = responseCode;
+        }
+
+        void setResponseBody(String responseBody) {
+            this.responseBody = responseBody;
         }
 
         Optional<Request> getLastRequest() {

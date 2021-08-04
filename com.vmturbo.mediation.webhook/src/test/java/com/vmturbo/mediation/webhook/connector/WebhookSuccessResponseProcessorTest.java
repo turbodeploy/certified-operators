@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.StatusLine;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.junit.Assert;
 import org.junit.Test;
@@ -29,6 +30,9 @@ public class WebhookSuccessResponseProcessorTest {
     public void testNoResponseBody() throws HttpConnectorException {
         CloseableHttpResponse response = mock(CloseableHttpResponse.class);
         when(response.getEntity()).thenReturn(null);
+        StatusLine statusLine = mock(StatusLine.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(statusLine.getStatusCode()).thenReturn(200);
         WebhookResponse webhookResponse = webhookSuccessResponseProcessor.process(null, response, null);
         Assert.assertEquals("", webhookResponse.getResponseBody());
     }
@@ -44,6 +48,9 @@ public class WebhookSuccessResponseProcessorTest {
         HttpEntity entity = mock(HttpEntity.class);
         when(response.getEntity()).thenReturn(entity);
         when(entity.getContent()).thenThrow(new IOException());
+        StatusLine statusLine = mock(StatusLine.class);
+        when(response.getStatusLine()).thenReturn(statusLine);
+        when(statusLine.getStatusCode()).thenReturn(200);
         // should throw HttpConnectorException
         webhookSuccessResponseProcessor.process(null, response, null);
     }

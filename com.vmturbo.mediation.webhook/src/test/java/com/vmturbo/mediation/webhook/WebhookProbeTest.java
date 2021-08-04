@@ -55,12 +55,12 @@ public class WebhookProbeTest {
     }
 
     /**
-     * When the template is not a valid, the action should fail.
+     * When the template that referring to a property that does not exist.
      *
      * @throws Exception should not be thrown.
      */
     @Test
-    public void testInvalidTemplate() throws Exception {
+    public void testTemplateWithUnknownProperty() throws Exception {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO("http://google.com",
                 "Test $action.description1", "GET");
@@ -82,6 +82,50 @@ public class WebhookProbeTest {
 
         // ASSERT
         Assert.assertEquals(ActionResponseState.FAILED, result.getState());
+        Assert.assertTrue(result.getDescription()
+                .contains("does not contain property 'description1' at <unknown template>[line 1, column 14]"));
+
+    }
+
+    /**
+     * Makes sure the probe supports version two action types.
+     */
+    @Test
+    public void testSupportsVersion2ActionTypes() {
+        WebhookProbe probe = new WebhookProbe();
+        Assert.assertTrue(probe.supportsVersion2ActionTypes());
+    }
+
+    /**
+     * When the template is not a valid, the action should fail.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testTemplateWithParseException() throws Exception {
+        // ARRANGE
+        final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO("http://google.com",
+                "#set ($test=]())", "GET");
+
+        IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
+        when(propertyProvider.getProperty(any())).thenReturn(30000);
+        IProbeContext probeContext = mock(IProbeContext.class);
+        when(probeContext.getPropertyProvider()).thenReturn(propertyProvider);
+
+        WebhookProbe probe = new WebhookProbe();
+        probe.initialize(probeContext, null);
+        IProgressTracker progressTracker = mock(IProgressTracker.class);
+
+        // ACT
+        ActionResult result = probe.executeAction(actionExecutionDTO,
+                new WebhookAccount(),
+                new HashMap<>(),
+                progressTracker);
+
+        // ASSERT
+        Assert.assertEquals(ActionResponseState.FAILED, result.getState());
+        Assert.assertTrue(result.getDescription()
+                .contains("Encountered \"]\" at <unknown template>[line 1, column 13]"));
     }
 
     /**

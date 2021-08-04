@@ -45,15 +45,17 @@ public class WebHookQueries {
      */
     @Immutable
     public static class WebhookResponse implements Response {
-
+        private final int responseCode;
         private final String responseBody;
 
         /**
          * Creates a web hook response object.
          *
+         * @param responseCode the http status code.
          * @param responseBody the body of the response.
          */
-        public WebhookResponse(String responseBody) {
+        public WebhookResponse(int responseCode, String responseBody) {
+            this.responseCode = responseCode;
             this.responseBody = responseBody;
         }
 
@@ -64,6 +66,15 @@ public class WebHookQueries {
          */
         public String getResponseBody() {
             return responseBody;
+        }
+
+        /**
+         * Returns the status code for the response code.
+         *
+         * @return the status code for the response code.
+         */
+        public int getResponseCode() {
+            return responseCode;
         }
     }
 }
