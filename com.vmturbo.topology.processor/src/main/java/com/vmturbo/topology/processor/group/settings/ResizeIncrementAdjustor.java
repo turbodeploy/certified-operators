@@ -28,7 +28,9 @@ class ResizeIncrementAdjustor {
      */
     public static float roundToProbeIncrement(final double userRequestedIncrement,
                                               final float probeProvidedIncrement) {
-        Preconditions.checkArgument(probeProvidedIncrement > 0);
+        if (probeProvidedIncrement <= 0) {
+            return (float)userRequestedIncrement;
+        }
         // First, find the amount of "probe increments" that the user-requested increment can
         // be divided into. Round down, because that will give a more "conservative" adjusted
         // increment.
