@@ -2049,6 +2049,16 @@ public class EntitySettingsApplicatorTest {
                         VM_VCPU_INCREMENT_UNIT_DEFAULT, VM_VCPU_INCREMENT_SOCKETS_DEFAULT);
     }
 
+    /**
+     * Checks that {@link EntitySettingsApplicator} will not fail with {@link
+     * IllegalArgumentException} in case probe has sent 0 as capacity increment value.
+     */
+    @Test
+    public void testVCPUIncrementApplicatorDoesNotFailWhenProbeSent0() {
+        testVCPUIncrementApplicator(1800, 10400, 0, createTypeSpecificInfo(null, null),
+                        EntityType.VIRTUAL_MACHINE, VM_VCPU_INCREMENT_DEFAULT);
+    }
+
     private static void testVCPUIncrementApplicator(int expectedVCPUIncrenemt, int capacity,
                     Integer capacityIncrement, TypeSpecificInfo typeSpecificInfo,
                     EntityType entityType, Setting... settings) {
