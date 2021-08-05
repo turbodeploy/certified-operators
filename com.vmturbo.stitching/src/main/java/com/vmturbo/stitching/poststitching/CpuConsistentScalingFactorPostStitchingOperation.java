@@ -16,7 +16,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilde
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.NamespaceInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfoOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -229,14 +228,9 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
         @Override
         protected Optional<Double> getMillicorePerMHz(@Nonnull Builder entityBuilder,
                                                       @Nonnull CommoditySoldDTO commSold) {
-            if (entityBuilder.hasTypeSpecificInfo()
-                && entityBuilder.getTypeSpecificInfo().hasNamespace()) {
-                final NamespaceInfo nsInfo = entityBuilder.getTypeSpecificInfo().getNamespace();
-                final double normMHz = commSold.getScalingFactor() * nsInfo.getAverageNodeCpuFrequency();
-                return Optional.of(1000.0 / normMHz);
-            }
-
-            return Optional.empty();
+            return commSold.getScalingFactor() > 0
+                ? Optional.of(1 / commSold.getScalingFactor())
+                : Optional.empty();
         }
     }
 
