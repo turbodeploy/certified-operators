@@ -156,8 +156,7 @@ public enum EntitySettingSpecs {
     EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_VOLUME, EntityType.DATABASE_SERVER),
-            new BooleanSettingDataType(true, ImmutableMap.of(EntityType.DATABASE_SERVER, false)),
-            true),
+            new BooleanSettingDataType(true), true),
 
     /**
      * Enable Delete actions (currently it is used for Volumes only).
