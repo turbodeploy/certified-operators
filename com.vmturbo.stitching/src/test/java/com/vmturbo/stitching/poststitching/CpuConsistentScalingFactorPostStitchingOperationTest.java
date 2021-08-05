@@ -126,6 +126,9 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testNsConsistentScalingFactorSet() {
+        ns.getEntityBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setNamespace(NamespaceInfo.newBuilder().setAverageNodeCpuFrequency(2000.0).build()));
         ns.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
@@ -135,26 +138,7 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
         nsOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
         assertTrue(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
-        // 1 / scalingFactor = 1 / 2 = 0.5
-        assertEquals(0.5f, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
-    }
-
-    /**
-     * testNsConsistentScalingFactorNotSet.
-     */
-    @Test
-    public void testNsConsistentScalingFactorNotSet() {
-        ns.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
-            .setCapacity(2000.0)
-            .setScalingFactor(0)
-            .build());
-
-        nsOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
-            .getChanges().forEach(change -> change.applyChange(journal));
-        assertFalse(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
-        // Default consistentScalingFactor is 1 if not set.
-        assertEquals(1, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.25f, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
