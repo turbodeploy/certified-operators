@@ -137,21 +137,31 @@ public class ActionTargetSelectorTest {
 
     /**
      * Tests case when action has associated REPLACE workflow (i.g. discovered from Action Script
-     * target), so the target to execute the action should be the one from which the workflow was
-     * discovered instead of the target from which the original target entity was discovered.
+     * target), so the target to execute the action should be the target from which the original target entity was discovered.
+     *
+     * @throws UnsupportedActionException if the type of the action is not supported
      */
     @Test
-    public void testSelectingWorkflowExecutionTarget() {
+    public void testSelectingWorkflowExecutionTarget() throws UnsupportedActionException {
         final long hypervisorTargetId = 1;
         final long workflowTargetId = 2;
         final long selectedEntityId = 3;
+        final long hypervisorProbeId = 4;
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 4, 5, 6, 5);
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final ActionGraphEntity actionPartialEntity = mockGraphEntity(ActionPartialEntity.newBuilder()
                 .setOid(selectedEntityId)
                 .addAllDiscoveringTargetIds(Collections.singletonList(hypervisorTargetId))
                 .build());
         when(graph.getEntities(any())).thenAnswer(invocation -> Stream.of(actionPartialEntity));
+
+        when(cachedCapabilities.getMergedActionCapability(action, actionEntity,
+            hypervisorProbeId)).thenReturn(MergedActionCapability.createShowOnly());
+        when(cachedCapabilities.getProbeCategory(hypervisorProbeId))
+            .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
+        when(cachedCapabilities.getProbeFromTarget(hypervisorTargetId))
+            .thenReturn(Optional.of(hypervisorProbeId));
 
         // REPLACE workflow associated with the action
         final Workflow workflow = Workflow.newBuilder()
@@ -163,7 +173,7 @@ public class ActionTargetSelectorTest {
                 .build();
 
         final ActionTargetInfo workflowExecutionTarget = ImmutableActionTargetInfo.builder()
-                .targetId(workflowTargetId)
+                .targetId(hypervisorTargetId)
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .build();
 

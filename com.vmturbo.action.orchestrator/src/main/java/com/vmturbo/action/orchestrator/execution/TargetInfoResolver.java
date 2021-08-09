@@ -123,16 +123,6 @@ public class TargetInfoResolver {
             @Nonnull Map<Long, ActionPartialEntity> actionPartialEntityMap,
             @Nonnull EntitiesAndSettingsSnapshot snapshot,
             @Nonnull Map<Long, Long> workflowExecutionTargetsForActions) {
-        final Long workflowExecutionTargetId =
-                workflowExecutionTargetsForActions.get(action.getId());
-        if (workflowExecutionTargetId != null) {
-            // if action has associated REPLACE workflow then the target to execute the action
-            // should be the one from which the workflow was discovered
-            return ImmutableActionTargetInfo.builder()
-                    .targetId(workflowExecutionTargetId)
-                    .supportingLevel(SupportLevel.SUPPORTED)
-                    .build();
-        }
         final CachedCapabilities cachedCapabilities = probeCapabilityCache.getCachedCapabilities();
         final List<TargetInfo> targetInfos = new ArrayList<>();
         for (Long discoveringTargetId : actionPartialEntity.getDiscoveringTargetIdsList()) {
@@ -199,6 +189,11 @@ public class TargetInfoResolver {
                             .supportingLevel(targetInfo.getSupportLevel())
                             .disruptive(targetInfo.getDisruptive())
                             .reversible(targetInfo.getReversible());
+            final Long workflowExecutionTargetId =
+                workflowExecutionTargetsForActions.get(action.getId());
+            if (workflowExecutionTargetId != null) {
+                actionTargetInfoBuilder.supportingLevel(SupportLevel.SUPPORTED);
+            }
             if (targetInfo.getProbeCategory() != null) {
                 actionTargetInfoBuilder.addAllPrerequisites(
                         PrerequisiteCalculator.calculatePrerequisites(action, actionPartialEntity,
