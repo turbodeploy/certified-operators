@@ -88,6 +88,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final long targetId;
 
     /**
+     * The id of the target which discovers entities of this action, as sent from Action Orchestrator.
+     */
+    private final long originTargetId;
+
+    /**
      * Workflow, if any.
      * Workflows allow actions to be executed through a third party action orchestrator
      */
@@ -164,6 +169,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.actionId = request.getActionId();
 
         this.targetId = request.getTargetId();
+        this.originTargetId = request.getOriginTargetId();
         this.secureStorageClient = Objects.requireNonNull(secureStorageClient);
         this.workflow = request.hasWorkflow() ? buildWorkflow(request.getWorkflow()) : null;
         this.dataManager = Objects.requireNonNull(dataManager);
@@ -289,6 +295,15 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     @Override
     public long getTargetId() {
         return targetId;
+    }
+
+    /**
+     * The id of the target which discovers entities of this action.
+     *
+     * @return the id of the target which discovers entities of this action
+     */
+    public long getOriginTargetId() {
+        return originTargetId;
     }
 
     @Nonnull

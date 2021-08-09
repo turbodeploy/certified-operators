@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -306,8 +307,17 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                         .map(entityRetriever::retrieveTopologyEntity).filter(Optional::isPresent)
                         .map(Optional::get).filter(TopologyEntityDTO::hasOrigin)
                         .map(TopologyEntityDTO::getOrigin).filter(Origin::hasDiscoveryOrigin)
-                        .map(o -> o.getDiscoveryOrigin().getDiscoveredTargetDataMap()
-                                        .get(this.getTargetId()))
+                        .map(Origin::getDiscoveryOrigin)
+                        .map(DiscoveryOrigin::getDiscoveredTargetDataMap)
+                        .filter(targetDataMap -> {
+                            if (targetDataMap.containsKey(this.getOriginTargetId())) {
+                                return true;
+                            } else {
+                                logger.error("Target id {} not found in discovered target data map. Entities involved: {}.",
+                                    this.getOriginTargetId(), entities.stream().filter(filter).map(ActionEntity::getId).collect(Collectors.toList()));
+                                return false;
+                            }})
+                        .map(targetDataMap -> targetDataMap.get(this.getOriginTargetId()))
                         .map(PerTargetEntityInformation::getVendorId)
                         .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
     }

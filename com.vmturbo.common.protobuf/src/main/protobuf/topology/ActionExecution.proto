@@ -17,6 +17,9 @@ message ExecuteActionRequest {
     // in the action should exist on this target.
     optional int64 target_id = 2;
 
+    // The ID of the target which discovers the entities of the action.
+    optional int64 origin_target_id = 7;
+
     // The action information.
     optional action.ActionSpec action_spec = 3;
 

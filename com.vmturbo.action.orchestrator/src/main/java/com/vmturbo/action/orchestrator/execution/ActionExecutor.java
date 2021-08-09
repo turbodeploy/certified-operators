@@ -190,6 +190,7 @@ public class ActionExecutor implements ActionExecutionListener {
             // Target Entity was discovered
             executionRequestBuilder.setTargetId(targetId);
         }
+        executionRequestBuilder.setOriginTargetId(targetId);
 
         return executionRequestBuilder.build();
     }

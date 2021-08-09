@@ -850,6 +850,7 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                         .setActionId(actionId)
                         .setTargetId(targetId)
+                        .setOriginTargetId(targetId)
                         .setActionSpec(ActionDTO.ActionSpec.newBuilder()
                                         .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
                                                         .setExplanation(ActionDTO.Explanation.getDefaultInstance())
