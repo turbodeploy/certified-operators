@@ -30,14 +30,6 @@
         <db.schema>group_component_build_${maven.build.timestamp}</db.schema><!-- group is a keyword in SQL, so name it group_component-->
         <db.outputSchema>group_component</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
-
-        <integration-test-phase>integration-test</integration-test-phase>
-        <dockerImageName>turbonomic/robot-docker</dockerImageName>
-        <dockerImageVersion>1.0.1</dockerImageVersion>
-        <turborepo>registry.turbonomic.com</turborepo>
-        <dockerRobotImage>${turborepo}/${dockerImageName}:${dockerImageVersion}</dockerRobotImage>
-        <robotTag>Mandatory</robotTag>
-        <robotCommand>'. /runRobotTests.sh'</robotCommand>
     </properties>
 
     <dependencies>
@@ -372,87 +364,6 @@
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
             </plugin>
-
-            <plugin>
-              <artifactId>maven-resources-plugin</artifactId>
-              <version>3.1.0</version>
-              <executions>
-                <execution>
-                  <id>copy-test-source-files</id>
-                  <phase>generate-test-sources</phase>
-                  <goals>
-                    <goal>copy-resources</goal>
-                  </goals>
-                  <configuration>
-                    <outputDirectory>${basedir}/target/build</outputDirectory>
-                    <resources>
-                      <resource>
-                        <directory>${basedir}/../build</directory>
-                        <includes>
-                          <include>.env</include>
-                          <include>common-services.yml</include>
-                          <include>docker-compose.yml</include>
-                          <include>properties.yaml</include>
-                        </includes>
-                        <excludes>
-                          <exclude>eclipse</exclude>
-                          <exclude>imager</exclude>
-                          <exclude>kubernetes</exclude>
-                          <exclude>target</exclude>
-                        </excludes>
-                      </resource>
-                    </resources>
-                  </configuration>
-                </execution>
-              </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <configuration>
-                    <skip>${skipITs}</skip>
-                </configuration>
-                <executions>
-                    <!-- Execute the Integration Tests. -->
-                    <execution>
-                      <id>integration-test</id>
-                      <phase>${integration-test-phase}</phase>
-                      <goals>
-                          <goal>exec</goal>
-                      </goals>
-                      <configuration>
-                        <executable>docker</executable>
-                        <arguments>
-                          <argument>run</argument>
-                          <!-- Set environment variables -->
-                          <argument>--env</argument>
-                          <argument>PROJECT_NAME=${artifactId}</argument>
-                          <argument>--env</argument>
-                          <argument>PROJECT_VERSION=${project.version}</argument>
-                          <argument>--env</argument>
-                          <argument>DBROOT=${db.password}</argument>
-                          <argument>--env</argument>
-                          <argument>ROBOT_TAG=${robotTag}</argument>
-                          <!-- Automatically remove the container when it exits -->
-                          <argument>--rm</argument>
-                          <!-- Bind mount a volume -->
-                          <argument>--volume</argument>
-                          <argument>${project.basedir}:/usr/src/project</argument>
-                          <argument>-v</argument>
-                          <argument>/var/run/docker.sock:/var/run/docker.sock</argument>
-                          <!-- The image to run -->
-                          <argument>${dockerRobotImage}</argument>
-                          <argument>/bin/sh</argument>
-                          <argument>-c</argument>
-                          <argument>'${robotCommand}'</argument>
-                        </arguments>
-                        <workingDirectory>${project.basedir}</workingDirectory>
-                      </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
         </plugins>
     </build>
 </project>
