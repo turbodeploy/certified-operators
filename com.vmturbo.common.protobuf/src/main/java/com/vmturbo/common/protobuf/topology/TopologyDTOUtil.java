@@ -135,9 +135,9 @@ public final class TopologyDTOUtil {
 
     /**
      * Bump up the cursor limit for getting all actions for MCP results, from the default 100
-     * to 2000, otherwise MCP plan UI results load too slow for large topology migration.
+     * to 500, to help with loading of MCP plan UI results, for large topology migration.
      */
-    public static final int CLOUD_MIGRATION_ACTION_QUERY_CURSOR_LIMIT = 2000;
+    public static final int CLOUD_MIGRATION_ACTION_QUERY_CURSOR_LIMIT = 500;
 
     private TopologyDTOUtil() {
     }
