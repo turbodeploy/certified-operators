@@ -64,6 +64,8 @@ class HypertableExtender(Extender):
             config.logger.debug(f"Scaling copy #{i}")
             adjustments = [Adjustment(col, Extender.scaling_gap) for col in self.oid_cols]
             n += self.copy_data(i, adjustments=adjustments, disabled=[Feature.compression])
+        if self.args.replica_count == 1 and self.does_compression:
+            self.compress_compressible_chunks(datetime.min)
         return n
 
     def copy_data(self, replica_number, start=None, end=None, extra_cond=None, source=None,

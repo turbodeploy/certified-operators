@@ -113,7 +113,13 @@ class HypertableConfig:
         ratio = 0 if atotal == 0 else btotal / atotal
         for chunk in uncompressed:
             utotal += next(db.query(f"SELECT pg_total_relation_size('{chunk['name']}')"))[0]
-        total = atotal + utotal
+
+        ht_info = db.query(f"select * from hypertable_detailed_size('{sname}')").fetchone();
+        if ht_info is not None:
+            total = ht_info['total_bytes']
+        else:
+            total = 0
+
         detail = f"Table: {ns(bt_tot)}=>{ns(at_tot)}; " \
                  f"Indexes: {ns(bi_tot)}=>{ns(ai_tot)}; " \
                  f"Other: {ns(bo_tot)}=>{ns(ao_tot)}; " \
@@ -121,5 +127,5 @@ class HypertableConfig:
                  f"Compression: {'%.1f' % ratio}x; " \
                  f"Uncompressed: {ns(utotal)}; " \
                  f"Compressed: {atotal}b; " \
-                 f"Actual: {utotal + atotal}b"
+                 f"Actual: {total}b"
         return total, detail
