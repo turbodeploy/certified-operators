@@ -15,6 +15,13 @@ public interface PlanOrchestrator {
     void addPlanListener(@Nonnull PlanListener planListener);
 
     /**
+     * Add {@link PlanExportListener} to the Plan Orchestrator.
+     *
+     * @param planExportListener the plan export listener.
+     */
+    void addPlanExportListener(@Nonnull PlanExportListener planExportListener);
+
+    /**
      * Add {@link ReservationListener} to Plan Orchestrator.
      *
      * @param reservationListener the reservation listener.

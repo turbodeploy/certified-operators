@@ -45,6 +45,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -174,6 +175,7 @@ public class TopologyPipelineFactoryTest {
             mock(DiscoveredGroupUploader.class),
             mock(DiscoveredWorkflowUploader.class),
             mock(DiscoveredCloudCostUploader.class),
+            mock(DiscoveredPlanDestinationUploader.class),
             mock(EntitySettingsResolver.class),
             mock(EntitySettingsApplicator.class),
             mock(EnvironmentTypeInjector.class),

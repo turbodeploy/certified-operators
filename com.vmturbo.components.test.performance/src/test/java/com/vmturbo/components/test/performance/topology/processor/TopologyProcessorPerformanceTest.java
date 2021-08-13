@@ -137,7 +137,7 @@ public class TopologyProcessorPerformanceTest {
         topologyService = TopologyServiceGrpc.newBlockingStub(
                 componentTestRule.getCluster().newGrpcChannel("topology-processor"));
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(connectionConfig, threadPool,
-                messageReceiver, liveTopologyReceiver, null, null, null);
+                messageReceiver, liveTopologyReceiver, null, null, null, null);
         kafkaMessageConsumer.start();
     }
 

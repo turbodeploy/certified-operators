@@ -15,6 +15,8 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportUpdate;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.ApiClientException;
@@ -24,6 +26,7 @@ import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
+import com.vmturbo.topology.processor.api.PlanExportNotificationListener;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
@@ -48,6 +51,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     private final Set<ProbeListener> probeListeners;
     private final Set<TopologySummaryListener> topologySummaryListeners;
     private final Set<EntitiesWithNewStateListener> entitiesWithNewStateListeners;
+    private final Set<PlanExportNotificationListener> planExportNotificationListeners;
 
     private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
                                  final Consumer<LISTENER_TYPE> command) {
@@ -68,6 +72,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             @Nullable final IMessageReceiver<Topology> planTopologyReceiver,
             @Nullable final IMessageReceiver<TopologySummary> topologySummaryReceiver,
             @Nullable final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver,
+            @Nullable final IMessageReceiver<PlanExportNotification> planExportNotificationReceiver,
             @Nonnull final ExecutorService threadPool) {
         super(messageReceiver, threadPool);
         this.liveTopoReceiver = new TopologyReceiver(liveTopologyReceiver, threadPool);
@@ -94,6 +99,12 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         } else {
             entitiesWithNewStateReceiver.addListener(this::onEntitiesWithNewStatedNotification);
             entitiesWithNewStateListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        }
+        if (planExportNotificationReceiver == null) {
+            planExportNotificationListeners = Collections.emptySet();
+        } else {
+            planExportNotificationReceiver.addListener(this::onPlanExportNotification);
+            planExportNotificationListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
         }
     }
 
@@ -180,6 +191,44 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         doWithListeners(probeListeners, l -> l.onProbeRegistered(notification));
     }
 
+    private void onPlanExportNotification(@Nonnull final PlanExportNotification message,
+                                          final Runnable commitCommand,
+                                          @Nonnull final SpanContext tracingContext) {
+        getLogger().trace("Processing message {}", message);
+
+        try {
+            switch (message.getTypeCase()) {
+                case PROGRESS_UPDATE:
+                    onPlanExportProgress(message.getProgressUpdate());
+                    break;
+                case STATE_CHANGE:
+                    onPlanExportStateChange(message.getStateChange());
+                    break;
+                default:
+                    throw new TopologyProcessorException("Message type unrecognized: " + message);
+            }
+
+            commitCommand.run();
+
+            getLogger().trace("Message {} processed successfully", message);
+        } catch (TopologyProcessorException ex) {
+            getLogger().error("Error occurred while processing Plan Export message {}", message, ex);
+        }
+    }
+
+    private void onPlanExportProgress(@Nonnull final PlanExportUpdate message) {
+        getLogger().debug("Plan Export Progress notification received: {}", message);
+        doWithListeners(planExportNotificationListeners, l -> l.onPlanExportProgress(
+            message.getPlanDestinationId(), message.getStatus().getProgress(),
+            message.getStatus().getDescription()));
+    }
+
+    private void onPlanExportStateChange(@Nonnull final PlanExportUpdate message) {
+        getLogger().debug("Plan Export State Change notification received: {}", message);
+        doWithListeners(planExportNotificationListeners, l -> l.onPlanExportStateChanged(
+            message.getPlanDestinationId(), message.getStatus()));
+    }
+
     @Override
     protected void processMessage(@Nonnull final TopologyProcessorNotification message,
                                   @Nonnull final SpanContext tracingContext) throws ApiClientException {
@@ -249,5 +298,9 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     public void addEntitiesWithNewStateListener(@Nonnull final EntitiesWithNewStateListener listener) {
         this.entitiesWithNewStateListeners.add(listener);
+    }
+
+    public void addPlanExportToTargetListener(@Nonnull final PlanExportNotificationListener listener) {
+        this.planExportNotificationListeners.add(listener);
     }
 }

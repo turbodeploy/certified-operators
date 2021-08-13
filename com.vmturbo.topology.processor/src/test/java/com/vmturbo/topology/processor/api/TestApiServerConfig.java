@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanExportNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
@@ -82,6 +83,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUn
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
@@ -171,6 +173,15 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
+     * Creates a {@link SenderReceiverPair} to exchange {@link PlanExportNotification} messages.
+     * @return SenderReceiverPair the message pair
+     */
+    @Bean
+    public SenderReceiverPair<PlanExportNotification> planExportNotificationConnection() {
+        return new SenderReceiverPair<>();
+    }
+
+    /**
      * Creates a {@link TopologyProcessorNotificationSender}.
      * @return {@link TopologyProcessorNotificationSender} the sender.
      */
@@ -180,7 +191,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
                 new TopologyProcessorNotificationSender(apiServerThreadPool(), clock(),
                         liveTopologyConnection(), planTopologyConnection(),
                         planTopologyConnection(), notificationsConnection(),
-                        topologySummaryConnection(), entitiesWithNewStateConnection());
+                        topologySummaryConnection(), entitiesWithNewStateConnection(),
+                        planExportNotificationConnection());
         targetStore().addListener(backend);
         probeStore().addListener(backend);
         return backend;
@@ -303,6 +315,11 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader() {
+        return mock(DiscoveredPlanDestinationUploader.class);
+    }
+
+    @Bean
     public DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
         return mock(DiscoveredTemplateDeploymentProfileUploader.class);
     }
@@ -365,13 +382,14 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             groupRecorder(),
             workflowRecorder(),
             cloudCostUploadRecorder(),
+            discoveredPlanDestinationUploader(),
             discoveredTemplatesUploader(),
             controllableDao(),
             derivedTargetParser(),
             groupScopeResolver(),
             targetDumpingSettings(),
             systemNotificationProducer(),
-            1L, 1L, 1L,
+            1L, 1L, 1L, 1L,
             5, 10, 1, 1,
             TheMatrix.instance(),
             binaryDiscoveryDumper(),

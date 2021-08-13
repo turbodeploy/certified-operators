@@ -12,6 +12,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -56,6 +57,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -377,6 +380,37 @@ public class PlanTopologyScopeEditor {
                 .flatMap(TopologyEntity::getDiscoveringTargetIds)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+
+        // Add in any Hypervisor Servers from associated targets and
+        // make VMs be "Aggregated By" Hypervisor Servers from their targets.
+        // We decided not to have the VC probe discover this relationship due to
+        // the overhead in realtime for large topologies. Since we only need this
+        // information in Migrate to Public Cloud plans, we synthesize it here.
+
+        Map<Long, TopologyEntity> hypervisorServersByTargetId = new HashMap<>();
+        graph.entitiesOfType(EntityType.HYPERVISOR_SERVER)
+            .forEach(hvs -> hvs.getDiscoveringTargetIds()
+                .filter(targetIds::contains)
+                .forEach(targetId -> hypervisorServersByTargetId.put(targetId, hvs))
+            );
+
+        allEntities.addAll(hypervisorServersByTargetId.values());
+
+        sourceEntities.stream()
+            .filter(entity -> entity.getEntityType() == VIRTUAL_MACHINE_VALUE)
+            .forEach(vm -> {
+                vm.getDiscoveringTargetIds()
+                    .map(hypervisorServersByTargetId::get)
+                    .filter(Objects::nonNull)
+                    .forEach(hvs -> {
+                        vm.getTopologyEntityDtoBuilder().addConnectedEntityList(
+                            ConnectedEntity.newBuilder()
+                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                                .setConnectedEntityId(hvs.getOid())
+                                .setConnectedEntityType(hvs.getEntityType())
+                                .build());
+                    });
+            });
 
         // Finally filter by target and update result map.
         resultEntityMap.putAll(allEntities

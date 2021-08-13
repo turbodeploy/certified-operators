@@ -267,6 +267,8 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder virtualVolume = createHypervisorConnectedTopologyEntity(25001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, st1.getOid());
     private final TopologyEntity.Builder virtualVolume1 = createHypervisorTopologyEntity(2502L, "virtualVolume1", EntityType.VIRTUAL_VOLUME,
         commBoughtByVVDS1, basketSoldByVV);
+    private final TopologyEntity.Builder hypervisorServer = createHypervisorTopologyEntity(4815162342L, "vCenter", EntityType.HYPERVISOR_SERVER,
+        Collections.emptyMap(), Collections.emptyList());
     private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE,
             commBoughtByVMinDC1PM1DS1VDC, basketSoldByVM1, virtualVolume.getOid());
     private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE,
@@ -1678,10 +1680,10 @@ public class PlanTopologyScopeEditorTest {
      * @throws Exception any exception
      */
     @Test
-    public void testScopeCloudMigrationPlanOnPremToAwsRegion() {
+    public void testScopeCloudMigrationPlanOnPremToAwsRegion() throws Exception {
         final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
             .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
-                pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
+                pm2InDc1, pmInDc2, dc1, dc2, hypervisorServer, st1, st2, da1, as1,
                 as2, az1London, az2London, azOhio,
                 az1HongKong, az2HongKong, regionLondon, regionOhio,
                 regionHongKong, computeTier, vm1InLondon,
@@ -1712,9 +1714,17 @@ public class PlanTopologyScopeEditorTest {
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
                 cloudTopologyInfo, cloudMigrationGraph, sourceVMOids);
         // Now we use generic scoping, that pulls in more entities than directly connected ones.
-        Assert.assertEquals(21, result.size());
+        Assert.assertEquals(22, result.size());
         awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
                 + " is missing", result.getEntity(entity.getOid()).isPresent()));
+
+        // Verify that HypervisorServer aggregation of vm's connectin was built.
+        TopologyEntity hvs = result.getEntity(hypervisorServer.getOid())
+            .orElseThrow(() -> new AssertionError("Hypervisor Server should not be missing!"));
+        TopologyEntity vm1 = result.getEntity(vm1InDc1.getOid())
+            .orElseThrow(() -> new AssertionError("vm1InDc1 should not be missing!"));
+        assertTrue(hvs.getAggregatedEntities().contains(vm1));
+        assertTrue(vm1.getAggregators().contains(hvs));
     }
 
     private static TopologyEntity.Builder createCloudVm(

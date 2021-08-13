@@ -94,6 +94,7 @@ import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -194,6 +195,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        DiscoveredPlanDestinationUploader discoveredPlanDestinationUploader() {
+            return Mockito.mock(DiscoveredPlanDestinationUploader.class);
+        }
+
+        @Bean
         DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
             return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
         }
@@ -270,13 +276,14 @@ public class OperationControllerTest {
                                         groupRecorder(),
                                         workflowRecorder(),
                                         discoveredCloudCostUploader(),
+                                        discoveredPlanDestinationUploader(),
                                         discoveredTemplatesUploader(),
                                         controllableDao(),
                                         derivedTargetParser(),
                                         groupScopeResolver(),
                                         targetDumpingSettings(),
                                         systemNotificationProducer(),
-                                        10, 10, 10,
+                                        10, 10, 10, 10,
                                         5, 10, 1, 1,
                                         TheMatrix.instance(),
                                         binaryDiscoveryDumper(),

@@ -24,6 +24,8 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
+import com.vmturbo.topology.processor.planexport.PlanDestinationConfig;
+import com.vmturbo.topology.processor.planexport.PlanExportConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
@@ -44,6 +46,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     TopologyProcessorApiConfig.class,
     ControllableConfig.class,
     WorkflowConfig.class,
+    PlanDestinationConfig.class,
     CloudCostConfig.class,
     TemplateConfig.class,
     ComponentBasedTargetDumpingSettingsConfig.class,
@@ -81,6 +84,9 @@ public class OperationConfig {
     private WorkflowConfig workflowConfig;
 
     @Autowired
+    private PlanDestinationConfig planDestinationConfig;
+
+    @Autowired
     private CloudCostConfig cloudCostUploaderConfig;
 
     @Autowired
@@ -106,6 +112,9 @@ public class OperationConfig {
 
     @Value("${actionTimeoutSeconds:30}")
     private long actionTimeoutSeconds;
+
+    @Value("${planExportTimeoutSeconds:120}")
+    private long planExportTimeoutSeconds;
 
     @Value("${probeDiscoveryPermitWaitTimeoutMins:40}")
     private int probeDiscoveryPermitWaitTimeoutMins;
@@ -174,6 +183,7 @@ public class OperationConfig {
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostUploaderConfig.discoveredCloudCostUploader(),
+                planDestinationConfig.discoveredPlanDestinationUploader(),
                 templateConfig.discoveredTemplatesUploader(),
                 controllableConfig.entityActionDaoImp(),
                 targetConfig.derivedTargetParser(),
@@ -184,6 +194,7 @@ public class OperationConfig {
                 discoveryTimeoutSeconds,
                 validationTimeoutSeconds,
                 actionTimeoutSeconds,
+                planExportTimeoutSeconds,
                 matrixConfig.matrixInterface(),
                 binaryDiscoveryDumper(),
                 enableDiscoveryResponsesCaching,
@@ -198,6 +209,7 @@ public class OperationConfig {
             groupConfig.discoveredGroupUploader(),
             workflowConfig.discoveredWorkflowUploader(),
             cloudCostUploaderConfig.discoveredCloudCostUploader(),
+            planDestinationConfig.discoveredPlanDestinationUploader(),
             templateConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
             targetConfig.derivedTargetParser(),
@@ -207,6 +219,7 @@ public class OperationConfig {
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds,
+            planExportTimeoutSeconds,
             sdkServerConfig.getMaxConcurrentTargetDiscoveriesPerProbeCount(),
             sdkServerConfig.getMaxConcurrentTargetIncrementalDiscoveriesPerProbeCount(),
             probeDiscoveryPermitWaitTimeoutMins,
