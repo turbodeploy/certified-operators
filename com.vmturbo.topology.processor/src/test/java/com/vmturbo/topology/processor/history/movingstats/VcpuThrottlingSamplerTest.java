@@ -361,6 +361,15 @@ public class VcpuThrottlingSamplerTest {
     }
 
     /**
+     * Test that clearing expired data on an uninitialized sampler does not throw an exception.
+     */
+    @Test
+    public void testClearExpiredDataOnUninitialized() {
+        final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(VCPU_FIELD);
+        assertFalse(sampler.cleanExpiredData(0, SAMPLER_CONFIGURATION));
+    }
+
+    /**
      * Test serialization writes data correctly.
      */
     @Test
