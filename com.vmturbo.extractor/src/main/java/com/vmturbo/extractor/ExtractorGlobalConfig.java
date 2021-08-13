@@ -42,15 +42,9 @@ public class ExtractorGlobalConfig {
     private boolean enableDataExtraction;
 
     /**
-     * Configuration used to enable/disable bottom-up entity cost ingestion.
-     */
-    @Value("${enableEntityCost:false}")
-    private boolean enableEntityCost;
-
-    /**
      * Configuration used to enable/disable top-up billing account cost ingestion.
      */
-    @Value("${enableBillingCost:false}")
+    @Value("${enableBillingCost:true}")
     private boolean enableBillingCost;
 
     @Value("${enableIndividualVStorages:false}")
