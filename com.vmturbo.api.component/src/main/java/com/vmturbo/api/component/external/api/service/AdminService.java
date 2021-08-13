@@ -63,6 +63,7 @@ import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
 import com.vmturbo.common.api.crypto.CryptoFacility;
@@ -543,7 +544,8 @@ public class AdminService implements IAdminService {
     public ProductCapabilityDTO getProductCapabilities() throws Exception {
         ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
-        productCapabilityDTO.setReportingEnabled(this.enableReporting);
+        productCapabilityDTO.setReportingEnabled(
+                                    this.enableReporting && !UserScopeUtils.isUserScoped());
         productCapabilityDTO.setSearchApiEnabled(this.enableSearchApi);
         productCapabilityDTO.setJdbcHttpSessionEnabled(EnvironmentUtils.parseBooleanFromEnv(
                 SpringJdbcHttpSessionCondition.ENABLED));
