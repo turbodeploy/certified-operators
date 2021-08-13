@@ -212,6 +212,7 @@ def main():
     for extender in extenders:
         extender.log_stats(table_counts[extender], table_times[extender])
     config.logger.info(f"Replication completed in {datetime.now() - t0}")
+    config.logger.info(f"n={args.replica_count}, s={args.scale_factor}")
     if not args.no_log_sizes:
         log_sizes(args.db_schema, config.db)
         log_sizes(args.replica_schema, config.db)

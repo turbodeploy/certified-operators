@@ -1,3 +1,4 @@
+from extenders.adjustment import Adjustment
 from extenders.hypertable_extender import HypertableExtender
 
 
@@ -6,4 +7,5 @@ class CloudServiceCostExtender(HypertableExtender):
 
     def __init__(self, args):
         super().__init__('cloud_service_cost', args, time_col='time',
-                         oid_cols=["account_oid", "cloud_service_oid"])
+                         oid_cols=["account_oid", "cloud_service_oid"],
+                         adjustments=[Adjustment('time', -args.replica_gap_delta)])
