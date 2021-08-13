@@ -3,9 +3,10 @@ package com.vmturbo.cost.component.savings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-import java.io.IOException;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -15,7 +16,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,9 +37,9 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -54,7 +58,7 @@ public class SqlEntitySavingsStoreTest {
     private SqlEntitySavingsStore store;
 
     /**
-     * Config providing access to DB. Also ClassRule to init Db and upgrade to latest.
+     * Config providing access to DB. Also, ClassRule to init Db and upgrade to latest.
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
@@ -66,9 +70,10 @@ public class SqlEntitySavingsStoreTest {
     public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     /**
-     * Clock to keeping track of times.
+     * Fixed clock to keep track of times. Pinned to shortly after 1pm on 1/12/1970.
      */
-    private final MutableFixedClock clock = new MutableFixedClock(1_000_000_000);
+    private final Clock clock = Clock.fixed(Instant.ofEpochMilli(1_000_000_000L),
+            ZoneId.from(ZoneOffset.UTC));
 
     /**
      * Context to execute DB queries and inserts.
@@ -111,14 +116,14 @@ public class SqlEntitySavingsStoreTest {
     private static final double missedInvestments = 8.0d;
 
     /**
-     * Get exact time, strip of the minute part: 1990-01-12T13:00
+     * Get some exact times in a day based on our fixed clock.
      */
-    private final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
-            .toLocalDateTime().plusYears(20).truncatedTo(ChronoUnit.HOURS);
-    private final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1990-01-12T12:00
-    private final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1990-01-12T14:00
-    private final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1990-01-12T15:00
-    private final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1990-01-12T16:00
+    private final LocalDateTime timeExact0PM = Instant.now(clock).atZone(ZoneOffset.UTC)
+            .toLocalDateTime().plusYears(20).truncatedTo(ChronoUnit.DAYS).plusHours(12);
+    private final LocalDateTime timeExact1PM = timeExact0PM.plusHours(1);
+    private final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1);
+    private final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2);
+    private final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3);
 
     /**
      * For testing rollup processing.
@@ -131,8 +136,10 @@ public class SqlEntitySavingsStoreTest {
      * @throws Exception Throw on DB init errors.
      */
     @Before
-    public void setup() throws Exception {
-        store = new SqlEntitySavingsStore(dsl, clock, 5);
+    public void setup() {
+        // some of our conversions depend on timezone being set to UTC
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
+        store = new SqlEntitySavingsStore(dsl, clock, 1000);
         rollupProcessor = new RollupSavingsProcessor(store, clock);
     }
 
@@ -140,10 +147,9 @@ public class SqlEntitySavingsStoreTest {
      * Testing reads/writes for hourly stats table.
      *
      * @throws EntitySavingsException Thrown on DB error.
-     * @throws IOException Thrown on insert scope DB error.
      */
     @Test
-    public void testHourlyStats() throws EntitySavingsException, IOException {
+    public void testHourlyStats() throws EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
 
         setStatsValues(hourlyStats, vm1Id, timeExact1PM, 10, null); // VM1 at 1PM.
@@ -207,8 +213,13 @@ public class SqlEntitySavingsStoreTest {
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
     }
 
+    /**
+     * Test that newly added savings data is correctly rolled up.
+     *
+     * @throws EntitySavingsException if there's a problem with the store
+     */
     @Test
-    public void rollupToDailyAndMonthly() throws IOException, EntitySavingsException {
+    public void rollupToDailyAndMonthly() throws EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
 
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
@@ -241,33 +252,37 @@ public class SqlEntitySavingsStoreTest {
             hourlyTimes.add(timestamp);
         }
 
-        // Start of day range query.
-        final long dayRangeEnd = TimeUtil.localDateTimeToMilli(timeExact1PM.plusDays(7), clock);
-        final long monthRangeEnd = SavingsUtil.getMonthEndTime(timeExact1PM.plusMonths(2), clock);
-
+        // add new data to the store, and compute eligible rollups
         store.addHourlyStats(hourlyStats, dsl);
         rollupProcessor.process(hourlyTimes);
 
         final LastRollupTimes newLastTimes = store.getLastRollupTimes();
         assertNotNull(newLastTimes);
         logger.info("New last rollup times: {}", newLastTimes);
+
+        // Start of day range query.
+        final long dayRangeEnd = TimeUtil.localDateTimeToMilli(timeExact1PM.plusDays(7), clock);
+        final long monthRangeEnd = SavingsUtil.getMonthEndTime(timeExact1PM.plusMonths(2), clock);
+
         // First hour inserted into DB - Thu Jan 13 1990 01:00:00
-        final long firstHourExpected = 632192400000L;
+        final long firstHourExpected = Instant.parse("1990-01-13T01:00:00Z").toEpochMilli();
 
         // Last hourly data that was rolled up - Thu Jan 15 1990 02:00:00
-        final long lastHourExpected = 632368800000L;
+        final long lastHourExpected = Instant.parse("1990-01-15T02:00:00Z").toEpochMilli();
 
         // Last day that was rolled up - Wed Jan 14 1990 00:00:00
         // Jan 15 is still 'in progress', so its daily rollup is not yet completed.
-        final long lastDayExpected = 632275200000L;
+        final long lastDayExpected = Instant.parse("1990-01-14T00:00:00Z").toEpochMilli();
 
         // Month end to which daily data has been rolled up - Sat Jan 31 1990 00:00:00
-        final long lastMonthExpected = 633744000000L;
+        final long lastMonthExpected = Instant.parse("1990-01-31T00:00:00Z").toEpochMilli();
+
+        // check rollup metadata values
         assertEquals(lastHourExpected, newLastTimes.getLastTimeByHour());
-        assertEquals(lastHourExpected, (long)hourlyTimes.get(hourlyTimes.size() - 1));
         assertEquals(lastDayExpected, newLastTimes.getLastTimeByDay());
         assertEquals(lastMonthExpected, newLastTimes.getLastTimeByMonth());
 
+        // perform hourly, daily and monthly queries to the store and check results
         Collection<Long> entityOids = ImmutableSet.of(vm1Id);
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> billingFamilies = new HashSet<>();
@@ -302,34 +317,32 @@ public class SqlEntitySavingsStoreTest {
     /**
      * Check if query based on various time frames (hour/day/month/year) works as expected.
      *
-     * @throws IOException On IO error.
      * @throws EntitySavingsException On DB access error.
      */
     @Test
-    public void timeframeStatsQuery() throws IOException, EntitySavingsException {
+    public void testTimeframeStatsQueries() throws EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
         final List<Long> hourlyTimes = new ArrayList<>();
 
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
 
-        final LocalDateTime year1monthBack = timeExact1PM.minusMonths(11);
-        final LocalDateTime anHourLater = timeExact1PM.plusHours(1);
-
-        // Start at 2 AM.
-        final LocalDateTime startTime = year1monthBack.toLocalDate().atStartOfDay().plusHours(2);
-        int hour = 0;
-        long timestamp;
-        long endTimeMillis = TimeUtil.localDateTimeToMilli(anHourLater, clock);
-        do {
-            final LocalDateTime thisTime = startTime.plusHours(hour++);
-            setStatsValues(hourlyStats, vm1Id, thisTime, 1, statsTypes);
-
-            timestamp = TimeUtil.localDateTimeToMilli(thisTime, clock);
-            hourlyTimes.add(timestamp);
-        } while (timestamp < endTimeMillis);
-
+        // Add hourly stats records every hour, starting at 2am 11 months ago, and up to and
+        // including 2pm today.
+        LocalDateTime startTime = timeExact1PM.minusMonths(11).toLocalDate().atStartOfDay().plusHours(2);
+        long startTimeMillis = TimeUtil.localDateTimeToMilli(startTime, clock);
+        LocalDateTime endTime = timeExact1PM.plusHours(1);
+        long endTimeMillis = TimeUtil.localDateTimeToMilli(endTime, clock);
+        for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.HOURS.toMillis(1)) {
+            LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
+            setStatsValues(hourlyStats, vm1Id, time, 1, statsTypes);
+            hourlyTimes.add(tMillis);
+        }
+        // save all the hourly records to the hourly table
         store.addHourlyStats(hourlyStats, dsl);
+        int count = dsl.fetchCount(EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR);
+        assertEquals(hourlyStats.size(), count);
+        // and perform daily and monthly rollups
         rollupProcessor.process(hourlyTimes);
 
         final LastRollupTimes newLastTimes = store.getLastRollupTimes();
@@ -342,71 +355,91 @@ public class SqlEntitySavingsStoreTest {
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
 
-        long startTimeMillis = TimeUtil.localDateTimeToMilli(year1monthBack.minusHours(1), clock);
+        // query hourly, daily, and monthly data with buffers on both ends of the time span to
+        // ensure all records are selected
         final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
                 statsTypes,
-                startTimeMillis, endTimeMillis + 1000,
+                startTimeMillis - TimeUnit.HOURS.toMillis(1), endTimeMillis + TimeUnit.HOURS.toMillis(1),
                 entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(hourlyResult);
 
         final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
                 statsTypes,
-                startTimeMillis, endTimeMillis + 1000,
+                startTimeMillis - TimeUnit.DAYS.toMillis(1), endTimeMillis + TimeUnit.DAYS.toMillis(1),
                 entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(dailyResult);
 
         final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
                 statsTypes,
-                startTimeMillis, endTimeMillis + 1000,
+                startTimeMillis - TimeUnit.DAYS.toMillis(31), endTimeMillis + TimeUnit.DAYS.toMillis(31),
                 entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(monthlyResult);
 
         logger.info("Hourly result count: {}, Daily count: {}, Monthly count: {}",
                 hourlyResult.size(), dailyResult.size(), monthlyResult.size());
 
-        assertEquals(8018, hourlyResult.size());
-        // 400.0 each day.
-        AggregatedSavingsStats result = hourlyResult.get(0);
-        assertEquals(400.0, result.value, EPSILON_PRECISION);
-        assertEquals(603288000000L, result.getTimestamp());
+        // check the hourly results
+        // we should have a record for each of the timestamps we collected
+        assertEquals(hourlyStats.size(), hourlyResult.size());
+        // each record should show a value of 400.0
+        hourlyResult.forEach(result -> assertEquals("Failed for hour " + Instant.ofEpochMilli(result.getTimestamp()),
+                400.0, result.value, EPSILON_PRECISION));
+        // first record is at our start time, and then they're separated by 1 hour
+        assertEquals(startTimeMillis, hourlyResult.get(0).getTimestamp());
+        IntStream.range(1, hourlyResult.size()).forEach(i ->
+                assertEquals("Failed for hour " + Instant.ofEpochMilli(hourlyResult.get(i - 1).getTimestamp()),
+                        TimeUnit.HOURS.toMillis(1),
+                        hourlyResult.get(i).getTimestamp() - hourlyResult.get(i - 1).getTimestamp()));
 
-        result = hourlyResult.get(hourlyResult.size() - 2);
-        assertEquals(400.0, result.value, EPSILON_PRECISION);
-        assertEquals(632149200000L, result.getTimestamp());
+        // check daily results
+        // we should have a record for every day on which an hourly timestamp fell
+        long expectedDays = endTime.toLocalDate().toEpochDay() - startTime.toLocalDate().toEpochDay() + 1;
+        assertEquals(expectedDays, dailyResult.size());
+        // 400.0 per hour over 24 hours for most days, but first day only has (02-23), and final
+        // day only has 15 (00-14)
+        IntStream.range(1, dailyResult.size() - 1).forEach(i ->
+                assertEquals("Failed for day " + Instant.ofEpochMilli(dailyResult.get(i).getTimestamp()),
+                        24 * 400.0, dailyResult.get(i).value, EPSILON_PRECISION));
+        int firstDayHours = 24 - startTime.getHour();
+        assertEquals(firstDayHours * 400.0, dailyResult.get(0).value, EPSILON_PRECISION);
+        int lastDayHours = endTime.getHour() + 1;
+        assertEquals(lastDayHours * 400.0, dailyResult.get(dailyResult.size() - 1).value, EPSILON_PRECISION);
+        // first record timestamp should be midnight of day containing first hourly timestamp, and
+        // then they should be spaced by one day.
+        assertEquals(TimeUnit.DAYS.toMillis(startTime.atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()),
+                dailyResult.get(0).getTimestamp());
+        IntStream.range(1, dailyResult.size()).forEach(i ->
+                assertEquals("Failed for day " + Instant.ofEpochMilli(dailyResult.get(i - 1).getTimestamp()),
+                        TimeUnit.DAYS.toMillis(1),
+                        dailyResult.get(i).getTimestamp() - dailyResult.get(i - 1).getTimestamp()));
 
-        result = hourlyResult.get(hourlyResult.size() - 1);
-        assertEquals(400.0, result.value, EPSILON_PRECISION);
-        assertEquals(632152800000L, result.getTimestamp());
-
-        assertEquals(334, dailyResult.size());
-        // 400.0 per hour over 24 hours.
-        result = dailyResult.get(0);
-        assertEquals(9600.0, result.value, EPSILON_PRECISION);
-        assertEquals(603331200000L, result.getTimestamp());
-
-        // 400.0 per hour over 24 hours.
-        result = dailyResult.get(dailyResult.size() - 2);
-        assertEquals(9600.0, result.value, EPSILON_PRECISION);
-        assertEquals(632016000000L, result.getTimestamp());
-
-        // Last day, only 15, not full 24 hours.
-        result = dailyResult.get(dailyResult.size() - 1);
-        assertEquals(6000.0, result.value, EPSILON_PRECISION);
-        assertEquals(632102400000L, result.getTimestamp());
-
-        assertEquals(11, monthlyResult.size());
-        // Month totals varies by days in the month.
-        result = monthlyResult.get(0);
-        assertEquals(162400.0, result.value, EPSILON_PRECISION);
-        assertEquals(604627200000L, result.getTimestamp());
-
-        result = monthlyResult.get(monthlyResult.size() - 2);
-        assertEquals(288000.0, result.value, EPSILON_PRECISION);
-        assertEquals(628387200000L, result.getTimestamp());
-
-        result = monthlyResult.get(monthlyResult.size() - 1);
-        assertEquals(297600.0, result.value, EPSILON_PRECISION);
-        assertEquals(631065600000L, result.getTimestamp());
+        // check monthly results
+        // we have a record for every distinct month in which an hourly timestamp appeared
+        assertEquals(12L * (endTime.getYear() - startTime.getYear())
+                        + endTime.getMonthValue() - startTime.getMonthValue() + 1,
+                monthlyResult.size());
+        // first record is at midnight of last day in month of start record, and likewise for
+        // succeeding months
+        LocalDateTime startOfFirstMonth = startTime.withDayOfMonth(1).truncatedTo(ChronoUnit.DAYS);
+        IntStream.range(0, monthlyResult.size()).forEach(i ->
+                assertEquals("Failed for month starting on " + startOfFirstMonth.plusMonths(i),
+                        startOfFirstMonth.plusMonths(i + 1).minusDays(1),
+                        SavingsUtil.getLocalDateTime(monthlyResult.get(i).getTimestamp(), clock)));
+        // Month totals varies by days in the month. First and last are handled specially.
+        IntStream.range(1, monthlyResult.size() - 1).forEach(i -> {
+            // midnight on last day of month
+            LocalDateTime monthDate = SavingsUtil.getLocalDateTime(monthlyResult.get(i).getTimestamp(), clock);
+            assertEquals("Failed for month ending on " + monthDate,
+                    monthDate.getDayOfMonth() * 24 * 400.0, monthlyResult.get(i).getValue(), EPSILON_PRECISION);
+        });
+        // first and last months are adjusted by day/hour of start/end times respectively
+        int firstMonthHours =
+                SavingsUtil.getLocalDateTime(monthlyResult.get(0).getTimestamp(), clock).getDayOfMonth() * 24
+                        - (startTime.getDayOfMonth() - 1) * 24 - startTime.getHour();
+        assertEquals(firstMonthHours * 400.0, monthlyResult.get(0).getValue(), EPSILON_PRECISION);
+        // last active day in month is not yet rolled up into monthly since the day may not be complete
+        int lastMonthHours = (endTime.getDayOfMonth() - 1) * 24;
+        assertEquals(lastMonthHours * 400.0, monthlyResult.get(monthlyResult.size() - 1).getValue(), EPSILON_PRECISION);
     }
 
     /**
@@ -501,18 +534,18 @@ public class SqlEntitySavingsStoreTest {
      */
     @Test
     public void testGetStatsUsingScopeTable() throws EntitySavingsException {
-        Long entityOid1 = 1L;
-        Long entityOid2 = 2L;
-        Long accountId = 100L;
-        Long regionOid1 = 1000L;
-        Long regionOid2 = 2000L;
-        Long zoneOid1 = 10L;
-        Long zoneOid2 = 20L;
-        Long serviceProviderOid = 10000L;
-        Long billingFamilyOid1 = 300000L;
-        Long billingFamilyOid2 = 400000L;
-        Long resourceGroupOid1 = 100000L;
-        Long resourceGroupOid2 = 200000L;
+        long entityOid1 = 1L;
+        long entityOid2 = 2L;
+        long accountId = 100L;
+        long regionOid1 = 1000L;
+        long regionOid2 = 2000L;
+        long zoneOid1 = 10L;
+        long zoneOid2 = 20L;
+        long serviceProviderOid = 10000L;
+        long billingFamilyOid1 = 300000L;
+        long billingFamilyOid2 = 400000L;
+        long resourceGroupOid1 = 100000L;
+        long resourceGroupOid2 = 200000L;
         EntityCloudScopeRecord r1 = createEntityCloudScopeRecord(entityOid1, accountId, regionOid1,
                 zoneOid1, serviceProviderOid, billingFamilyOid1, resourceGroupOid1);
 

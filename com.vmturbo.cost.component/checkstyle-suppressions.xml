@@ -14,32 +14,26 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]IdentityProviderConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]MarketListenerConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]TopologyProcessorListenerConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]cca[/\\]CloudCommitmentEventDemandStatsConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]CostConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountInfoConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountNotFoundException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DuplicateAccountIdException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]SQLDiscountStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]AbstractProjectedEntityCostStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]CostComponentProjectedEntityCostListener.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]EntityCostConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]EntityCostStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]InvalidEntityCostsException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]ProjectedEntityCostStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]CloudScopedStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpenseNotFoundException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesInfoConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]SqlAccountExpensesStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]flyway[/\\]CostFlywayCallback.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]identity[/\\]IdentityProvider.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]identity[/\\]PriceTableKeyIdentityStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountNotFoundException.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DiscountStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]DuplicateAccountIdException.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]discount[/\\]SQLDiscountStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]AbstractProjectedEntityCostStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]EntityCostConfig.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]InvalidEntityCostsException.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostConverter.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]CloudScopedStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpenseNotFoundException.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesInfoConverter.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]AccountExpensesStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]SqlAccountExpensesStore.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]flyway[/\\]CostFlywayCallback.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]identity[/\\]PriceTableKeyIdentityStore.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]notification[/\\]CostNotificationConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]BusinessAccountPriceTableKeyStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]PriceTableConverter.java" />
@@ -62,7 +56,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]EntityReservedInstanceMappingStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanProjectedRICoverageAndUtilStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanReservedInstanceRpcService.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanReservedInstanceStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ProjectedRICoverageAndUtilStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ProjectedRICoverageListener.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceBoughtInfoConverter.java" />
@@ -113,14 +106,11 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostDebugConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostDebugRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostRpcService.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]RIAndExpenseUploadRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]RIBuyContextFetchRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]ReservedInstanceCostRpcService.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]stats[/\\]CostStatsConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]CostJournalRecorder.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]CostJournalRecorderController.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]LiveTopologyEntitiesListener.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]LocalCostPricingResolver.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]PlanTopologyEntitiesListener.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]TopologyInfoTracker.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]TopologyListenerConfig.java" />
@@ -128,51 +118,41 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]AccountExpensesFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]BusinessAccountHelper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]CostFilter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]CostGroupBy.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]resources[/\\]db[/\\]migration[/\\]V1_8__create_entity_cost_aggregation.sql" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]CostPlanGarbageCollectorTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]cca[/\\]SQLComputeTierAllocationStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]dicount[/\\]SQLDiscountStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]ProjectedEntityCostStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]SqlAccountExpensesStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]flyway[/\\]CostFlywayCallbackTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]identity[/\\]PriceTableKeyIdentityStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]PriceTableMergeTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]PricingRpcServiceTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]SQLPriceTableStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]BuyRIAnalysisSchedulerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]BuyReservedInstanceStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ComputeTierDemandStatsWriterTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]EntityReservedInstanceMappingStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanProjectedRICoverageAndUtilStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanReservedInstanceStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ProjectedRICoverageAndUtilStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceBoughtStoreTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]resources[/\\]db[/\\]migration[/\\]V1_8__create_entity_cost_aggregation.sql"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]cca[/\\]SQLComputeTierAllocationStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]dicount[/\\]SQLDiscountStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]PlanProjectedEntityCostStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]ProjectedEntityCostStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]cost[/\\]SqlEntityCostStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]entity[/\\]scope[/\\]SQLCloudScopeStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]expenses[/\\]SqlAccountExpensesStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]flyway[/\\]CostFlywayCallbackTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]pricing[/\\]PricingRpcServiceTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]BuyRIAnalysisSchedulerTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]BuyReservedInstanceStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]EntityReservedInstanceMappingStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanProjectedRICoverageAndUtilStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]PlanReservedInstanceStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ProjectedRICoverageAndUtilStoreTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceBoughtStoreTest.java"/>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceCoverageStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceCoverageUpdateTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceCoverageValidatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceUtilizationStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]RIBuyRateProviderTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisInvokerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisRecommendationTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisScopeTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalyzerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstancePurchaseConstraintsTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]demand[/\\]RIBuyAnalysisContextProviderTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]demand[/\\]calculator[/\\]RIBuyDemandCalculatorTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceInventoryMatcherTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceSpecMatcherTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostRpcServiceTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]RIAndExpenseUploadRpcServiceTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]stats[/\\]CostStatCleanupSchedulerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]stats[/\\]CostStatTablesTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]CostJournalRecorderTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]LiveTopologyEntitiesListenerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]TopologyInfoTrackerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]EntityCostFilterTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisInvokerTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisRecommendationTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisScopeTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalyzerTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstancePurchaseConstraintsTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]demand[/\\]RIBuyAnalysisContextProviderTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]demand[/\\]calculator[/\\]RIBuyDemandCalculatorTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceInventoryMatcherTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostRpcServiceTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]CostJournalRecorderTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]LiveTopologyEntitiesListenerTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]topology[/\\]TopologyInfoTrackerTest.java"/>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]util[/\\]EntityCostFilterTest.java"/>
     <suppress checks="JavadocStyleCheck" files=".*Test.java"/>
     <suppress checks="MissingJavadocMethod" files=".*Test.java"/>
     <suppress checks="MissingJavadocType" files=".*Test.java"/>

@@ -10,6 +10,7 @@ import static org.jooq.impl.DSL.sum;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
@@ -18,30 +19,34 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.BatchBindStep;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.InsertReturningStep;
+import org.jooq.Field;
+import org.jooq.InsertOnDuplicateSetMoreStep;
+import org.jooq.InsertValuesStep4;
+import org.jooq.Record;
 import org.jooq.Record3;
+import org.jooq.Record5;
 import org.jooq.Result;
+import org.jooq.SelectHavingStep;
 import org.jooq.SelectJoinStep;
 import org.jooq.Table;
 import org.jooq.TableField;
+import org.jooq.impl.DSL;
+import org.jooq.impl.SQLDataType;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.cost.component.db.Routines;
 import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -69,11 +74,6 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
      * Used for inserts, to enable batch insert. Default: 1000 ?
      */
     private final int chunkSize;
-
-    /**
-     * Need some dummy init time.
-     */
-    private static final LocalDateTime INIT_TIME = LocalDateTime.now();
 
     /**
      * Entity types that is a logical grouping of cloud workloads.
@@ -111,6 +111,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         hourFields.timeField = ENTITY_SAVINGS_BY_HOUR.STATS_TIME;
         hourFields.typeField = ENTITY_SAVINGS_BY_HOUR.STATS_TYPE;
         hourFields.valueField = ENTITY_SAVINGS_BY_HOUR.STATS_VALUE;
+        hourFields.samplesField = null;
         statsFieldsByRollup.put(RollupDurationType.HOURLY, hourFields);
 
         StatsTypeFields dayFields = new StatsTypeFields();
@@ -119,6 +120,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         dayFields.timeField = ENTITY_SAVINGS_BY_DAY.STATS_TIME;
         dayFields.typeField = ENTITY_SAVINGS_BY_DAY.STATS_TYPE;
         dayFields.valueField = ENTITY_SAVINGS_BY_DAY.STATS_VALUE;
+        dayFields.samplesField = ENTITY_SAVINGS_BY_DAY.SAMPLES;
         statsFieldsByRollup.put(RollupDurationType.DAILY, dayFields);
 
         StatsTypeFields monthFields = new StatsTypeFields();
@@ -127,6 +129,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         monthFields.timeField = ENTITY_SAVINGS_BY_MONTH.STATS_TIME;
         monthFields.typeField = ENTITY_SAVINGS_BY_MONTH.STATS_TYPE;
         monthFields.valueField = ENTITY_SAVINGS_BY_MONTH.STATS_VALUE;
+        monthFields.samplesField = ENTITY_SAVINGS_BY_MONTH.SAMPLES;
         statsFieldsByRollup.put(RollupDurationType.MONTHLY, monthFields);
     }
 
@@ -150,36 +153,28 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats, DSLContext dsl)
             throws EntitySavingsException {
         try {
-            // Create insert statement.
-            InsertReturningStep<EntitySavingsByHourRecord> insert = dsl
-                    .insertInto(ENTITY_SAVINGS_BY_HOUR)
-                    .set(ENTITY_SAVINGS_BY_HOUR.ENTITY_OID, 0L)
-                    .set(ENTITY_SAVINGS_BY_HOUR.STATS_TIME, INIT_TIME)
-                    .set(ENTITY_SAVINGS_BY_HOUR.STATS_TYPE, 1)
-                    .set(ENTITY_SAVINGS_BY_HOUR.STATS_VALUE, 0d)
-                    .onDuplicateKeyIgnore();
-
-            final BatchBindStep batch = dsl.batch(insert);
-
             // Add to batch and bind in chunks based on chunk size.
             Iterators.partition(hourlyStats.iterator(), chunkSize)
-                    .forEachRemaining(chunk ->
-                            chunk.forEach(stats ->
-                                    batch.bind(stats.getEntityId(),
-                                            SavingsUtil.getLocalDateTime(
-                                                    stats.getTimestamp(), clock),
-                                            stats.getType().getNumber(),
-                                            stats.getValue())));
-            if (batch.size() > 0) {
-                int[] insertCounts = batch.execute();
-                int totalInserted = IntStream.of(insertCounts).sum();
-                if (totalInserted < batch.size()) {
-                    logger.warn("Hourly entity savings stats: Could only insert {} out of "
-                                    + "batch size of {}. Total input stats count: {}. "
-                                    + "Chunk size: {}", totalInserted, batch.size(),
-                            hourlyStats.size(), chunkSize);
-                }
-            }
+                    .forEachRemaining(chunk -> {
+                        final InsertValuesStep4<EntitySavingsByHourRecord, Long, LocalDateTime, Integer, Double> insert = dsl
+                                .insertInto(ENTITY_SAVINGS_BY_HOUR)
+                                .columns(ENTITY_SAVINGS_BY_HOUR.ENTITY_OID,
+                                        ENTITY_SAVINGS_BY_HOUR.STATS_TIME,
+                                        ENTITY_SAVINGS_BY_HOUR.STATS_TYPE,
+                                        ENTITY_SAVINGS_BY_HOUR.STATS_VALUE);
+                        chunk.forEach(stats -> insert.values(stats.getEntityId(),
+                                SavingsUtil.getLocalDateTime(
+                                        stats.getTimestamp(), clock),
+                                stats.getType().getNumber(),
+                                stats.getValue()));
+                        int inserted = insert.onDuplicateKeyIgnore().execute();
+                        if (inserted < chunk.size()) {
+                            logger.warn("Hourly entity savings stats: Could only insert {} out of "
+                                            + "batch size of {}. Total input stats count: {}. "
+                                            + "Chunk size: {}",
+                                    inserted, chunkSize, hourlyStats.size(), chunk.size());
+                        }
+                    });
         } catch (Exception e) {
             throw new EntitySavingsException("Could not add " + hourlyStats.size()
                     + " hourly entity savings stats to DB.", e);
@@ -338,19 +333,98 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     }
 
     @Override
-    public void performRollup(@Nonnull final RollupTimeInfo rollupInfo) {
-        try {
-            Routines.entitySavingsRollup(dsl.configuration(),
-                    rollupInfo.isDaily() ? ENTITY_SAVINGS_BY_HOUR.getName()
-                            : ENTITY_SAVINGS_BY_DAY.getName(),
-                    rollupInfo.isDaily() ? ENTITY_SAVINGS_BY_DAY.getName()
-                            : ENTITY_SAVINGS_BY_MONTH.getName(),
-                    SavingsUtil.getLocalDateTime(rollupInfo.fromTime(), clock),
-                    SavingsUtil.getLocalDateTime(rollupInfo.toTime(), clock));
-            logger.trace("Completed rollup {}.", rollupInfo);
-        } catch (Exception e) {
-            logger.warn("Unable to perform rollup: {}.", rollupInfo, e);
-        }
+    public void performRollup(@NotNull final RollupDurationType durationType,
+            final long toTime, @NotNull final List<Long> fromTimes) {
+        final LocalDateTime toDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(toTime), clock.getZone());
+        final List<LocalDateTime> fromDateTimes = fromTimes.stream()
+                .map(millis -> LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), clock.getZone()))
+                .collect(Collectors.toList());
+        final InsertOnDuplicateSetMoreStep<? extends Record> upsert = durationType == RollupDurationType.DAILY
+                ? getDailyUpsert(toDateTime, fromDateTimes)
+                : getMonthlyUpsert(toDateTime, fromDateTimes);
+        upsert.execute();
+    }
+
+    /**
+     * Create an UPSERT statement to perform daily rollups.
+     *
+     * <p>Unfortunately, it's difficult to use a single method for both daily and monthly rollups
+     * because of the different handling of `samples` data.</p>
+     *
+     * @param toDateTime the timestamp for rolled-up data in the daily table
+     * @param fromDateTimes timestamps in the hourly data for data that should be part of the rollup
+     * @return jOOQ UPSERT statement
+     */
+    private InsertOnDuplicateSetMoreStep<?> getDailyUpsert(
+            @Nonnull final LocalDateTime toDateTime,
+            @Nonnull final List<LocalDateTime> fromDateTimes) {
+        final StatsTypeFields sourceFields = statsFieldsByRollup.get(RollupDurationType.HOURLY);
+        final StatsTypeFields rollupFields = statsFieldsByRollup.get(RollupDurationType.DAILY);
+        final SelectHavingStep<Record5<LocalDateTime, Long, Integer, Double, Integer>> embeddedSelect =
+                DSL.select(DSL.val(toDateTime).as("stats_time"), sourceFields.oidField,
+                                sourceFields.typeField,
+                                DSL.sum(sourceFields.valueField).cast(SQLDataType.DOUBLE),
+                                DSL.count())
+                        .from(ENTITY_SAVINGS_BY_HOUR)
+                        .where(sourceFields.timeField.in(fromDateTimes))
+                        .groupBy(sourceFields.oidField, sourceFields.typeField);
+        return dsl.insertInto(ENTITY_SAVINGS_BY_DAY)
+                .columns(rollupFields.timeField, rollupFields.oidField, rollupFields.typeField,
+                        rollupFields.valueField, rollupFields.samplesField)
+                .select(embeddedSelect)
+                .onDuplicateKeyUpdate()
+                .set(rollupFields.valueField, rollupFields.valueField.plus(values(rollupFields.valueField)))
+                .set(rollupFields.samplesField, rollupFields.samplesField.plus(values(rollupFields.samplesField)));
+    }
+
+    /**
+     * Create an UPSERT statement to perform daily rollups.
+     *
+     * <p>Unfortunately, it's difficult to use a single method for both daily and monthly rollups
+     * because of the different handling of `samples` data.</p>
+     *
+     * @param toDateTime the timestamp for rolled-up data in the daily table
+     * @param fromDateTimes timestamps in the hourly data for data that should be part of the rollup
+     * @return jOOQ UPSERT statement
+     */
+    private InsertOnDuplicateSetMoreStep<?> getMonthlyUpsert(
+            @Nonnull LocalDateTime toDateTime,
+            @Nonnull final List<LocalDateTime> fromDateTimes) {
+        final StatsTypeFields sourceFields = statsFieldsByRollup.get(RollupDurationType.DAILY);
+        final StatsTypeFields rollupFields = statsFieldsByRollup.get(RollupDurationType.MONTHLY);
+        final SelectHavingStep<Record5<LocalDateTime, Long, Integer, Double, Integer>> embeddedSelect =
+                DSL.select(DSL.val(toDateTime).as("stats_time"), sourceFields.oidField, sourceFields.typeField,
+                                sum(sourceFields.valueField).cast(SQLDataType.DOUBLE),
+                                sum(sourceFields.samplesField).cast(SQLDataType.INTEGER))
+                        .from(ENTITY_SAVINGS_BY_DAY)
+                        .where(sourceFields.timeField.in(fromDateTimes))
+                        .groupBy(sourceFields.oidField, sourceFields.typeField);
+        return dsl.insertInto(ENTITY_SAVINGS_BY_MONTH)
+                .columns(rollupFields.timeField, rollupFields.oidField, rollupFields.typeField,
+                        rollupFields.valueField, rollupFields.samplesField)
+                .select(embeddedSelect)
+                .onDuplicateKeyUpdate()
+                .set(rollupFields.valueField, rollupFields.valueField.plus(values(rollupFields.valueField)))
+                .set(rollupFields.samplesField, rollupFields.samplesField.plus(values(rollupFields.samplesField)));
+    }
+
+    /**
+     * Simple jOOQ raw-SQL-API method to make it possible to use `VALUES` function available in
+     * MySQL UPSERT statements.
+     *
+     * <p>`SET field=VALUES(field)` in the update part of an upsert means to
+     * use the value that would have been inserted into that field if a duplicate key had not
+     * occurred with this record. That syntax is not available in jOOQ, but this effectively
+     * adds it.</p>
+     *
+     * <p>See Lukas Eder's response <a href="https://stackoverflow.com/questions/39793406/jooq-mysql-multiple-row-insert-on-duplicate-key-update-using-values-funct">here</a></p>
+     *
+     * @param field field to be mentioned in `VALUES` expression
+     * @param <T> type of field
+     * @return a jOOQ {@link Field} that will provide the needed `VALUES` expression
+     */
+    private static <T> Field<T> values(Field<T> field) {
+        return DSL.field("values({0})", field.getDataType(), field);
     }
 
     /**
@@ -362,6 +436,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         TableField<?, LocalDateTime> timeField;
         TableField<?, Integer> typeField;
         TableField<?, Double> valueField;
+        TableField<?, Integer> samplesField;
     }
 
     private List<AggregatedSavingsStats> querySavingsStats(RollupDurationType durationType,
@@ -459,7 +534,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
      * Gets stats DB record into Stats instance.
      *
      * @param rec DB record.
-     * @return Stats instance will filled in values read from DB.
+     * @return Stats instance with values obtained from DB.
      */
     @Nonnull
     private AggregatedSavingsStats convertStatsDbRecord(
@@ -467,16 +542,5 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         return new AggregatedSavingsStats(TimeUtil.localDateTimeToMilli(rec.value1(), clock),
                 EntitySavingsStatsType.forNumber(rec.value2()),
                 rec.value3().doubleValue());
-    }
-
-    /**
-     * Only for testing.
-     *
-     * @return DSL context.
-     */
-    @Nonnull
-    @VisibleForTesting
-    DSLContext getDsl() {
-        return dsl;
     }
 }
