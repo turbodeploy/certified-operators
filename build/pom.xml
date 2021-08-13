@@ -439,6 +439,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.gcp.sa.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
@@ -956,6 +957,13 @@
         </profile>
 
         <profile>
+            <id>mediation-gcp</id>
+            <modules>
+                <module>../com.vmturbo.mediation.gcp.sa.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation</id>
             <modules>
                 <module>../com.vmturbo.mediation.component</module>
@@ -1307,6 +1315,7 @@
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.gcp.sa.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>

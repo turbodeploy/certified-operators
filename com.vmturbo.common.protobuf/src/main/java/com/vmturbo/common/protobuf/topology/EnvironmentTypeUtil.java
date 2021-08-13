@@ -30,6 +30,7 @@ public class EnvironmentTypeUtil {
         SDKProbeType.AZURE_EA,
         SDKProbeType.AZURE_SERVICE_PRINCIPAL,
         SDKProbeType.AZURE_STORAGE_BROWSE,
+        SDKProbeType.GCP_SERVICE_ACCOUNT,
         SDKProbeType.GCP,
         SDKProbeType.GCP_COST,
         SDKProbeType.GCP_PROJECT);
