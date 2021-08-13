@@ -9,11 +9,8 @@ The goal is for the module to become - and remain - clear of violations.
 -->
 
 <suppressions>
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]DbEndpoint.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]DbEndpointConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]FlywayMigrator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]JooqTracingInterceptor.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]LocalDateTimeConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]SQLDatabaseConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]flyway[/\\]PreValidationMigrationCallbackBase.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]FlywayMigratorTest.java" />

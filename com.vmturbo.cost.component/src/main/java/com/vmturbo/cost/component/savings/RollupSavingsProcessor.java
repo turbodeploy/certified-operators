@@ -4,7 +4,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -29,7 +31,7 @@ public class RollupSavingsProcessor {
     /**
      * DB interface to call rollup procedures.
      */
-    private final EntitySavingsStore savingsStore;
+    private final EntitySavingsStore<?> savingsStore;
 
     /**
      * UTC clock from config.
@@ -47,7 +49,7 @@ public class RollupSavingsProcessor {
      * @param savingsStore DB store.
      * @param clock UTC clock.
      */
-    public RollupSavingsProcessor(@Nonnull final EntitySavingsStore savingsStore,
+    public RollupSavingsProcessor(@Nonnull final EntitySavingsStore<?> savingsStore,
             @Nonnull final Clock clock) {
         this.savingsStore = savingsStore;
         this.clock = clock;
@@ -72,7 +74,7 @@ public class RollupSavingsProcessor {
         }
         List<RollupTimeInfo> nextRollupTimes = checkRollupRequired(hourlyStatsTimes,
                 lastRollupTimes, clock);
-        logger.debug("Entity Savings rollup: {}", nextRollupTimes.stream()
+        logger.debug("Entity Savings rollup: {}", () -> nextRollupTimes.stream()
                 .map(RollupTimeInfo::toString)
                 .collect(Collectors.joining(", ")));
 
@@ -81,11 +83,15 @@ public class RollupSavingsProcessor {
         }
         logger.info("Performing {} Entity Savings rollup this time.",
                 nextRollupTimes.size());
+        Map<Long, List<Long>> dailiesToDo = new LinkedHashMap<>();
+        Map<Long, List<Long>> monthliesToDo = new LinkedHashMap<>();
         for (RollupTimeInfo newRollupTime : nextRollupTimes) {
             if (newRollupTime.isDaily()) {
                 if (newRollupTime.fromTime() > lastRollupTimes.getLastTimeByHour()) {
                     lastRollupTimes.setLastTimeByHour(newRollupTime.fromTime());
                 }
+                dailiesToDo.computeIfAbsent(newRollupTime.toTime(), _t -> new ArrayList<>())
+                        .add(newRollupTime.fromTime());
             } else if (newRollupTime.isMonthly()) {
                 if (newRollupTime.fromTime() > lastRollupTimes.getLastTimeByDay()) {
                     lastRollupTimes.setLastTimeByDay(newRollupTime.fromTime());
@@ -93,10 +99,14 @@ public class RollupSavingsProcessor {
                 if (newRollupTime.toTime() > lastRollupTimes.getLastTimeByMonth()) {
                     lastRollupTimes.setLastTimeByMonth(newRollupTime.toTime());
                 }
+                monthliesToDo.computeIfAbsent(newRollupTime.toTime(), _t -> new ArrayList<>())
+                        .add(newRollupTime.fromTime());
             }
-            // Call the stored proc to do the rollup.
-            savingsStore.performRollup(newRollupTime);
         }
+        dailiesToDo.forEach((toTime, fromTimes) ->
+                savingsStore.performRollup(RollupDurationType.DAILY, toTime, fromTimes));
+        monthliesToDo.forEach((toTime, fromTimes) ->
+                savingsStore.performRollup(RollupDurationType.MONTHLY, toTime, fromTimes));
         lastRollupTimes.setLastTimeUpdated(Instant.now(clock).toEpochMilli());
         savingsStore.setLastRollupTimes(lastRollupTimes);
     }

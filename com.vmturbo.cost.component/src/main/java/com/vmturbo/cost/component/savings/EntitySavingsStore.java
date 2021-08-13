@@ -158,13 +158,6 @@ public interface EntitySavingsStore<T> {
     void setLastRollupTimes(@Nonnull LastRollupTimes rollupTimes);
 
     /**
-     * Calls the rollup stored procedure.
-     *
-     * @param rollupTimeInfo Info required to call rollup procedure.
-     */
-    void performRollup(@Nonnull RollupTimeInfo rollupTimeInfo);
-
-    /**
      * Types of rollup done based on hourly stats table data.
      */
     enum RollupDurationType {
@@ -185,6 +178,16 @@ public interface EntitySavingsStore<T> {
     }
 
     /**
+     * Calls the rollup stored procedure.
+     *
+     * @param durationType whether this is a daily or monthly rollup
+     * @param toTime       time of rollup record to be created/updated
+     * @param fromTimes    times of source records to be rolled up
+     */
+    void performRollup(@Nonnull RollupDurationType durationType,
+            long toTime, @Nonnull List<Long> fromTimes);
+
+    /**
      * Util class to keep info about rollup (daily or monthly) to be done.
      */
     class RollupTimeInfo {
@@ -194,12 +197,12 @@ public interface EntitySavingsStore<T> {
         private final RollupDurationType durationType;
 
         /**
-         * Time rolling from, e.g hourly '2021-02-16 19:00:00' data being rolled over to daily.
+         * Time rolling from, e.g. hourly '2021-02-16 19:00:00' data being rolled over to daily.
          */
         private final long fromTime;
 
         /**
-         * Time rolling to, e.g hourly data rolled up to day time '2021-02-16 00:00:00'.
+         * Time rolling to, e.g. hourly data rolled up to day time '2021-02-16 00:00:00'.
          */
         private final long toTime;
 
