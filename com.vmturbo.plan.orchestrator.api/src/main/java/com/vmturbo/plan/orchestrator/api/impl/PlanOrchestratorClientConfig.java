@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
+import com.vmturbo.common.protobuf.plan.PlanExportDTO.PlanExportNotification;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
@@ -79,6 +80,18 @@ public class PlanOrchestratorClientConfig {
     }
 
     /**
+     * Create a message receiver for {@link PlanExportNotification}s.
+     *
+     * @return the message receiver for export notifications.
+     */
+    @Bean
+    protected IMessageReceiver<PlanExportNotification> planExportMessageReceiver() {
+        return consumerConfig.kafkaConsumer()
+            .messageReceiver(PlanOrchestratorClientImpl.EXPORT_STATUS_TOPIC,
+                PlanExportNotification::parseFrom);
+    }
+
+    /**
      * Create a message receiver for {@link ReservationChanges}.
      *
      * @return the message receiver for reservations.
@@ -93,6 +106,7 @@ public class PlanOrchestratorClientConfig {
     @Bean
     public PlanOrchestrator planOrchestrator() {
         return new PlanOrchestratorClientImpl(planInstanceReceiver(),
+            planExportMessageReceiver(),
             reservationChangesMessageReceiver(),
             planOrchestratorClientThreadPool(),
             kafkaReceiverTimeoutSeconds);

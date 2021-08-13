@@ -96,6 +96,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
+import com.vmturbo.topology.processor.planexport.DiscoveredPlanDestinationUploader;
 import com.vmturbo.topology.processor.reservation.GenerateConstraintMap;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -168,6 +169,27 @@ public class Stages {
             // TODO (roman, Oct 23 2018): Provide some additional information regarding
             // the cost upload - e.g. how many things got uploaded, did anything get skipped,
             // and so on.
+            return Status.success();
+        }
+    }
+
+    /**
+     * This stage uploads discovered plan destinations to the plan orchestrator.
+     */
+    public static class UploadPlanDestinationsStage extends PassthroughStage<StitchingContext> {
+
+        private final DiscoveredPlanDestinationUploader planDestinationUploader;
+
+        public UploadPlanDestinationsStage(
+            @Nonnull final DiscoveredPlanDestinationUploader planDestinationUploader) {
+            this.planDestinationUploader = planDestinationUploader;
+        }
+
+        @NotNull
+        @Override
+        public Status passthrough(final StitchingContext input) throws PipelineStageException {
+            // upload the plan destinations to the plan orchestrator
+            planDestinationUploader.uploadPlanDestinations(input);
             return Status.success();
         }
     }

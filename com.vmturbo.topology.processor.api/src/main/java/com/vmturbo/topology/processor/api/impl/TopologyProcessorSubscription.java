@@ -119,6 +119,10 @@ public class TopologyProcessorSubscription {
          * External action state change. Could occur when action approval probe will approve/
          * reject action.
          */
-        ExternalActionStateChange
+        ExternalActionStateChange,
+        /**
+         * State changes and progress of plan export operations.
+         */
+        PlanExport
     }
 }

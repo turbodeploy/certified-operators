@@ -160,6 +160,10 @@
                                     <converter>com.vmturbo.plan.orchestrator.scenario.ScenarioInfoConverter</converter>
                                 </customType>
                                 <customType>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanExportDTO.PlanDestination</name>
+                                    <converter>com.vmturbo.plan.orchestrator.plan.export.PlanDestinationConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo</name>
                                     <converter>com.vmturbo.plan.orchestrator.project.PlanProjectInfoConverter</converter>
                                 </customType>
@@ -202,6 +206,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance</name>
                                     <expression>.*\.plan_instance\.plan_instance</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanExportDTO.PlanDestination</name>
+                                    <expression>.*\.plan_destination\.plan_destination</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo</name>
@@ -328,6 +336,12 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>3.2.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

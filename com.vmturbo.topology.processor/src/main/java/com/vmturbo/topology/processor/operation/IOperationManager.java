@@ -14,6 +14,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
@@ -24,6 +26,7 @@ import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -239,6 +242,45 @@ public interface IOperationManager {
      */
     @Nonnull
     Optional<Action> getInProgressAction(long id);
+
+    /**
+     * Export a plan to a destination at a target.
+     *
+     * @param planData the data to be exported
+     * @param planDestination the destination to which the target should export
+     * @param destinationOid the oid of the destination
+     * @param targetId the oid of the target
+     * @return The {@link PlanExport} requested for the target.
+     * @throws TargetNotFoundException When the requested target is not found.
+     * @throws ProbeException When the probe corresponding to the target is not connected.
+     * @throws CommunicationException If there is an error sending the request to the probe.
+     * @throws InterruptedException If there is an interrupt while sending the request to the
+     * probe.
+     */
+    PlanExport exportPlan(@Nonnull PlanExportDTO planData,
+                          @Nonnull NonMarketEntityDTO planDestination,
+                          final long destinationOid,
+                          final long targetId)
+        throws ProbeException, TargetNotFoundException, CommunicationException,
+        InterruptedException;
+
+    /**
+     * Returns plan export that is in progress.
+     *
+     * @param id export id to retrieve
+     * @return plan export operation in progress, or empty result, if the export is finished
+     * or does not exist
+     */
+    @Nonnull
+    Optional<PlanExport> getInProgressPlanExport(long id);
+
+    /**
+     * Returns all the validation operations that are in progress.
+     *
+     * @return validations in progress
+     */
+    @Nonnull
+    List<PlanExport> getInProgressPlanExports();
 
     /**
      * Notify the {@link OperationManager} that a {@link Operation} completed
