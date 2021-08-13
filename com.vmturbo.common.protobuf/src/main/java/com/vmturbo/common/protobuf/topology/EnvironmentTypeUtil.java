@@ -31,7 +31,8 @@ public class EnvironmentTypeUtil {
         SDKProbeType.AZURE_SERVICE_PRINCIPAL,
         SDKProbeType.AZURE_STORAGE_BROWSE,
         SDKProbeType.GCP,
-        SDKProbeType.GCP_COST);
+        SDKProbeType.GCP_COST,
+        SDKProbeType.GCP_PROJECT);
 
     /**
      * Mapping between {@link EnvironmentType} enum values and their API
