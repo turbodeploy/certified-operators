@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -302,6 +303,73 @@ public class ActionListenerTest {
             assertEquals(se.getActionEvent().get().getEventType(),
                          ActionEventType.SCALE_EXECUTION_SUCCESS);
         });
+
+        // Verify that only actions for entities in TopologyDTOUtil.WORKLOAD_TYPES and
+        // VIRTUAL_VOLUME are processed.
+        final ActionEntity actionEntityScale3 =
+                        createActionEntity(5L, EntityType.DATABASE_VALUE);
+        final Scale scale3 = createScale(actionEntityScale1);
+        final ActionEntity actionEntityScale4 =
+                        createActionEntity(7L, EntityType.DATABASE_SERVER_VALUE);
+        final Scale scale4 = createScale(actionEntityScale4);
+        final ActionEntity actionEntityScale5 =
+                        createActionEntity(9L, EntityType.PHYSICAL_MACHINE_VALUE);
+        final Scale scale5 = createScale(actionEntityScale5);
+        final ActionSpec actionSpec3 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(2222L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(2222L)
+                                        .setDeprecatedImportance(1.0)
+                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                        .setInfo(ActionInfo.newBuilder()
+                                                        .setScale(scale3)
+                                                        .build())
+                                        .build())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        final ActionSpec actionSpec4 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(9999L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(9999L)
+                            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(1.0)
+                            .setInfo(ActionInfo.newBuilder()
+                                            .setScale(scale4)
+                                            .build())
+                            .build())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        final ActionSpec actionSpec5 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(7777L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(7777L)
+                            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                            .setDeprecatedImportance(1.0)
+                            .setInfo(ActionInfo.newBuilder()
+                                            .setScale(scale5)
+                                            .build())
+                            .build())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        final ActionSuccess actionSuccess3 = ActionSuccess.newBuilder()
+                        .setSuccessDescription(succeededActionMsg)
+                        .setActionId(succeededActionId1)
+                        .setActionSpec(actionSpec1)
+                        .build();
+        final ActionSuccess actionSuccess4 = ActionSuccess.newBuilder()
+                        .setSuccessDescription(succeededActionMsg)
+                        .setActionId(succeededActionId2)
+                        .setActionSpec(actionSpec2)
+                        .build();
+        final ActionSuccess actionSuccess5 = ActionSuccess.newBuilder()
+                        .setSuccessDescription(succeededActionMsg)
+                        .setActionId(succeededActionId2)
+                        .setActionSpec(actionSpec2)
+                        .build();
+
+        actionListener.onActionSuccess(actionSuccess3);
+        assertEquals(1, store.size());
+        actionListener.onActionSuccess(actionSuccess4);
+        assertEquals(2, store.size());
+        actionListener.onActionSuccess(actionSuccess5);
+        assertEquals(2, store.size());
     }
 
     private void validateActionEvent(String message, SavingsEvent savingsEvent,
@@ -318,12 +386,13 @@ public class ActionListenerTest {
     }
 
     /**
-     * Test processing of new pending actions.
+     * Test processing of action updates.
      *
      * @throws DbException in cases there was a problem retrieving entity costs.
+     * @throws EntitySavingsException On a savings related exception.
      */
     @Test
-    public void testProcessNewPendingActions() throws DbException {
+    public void testOnActionsUpdated() throws DbException, EntitySavingsException {
         final ActionEntity actionEntityScale1 =
                 createActionEntity(1L, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale1 = createScale(actionEntityScale1);
@@ -402,7 +471,7 @@ public class ActionListenerTest {
 
         assertEquals(4, store.size());
         // Assert that 4 actions , one per entity are added, not the duplicate.
-        assertEquals(4, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
+        assertEquals(4, actionListener.getExistingActionsInfoToEntityIdMap().size());
 
         List<SavingsEvent> savingsEvents = store.removeAllEvents();
         savingsEvents.forEach(se ->
@@ -438,7 +507,7 @@ public class ActionListenerTest {
         // After removing all events from store in the last test, one new RECOMMENDATION_REMOVED
         // event should have been added in this test.
         assertEquals(2, store.size());
-        assertEquals(2, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
+        assertEquals(2, actionListener.getExistingActionsInfoToEntityIdMap().size());
 
         savingsEvents = store.removeAllEvents();
         savingsEvents.stream().forEach(se -> {
@@ -470,7 +539,7 @@ public class ActionListenerTest {
                         .build());
 
         assertEquals(1, store.size());
-        assertEquals(2, actionListener.getExistingPendingActionsInfoToEntityIdMap().size());
+        assertEquals(2, actionListener.getExistingActionsInfoToEntityIdMap().size());
 
         savingsEvents = store.removeAllEvents();
         int numAdded = 0;
@@ -486,6 +555,88 @@ public class ActionListenerTest {
         }
         assertEquals(1, numAdded);
         assertEquals(0, numRemoved);
+
+        // Setup
+        // Remove entities with actions before restart for this test.
+        Answer<Stream> entitiesWithActionBeforeRestart = invocation -> Stream.empty();
+        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        beforeEntityCostbyOid.clear();
+        afterEntityCostbyOid.clear();
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
+        .willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+        beforeEntityCostbyOid));
+
+        // Verify that actions without recommendation are not processed.
+        store.removeAllEvents();
+        assertEquals(0, store.size());
+        final ActionSpec actionSpec6 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(777L)
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        // This filteredActionRequest is called by  onActionsUpdate directly.
+        FilteredActionResponse filteredResponse6 = createFilteredActionResponse(actionSpec6);
+        doReturn(Arrays.asList(filteredResponse6))
+        .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        // Execute Actions Update again.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                .setActionPlanId(actionPlanId)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo
+                                        .newBuilder()
+                                        .setTopologyContextId(realTimeTopologyContextId))))
+                .build());
+        // Since this action didn't have a recommendation in the actionSpec, it should
+        // not get processed.  The 2 events added are recovered removal actions.
+        assertEquals(2, store.size());
+
+        // Setup
+        // Remove entities with actions before restart for this test.
+        when(entityStateStore.getAllEntityStates()).thenAnswer(entitiesWithActionBeforeRestart);
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class)))
+        .willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+        beforeEntityCostbyOid));
+        beforeEntityCostbyOid.clear();
+        afterEntityCostbyOid.clear();
+        // Verify that actions without a supported action type are not processed.
+        store.removeAllEvents();
+        assertEquals(0, store.size());
+        final ActionSpec actionSpec7 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(77L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(77L)
+                                           .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                           .setDeprecatedImportance(1.0)
+                                           .setInfo(ActionInfo.newBuilder()
+                                                           .build())
+                                           .build())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        FilteredActionResponse filteredResponse7 = createFilteredActionResponse(actionSpec7);
+        doReturn(Arrays.asList(filteredResponse7))
+        .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        // Make fake cost response
+        given(projectedEntityCostStore.getEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
+                beforeEntityCostbyOid));
+
+        // Execute Actions Update again.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                .setActionPlanId(actionPlanId)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo
+                                        .newBuilder()
+                                        .setTopologyContextId(realTimeTopologyContextId))))
+                .build());
+        // Since this action didn't have an actionType in actionSpec, it should not be processed.
+        assertEquals(0, store.size());
     }
 
     @NotNull
@@ -771,8 +922,62 @@ public class ActionListenerTest {
         long startTime = 1627336047000L;
         long endTime = 1627339647000L;
         actionListener.recoverMissedExecutionSuccessEvents(startTime, endTime);
-
         assertEquals(2, store.size());
+    }
+
+    /**
+     * 2 successful action executions happened when cost pod was down. When running logic to
+     * recover execution success events, test that without a last rollup time for Entity Savings Store,
+     *  prior to the cost pod crashing, no action events will be recovered.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testRecoverActionsNoLastRollupTime() throws Exception {
+        Long entity1Oid = 1L;
+        Long entity2Oid = 2L;
+        final ActionEntity actionEntityScale1 =
+                createActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale1 = createScale(actionEntityScale1);
+        final ActionEntity actionEntityScale2 =
+                createActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale2 = createScale(actionEntityScale2);
+        ActionSpec actionSucceeded1 =
+                createActionSpec(scale1, 4321L, 4321L, 1, ActionState.SUCCEEDED);
+        ActionSpec actionSucceeded2 =
+                createActionSpec(scale2, 5658L, 5658L, 2, ActionState.SUCCEEDED);
+
+        FilteredActionResponse filteredResponse1 = createFilteredActionResponse(actionSucceeded1);
+        FilteredActionResponse filteredResponse2 = createFilteredActionResponse(actionSucceeded2);
+
+        AtomicReference<String> cursor = new AtomicReference<>("0");
+        Long now = clock.millis();
+        // This filteredActionRequest is called by recoverActions
+        FilteredActionRequest actionRequest = actionListener
+                        .filteredActionRequest(realTimeTopologyContextId,
+                                               cursor, 0L, now,
+                                               Collections.singletonList(ActionState.SUCCEEDED));
+        doReturn(Arrays.asList(filteredResponse1, filteredResponse2))
+                        .when(actionsServiceRpc).getAllActions(actionRequest);
+
+        when(entityStateStore.getEntityStates(ImmutableSet.of(entity1Oid)))
+                .thenReturn(ImmutableMap.of(entity1Oid, createEntityState(entity1Oid)));
+        when(entityStateStore.getEntityStates(ImmutableSet.of(entity2Oid)))
+                .thenReturn(ImmutableMap.of(entity2Oid, createEntityState(entity2Oid)));
+
+        LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        // Execute Actions Update again.
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+                        .setActionPlanId(actionPlanId)
+                        .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                                        .setSourceTopologyInfo(TopologyInfo
+                                                                        .newBuilder()
+                                                                        .setTopologyContextId(realTimeTopologyContextId))))
+                        .build());
+        // recoverActions() will not be called, hence no action events will be recovered.
+        assertEquals(0, store.size());
     }
 
     /**
@@ -813,6 +1018,17 @@ public class ActionListenerTest {
                 currentTimestamp);
 
         assertEquals(2, store.size());
+    }
+
+    @Test
+    public void testGetNextPeriodStartTime() {
+        LastRollupTimes lastRollupTimesNonZero = new LastRollupTimes(0, 12L, 0, 0);
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesNonZero);
+        assertEquals(actionListener.getNextPeriodStartTime(), lastRollupTimesNonZero.getLastTimeByHour() + TimeUnit.HOURS.toMillis(1));
+
+        LastRollupTimes lastRollupTimesZero = new LastRollupTimes(0, 0, 0, 0);
+        when(entitySavingsStore.getLastRollupTimes()).thenReturn(lastRollupTimesZero);
+        assertEquals(actionListener.getNextPeriodStartTime(), 0);
     }
 
     private EntityState createEntityState(long entityOid) {
