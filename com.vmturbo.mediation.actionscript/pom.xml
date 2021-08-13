@@ -15,7 +15,6 @@
 
     <properties>
         <sshd.core.version>2.1.0</sshd.core.version>
-        <bouncycastle.version>1.57</bouncycastle.version>
         <guava.version>28.2-jre</guava.version>
         <!-- This must match protobuf from SDK because we are using dependency
             protobuf-java libraries from SDK framework -->
@@ -67,12 +66,10 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
-            <version>${bouncycastle.version}</version>
         </dependency>
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk15on</artifactId>
-            <version>${bouncycastle.version}</version>
         </dependency>
        <!-- EdDSA Host Key Verification -->
        <dependency>

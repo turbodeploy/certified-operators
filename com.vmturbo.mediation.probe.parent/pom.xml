@@ -37,6 +37,7 @@
         <commons-text.version>1.9</commons-text.version>
         <velocity.version>2.3</velocity.version>
         <velocity-tools.version>3.1</velocity-tools.version>
+        <bouncycastle.version>1.69</bouncycastle.version>
         <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
         https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->
         <wireMockVersion>2.27.2</wireMockVersion>
@@ -242,6 +243,16 @@
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-test</artifactId>
                 <version>${spring.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk15on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk15on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
