@@ -3,15 +3,23 @@ package com.vmturbo.api.component.external.api.util;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -22,6 +30,7 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.serviceinterfaces.IUsersService.LoggedInUserInfo;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
@@ -71,6 +80,8 @@ public class ReportingUserCalculatorTest {
     public void testEnabledReportsEditorRole() {
         final String username = "foo";
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
+        //set an unscoped user in the context
+        setUnscopedUserInContext("unscopedUser", ImmutableList.of("ADMINISTRATOR"));
         LoggedInUserInfo info = calculator.getMe(makeUser(username, SecurityConstant.AUTOMATOR, SecurityConstant.REPORT_EDITOR));
         assertThat("turbo-report-editor-0", is(info.getReportingUserName().get()));
     }
@@ -81,8 +92,42 @@ public class ReportingUserCalculatorTest {
     @Test
     public void testEnabledReportsNonEditorRole() {
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
+        //set an unscoped user in the context
+        setUnscopedUserInContext("unscopedUser", ImmutableList.of("ADMINISTRATOR"));
         LoggedInUserInfo info = calculator.getMe(makeUser(editorUser, SecurityConstant.ADMINISTRATOR));
         assertThat(editorUser, is(info.getReportingUserName().get()));
+    }
+
+    /**
+     * Tests that for a scoped user, the reportingUserName is set to null (the user will not have access to reports).
+     *
+     * <p>Reports access is now evaluated on reporting being evaluated and user being unscoped.
+     */
+    @Test
+    public void testEnabledReportsEditorRoleForScopedUser() {
+        final String username = "foo";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
+        //set a scoped user in the context
+        setScopedUserInContext("scopedUser", ImmutableList.of("SHARED_ADVOSOR"));
+        LoggedInUserInfo info = calculator.getMe(makeUser(username, SecurityConstant.SHARED_ADVISOR, SecurityConstant.SHARED_ADVISOR));
+        assert (info.getUserApiDTO() != null);
+        assertFalse(info.getReportingUserName().isPresent());
+    }
+
+    /**
+     * Tests that for a unscoped user, the reportingUserName is not null (the user will have access to reports).
+     *
+     * <p>Reports access is now evaluated on reporting being evaluated and user being unscoped.
+     */
+    @Test
+    public void testEnabledReportsEditorRoleForUnscopedUser() {
+        final String username = "foo";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
+        //set an unscoped user in the context
+        setUnscopedUserInContext("unscopedUser", ImmutableList.of("ADMINISTRATOR"));
+        LoggedInUserInfo info = calculator.getMe(makeUser(username, SecurityConstant.ADMINISTRATOR, SecurityConstant.SHARED_ADVISOR));
+        assert (info.getUserApiDTO() != null);
+        assertTrue(info.getReportingUserName().isPresent());
     }
 
     /**
@@ -124,12 +169,16 @@ public class ReportingUserCalculatorTest {
     public void testUserDeletedRelease() {
         ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser, licenseCheckClient);
         UserApiDTO firstUser = makeUser("firstUser", LoginProviderMapper.toApi(PROVIDER.LDAP).toLowerCase(), SecurityConstant.REPORT_EDITOR);
-        UserApiDTO secondUser = makeUser("secondUser", LoginProviderMapper.toApi(PROVIDER.LDAP), SecurityConstant.REPORT_EDITOR);
+        //set an unscoped users in the context
+        setUnscopedUserInContext("firstUser", ImmutableList.of("ADMINISTRATOR"));
         assertThat(calculator.getMe(firstUser).getReportingUserName().get(), is(
                 LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
         calculator.onUserDeleted(firstUser);
         // The "onUserDeleted" should have freed up the first "editorUser" name for use by the
         // second user.
+        UserApiDTO secondUser = makeUser("secondUser", LoginProviderMapper.toApi(PROVIDER.LDAP), SecurityConstant.REPORT_EDITOR);
+        //set an unscoped user in the context
+        setUnscopedUserInContext("secondUser", ImmutableList.of("ADMINISTRATOR"));
         assertThat(calculator.getMe(secondUser).getReportingUserName().get(), is(
                 LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
     }
@@ -153,7 +202,6 @@ public class ReportingUserCalculatorTest {
                 LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
     }
 
-
     private UserApiDTO makeUser(String name, String provider, String... roles) {
         UserApiDTO user = new UserApiDTO();
         user.setLoginProvider(provider);
@@ -167,5 +215,47 @@ public class ReportingUserCalculatorTest {
             })
             .collect(Collectors.toList()));
         return user;
+    }
+
+    /**
+     * Helper method to set an unscoped user in the Context.
+     *
+     * @param userName the user's name.
+     * @param roles The list of roles for the user.
+     */
+    private void setUnscopedUserInContext(String userName, List<String> roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                                 new UsernamePasswordAuthenticationToken(
+                                         new AuthUserDTO(null,
+                                                 userName,
+                                                 "password",
+                                                 "10.10.10.10",
+                                                 "11111",
+                                                 "token",
+                                                 roles,
+                                                 null),
+                                         "",
+                                         Collections.emptySet()));
+    }
+
+    /**
+     * Helper method to set an scoped user in the Context.
+     *
+     * @param userName the user's name.
+     * @param roles The list of roles for the user.
+     */
+    private void setScopedUserInContext(String userName, List<String> roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                                         new UsernamePasswordAuthenticationToken(
+                                                 new AuthUserDTO(null,
+                                                         userName,
+                                                         "password",
+                                         "10.10.10.10",
+                                         "11111",
+                                         "token",
+                                         roles,
+                                         Arrays.asList(1L)),
+                                 "",
+                                 Collections.emptySet()));
     }
 }

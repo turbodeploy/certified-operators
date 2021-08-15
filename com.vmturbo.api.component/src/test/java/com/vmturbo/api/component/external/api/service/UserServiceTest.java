@@ -80,13 +80,14 @@ public class UserServiceTest {
     private final SessionInformation sessionInformation = mock(SessionInformation.class);
     private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
     private final ReportingUserCalculator reportingUserCalculator = mock(ReportingUserCalculator.class);
+    private final LicenseService licenseService = mock(LicenseService.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @InjectMocks
     private UsersService usersService = new UsersService("", 0, "", restTemplate, "", false,
-        groupsService, widgetSetsService, reportingUserCalculator);
+        groupsService, widgetSetsService, reportingUserCalculator, licenseService);
 
     private static final String AUTH_REQUEST = UriComponentsBuilder.newInstance()
             .scheme("http")
