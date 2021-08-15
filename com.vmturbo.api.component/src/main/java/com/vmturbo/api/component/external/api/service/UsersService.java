@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -46,6 +47,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
@@ -60,6 +62,7 @@ import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -67,6 +70,11 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseFilter;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
@@ -133,6 +141,11 @@ public class UsersService implements IUsersService {
     private final ReportingUserCalculator reportingUserCalculator;
 
     /**
+     * LicenseService.
+     */
+    private final LicenseService licenseService;
+
+    /**
      * Constructs the users service.
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
@@ -152,7 +165,8 @@ public class UsersService implements IUsersService {
                         final boolean samlEnabled,
                         final @Nonnull GroupsService groupsService,
                         final @Nonnull WidgetSetsService widgetsetsService,
-                        final @Nonnull ReportingUserCalculator reportingUserCalculator) {
+                        final @Nonnull ReportingUserCalculator reportingUserCalculator,
+                        final @Nonnull LicenseService licenseService) {
         authHost_ = Objects.requireNonNull(authHost);
         authPort_ = authPort;
         if (authPort_ < 0 || authPort_ > 65535) {
@@ -169,6 +183,7 @@ public class UsersService implements IUsersService {
         this.registrationId = Objects.requireNonNull(samlRegistrationID);
         this.samlEnabled = samlEnabled;
         this.reportingUserCalculator = reportingUserCalculator;
+        this.licenseService = licenseService;
     }
 
     /**
@@ -259,7 +274,52 @@ public class UsersService implements IUsersService {
         UserApiDTO me = SAMLUserUtils.getAuthUserDTO()
                 .map(UserMapper::toUserApiDTO)
                 .orElseThrow(() -> new UnauthorizedObjectException("No user logged in!"));
-        return reportingUserCalculator.getMe(me);
+        final LoggedInUserInfo loggedInUserInfo = reportingUserCalculator.getMe(me);
+        me.setFeatures(getPermittedFeatures(loggedInUserInfo));
+        return loggedInUserInfo;
+    }
+
+    /**
+     * Get permitted features for the user, from licensed features.
+     *
+     * @param user The UserApiDTO corresponding to the user.
+     * @return List of permitted features.
+     */
+    private List<String> getPermittedFeatures(final @Nonnull LoggedInUserInfo loggedInUserInfo) {
+        final List<LicenseApiDTO> licenses = licenseService.findAllLicenses();
+        List<String> features = new ArrayList<>();
+        for (LicenseApiDTO license : licenses) {
+            for (String feature : license.getFeatures()) {
+                if(feature.equals("custom_reports")) {
+                    if (loggedInUserInfo.getReportingUserName().isPresent()) {
+                        features.add(feature);
+                    }
+                } else {
+                    features.add(feature);
+                }
+            }
+        }
+        return features;
+    }
+
+    /**
+     * Check currently logged in user's permission to access a licensed feature.
+     *
+     * @param feature The feature name.
+     * @return LoggedInUserInfo The logged in user's information.
+     * @throws Exception UnauthorizedObjectException In the case there's a problem getting the logged in user, such as
+     * the user being unauthenticated.
+     */
+    public LoggedInUserInfo checkLoggedInUserFeaturePermissions(final @Nonnull String feature)
+                    throws Exception {
+        final LoggedInUserInfo loggedInUserInfo = getLoggedInUser();
+        final UserApiDTO userDto = loggedInUserInfo.getUserApiDTO();
+        if (userDto != null && userDto.getFeatures() != null
+            && userDto.getFeatures().contains(feature)) {
+            return loggedInUserInfo;
+        } else {
+            return null;
+        }
     }
 
     /**

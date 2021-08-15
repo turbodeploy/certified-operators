@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.serviceinterfaces.IUsersService.LoggedInUserInfo;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
 import com.vmturbo.components.api.FormattedString;
@@ -109,25 +110,34 @@ public class ReportingUserCalculator {
     @Nonnull
     public synchronized LoggedInUserInfo getMe(@Nonnull final UserApiDTO me) {
         if (enableReporting) {
-            final String key = getUserKey(me);
-            String reportingUsername = me.getUsername();
-            final boolean hasReportEditorRole = ApiUtils.hasUserRole(me, SecurityConstant.REPORT_EDITOR);
+            if (!UserScopeUtils.isUserScoped()) {
+                final String key = getUserKey(me);
+                String reportingUsername = me.getUsername();
+                final boolean hasReportEditorRole = ApiUtils
+                                .hasUserRole(me, SecurityConstant.REPORT_EDITOR);
 
-            if (hasReportEditorRole) {
-                if (editorNameMap.containsKey(key)) {
-                    reportingUsername = editorNameMap.get(key).getName();
-                } else {
-                    Optional<ReportEditorName> n = reportEditorNamePool.getAvailableName();
-                    if (n.isPresent()) {
-                        reportingUsername = n.get().getName();
-                        editorNameMap.put(key, n.get());
+                if (hasReportEditorRole) {
+                    if (editorNameMap.containsKey(key)) {
+                        reportingUsername = editorNameMap.get(key).getName();
                     } else {
-                        logger.error("No more Report Editor roles available. {} will be logged in as viewer", reportingUsername);
+                        Optional<ReportEditorName> n = reportEditorNamePool.getAvailableName();
+                        if (n.isPresent()) {
+                            reportingUsername = n.get().getName();
+                            editorNameMap.put(key, n.get());
+                        } else {
+                            logger.error("No more Report Editor roles available. {} will be logged in as viewer",
+                                         reportingUsername);
+                        }
                     }
                 }
+                logger.debug("Reporting enabled and Unscoped User {} has access to Reports", reportingUsername);
+                return new LoggedInUserInfo(me, reportingUsername);
+            } else {
+                logger.debug("Reporting enabled and Scoped User {} doesn't have access to Reports", me.getUsername());
+                return new LoggedInUserInfo(me, null);
             }
-            return new LoggedInUserInfo(me, reportingUsername);
         } else {
+            logger.debug("Reporting disabled, User {} doesn't have access to Reports", me.getUsername());
             return new LoggedInUserInfo(me, null);
         }
     }

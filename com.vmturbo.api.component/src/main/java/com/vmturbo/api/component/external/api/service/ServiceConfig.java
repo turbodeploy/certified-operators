@@ -784,7 +784,8 @@ public class ServiceConfig {
             samlEnabled,
             groupsService(),
             widgetSetsService(),
-            reportingUserCalculator());
+            reportingUserCalculator(),
+            licenseService());
     }
 
     @Bean
