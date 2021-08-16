@@ -216,10 +216,10 @@ public class StaleOidManagerImpl implements StaleOidManager {
          */
         @Override
         public synchronized void run() {
-            this.currentTimeMs = clock.millis();
-            setLastSeenTimeStamps(getCurrentOids.get());
-            if (expireOids) {
-                try {
+            try {
+                this.currentTimeMs = clock.millis();
+                setLastSeenTimeStamps(getCurrentOids.get());
+                if (expireOids) {
                     Set<Long> expiredOids = getExpiredRecords(entityExpirationTime, expirationDaysPerEntity);
                     sendExpiredOids(expiredOids);
                     setExpiredRecords(expirationDaysPerEntity);
@@ -227,19 +227,28 @@ public class StaleOidManagerImpl implements StaleOidManager {
                     setSuccesfulOidExpirationTask(expiredOids.size());
                     numberOfExpiredOids = expiredOids.size();
                     logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
-                        TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
-                        numberOfExpiredOids);
-                } catch (DataAccessException e) {
-                    logger.error("OidExpirationTask failed due to ", e);
+                            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
+                            numberOfExpiredOids);
+                }
+            // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
+            // if one task fails
+            } catch (Exception e) {
+                logger.error("OidExpirationTask failed due to ", e);
+                try {
                     setFailedOidExpirationTask(e.getMessage());
+                } catch (Exception additionalException) {
+                    logger.error("Could not write failure of OidExpirationTask due to ", additionalException);
                 }
             }
         }
 
         private int setLastSeenTimeStamps(Set<Long> currentOids) throws DataAccessException {
-            return context.update(ASSIGNED_IDENTITY)
-                .set(ASSIGNED_IDENTITY.LAST_SEEN, new Timestamp(currentTimeMs))
+            final Timestamp currentTimeStamp = new Timestamp(currentTimeMs);
+            final int updatedOids =  context.update(ASSIGNED_IDENTITY)
+                .set(ASSIGNED_IDENTITY.LAST_SEEN, currentTimeStamp)
                 .where(ASSIGNED_IDENTITY.ID.in(currentOids)).execute();
+            logger.info("OidExpirationTask updated the last_seen column to {} for {} oids", currentTimeStamp, updatedOids);
+            return updatedOids;
         }
 
         private Set<Long> getExpiredRecords(long entityExpirationTime, Map<Integer, Long> expirationDaysPerEntity) throws DataAccessException {
