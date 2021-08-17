@@ -599,6 +599,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                         // average the cost for an entity over time, including when an entity is powered
                         // off and the on-demand rate is zero.
                         final boolean persistCostItem = categoryCost != null
+                                && Double.isFinite(categoryCost.getValue())
                                 && (costSource == CostSource.ON_DEMAND_RATE
                                     || !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d));
 
@@ -638,6 +639,11 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                                         cloudTopology.getConnectedRegion(entityOid)
                                                 .map(TopologyEntityDTO::getOid).orElse(0L)
                                 );
+                            }
+                        } else {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Skipping cost item for entity '{}' with source '{}' and cost '{}'",
+                                        journal.getEntity().getOid(), costSource, categoryCost);
                             }
                         }
                     });

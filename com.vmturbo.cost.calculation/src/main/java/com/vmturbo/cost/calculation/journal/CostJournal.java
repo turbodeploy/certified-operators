@@ -140,7 +140,8 @@ public class CostJournal<ENTITY_CLASS> {
     private void calculateCosts() {
         if (calculationStarted.compareAndSet(false, true)) {
 
-            logger.trace("Summing price entries.");
+            final long entityId = infoExtractor.getId(entity);
+            logger.trace("Summing price entries for '{}'.", entityId);
 
             costEntries.forEach((category, priceEntries) -> {
 
@@ -149,15 +150,23 @@ public class CostJournal<ENTITY_CLASS> {
                             infoExtractor, discountApplicator, this::getFilteredCostItemsForCategory);
 
                     costItems.forEach(costItem -> {
+
+                        final TraxNumber cost = costItem.cost();
                         final CostSourceLink costSourceLink = costItem.costSourceLink();
-                        if (finalCostsByCategoryAndSource.get(category, costSourceLink) != null) {
-                            final TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSourceLink);
-                            final TraxNumber aggregateCost = costItem.cost()
-                                    .plus(existing)
-                                    .compute("Total cost for " + costSourceLink);
-                            finalCostsByCategoryAndSource.put(category, costSourceLink, aggregateCost);
+
+                        if (Double.isFinite(cost.getValue())) {
+
+                            if (finalCostsByCategoryAndSource.get(category, costSourceLink) != null) {
+                                final TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSourceLink);
+                                final TraxNumber aggregateCost = cost.plus(existing)
+                                        .compute("Total cost for " + costSourceLink);
+                                finalCostsByCategoryAndSource.put(category, costSourceLink, aggregateCost);
+                            } else {
+                                finalCostsByCategoryAndSource.put(category, costSourceLink, cost);
+                            }
                         } else {
-                            finalCostsByCategoryAndSource.put(category, costSourceLink, costItem.cost());
+                            logger.warn("Skipping invalid cost of '{}' for entity '{}' with cost source '{}'",
+                                    cost, entityId, costSourceLink);
                         }
                     });
                 }
