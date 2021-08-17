@@ -3593,6 +3593,62 @@ public class GroupRpcServiceTest {
     }
 
     /**
+     * Tests that paginated queries for Resource Groups out of an Account scope.
+     */
+    @Test
+    public void testGetPaginatedGroupsForResourceGroupsOutOfAccountRequest() throws StoreOperationException {
+        // GIVEN
+        final long resourceGroup1Id = 1L;
+        final long emptyResourceGroup1Id = 2L;
+        final long accountId1 = 5L;
+        final long emptyAccountId = 6L;
+        final List<Long> groupIds = Lists.newArrayList(resourceGroup1Id, emptyResourceGroup1Id);
+        final long resourceGroup1MemberId = 11L;
+        final Grouping resourceGrouping1 = createGrouping(resourceGroup1Id,
+                Collections.singleton(resourceGroup1MemberId), accountId1);
+        final Grouping emptyResourceGrouping = createGrouping(emptyResourceGroup1Id, Collections.EMPTY_SET, accountId1);
+        groupStoreDAO.addGroup(resourceGrouping1);
+        groupStoreDAO.addGroup(emptyResourceGrouping);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(Collections.singleton(emptyAccountId), null,
+                        new ArrayOidSet(Collections.emptyList()),
+                        null);
+        // Create the request: only Resource Groups where the scope is an Account with no RG under it
+        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE))
+                .addScopes(emptyAccountId)
+                .setPaginationParameters(PaginationParameters.getDefaultInstance())
+                .build();
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().setGroupType(GroupType.RESOURCE)).build();
+
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        when(userSessionContext.getAccessScope(Collections.singletonList(emptyAccountId)))
+                .thenReturn(accessScope);
+        when(groupMemberCalculatorSpy.getEmptyGroupIds(groupStoreDAO))
+                .thenReturn(Lists.newArrayList(emptyResourceGroup1Id));
+        when(groupStoreDAO.getOrderedGroupIds(any(), any())).thenReturn(groupIds);
+        when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Lists.newArrayList(resourceGrouping1));
+        final StreamObserver<GetPaginatedGroupsResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        // WHEN
+        groupRpcService.getPaginatedGroups(request, mockObserver);
+
+        // THEN
+        ArgumentCaptor<GetPaginatedGroupsResponse> captor =
+                ArgumentCaptor.forClass(GetPaginatedGroupsResponse.class);
+        verify(mockObserver, times(1)).onNext(captor.capture());
+        GetPaginatedGroupsResponse response = captor.getValue();
+        PaginationResponse paginationResponse = response.getPaginationResponse();
+        assertEquals(0, paginationResponse.getTotalRecordCount());
+        Set<Long> groupingSet = response.getGroupsList().stream().map(Grouping::getId).collect(Collectors.toSet());
+        assertEquals(0, groupingSet.size());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
      * Tests that paginated queries for Resource Groups in a Group of Resource Groups scope.
      */
     @Test
