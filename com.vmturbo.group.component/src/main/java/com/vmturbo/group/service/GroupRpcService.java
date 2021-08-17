@@ -407,11 +407,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             Set<Long> scopeIds = Sets.newHashSet(requestScope != null
                     ? requestScope.getScopeGroupIds() : userScope.getScopeGroupIds());
             Set<Long> resouceGroupIdsInScope = getResourceGroupUuidsInCloudScope(groupStore, scopeIds);
-            if (!resouceGroupIdsInScope.isEmpty()) {
-                groupUuidsInScope.addAll(resouceGroupIdsInScope);
-                // The empty Resource Groups are already added, so set this to false
-                addEmptyGroups = false;
-            }
+            groupUuidsInScope.addAll(resouceGroupIdsInScope);
+            // The empty Resource Groups are already added, so set this to false
+            addEmptyGroups = false;
         }
 
         if (addEmptyGroups) {
