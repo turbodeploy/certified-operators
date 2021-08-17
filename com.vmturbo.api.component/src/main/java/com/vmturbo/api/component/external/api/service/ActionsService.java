@@ -45,6 +45,7 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
@@ -63,8 +64,11 @@ import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPagi
 import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -184,38 +188,50 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept, boolean forMaintenanceWindow) throws Exception {
-        return executeActions(ImmutableList.of(uuid), accept);
+        if (!accept) {
+            throw new NotImplementedException("Reject Action not implemented");
+        }
+        createActionExecution(ImmutableList.of(uuid));
+        return true;
     }
 
     @Override
-    public boolean executeActions(
-            @Nonnull final List<String> actionUuids,
-            final boolean accept) throws Exception {
-        if (accept) {
-            try {
-                final MultiActionRequest.Builder request = MultiActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId);
-                for (final String uuid : actionUuids) {
-                    final long id = getActionId(uuid);
-                    log.info("Accepting action with id: {}", id);
-                    request.addActionIds(id);
-                }
-                actionOrchestratorRpc.acceptActions(request.build());
-                return true;
-            } catch (StatusRuntimeException e) {
-                log.error("Execute action error: {}", e.getMessage(), e);
-                throw convertToApiException(e);
+    public ActionExecutionApiDTO createActionExecution(@Nonnull final List<String> actionUuids)
+            throws Exception {
+        try {
+            final MultiActionRequest.Builder actionRequest = MultiActionRequest.newBuilder()
+                    .setTopologyContextId(realtimeTopologyContextId);
+            for (final String actionUuid : actionUuids) {
+                final long id = actionSearchUtil.getActionInstanceId(actionUuid, null).orElseThrow(() -> {
+                    logger.error("Cannot execute action as one with ID {} cannot be found.", actionUuid);
+                    return new UnknownObjectException("Cannot find action with ID " + actionUuid);
+                });
+                log.info("Accepting action with id: {}", id);
+                actionRequest.addActionIds(id);
             }
-        } else {
-            throw new NotImplementedException("Reject Action not implemented");
+            return convertActionExecution(actionOrchestratorRpc.acceptActions(
+                    actionRequest.build()));
+        } catch (StatusRuntimeException e) {
+            log.error("Execute action error: {}", e.getMessage(), e);
+            throw convertToApiException(e);
         }
     }
 
-    private long getActionId(final String actionUuid) throws UnknownObjectException {
-        return actionSearchUtil.getActionInstanceId(actionUuid, null).orElseThrow(() -> {
-            logger.error("Cannot execute action as one with ID {} cannot be found.", actionUuid);
-            return new UnknownObjectException("Cannot find action with ID " + actionUuid);
-        });
+    @Override
+    public ActionExecutionApiDTO getActionExecution(long actionsExecutionId) {
+        final ActionExecutionRequest request = ActionExecutionRequest.newBuilder()
+                .setExecutionId(actionsExecutionId)
+                .build();
+        return convertActionExecution(actionOrchestratorRpc.getActionExecution(request));
+    }
+
+    @Override
+    public List<ActionExecutionApiDTO> getActionExecutions() throws Exception {
+        final AllActionExecutionsRequest request = AllActionExecutionsRequest.newBuilder()
+                .build();
+        return actionOrchestratorRpc.getAllActionExecutions(request).getExecutionsList().stream()
+                .map(ActionsService::convertActionExecution)
+                .collect(Collectors.toList());
     }
 
     private static Exception convertToApiException(StatusRuntimeException e) {
@@ -238,6 +254,17 @@ public class ActionsService implements IActionsService {
             .setTopologyContextId(realtimeTopologyContextId)
             .setActionId(actionId)
             .build();
+    }
+
+    private static ActionExecutionApiDTO convertActionExecution(
+            @Nonnull final ActionExecution actionsExecution) {
+        final ActionExecutionApiDTO result = new ActionExecutionApiDTO();
+        result.setId(String.valueOf(actionsExecution.getId()));
+        result.setActionIds(actionsExecution.getActionIdList().stream()
+                .map(String::valueOf)
+                .collect(Collectors.toList()));
+        result.setAcceptTime(DateTimeUtil.toString(actionsExecution.getAcceptedTimestamp()));
+        return result;
     }
 
     @Override
