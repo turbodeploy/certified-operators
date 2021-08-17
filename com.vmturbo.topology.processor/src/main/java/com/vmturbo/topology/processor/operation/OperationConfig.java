@@ -104,13 +104,14 @@ public class OperationConfig {
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
 
+    // the following operation timeouts should be well above the ping/pong one
     @Value("${discoveryTimeoutSeconds:120}")
     private long discoveryTimeoutSeconds;
 
-    @Value("${validationTimeoutSeconds:30}")
+    @Value("${validationTimeoutSeconds:60}")
     private long validationTimeoutSeconds;
 
-    @Value("${actionTimeoutSeconds:30}")
+    @Value("${actionTimeoutSeconds:60}")
     private long actionTimeoutSeconds;
 
     @Value("${planExportTimeoutSeconds:120}")
