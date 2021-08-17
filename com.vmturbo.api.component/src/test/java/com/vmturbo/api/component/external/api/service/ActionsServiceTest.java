@@ -229,7 +229,7 @@ public class ActionsServiceTest {
         final List<String> actionUuids = actionOids.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
-        actionsServiceUnderTest.executeActions(actionUuids, true);
+        actionsServiceUnderTest.createActionExecution(actionUuids);
 
         final MultiActionRequest request = MultiActionRequest.newBuilder()
                 .setTopologyContextId(REALTIME_TOPOLOGY_ID)
