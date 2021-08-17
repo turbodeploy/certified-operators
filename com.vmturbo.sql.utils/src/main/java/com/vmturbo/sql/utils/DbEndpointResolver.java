@@ -87,6 +87,8 @@ public class DbEndpointResolver {
     public static final String SHOULD_PROVISION_DATABASE_PROPERTY = "shouldProvisionDatabase";
     /** dbShouldProvisionUser property. */
     public static final String SHOULD_PROVISION_USER_PROPERTY = "shouldProvisionUser";
+    /** dbUseConnectionPool property. */
+    public static final String USE_CONNECTION_POOL = "conPoolActive";
     /** DB connection pool initial and minimum size property. */
     public static final String MIN_POOL_SIZE_PROPERTY = "conPoolInitialSize";
     /** DB connection pool maximum size property. */
@@ -109,6 +111,8 @@ public class DbEndpointResolver {
     public static final String DEFAULT_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
     /** default value for host name. */
     public static final String DEFAULT_HOST_VALUE = "localhost";
+    /** default value for whether to use a connection pool for database connections. */
+    public static final boolean DEFAULT_USE_CONNECTION_POOL = false;
     /** default value for connection pool initial and minimum size. */
     public static final int DEFAULT_MIN_POOL_SIZE = 5;
     /** default value for connection pool maximum size. */
@@ -160,6 +164,7 @@ public class DbEndpointResolver {
         resolveRootPassword();
         resolveRootAccessEnabled();
         resolveDriverProperties();
+        resolveUseConnectionPool();
         resolveMinPoolSize();
         resolveMaxPoolSize();
         resolveSecure();
@@ -324,6 +329,20 @@ public class DbEndpointResolver {
             base.putAll(injectedMap != null ? injectedMap : Collections.emptyMap());
         }
         config.setDriverProperties(base);
+    }
+
+    /**
+     * Resolve the dbMinPoolSize property for this endpoint.
+     *
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     */
+    private void resolveUseConnectionPool() throws UnsupportedDialectException {
+        final String currentValue = config.getUseConnectionPool() != null
+                ? config.getUseConnectionPool().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getUseConnectionPool);
+        config.setUseConnectionPool(Boolean.parseBoolean(firstNonNull(
+                configuredPropValue(USE_CONNECTION_POOL),
+                currentValue, fromTemplate, Boolean.toString(false))));
     }
 
     /**

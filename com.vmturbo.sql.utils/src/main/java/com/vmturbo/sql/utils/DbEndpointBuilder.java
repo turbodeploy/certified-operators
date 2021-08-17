@@ -339,6 +339,17 @@ public class DbEndpointBuilder {
     }
 
     /**
+     * Specify whether to use a connection pool for database connections.
+     *
+     * @param useConnectionPool if true, use a connection pool for database connections
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withUseConnectionPool(boolean useConnectionPool) {
+        config.setUseConnectionPool(useConnectionPool);
+        return this;
+    }
+
+    /**
      * Specify a min connection pool size property value for this endpoint.
      *
      * @param minPoolSize minimum number of connections to maintain in the pool

@@ -32,6 +32,7 @@ public class DbEndpointConfig {
     private String rootPassword;
     private Boolean rootAccessEnabled;
     private Map<String, String> driverProperties;
+    private Boolean useConnectionPool;
     private Integer minPoolSize;
     private Integer maxPoolSize;
     private Boolean secure;
@@ -236,6 +237,14 @@ public class DbEndpointConfig {
 
     public void setShouldProvisionUser(final Boolean shouldProvisionUser) {
         this.shouldProvisionUser = shouldProvisionUser;
+    }
+
+    public Boolean getUseConnectionPool() {
+        return useConnectionPool;
+    }
+
+    public void setUseConnectionPool(Boolean useConnectionPool) {
+        this.useConnectionPool = useConnectionPool;
     }
 
     /**
