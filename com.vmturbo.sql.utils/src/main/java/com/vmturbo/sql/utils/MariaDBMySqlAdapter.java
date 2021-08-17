@@ -31,6 +31,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
     DataSource getDataSource(String url, String user, String password, boolean pooled)
             throws SQLException {
         if (pooled) {
+            logger.debug("Creating a pooled datasource for user: %s", user);
             final MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
             dataSource.setUrl(url);
             dataSource.setUser(user);
@@ -40,6 +41,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
             dataSource.setMaxPoolSize(config.getMaxPoolSize());
             return dataSource;
         } else {
+            logger.debug("Creating a non-pooled datasource for user: %s", user);
             final MariaDbDataSource dataSource = new MariaDbDataSource();
             dataSource.setUrl(url);
             dataSource.setUser(user);

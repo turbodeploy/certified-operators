@@ -484,6 +484,7 @@ public class DbEndpointResolverTest {
                 .withShouldProvisionDatabase(true)
                 .withShouldProvisionUser(true)
                 .withUserName("u")
+                .withUseConnectionPool(true)
                 .withMinPoolSize(1)
                 // Intentionally setting this higher than the absolute max to ensure we are
                 // enforcing the absolute max.

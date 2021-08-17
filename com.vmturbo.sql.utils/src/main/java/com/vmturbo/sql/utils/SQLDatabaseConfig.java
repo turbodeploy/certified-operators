@@ -88,6 +88,12 @@ public abstract class SQLDatabaseConfig {
     private String dbRootPassword;
 
     /**
+     * If true, use a connection pool for database connections.
+     */
+    @Value("${conPoolActive:false}")
+    private boolean isConnectionPoolActive;
+
+    /**
      * DB connection pool initial and minimum size. Defaults to 5.
      */
     @Value("${conPoolInitialSize:5}")
@@ -155,18 +161,27 @@ public abstract class SQLDatabaseConfig {
     protected DataSource dataSource(@Nonnull String dbUrl, @Nonnull String dbUsername,
                                     @Nonnull String dbPassword, final int minPoolSize,
                                     final int maxPoolSize) {
-        MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
         try {
-            // Should be logged only once, on container startup
-            logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}",
-                    minPoolSize,
-                    maxPoolSize);
-            dataSource.setUrl(dbUrl);
-            dataSource.setUser(dbUsername);
-            dataSource.setPassword(dbPassword);
-            dataSource.setMinPoolSize(minPoolSize);
-            dataSource.setMaxPoolSize(maxPoolSize);
-            return dataSource;
+            if (isConnectionPoolActive) {
+                MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
+                // Should be logged only once, on container startup
+                logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}",
+                        minPoolSize, maxPoolSize);
+                dataSource.setUrl(dbUrl);
+                dataSource.setUser(dbUsername);
+                dataSource.setPassword(dbPassword);
+                dataSource.setMinPoolSize(minPoolSize);
+                dataSource.setMaxPoolSize(maxPoolSize);
+                return  dataSource;
+            } else {
+                MariaDbDataSource dataSource = new MariaDbDataSource();
+                // Should be logged only once, on container startup
+                logger.info("Initializing non-pooled database connection source.");
+                dataSource.setUrl(dbUrl);
+                dataSource.setUser(dbUsername);
+                dataSource.setPassword(dbPassword);
+                return dataSource;
+            }
         } catch (SQLException e) {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }

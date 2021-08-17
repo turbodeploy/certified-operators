@@ -244,7 +244,7 @@ public abstract class DbAdapter {
      * @throws SQLException                if the connection could not be created
      */
     Connection getNonRootConnection() throws UnsupportedDialectException, SQLException {
-        return getNonRootConnection(true);
+        return getNonRootConnection(config.getUseConnectionPool());
     }
 
     /**
