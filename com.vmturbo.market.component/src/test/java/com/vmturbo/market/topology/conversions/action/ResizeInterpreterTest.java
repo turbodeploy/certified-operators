@@ -96,36 +96,50 @@ public class ResizeInterpreterTest {
      */
     @Test
     public void testInterpretVmVCPUResize() {
+        assertVCPUCapacity(10, 1.0d, 989.0f, 2049.0f, 21.0f);
+        assertVCPUCapacity(4, 1.0000279520190538d, 10372.29f, 15558.436f, 6.0f);
+        assertVCPUCapacity(8, 1.0489584084750498d, 18461.668f, 23077.086f, 10.0f);
+        assertVCPUCapacity(1, 3.5859d, 8606.16f, 51638.83698998277f, 6.0f);
+        assertVCPUCapacity(1, 3.58593d, 8606.232f, 51638.83698998277f, 6.0f);
+    }
+
+    /**
+     * Interpret a VM VCPU resize. Convert MhZ to cores using information on the VM.
+     *
+     * @param numCpus numCpus
+     * @param scalingFactor scalingFactor
+     * @param oldCapacity oldCapacity
+     * @param newCapacity newCapacity
+     * @param newCores newCores
+     */
+    private void assertVCPUCapacity(int numCpus, double scalingFactor, float oldCapacity, float newCapacity, float newCores) {
         CommoditySpecificationTO commSpec = CommoditySpecificationTO.newBuilder()
-                .setType(UICommodityType.VCPU.typeNumber())
-                .setBaseType(UICommodityType.VCPU.typeNumber())
-                .build();
+            .setType(UICommodityType.VCPU.typeNumber())
+            .setBaseType(UICommodityType.VCPU.typeNumber())
+            .build();
         CommodityType topologyCommType = CommodityType.newBuilder()
-                .setType(UICommodityType.VCPU.typeNumber())
-                .build();
+            .setType(UICommodityType.VCPU.typeNumber())
+            .build();
         when(commodityConverter.marketToTopologyCommodity(commSpec)).thenReturn(Optional.of(topologyCommType));
         final long entityId = 7;
-        addEntity(entityId, ApiEntityType.VIRTUAL_MACHINE, eBldr -> {
+        addEntity(entityId, ApiEntityType.VIRTUAL_MACHINE, eBldr ->
             eBldr.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                            .setNumCpus(10)
-                            .build())
-                    .build());
-        }, t -> { });
-        when(commodityIndex.getCommSold(entityId, topologyCommType)).thenReturn(Optional.empty());
+                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(numCpus).build())
+                .build()), t -> { });
+        when(commodityIndex.getCommSold(entityId, topologyCommType)).thenReturn(Optional.of(
+            CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(123))
+                .setScalingFactor(scalingFactor).build()));
         ResizeTO resizeTO = ResizeTO.newBuilder()
-                .setSellingTrader(entityId)
-                // Should get rounded up to 10
-                .setOldCapacity(989)
-                // Should get rounded up to 21 (ceiling)
-                .setNewCapacity(2049)
-                .setSpecification(commSpec)
-                .build();
+            .setSellingTrader(entityId)
+            .setOldCapacity(oldCapacity)
+            .setNewCapacity(newCapacity)
+            .setSpecification(commSpec)
+            .build();
 
         Optional<Resize> resize = resizeInterpreter.interpret(resizeTO, projectedTopology);
         assertThat(resize.get().getCommodityType(), is(topologyCommType));
-        assertThat(resize.get().getNewCapacity(), is(21.0f));
-        assertThat(resize.get().getOldCapacity(), is(10.0f));
+        assertThat(resize.get().getOldCapacity(), is((float)numCpus));
+        assertThat(resize.get().getNewCapacity(), is(newCores));
     }
 
     /**

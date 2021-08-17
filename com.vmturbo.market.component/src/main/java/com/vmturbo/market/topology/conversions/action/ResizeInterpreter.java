@@ -89,7 +89,9 @@ public class ResizeInterpreter extends ActionInterpretationAdapter<ResizeTO, Res
                 return Optional.empty();
             }
             oldCapacity = Math.round(oldCapacity / cpuSpeedMhz);
-            newCapacity = Math.ceil(newCapacity / cpuSpeedMhz);
+            // First round to the 2nd decimal places and then do ceiling to handle cases like
+            // 14400.523 / 2400 = 6.0002179167
+            newCapacity = Math.ceil((int)(newCapacity / cpuSpeedMhz * 100) / 100.0f);
             // double comparison normally applies epsilon, but in this case both capacities are
             // result of Math.round and Math.ceil so the values are actually integers.
             if (Double.compare(oldCapacity, newCapacity) == 0) {
