@@ -27,9 +27,6 @@ public class MovingStatisticsCommodityData implements
 
     private MovingStatisticsSampler sampler;
 
-    private static final String HISTORY_UPDATE_DESCRIPTION = "MovingStatisticsUpdateHistory";
-    private static final String THRESHOLDS_UPDATE_DESCRIPTION = "MovingStatisticsUpdateThresholds";
-
     private static final Logger logger = LogManager.getLogger();
 
     @Override
@@ -155,14 +152,15 @@ public class MovingStatisticsCommodityData implements
         if (analysisValue != null) {
             // Set the value
             commodityFieldsAccessor.updateHistoryValue(field,
-                hv -> hv.setMovingMeanPlusStandardDeviations(analysisValue), HISTORY_UPDATE_DESCRIPTION);
+                hv -> hv.setMovingMeanPlusStandardDeviations(analysisValue),
+                MovingStatisticsEditor.class.getSimpleName());
 
             final Double thresholdsValue = sampler.getMinThreshold(field,
                 analysisStandardDeviationsAbove, desiredStateTargetValue);
             if (thresholdsValue != null) {
                 // Set the thresholds
                 commodityFieldsAccessor.updateThresholds(field, thresholdsUpdater(thresholdsValue),
-                    THRESHOLDS_UPDATE_DESCRIPTION);
+                    MovingStatisticsEditor.class.getSimpleName());
             } else {
                 logger.trace("Skipping min threshold for {}", () -> field);
             }
