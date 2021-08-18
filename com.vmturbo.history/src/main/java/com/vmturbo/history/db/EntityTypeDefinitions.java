@@ -33,6 +33,40 @@ public class EntityTypeDefinitions {
     private EntityTypeDefinitions() {
     }
 
+    /**
+     * SDK entity types for which we do not create any `EntityType` values. These types will not
+     * participate in any of the {@link UseCase}s.
+     */
+    public static final Set<EntityDTO.EntityType> EXCLUDED_ENTITY_TYPES = ImmutableSet.of(
+            EntityDTO.EntityType.ACTION_MANAGER,
+            EntityDTO.EntityType.BUSINESS,
+            EntityDTO.EntityType.BUSINESS_ENTITY,
+            EntityDTO.EntityType.COMPUTE_RESOURCE,
+            EntityDTO.EntityType.DESIRED_RESERVED_INSTANCE,
+            EntityDTO.EntityType.DISTRIBUTED_VIRTUAL_PORTGROUP,
+            EntityDTO.EntityType.HCI_PHYSICAL_MACHINE,
+            EntityDTO.EntityType.INFRASTRUCTURE,
+            EntityDTO.EntityType.IP,
+            EntityDTO.EntityType.LICENSING_SERVICE,
+            EntityDTO.EntityType.MAC,
+            EntityDTO.EntityType.MOVER,
+            EntityDTO.EntityType.NETWORKING_ENDPOINT,
+            EntityDTO.EntityType.OPERATOR,
+            EntityDTO.EntityType.PORT,
+            EntityDTO.EntityType.PROCESSOR_POOL,
+            EntityDTO.EntityType.RESERVED_INSTANCE_SPECIFICATION,
+            EntityDTO.EntityType.RIGHT_SIZER,
+            EntityDTO.EntityType.SAVINGS,
+            EntityDTO.EntityType.SERVICE_ENTITY_TEMPLATE,
+            EntityDTO.EntityType.STORAGE_VOLUME,
+            EntityDTO.EntityType.THIS_ENTITY,
+            EntityDTO.EntityType.THREE_TIER_APPLICATION,
+            EntityDTO.EntityType.UNKNOWN,
+            EntityDTO.EntityType.VLAN,
+            EntityDTO.EntityType.VM_SPEC,
+            EntityDTO.EntityType.WEB_SERVER
+    );
+
     // names for entity types that do not have corresponding ApiEntityType instances.
     /** APPLICATION_SPEND entity type name. */
     private static final String APPLICATION_SPEND = "ApplicationSpend";
