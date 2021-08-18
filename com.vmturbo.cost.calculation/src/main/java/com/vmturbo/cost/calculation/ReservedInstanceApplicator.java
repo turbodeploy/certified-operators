@@ -20,6 +20,8 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.utils.FuzzyDouble;
+import com.vmturbo.components.common.utils.FuzzyDoubleUtils;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -94,43 +96,51 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                                        @Nullable final Price price,
                                        @Nonnull Boolean recordLicenseCost) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
-        return Optional.ofNullable(topologyRICoverage.get(entityId))
-            .map(entityRiCoverage -> {
-                final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
-                    .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
-                    .numCoupons(), "coupons required");
-                final TraxNumber coverageByRIInventory = recordRICoverageEntries(
-                        entityId,
-                        totalRequired,
-                        entityRiCoverage.getCouponsCoveredByRiMap(),
-                        cloudCostData::getExistingRiBoughtData,
-                        false,
-                        price, recordLicenseCost);
-                final TraxNumber coverageByBuyRIs = recordRICoverageEntries(
-                        entityId,
-                        totalRequired,
-                        entityRiCoverage.getCouponsCoveredByBuyRiMap(),
-                        cloudCostData::getBuyRIData,
-                        true,
-                        price, recordLicenseCost);
-                final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
+        final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
+                .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
+                .numCoupons(), "coupons required");
 
-                final double totalCoveredValue = totalCovered.getValue();
-                final double totalRequiredValue = totalRequired.getValue();
-                if (totalCoveredValue == totalRequiredValue) {
-                    // Handle the equality case separately to avoid division by 0 if
-                    // required == 0 and covered == 0.
-                    return trax(1.0, "fully covered");
-                } else if (totalCoveredValue > totalRequiredValue) {
-                    if (totalCoveredValue > (totalRequiredValue + LOG_COVERAGE_TOLERANCE)) {
-                        logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
-                                " Trimming back to 100%.", entityId, totalRequired, totalCovered);
-                    }
-                    return trax(1.0, "over 100% covered");
-                } else {
-                    return totalCovered.dividedBy(totalRequired).compute("coverage");
-                }
-            }).orElse(NO_COVERAGE);
+        if (FuzzyDoubleUtils.isPositive(totalRequired.getValue())) {
+            return Optional.ofNullable(topologyRICoverage.get(entityId))
+                    .map(entityRiCoverage -> {
+
+                        final TraxNumber coverageByRIInventory = recordRICoverageEntries(
+                                entityId,
+                                totalRequired,
+                                entityRiCoverage.getCouponsCoveredByRiMap(),
+                                cloudCostData::getExistingRiBoughtData,
+                                false,
+                                price, recordLicenseCost);
+                        final TraxNumber coverageByBuyRIs = recordRICoverageEntries(
+                                entityId,
+                                totalRequired,
+                                entityRiCoverage.getCouponsCoveredByBuyRiMap(),
+                                cloudCostData::getBuyRIData,
+                                true,
+                                price, recordLicenseCost);
+                        final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
+
+                        final double totalCoveredValue = totalCovered.getValue();
+                        final double totalRequiredValue = totalRequired.getValue();
+                        if (totalCoveredValue == totalRequiredValue) {
+                            // Handle the equality case separately to avoid division by 0 if
+                            // required == 0 and covered == 0.
+                            return trax(1.0, "fully covered");
+                        } else if (totalCoveredValue > totalRequiredValue) {
+                            if (totalCoveredValue > (totalRequiredValue + LOG_COVERAGE_TOLERANCE)) {
+                                logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
+                                        " Trimming back to 100%.", entityId, totalRequired, totalCovered);
+                            }
+                            return trax(1.0, "over 100% covered");
+                        } else {
+                            return totalCovered.dividedBy(totalRequired).compute("coverage");
+                        }
+                    }).orElse(NO_COVERAGE);
+        } else {
+            logger.warn("Skipping RI coverage application for entity {} due to non-positive capacity {}",
+                    entityId, totalRequired);
+            return NO_COVERAGE;
+        }
     }
 
     private TraxNumber recordRICoverageEntries(long entityOid,
