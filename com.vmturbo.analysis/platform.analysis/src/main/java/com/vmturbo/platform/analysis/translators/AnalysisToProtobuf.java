@@ -630,7 +630,7 @@ public final class AnalysisToProtobuf {
             // gets the correct capacity
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> provDemandTO
                             .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
-                                            .setCommodityBaseType(key)
+                                            .setCommodityBaseType(key.getBaseType())
                                             .setNewCapacity(value.floatValue()).build()));
             // find the sellers(excluding the newly provisioned one) that can sell to the model
             // buyer, we will use it later to compute the maximum amount that the model buyer
@@ -646,16 +646,16 @@ public final class AnalysisToProtobuf {
             // amount and the max amount could be provided by any seller in market
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> {
                 Basket basket = provDemand.getProvisionedSeller().getBasketSold();
-                CommoditySpecification commSpec = basket.get(basket.indexOfBaseType(key));
+                CommoditySpecification commSpec = basket.get(basket.indexOf(key));
                 provDemandTO.addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry
-                                .newBuilder().setCommodityBaseType(key).setMaxAmountAvailable((float)
+                                .newBuilder().setCommodityBaseType(key.getBaseType()).setMaxAmountAvailable((float)
                                                 sellers.stream().max((s1, s2) ->
                                                 Double.compare(s1.getCommoditySold(commSpec).getEffectiveCapacity(),
                                                 s2.getCommoditySold(commSpec).getEffectiveCapacity()))
                                                 .get().getCommoditySold(commSpec).getEffectiveCapacity())
                                 .setRequestedAmount((float)provDemand.getModelBuyer()
                                                 .getQuantities()[provDemand.getModelBuyer()
-                                                                 .getBasket().indexOfBaseType(key)])
+                                                                 .getBasket().indexOf(key)])
                                 .build());
             });
             builder.setProvisionByDemand(provDemandTO);

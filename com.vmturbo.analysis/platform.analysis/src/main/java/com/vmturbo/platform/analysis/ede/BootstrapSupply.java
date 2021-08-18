@@ -621,7 +621,13 @@ public class BootstrapSupply {
                     } else {
                         try {
                             Trader currentSupplier = sl.getSupplier();
-                            Action action = new ProvisionByDemand(economy, sl,
+                            Set<CommoditySpecification> commsCausingProvision = minimizer.getQuoteTracker()
+                                .getInfiniteQuotesToExplain().stream().map(quote -> quote.getExplanation(sl))
+                                .filter(Optional::isPresent).map(Optional::get)
+                                .flatMap(explanation -> explanation.commBundle.stream())
+                                .map(commBoudle -> commBoudle.commSpec)
+                                .collect(Collectors.toSet());
+                            Action action = new ProvisionByDemand(economy, sl, commsCausingProvision,
                                 (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
                                     currentSupplier : clonableSellers.get(0)).take();
                             ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
@@ -1034,7 +1040,7 @@ public class BootstrapSupply {
                         logger.info("{" + buyerDebugInfo + "} can't be placed in any supplier.");
                     }
                     allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
-                                                             slsThatNeedProvBySupply));
+                                                             slsThatNeedProvBySupply, minimizer));
                 }
             } else {
                 // already placed Buyer
@@ -1045,7 +1051,7 @@ public class BootstrapSupply {
                         logger.info("{" + buyerDebugInfo + "} can't be placed an any supplier.");
                     }
                     allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
-                                                             slsThatNeedProvBySupply));
+                                                             slsThatNeedProvBySupply, minimizer));
                 } else if (Double.isInfinite(minimizer.getCurrentQuote().getQuoteValue()) &&
                         minimizer.getBestSeller() != shoppingList.getSupplier()) {
                     // If we have a seller that can fit the buyer getting an infiniteQuote,
@@ -1277,12 +1283,14 @@ public class BootstrapSupply {
      * @param shoppingList is the {@link ShoppingList} of the unplaced trader
      * @param market is the market containing the inactiveSellers
      * @param slsThatNeedProvBySupply the list to hold shopping lists that may require provisions
+     * @param quoteMinimizer quote minimizer, which contains
      *
      * @return list of actions that might include provision, move and reconfigure.
      */
     private static List<Action> checkAndApplyProvision(Economy economy, ShoppingList shoppingList,
                                                        Market market,
-                                                       Map<ShoppingList, Long> slsThatNeedProvBySupply) {
+                                                       Map<ShoppingList, Long> slsThatNeedProvBySupply,
+                                                       QuoteMinimizer quoteMinimizer) {
         List<@NonNull Action> actions = new ArrayList<>();
         if (economy.getForceStop()) {
             return actions;
@@ -1323,8 +1331,14 @@ public class BootstrapSupply {
             return Collections.emptyList();
         } else if (!clonableSellers.isEmpty()) {
             try {
+                Set<CommoditySpecification> commsCausingProvision = quoteMinimizer.getQuoteTracker()
+                    .getInfiniteQuotesToExplain().stream().map(quote -> quote.getExplanation(shoppingList))
+                    .filter(Optional::isPresent).map(Optional::get)
+                    .flatMap(explanation -> explanation.commBundle.stream())
+                    .map(commBoudle -> commBoudle.commSpec)
+                    .collect(Collectors.toSet());
                 // if none of the existing sellers can fit the shoppingList, provision current seller
-                bootstrapAction = new ProvisionByDemand(economy, shoppingList,
+                bootstrapAction = new ProvisionByDemand(economy, shoppingList, commsCausingProvision,
                     (shoppingList.getSupplier() != null
                         && clonableSellers.contains(shoppingList.getSupplier()))
                         ? shoppingList.getSupplier() : clonableSellers.get(0)).take();
@@ -1349,7 +1363,7 @@ public class BootstrapSupply {
                     // If quote is infinite, we create a new provider
                     if (Double.isInfinite(minimizer.getTotalBestQuote())) {
                         provisionRelatedActionList.addAll(checkAndApplyProvision(economy,
-                            sl, entry.getValue(), slsThatNeedProvBySupply));
+                            sl, entry.getValue(), slsThatNeedProvBySupply, minimizer));
                     } else {
                         // place the sl of the clone on the seller that is able to hold it
                         provisionRelatedActionList

@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import com.google.common.hash.Hashing;
 
@@ -37,8 +39,9 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     // Fields
     private static final Logger logger = LogManager.getLogger();
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
-    // a map from commodity base type to its new capacity which will satisfy the demand
-    private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
+    private final Set<CommoditySpecification> commsCausingProvision;
+    // a map from commodity spec to its new capacity which will satisfy the demand
+    private @NonNull Map<@NonNull CommoditySpecification, @NonNull Double> commodityNewCapacityMap_ =
                     new HashMap<>();
     // Constructors
 
@@ -57,14 +60,29 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
      *
      * @param economy The economy in which the seller will be provisioned.
      * @param modelBuyer The shopping list that should be satisfied by the new seller.
+     * @param modelSeller The provider to clone.
      */
     public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
                     @NonNull Trader modelSeller) {
+        this(economy, modelBuyer, Collections.emptySet(), modelSeller);
+    }
+
+    /**
+     * Constuctor.
+     *
+     * @param economy The economy in which the seller will be provisioned.
+     * @param modelBuyer The shopping list that should be satisfied by the new seller.
+     * @param commsCausingProvision Commodities with infinite quote.
+     * @param modelSeller The provider to clone.
+     */
+    public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
+                             @NonNull Set<CommoditySpecification> commsCausingProvision, @NonNull Trader modelSeller) {
         super(economy, economy.getCloneOfTrader(modelSeller));
         // Find the shopping list of the original entity.
         // It's not possible that the shopping list of the original entity doesn't exist.
         // For safety, use the given modelBuyer if it cannot be found.
         modelBuyer_ = getOriginalShoppingList(economy, modelBuyer);
+        this.commsCausingProvision = commsCausingProvision;
         logger.debug("Use {} as modelBuyer instead of {}.",
             () -> modelBuyer_.getDebugInfoNeverUseInCode() == null ? ""
                 : modelBuyer_.getDebugInfoNeverUseInCode(),
@@ -112,7 +130,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
      * a provisionByDemand decision.
      */
     @Pure
-    public @NonNull Map<@NonNull Integer, @NonNull Double> getCommodityNewCapacityMap() {
+    public @NonNull Map<@NonNull CommoditySpecification, @NonNull Double> getCommodityNewCapacityMap() {
         return commodityNewCapacityMap_;
     }
 
@@ -189,28 +207,33 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         double desiredUtil = (sellerSettings.getMaxDesiredUtil() + sellerSettings
                                     .getMinDesiredUtil()) / 2;
         // resize the commodities sold by the clone to fit the buyer
-        for (CommoditySpecification commSpec : getModelBuyer().getBasket()) {
+        for (int indexOfCommBought = 0; indexOfCommBought < getModelBuyer().getBasket().size(); indexOfCommBought++) {
+            CommoditySpecification commSpec = getModelBuyer().getBasket().get(indexOfCommBought);
             int indexOfCommSold = basketSold.indexOf(commSpec.getType());
-            int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
             CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(indexOfCommSold);
             double initialCapSold = modelCommSold.getCapacity();
-            double[] overheads = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
-                            getEconomy());
-            // the new capacity should be equal to the old capacity or scaled capacity which
-            // considers overhead that is a factor of the bought commodity
-            double newCapacity = Math.max(Math.max(
-                            getModelBuyer().getPeakQuantity(indexOfCommBought) + overheads[1],
-                                getModelBuyer().getQuantity(indexOfCommBought) + overheads[0])
-                            / (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
-                        initialCapSold);
-            if (newCapacity > initialCapSold) {
-                // commodityNewCapacityMap_  keeps information about commodity sold and its
-                // new capacity, if there are several commodities of same base type, pick the
-                // biggest capacity.
-                int baseType = basketSold.get(indexOfCommSold).getBaseType();
-                commodityNewCapacityMap_.put(baseType,commodityNewCapacityMap_
-                                .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
-                                                .get(baseType), newCapacity) : newCapacity);
+            double newCapacity = initialCapSold;
+            // By only scaling commodities with infinite quote, we may see more ProvisonByDemand actions being generated.
+            // This is because without infiniteCommodities check, we can scale capacity of Mem and MemProvisioned at the same time.
+            // But now if Mem is the only commodity in infiniteCommodities set, we won't scale MemProvisioned.
+            if (commsCausingProvision.contains(commSpec)) {
+                double[] overheads = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
+                    getEconomy());
+                // the new capacity should be equal to the old capacity or scaled capacity which
+                // considers overhead that is a factor of the bought commodity
+                newCapacity = Math.max(Math.max(
+                    getModelBuyer().getPeakQuantity(indexOfCommBought) + overheads[1],
+                    getModelBuyer().getQuantity(indexOfCommBought) + overheads[0])
+                        / (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
+                    initialCapSold);
+                if (newCapacity > initialCapSold) {
+                    // commodityNewCapacityMap_  keeps information about commodity sold and its
+                    // new capacity, if there are several commodities of same base type, pick the
+                    // biggest capacity.
+                    commodityNewCapacityMap_.put(commSpec, commodityNewCapacityMap_
+                        .containsKey(commSpec) ? Math.max(commodityNewCapacityMap_
+                        .get(commSpec), newCapacity) : newCapacity);
+                }
             }
             CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(indexOfCommSold);
             provCommSold.setCapacity(newCapacity);
@@ -245,7 +268,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
                             // the model seller and the resizeThroughSupplier trader.
                             getSubsequentActions().addAll(Utility.resizeCommoditiesOfTrader(
                                 getEconomy(), getModelSeller(), sl, true,
-                                    commodityNewCapacityMap_.keySet()));
+                                    commodityNewCapacityMap_.keySet().stream().map(CommoditySpecification::getBaseType).collect(Collectors.toSet())));
                 });
             });
         } catch (Exception e) {
@@ -304,7 +327,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
         return new ProvisionByDemand(destinationEconomy,
-            destinationShoppingList.apply(getModelBuyer()),
+            destinationShoppingList.apply(getModelBuyer()), commsCausingProvision,
             destinationTrader.apply(getModelSeller()));
     }
 

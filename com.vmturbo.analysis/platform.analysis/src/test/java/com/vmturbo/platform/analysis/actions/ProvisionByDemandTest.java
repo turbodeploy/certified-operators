@@ -8,6 +8,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -21,6 +22,8 @@ import junitparams.naming.TestCaseName;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -93,11 +96,10 @@ public class ProvisionByDemandTest {
         // Check resizable setting is copied over correctly for commodities.
         modelSeller.getCommoditiesSold().get(0).getSettings().setResizable(false);
 
-
         @NonNull
-        ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer, modelSeller)).take();
+        ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer,
+            ImmutableSet.of(new CommoditySpecification(0)), modelSeller)).take();
         TraderSettings provisionedTraderSettings = provision.getActionTarget().getSettings();
-
 
         // verify that the settings are updated correctly on the provisionedTrader
         assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
@@ -109,6 +111,12 @@ public class ProvisionByDemandTest {
 
         // verify if all the modified commodities are added to commodityNewCapacityMap_
         assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);
+        if (!provision.getCommodityNewCapacityMap().isEmpty()) {
+            // Assert commSpec and new capacity
+            assertEquals(1, provision.getCommodityNewCapacityMap().size());
+            assertEquals(new CommoditySpecification(0), provision.getCommodityNewCapacityMap().keySet().iterator().next());
+            assertEquals(100.0 / 0.875, provision.getCommodityNewCapacityMap().values().iterator().next(), 1e-8);
+        }
 
         double[] quoteAfter = EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), 0, false)
             .getQuoteValues();
@@ -133,17 +141,19 @@ public class ProvisionByDemandTest {
                 0,
                 TraderState.ACTIVE,
                 new Basket(new CommoditySpecification(0),
-                new CommoditySpecification(1))
+                new CommoditySpecification(1), new CommoditySpecification(2))
         );
         model.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
         model.getCommoditiesSold().get(1).setCapacity(75).setQuantity(0);
+        model.getCommoditiesSold().get(2).setCapacity(75).setQuantity(0);
         model.setDebugInfoNeverUseInCode(DEBUG_INFO);
         b3.setQuantity(0, 100).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
-            new Basket(new CommoditySpecification(0), new CommoditySpecification(1)));
-        b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
-        b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
+            new Basket(new CommoditySpecification(0), new CommoditySpecification(1), new CommoditySpecification(2)));
+        b4.setQuantity(0, 90).setPeakQuantity(0, 100);
+        b4.setQuantity(1, 2.2).setPeakQuantity(1, 6.5);
+        b4.setQuantity(2, 100).setPeakQuantity(2, 100);
 
         return new Object[][] {{e1, b1, model, false}, {e1, b2, model, false}, {e1, b3, model, true}, {e1, b4, model, true}};
     }
@@ -183,7 +193,8 @@ public class ProvisionByDemandTest {
     public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller
                     , boolean isProvisionUseful) {
         final int oldSize = economy.getTraders().size();
-        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
+        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer,
+            ImmutableSet.of(new CommoditySpecification(0), new CommoditySpecification(2)), modelSeller);
 
         assertEquals(modelSeller, provision.getModelSeller());
         assertSame(provision, provision.take());
@@ -353,11 +364,12 @@ public class ProvisionByDemandTest {
     public void testCapacitiesOfProvSeller() {
         //Test setup
         Economy e1 = new Economy();
+        CommoditySpecification cs = new CommoditySpecification(0);
         ShoppingList sl = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
-                new Basket(new CommoditySpecification(0)));
+                new Basket(cs));
         sl.setQuantity(0, 100).setPeakQuantity(0, 100);
         Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE,
-                new Basket(new CommoditySpecification(0),
+                new Basket(cs,
                         new CommoditySpecification(1),
                         new CommoditySpecification(2))
         );
@@ -367,7 +379,7 @@ public class ProvisionByDemandTest {
         modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
         // call provision by demand
         ProvisionByDemand provision = (ProvisionByDemand)(new
-                ProvisionByDemand(e1, sl, modelSeller)).take();
+                ProvisionByDemand(e1, sl, Collections.singleton(cs), modelSeller)).take();
         Trader provSeller = provision.getProvisionedSeller();
         //Asserts
         assertEquals(true,provSeller.getCommoditiesSold().get(0).getCapacity() >
@@ -396,11 +408,11 @@ public class ProvisionByDemandTest {
                 new Basket(cs));
         seller.getCommoditiesSold().get(0).setCapacity(oldCap).setQuantity(20)
             .setPeakQuantity(highPeak);
-        ProvisionByDemand provision = new ProvisionByDemand(e, sl, seller);
+        ProvisionByDemand provision = new ProvisionByDemand(e, sl, Collections.singleton(cs), seller);
         assertTrue(provision.getCommodityNewCapacityMap().isEmpty());
         provision.take();
         assertTrue(!provision.getCommodityNewCapacityMap().isEmpty());
-        double newCap = provision.getCommodityNewCapacityMap().get(0);
+        double newCap = provision.getCommodityNewCapacityMap().get(new CommoditySpecification(0));
         assertTrue(newCap > oldCap);
     }
 } // end ProvisionByDemandTest class
