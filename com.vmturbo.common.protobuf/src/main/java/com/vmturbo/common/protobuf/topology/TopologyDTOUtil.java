@@ -152,6 +152,10 @@ public final class TopologyDTOUtil {
                 return partialEntity.getAction().getOid();
             case API:
                 return partialEntity.getApi().getOid();
+            case WITH_CONNECTIONS:
+                return partialEntity.getWithConnections().getOid();
+            case WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS:
+                return partialEntity.getWithOnlyEnvironmentTypeAndTargets().getOid();
             default:
                 throw new IllegalArgumentException("Invalid type: " + partialEntity.getTypeCase());
         }
