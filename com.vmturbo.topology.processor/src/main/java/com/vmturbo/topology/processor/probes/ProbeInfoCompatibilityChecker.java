@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Utility class to check {@link ProbeInfo} objects for compatibility.
@@ -169,6 +170,10 @@ public class ProbeInfoCompatibilityChecker {
                 .collect(Collectors.toSet());
 
             final Set<EntityType> modifiedEntityTypes = newInfo.getEntityMetadataList().stream()
+                // Hack to handle IWO scenario where vc probe is 8.2.1 and TP is 8.2.5.
+                // This will be removed in 8.2.6.
+                .filter(newMetadata -> !(SDKProbeType.VCENTER.getProbeType().equals(newInfo.getProbeType())
+                    && newMetadata.getEntityType() == EntityType.VIRTUAL_VOLUME))
                 .map(newMetadata -> {
                     final EntityIdentityMetadata existingMetadata = existingByType.get(newMetadata.getEntityType());
                     if (existingMetadata != null && !existingMetadata.equals(newMetadata)) {
