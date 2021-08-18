@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.db.EntityTypeDefinitions;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -31,6 +32,7 @@ import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * A {@link TopologyPriceIndexVisitor} that saves the price indices to the appropriate tables
@@ -103,7 +105,9 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
             } else {
                 noTableEntityTypes.add(dbEntityTypeOpt.get());
             }
-        } else if (!dbEntityTypeOpt.isPresent()) {
+        } else if (!dbEntityTypeOpt.isPresent()
+                && !EntityTypeDefinitions.EXCLUDED_ENTITY_TYPES.contains(
+                EntityDTO.EntityType.forNumber(entityType))) {
             // keep track of entity types we couldn't map to DB entity types
             notFoundEntityTypes.add(entityType);
         }
@@ -128,10 +132,14 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
 
         if (!notFoundEntityTypes.isEmpty()) {
             logger.error("History DB Entity Types not found for entity types: {}",
-                    notFoundEntityTypes);
+                    notFoundEntityTypes.stream()
+                            .map(EntityDTO.EntityType::forNumber)
+                            .map(EntityDTO.EntityType::name)
+                            .sorted()
+                            .collect(Collectors.toList()));
         }
         if (!noTableEntityTypes.isEmpty()) {
-            logger.error("Entity types lack '_latest' tables: {}",
+            logger.error("Entity types lack '_latest' tables but are marked for persisting price indexes: {}",
                     noTableEntityTypes.stream()
                             .map(EntityType::getName)
                             .collect(Collectors.joining(", ")));

@@ -13,12 +13,18 @@ import static com.vmturbo.history.db.EntityType.UseCase.RollUp;
 import static com.vmturbo.history.db.EntityType.UseCase.Spend;
 import static com.vmturbo.history.db.EntityTypeDefinitions.APPLICATION_SPEND_ENTITY_TYPE;
 import static com.vmturbo.history.db.EntityTypeDefinitions.ENTITY_TYPE_DEFINITIONS;
+import static com.vmturbo.history.db.EntityTypeDefinitions.EXCLUDED_ENTITY_TYPES;
 import static com.vmturbo.history.db.EntityTypeDefinitions.NAME_TO_ENTITY_TYPE_MAP;
 import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -196,5 +202,22 @@ public class EntityTypeTest extends Assert {
         for (final EntityDTO.EntityType sdkEntityType : EntityDTO.EntityType.values()) {
             EntityType.fromSdkEntityType(sdkEntityType);
         }
+    }
+
+    /**
+     * Make sure that every SDK entity type either corresponds to an {@link EntityType} value or is
+     * explicitly excluded. Adding an SDK entity type without doing anything in history component
+     * will cause this test to fail, and therefore force a decision as to whether or not an
+     * {@link EntityType} is required.
+     */
+    @Test
+    public void testThatAllSDKEntityTypesAreIncludedOrExcluded() {
+        List<EntityDTO.EntityType> missing =
+                Arrays.stream(EntityDTO.EntityType.values())
+                        .filter(type -> !EntityType.fromSdkEntityType(type.getNumber()).isPresent())
+                        .filter(type -> !EXCLUDED_ENTITY_TYPES.contains(type))
+                        .sorted(Comparator.comparing(EntityDTO.EntityType::name))
+                        .collect(Collectors.toList());
+        assertThat(missing, empty());
     }
 }
