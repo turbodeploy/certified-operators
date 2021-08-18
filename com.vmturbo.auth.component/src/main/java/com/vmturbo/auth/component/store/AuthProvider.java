@@ -114,9 +114,9 @@ public class AuthProvider extends AuthProviderBase {
     private final WidgetsetDbStore widgetsetDbStore;
 
     /**
-     * Enable multipe AD group support.
+     * Enable multipe external group support.
      */
-    private final boolean enableMultiADGroupSupport;
+    private final boolean enableMultiExternalGroupSupport;
 
     /**
      * For accessing the private key (to sign JWT tokens).
@@ -131,14 +131,14 @@ public class AuthProvider extends AuthProviderBase {
      * @param widgetsetDbStore The store for managing widgetsets.
      * @param userPolicy The system-wide user policy.
      * @param ssoUtil sso utility
-     * @param enableMultiADGroupSupport enable multipe AD group support
+     * @param enableMultiExternalGroupSupport enable multipe external group support
      * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
      * @param keyImportIndicator indicates whether a security key import is in progress
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore, @Nullable final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final Supplier<String> keyValueDir, @Nullable final WidgetsetDbStore widgetsetDbStore,
             @Nonnull UserPolicy userPolicy, @Nonnull final SsoUtil ssoUtil,
-            final boolean enableMultiADGroupSupport, final boolean enableExternalSecrets,
+            final boolean enableMultiExternalGroupSupport, final boolean enableExternalSecrets,
             @Nullable IKeyImportIndicator keyImportIndicator) {
         super(keyValueStore);
         logger_.info("EnableExternalSecrets: " + enableExternalSecrets);
@@ -150,9 +150,9 @@ public class AuthProvider extends AuthProviderBase {
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
         this.widgetsetDbStore = widgetsetDbStore;
         this.userPolicy = userPolicy;
-        this.enableMultiADGroupSupport = enableMultiADGroupSupport;
-        if (enableMultiADGroupSupport) {
-            final String msg = "Enabled supporting multiple AD groups. Scopes from matched group"
+        this.enableMultiExternalGroupSupport = enableMultiExternalGroupSupport;
+        if (enableMultiExternalGroupSupport) {
+            final String msg = "Enabled supporting multiple groups. Scopes from matched group"
                 + " will be combined and least privilege role will be chosen";
             AuditLog.newEntry(SET_AD_MULTI_GROUP_AUTH,
                     msg, true)
@@ -372,14 +372,14 @@ public class AuthProvider extends AuthProviderBase {
             // only perform LDAP authentication where ldap server(s) are avaliable
             if (!ldapServers.isEmpty()) {
                 List<SecurityGroupDTO> userGroups = ssoUtil.authenticateUserInGroup(userName, password, ldapServers,
-                        enableMultiADGroupSupport);
+                        enableMultiExternalGroupSupport);
                 // In mocked test userGroups can be null. A bug?
                 if (userGroups != null && !userGroups.isEmpty()) {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                     // persist user in external group if it's not added before
                     final SecurityGroupDTO securityGroupDTO = userGroups.get(0);
                     final String uuid = addExternalGroupUser(securityGroupDTO.getDisplayName(), userName);
-                    final List<Long> scopeGroups = combineScopes(userGroups);
+                    final List<Long> scopeGroups = ssoUtil.combineScopes(userGroups);
                     final List<String> roles = assignRoles(userName, securityGroupDTO);
                     return generateToken(userName, uuid, roles, scopeGroups, ipAddress, AuthUserDTO.PROVIDER.LDAP);
                 }
@@ -399,28 +399,6 @@ public class AuthProvider extends AuthProviderBase {
                 composeUserInfoKey(PROVIDER.LDAP, userName)).map(
                 jsonData -> GSON.fromJson(jsonData, UserInfo.class))
                 .map(this::convertUserInfoToDTO));
-    }
-
-    /**
-     * Combine scope groups.
-     * If one group is not scoped, the user will be no scoped (empty scope)
-     * Otherwise, we combines all the scopes.
-     * @param userGroups user groups to be combined scopes
-     * @return combined scopes.
-     */
-    @Nonnull
-    @VisibleForTesting
-    List<Long> combineScopes(List<SecurityGroupDTO> userGroups) {
-        if (userGroups.stream()
-                .anyMatch(group -> group.getScopeGroups() == null
-                        || group.getScopeGroups().isEmpty())) {
-            return Collections.emptyList();
-        }
-        return userGroups.stream()
-                .flatMap(group -> group.getScopeGroups().stream())
-                .collect(Collectors.toSet())
-                .stream()
-                .collect(Collectors.toList());
     }
 
     /**
@@ -465,7 +443,7 @@ public class AuthProvider extends AuthProviderBase {
         final @Nonnull String ipAddress) throws AuthorizationException {
 
         reloadSSOConfiguration();
-        return ssoUtil.authorizeSAMLUserInGroups(userName, externalGroupNames).map(externalGroup -> {
+        return ssoUtil.authorizeSAMLUserInGroups(userName, externalGroupNames, enableMultiExternalGroupSupport).map(externalGroup -> {
                 logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
                 // persist user in external group if it's not added before
                 final String uuid = addExternalGroupUser(externalGroup.getDisplayName(), userName);

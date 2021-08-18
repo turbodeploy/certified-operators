@@ -72,7 +72,8 @@ public class AuthProviderRoleTest {
     private KeyValueStore mockKeystore;
     private LicenseCheckService licenseCheckService;
 
-    AuthProvider authProviderUnderTest;
+    private AuthProvider authProviderUnderTest;
+    final private SsoUtil ssoUtil = new SsoUtil();
 
     private static final IKeyImportIndicator keyImportIndicator = () -> false;
 
@@ -85,8 +86,7 @@ public class AuthProviderRoleTest {
         licenseCheckService = mock(LicenseCheckService.class);
         Supplier<String> keyValueDir = () -> "";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(licenseCheckService, false)),
-                new SsoUtil(), false, false, null);
+                new ReportPolicy(licenseCheckService, false)), ssoUtil, false, false, null);
     }
 
     /**
@@ -265,9 +265,9 @@ public class AuthProviderRoleTest {
         SecurityGroupDTO securityGroup4 =
                 new SecurityGroupDTO("ADMIN_GROUP", "", OPERATIONAL_OBSERVER, Lists.newArrayList(4L));
         // #1
-        assertEquals(0, authProviderUnderTest.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup2)).size());
+        assertEquals(0, ssoUtil.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup2)).size());
         // #2
-        assertThat(authProviderUnderTest.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup3)), hasItems(1L, 2L, 3L, 4L));
+        assertThat(ssoUtil.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup3)), hasItems(1L, 2L, 3L, 4L));
     }
 
     // Helper to build UserInfo.

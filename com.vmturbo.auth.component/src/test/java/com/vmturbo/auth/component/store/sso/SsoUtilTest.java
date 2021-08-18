@@ -1,7 +1,9 @@
 package com.vmturbo.auth.component.store.sso;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
@@ -11,6 +13,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
+import org.assertj.core.util.Lists;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -66,7 +69,8 @@ public class SsoUtilTest {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO("", "", "");
         ssoUtil.putSecurityGroup(groupName, securityGroup);
         assertEquals(securityGroup,
-                ssoUtil.authorizeSAMLUserInGroups("user", ImmutableList.of(groupName)).get());
+                ssoUtil.authorizeSAMLUserInGroups("user", ImmutableList.of(groupName),
+                        false).get());
     }
 
     /**
@@ -86,7 +90,7 @@ public class SsoUtilTest {
         assertEquals(OPERATIONAL_OBSERVER, ssoUtil.authorizeSAMLUserInGroups("user",
                 PREDEFINED_SECURITY_GROUPS_SET.stream()
                         .map(group -> group.getDisplayName())
-                        .collect(Collectors.toList())).get().getRoleName());
+                        .collect(Collectors.toList()), false).get().getRoleName());
     }
 
     /**
@@ -103,7 +107,34 @@ public class SsoUtilTest {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO("", "", "");
         ssoUtil.putSecurityGroup(groupName, securityGroup);
         assertEquals(Optional.empty(),
-                ssoUtil.authorizeSAMLUserInGroups("user", ImmutableList.of("non-existedGroups")));
+                ssoUtil.authorizeSAMLUserInGroups("user", ImmutableList.of("non-existedGroups"),
+                        false));
+    }
+
+    /**
+     * Verify when multiple external group flag is enabled, all the scopes are combined with SAMl SSO.
+     */
+    @Test
+    public void authenticateUserInMultipleSAMLGroups() {
+        SsoUtil ssoUtil = new SsoUtil();
+        SecurityGroupDTO securityGroup0 = new SecurityGroupDTO("SHARED_GROUP0", "", SHARED_OBSERVER,
+                Lists.newArrayList(1L, 3L));
+        SecurityGroupDTO securityGroup1 = new SecurityGroupDTO("OBSERVER_GROUP1", "", OBSERVER,
+                Lists.newArrayList(2L));
+        SecurityGroupDTO securityGroup3 = new SecurityGroupDTO("OBSERVER_GROUP3", "", OBSERVER,
+                Lists.newArrayList(4L));
+        SecurityGroupDTO securityGroup4 = new SecurityGroupDTO("OPERATION_OBSERVER_GROUP4", "",
+                OPERATIONAL_OBSERVER, Lists.newArrayList(4L));
+
+        ssoUtil.putSecurityGroup(securityGroup0.getDisplayName(), securityGroup0);
+        ssoUtil.putSecurityGroup(securityGroup1.getDisplayName(), securityGroup1);
+        ssoUtil.putSecurityGroup(securityGroup3.getDisplayName(), securityGroup3);
+        ssoUtil.putSecurityGroup(securityGroup4.getDisplayName(), securityGroup4);
+        assertEquals(Lists.newArrayList(1L, 2L, 3L, 4L), ssoUtil.authorizeSAMLUserInGroups("user",
+                ImmutableList.of(securityGroup1.getDisplayName(), securityGroup0.getDisplayName(),
+                        securityGroup3.getDisplayName(), securityGroup4.getDisplayName()), true)
+                .get()
+                .getScopeGroups());
     }
 
     /**
