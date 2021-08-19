@@ -49,6 +49,7 @@ import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
@@ -744,10 +745,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     final Set<Long> fetchedScope =
                             context.getInputScope().isResourceGroupOrGroupOfResourceGroups() ?
                                     Collections.singleton(context.getInputScope().oid()) : scopeIds;
-                    final float numWorkloads = supplyChainFetcherFactory.newNodeFetcher()
+                    SupplyChainNodeFetcherBuilder spNodeFetcherBldr = supplyChainFetcherFactory.newNodeFetcher()
                             .addSeedOids(fetchedScope)
                             .entityTypes(entityTypes)
-                            .environmentType(EnvironmentType.CLOUD)
+                            .environmentType(EnvironmentType.CLOUD);
+                    context.getPlanInstance().ifPresent(plan -> spNodeFetcherBldr.topologyContextId(plan.getPlanId()));
+                    final float numWorkloads = spNodeFetcherBldr
                             .fetchEntityIds()
                             .size();
                     final StatApiDTO statApiDTO = new StatApiDTO();
