@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.TextFormat;
 
 import org.junit.Test;
 
@@ -33,6 +35,10 @@ import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
+import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
+import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
+import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingCapacityMovingStatistics;
+import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord.ThrottlingMovingStatisticsRecord;
 import com.vmturbo.topology.processor.history.movingstats.MovingStatisticsSamplingConfiguration.ThrottlingSamplerConfiguration;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -90,6 +96,57 @@ public class VcpuThrottlingSamplerTest {
             .setType(CommodityDTO.CommodityType.VCPU_THROTTLING_VALUE).build(), CommodityField.USED);
     private static final List<EntityCommodityFieldReference> PARTNER_FIELDS =
         Collections.singletonList(THROTTLING_FIELD);
+
+    private static final EntityCommodityFieldReference TEST_FIELD =
+        new EntityCommodityFieldReference(74033736057638L, CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VCPU_VALUE).build(), CommodityField.USED);
+
+    private static final String PROTO_DEFINITION = ""
+        + "  entity_oid: 74033736057638\n"
+        + "  throttling_record {\n"
+        + "    capacity_records {\n"
+        + "      vcpu_capacity: 275\n"
+        + "      last_sample_timestamp: 1627832864308\n"
+        + "      sample_count: 298\n"
+        + "      throttling_max_sample: 0\n"
+        + "      throttling_fast_moving_average: 0\n"
+        + "      throttling_fast_moving_variance: 0\n"
+        + "      throttling_slow_moving_average: 0\n"
+        + "      throttling_slow_moving_variance: 0\n"
+        + "    }\n"
+        + "    capacity_records {\n"
+        + "      vcpu_capacity: 255\n"
+        + "      last_sample_timestamp: 1628536302628\n"
+        + "      sample_count: 25\n"
+        + "      throttling_max_sample: 52.785515320334262\n"
+        + "      throttling_fast_moving_average: 1.7545257185759844\n"
+        + "      throttling_fast_moving_variance: 51.308091189861351\n"
+        + "      throttling_slow_moving_average: 0.68414809803867938\n"
+        + "      throttling_slow_moving_variance: 4.800934588446534\n"
+        + "    }\n"
+        + "    capacity_records {\n"
+        + "      vcpu_capacity: 555\n"
+        + "      last_sample_timestamp: 1628551897638\n"
+        + "      sample_count: 58\n"
+        + "      throttling_max_sample: 0\n"
+        + "      throttling_fast_moving_average: 0\n"
+        + "      throttling_fast_moving_variance: 0\n"
+        + "      throttling_slow_moving_average: 0\n"
+        + "      throttling_slow_moving_variance: 0\n"
+        + "    }\n"
+        + "    capacity_records {\n"
+        + "      vcpu_capacity: 335\n"
+        + "      last_sample_timestamp: 1628427098617\n"
+        + "      sample_count: 24\n"
+        + "      throttling_max_sample: 54.545454545454547\n"
+        + "      throttling_fast_moving_average: 2.1103754604214484\n"
+        + "      throttling_fast_moving_variance: 53.54823703214791\n"
+        + "      throttling_slow_moving_average: 1.2854708143527569\n"
+        + "      throttling_slow_moving_variance: 4.5666648737851165\n"
+        + "    }\n"
+        + "    active_vcpu_capacity: 555\n"
+        + "  }\n"
+        + "";
 
     /**
      * Test that when there's a spike from low values to high values, the fast halflife
@@ -301,6 +358,87 @@ public class VcpuThrottlingSamplerTest {
         assertEquals(1, sampler.getCapacityStatCount());
         assertFalse(sampler.cleanExpiredData(updateTime, SAMPLER_CONFIGURATION));
         assertEquals(1, sampler.getCapacityStatCount());
+    }
+
+    /**
+     * Test serialization writes data correctly.
+     */
+    @Test
+    public void testSerialize() {
+        final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(VCPU_FIELD);
+
+        updateContainerSpecTimestamp(Duration.ofHours(10).toMillis());
+        setThrottlingAtCapacity(6.0, 200.0, sampler);
+        setThrottlingAtCapacity(5.0, 200.0, sampler);
+
+        updateContainerSpecTimestamp(Duration.ofHours(10).toMillis());
+        setThrottlingAtCapacity(6.0, 300.0, sampler);
+        setThrottlingAtCapacity(5.0, 300.0, sampler);
+
+        final MovingStatisticsRecord.Builder record = sampler.serialize();
+        final ThrottlingMovingStatisticsRecord throttlingRecord = record.getThrottlingRecord();
+        assertEquals(2, throttlingRecord.getCapacityRecordsCount());
+        assertEquals(300.0, throttlingRecord.getActiveVcpuCapacity(), 0);
+        assertEquals(6.0, throttlingRecord.getCapacityRecords(0).getThrottlingMaxSample(), 0);
+        assertEquals(2, throttlingRecord.getCapacityRecords(0).getSampleCount(), 0);
+        assertEquals(6.0, throttlingRecord.getCapacityRecords(0).getThrottlingFastMovingAverage(), 1.0);
+        assertNotEquals(0, throttlingRecord.getCapacityRecords(0).getThrottlingFastMovingVariance());
+        assertEquals(6.0, throttlingRecord.getCapacityRecords(0).getThrottlingSlowMovingAverage(), 1.0);
+        assertNotEquals(0, throttlingRecord.getCapacityRecords(0).getThrottlingSlowMovingVariance());
+        assertNotEquals(0, throttlingRecord.getCapacityRecords(0).getLastSampleTimestamp());
+    }
+
+    /**
+     * Test that deserialization restores data correctly.
+     *
+     * @throws InvalidHistoryDataException on exception.
+     */
+    @Test
+    public void testDeserialize() throws InvalidHistoryDataException {
+        final MovingStatisticsRecord.Builder record = MovingStatisticsRecord.newBuilder()
+            .setEntityOid(VCPU_FIELD.getEntityOid())
+            .setThrottlingRecord(ThrottlingMovingStatisticsRecord.newBuilder()
+                .addCapacityRecords(ThrottlingCapacityMovingStatistics.newBuilder()
+                    .setVcpuCapacity(200.0)
+                    .setSampleCount(2)
+                    .setLastSampleTimestamp(1234L)
+                    .setThrottlingMaxSample(100.0)
+                    .setThrottlingFastMovingAverage(10.0)
+                    .setThrottlingFastMovingVariance(2.0)
+                    .setThrottlingSlowMovingAverage(12.0)
+                    .setThrottlingSlowMovingVariance(1.0))
+                .addCapacityRecords(ThrottlingCapacityMovingStatistics.newBuilder()
+                    .setVcpuCapacity(300.0)
+                    .setSampleCount(2)
+                    .setLastSampleTimestamp(1234L)
+                    .setThrottlingMaxSample(100.0)
+                    .setThrottlingFastMovingAverage(10.0)
+                    .setThrottlingFastMovingVariance(2.0)
+                    .setThrottlingSlowMovingAverage(12.0)
+                    .setThrottlingSlowMovingVariance(1.0))
+                .setActiveVcpuCapacity(200.0)
+                .build());
+
+        final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(VCPU_FIELD);
+        sampler.deserialize(record.build());
+        assertEquals(record.build(), sampler.serialize().build());
+    }
+
+    /**
+     * Test restoring from a String proto definition and generating the correct min threshold from a complex
+     * history.
+     *
+     * @throws Exception on exception.
+     */
+    @Test
+    public void testRestoreFromProtoDefinition() throws Exception {
+        final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(TEST_FIELD);
+        final MovingStatisticsRecord.Builder record = MovingStatisticsRecord.newBuilder();
+        TextFormat.getParser().merge(PROTO_DEFINITION, record);
+
+        sampler.deserialize(record.build());
+        final Double minThreshold = sampler.getMinThreshold(TEST_FIELD, 2.0, 3.5);
+        assertEquals(335.0, minThreshold, 0);
     }
 
     private void setThrottlingAtCapacity(final double throttlingValue,

@@ -377,6 +377,7 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
             throttlingFastMovingVariance = stats.getThrottlingFastMovingVariance();
             throttlingSlowMovingAverage = stats.getThrottlingSlowMovingAverage();
             throttlingSlowMovingVariance = stats.getThrottlingSlowMovingVariance();
+            throttlingMaxSample = stats.getThrottlingMaxSample();
         }
 
         public double getCapacity() {
