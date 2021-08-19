@@ -34,7 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstancePurchaseConstraints;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextProvider.ScopedDemandCluster;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecPurchaseFilter.RISpecPurchaseFilterFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecPurchaseFilter.ReservedInstanceSpecPurchaseFilterFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher.ReservedInstanceSpecData;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher.ReservedInstanceSpecKey;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -236,16 +236,16 @@ public class ReservedInstanceCatalogMatcher {
      */
     public static class ReservedInstanceCatalogMatcherFactory {
 
-        private final RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory;
+        private final ReservedInstanceSpecPurchaseFilterFactory riSpecPurchaseFilterFactory;
 
         private final ReservedInstanceCatalogFactory reservedInstanceCatalogFactory;
 
         /**
          * Constructs a new factory instance.
-         * @param riSpecPurchaseFilterFactory The {@link RISpecPurchaseFilterFactory}.
+         * @param riSpecPurchaseFilterFactory The {@link ReservedInstanceSpecPurchaseFilterFactory}.
          * @param reservedInstanceCatalogFactory The {@link ReservedInstanceCatalogFactory}.
          */
-        public ReservedInstanceCatalogMatcherFactory(@Nonnull RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory,
+        public ReservedInstanceCatalogMatcherFactory(@Nonnull ReservedInstanceSpecPurchaseFilterFactory riSpecPurchaseFilterFactory,
                                                      @Nonnull ReservedInstanceCatalogFactory reservedInstanceCatalogFactory) {
             this.riSpecPurchaseFilterFactory = Objects.requireNonNull(riSpecPurchaseFilterFactory);
             this.reservedInstanceCatalogFactory = Objects.requireNonNull(reservedInstanceCatalogFactory);

@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
-import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher.ReservedInstanceSpecKey;
 
@@ -21,7 +21,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inve
  * A factory class for creating {@link ReservedInstanceSpecMatcher} instances. This factory takes on
  * responsibility of indexing RI specs by {@link ReservedInstanceSpecKey}.
  */
-public class ReservedInstanceSpecMatcherFactory {
+public class RISpecMatcherFactory {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -33,7 +33,7 @@ public class ReservedInstanceSpecMatcherFactory {
      * @param riSpecStore The RI spec store, used to populate created {@link ReservedInstanceSpecMatcher}
      *                    instances.
      */
-    public ReservedInstanceSpecMatcherFactory(@Nonnull ReservedInstanceSpecStore riSpecStore) {
+    public RISpecMatcherFactory(@Nonnull ReservedInstanceSpecStore riSpecStore) {
 
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
     }

@@ -3,17 +3,14 @@ package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog.ReservedInstanceCatalogFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -26,13 +23,12 @@ import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActio
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyHistoricalDemandProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecPurchaseFilter.RISpecPurchaseFilterFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecPurchaseFilter.ReservedInstanceSpecPurchaseFilterFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher.ReservedInstanceCatalogMatcherFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceInventoryMatcherFactory;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcherFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecMatcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Import({
@@ -45,6 +41,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ReservedInstanceConfig.class,
         ReservedInstanceActionsSenderConfig.class,
         ReservedInstanceSpecConfig.class})
+@Configuration
 public class ReservedInstanceAnalysisConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -124,14 +121,14 @@ public class ReservedInstanceAnalysisConfig {
     @Bean
     public RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory() {
         return new RegionalRIMatcherCacheFactory(
-                reservedInstanceSpecMatcherFactory(),
+                riSpecMatcherFactory(),
                 reservedInstanceInventoryMatcherFactory(),
                 computeTierFamilyResolverFactory);
     }
 
     @Bean
-    public ReservedInstanceSpecMatcherFactory reservedInstanceSpecMatcherFactory() {
-        return new ReservedInstanceSpecMatcherFactory(
+    public RISpecMatcherFactory riSpecMatcherFactory() {
+        return new RISpecMatcherFactory(
                 reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
@@ -143,14 +140,14 @@ public class ReservedInstanceAnalysisConfig {
     }
 
     @Bean
-    public RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory() {
-        return new RISpecPurchaseFilterFactory();
+    public ReservedInstanceSpecPurchaseFilterFactory reservedInstanceSpecPurchaseFilterFactory() {
+        return new ReservedInstanceSpecPurchaseFilterFactory();
     }
 
     @Bean
     public ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory() {
         return new ReservedInstanceCatalogMatcherFactory(
-                riSpecPurchaseFilterFactory(),
+                reservedInstanceSpecPurchaseFilterFactory(),
                 reservedInstanceCatalogFactory);
     }
 

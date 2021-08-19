@@ -108,7 +108,7 @@ public class RISpecPurchaseFilter {
     /**
      * A factory class for constructing {@link RISpecPurchaseFilter} instances.
      */
-    public static class RISpecPurchaseFilterFactory {
+    public static class ReservedInstanceSpecPurchaseFilterFactory {
 
         /**
          * Constructs a new {@link RISpecPurchaseFilter}.
