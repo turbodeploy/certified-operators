@@ -5,9 +5,12 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,6 +98,7 @@ public class Timers {
      * Reports the duration of the event being timed to the parent timer when the event completes
      * (ie when {@link this#close()} is called).
      */
+    @ThreadSafe
     public static class TimingMapTimer implements AutoCloseable {
         private final TimingMap parent;
         private final String name;
@@ -124,8 +128,9 @@ public class Timers {
      * A {@link TimingMap} is useful for timing repeated events that consist of several
      * components.
      */
+    @ThreadSafe
     public static class TimingMap {
-        private final Map<String, SubTiming> timings = new HashMap<>();
+        private final Map<String, SubTiming> timings = new ConcurrentHashMap<>();
         private final NanoTimer nanoTimer;
 
         /**
@@ -156,6 +161,13 @@ public class Timers {
         }
 
         /**
+         * Clear all captured timings.
+         */
+        public void clear() {
+            timings.clear();
+        }
+
+        /**
          * Add a timing to the {@link TimingMap}. For use by {@link TimingMapTimer}s in reporting
          * the duration of sub-events.
          *
@@ -169,14 +181,18 @@ public class Timers {
 
         @Override
         public String toString() {
-            final long sum = timings.values().stream()
+            // Generate a temporary copy of the timings map to maintain thread-safety.
+            final Map<String, SubTiming> copy = new HashMap<>(timings.size());
+            timings.forEach(copy::put);
+
+            final long sum = copy.values().stream()
                 .mapToLong(SubTiming::totalNanos)
                 .sum();
-            final long totalIterations = timings.values().stream()
+            final long totalIterations = copy.values().stream()
                 .mapToLong(SubTiming::totalIterations)
                 .sum();
-            return timings.entrySet().stream()
-                .sorted(Comparator.comparingLong(entry -> -entry.getValue().totalNanos))
+            return copy.entrySet().stream()
+                .sorted(Comparator.comparingLong(entry -> -entry.getValue().totalNanos.get()))
                 .map(entry -> entry.getKey() + ": " + entry.getValue())
                 .collect(Collectors.joining("\n"))
                 + String.format("\nTOTAL: Total %s, Iterations: %s, Avg: %s",
@@ -189,9 +205,10 @@ public class Timers {
     /**
      * A sub-timing for an event.
      */
+    @ThreadSafe
     private static class SubTiming {
-        private long totalNanos;
-        private long totalIterations;
+        private final AtomicLong totalNanos = new AtomicLong();
+        private final AtomicLong totalIterations = new AtomicLong();
 
         private SubTiming() {
         }
@@ -202,16 +219,16 @@ public class Timers {
          * @param durationNanos The duration in nanos to add.
          */
         public void addDuration(long durationNanos) {
-            totalNanos += durationNanos;
-            totalIterations++;
+            totalNanos.addAndGet(durationNanos);
+            totalIterations.incrementAndGet();
         }
 
         @Override
         public String toString() {
             return String.format("Total: %s, Iterations: %s, Avg: %s",
-                Duration.ofNanos(totalNanos),
+                Duration.ofNanos(totalNanos.get()),
                 totalIterations,
-                totalIterations == 0 ? 0 : Duration.ofNanos(totalNanos).dividedBy(totalIterations));
+                totalIterations.get() == 0 ? 0 : Duration.ofNanos(totalNanos.get()).dividedBy(totalIterations.get()));
         }
 
         /**
@@ -220,7 +237,7 @@ public class Timers {
          * @return total nanos.
          */
         public long totalNanos() {
-            return totalNanos;
+            return totalNanos.get();
         }
 
         /**
@@ -229,7 +246,7 @@ public class Timers {
          * @return total iterations.
          */
         public long totalIterations() {
-            return totalIterations;
+            return totalIterations.get();
         }
     }
 }
