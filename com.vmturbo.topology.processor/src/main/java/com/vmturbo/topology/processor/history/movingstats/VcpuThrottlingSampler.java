@@ -120,7 +120,11 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
 
     @Override
     public boolean cleanExpiredData(long currentTimeMs,
-                                              @Nonnull MovingStatisticsSamplingConfiguration<?> configuration) {
+                                    @Nonnull MovingStatisticsSamplingConfiguration<?> configuration) {
+        if (allCapacityStatistics == null) {
+            return false;
+        }
+
         final long retentionPeriodMs = configuration.getThrottlingRetentionPeriod().toMillis();
 
         // Never drop the active stats
