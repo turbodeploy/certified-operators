@@ -1,9 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -12,8 +12,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.entityaspect.DatabaseServerEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.ClusterRole;
+import com.vmturbo.api.enums.DatabaseServerFeatures;
+import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Topology Extension data related to Database type-specific data.
@@ -26,9 +29,6 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
     private static final String PRICING_MODEL = "pricing_model";
     private static final String STORAGE_TIER = "storage_tier";
-    @VisibleForTesting
-    static final String CLUSTER_ROLE = "cluster_role";
-
 
     @Nullable
     @Override
@@ -76,7 +76,8 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
             aspect.setStorageTier(storageTier);
         }
 
-        final String clusterRoleStr = entity.getEntityPropertyMapOrDefault(CLUSTER_ROLE, null);
+        final String clusterRoleStr = entity.getEntityPropertyMapOrDefault(
+                StringConstants.CLUSTER_ROLE, null);
         if (StringUtils.isNoneBlank(clusterRoleStr)) {
             try {
                 final ClusterRole clusterRole = ClusterRole.valueOf(clusterRoleStr);
@@ -86,7 +87,27 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
             }
         }
 
+        final String storageEncryption = entity.getEntityPropertyMapOrDefault(
+                StringConstants.STORAGE_ENCRYPTION, null);
+        final String storageAutoscaling = entity.getEntityPropertyMapOrDefault(
+                StringConstants.STORAGE_AUTOSCALING, null);
+        final String performanceInsights = entity.getEntityPropertyMapOrDefault(
+                StringConstants.AWS_PERFORMANCE_INSIGHTS, null);
+        getFeatureState(storageEncryption).ifPresent(v -> aspect.addFeature(DatabaseServerFeatures.StorageEncryption, v));
+        getFeatureState(storageAutoscaling).ifPresent(v -> aspect.addFeature(DatabaseServerFeatures.StorageAutoscaling, v));
+        getFeatureState(performanceInsights).ifPresent(v -> aspect.addFeature(DatabaseServerFeatures.PerformanceInsights, v));
         return aspect;
+    }
+
+    private Optional<FeatureState> getFeatureState(String value) {
+        if (StringUtils.isNoneBlank(value)) {
+            try {
+                return Optional.of(FeatureState.valueOf(value));
+            } catch (IllegalArgumentException ex) {
+                logger.error("Cannot find FeatureState for {}", value);
+            }
+        }
+        return Optional.empty();
     }
 
     @Nonnull

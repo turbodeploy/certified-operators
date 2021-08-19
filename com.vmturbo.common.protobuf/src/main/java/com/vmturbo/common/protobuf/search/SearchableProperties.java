@@ -177,5 +177,25 @@ public class SearchableProperties {
      */
     public static final String DB_VERSION = "dbVersion";
 
+    /**
+     * Database Server Storage Encryption property.
+     */
+    public static final String DB_STORAGE_ENCRYPTION = "dbStorageEncryption";
+
+    /**
+     * Database Server Storage Autoscaling property.
+     */
+    public static final String DB_STORAGE_AUTOSCALING = "dbStorageAutoscaling";
+
+    /**
+     * Database Server Performance Insights property.
+     */
+    public static final String DB_PERFORMANCE_INSIGHTS = "dbPerformanceInsights";
+
+    /**
+     * Database Server Cluster Role property.
+     */
+    public static final String DB_CLUSTER_ROLE = "dbClusterRole";
+
     private SearchableProperties() {}
 }

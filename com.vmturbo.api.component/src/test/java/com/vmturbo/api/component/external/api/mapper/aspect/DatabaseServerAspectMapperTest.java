@@ -6,9 +6,12 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.entityaspect.DatabaseServerEntityAspectApiDTO;
 import com.vmturbo.api.enums.ClusterRole;
+import com.vmturbo.api.enums.DatabaseServerFeatures;
+import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -33,6 +36,8 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
     private static final String STORAGE_AMOUNT = "2";
     private static final String DB_SERVER_NAME = "dbServer1";
     private static final String CLUSTER_WRITER = "Writer";
+    private static final String ENABLED = "Enabled";
+    private static final String DISABLED = "Disabled";
 
     /**
      * Tests the mapping of a DatabaseServer entity to it's corresponding aspect.
@@ -57,7 +62,10 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
                 .putEntityPropertyMap("pricing_model", PRICING_MODEL)
                 .putEntityPropertyMap("storage_amount", STORAGE_AMOUNT)
                 .putEntityPropertyMap("DB_SERVER_NAME", DB_SERVER_NAME)
-                .putEntityPropertyMap(DatabaseServerAspectMapper.CLUSTER_ROLE, CLUSTER_WRITER);
+                .putEntityPropertyMap(StringConstants.CLUSTER_ROLE, CLUSTER_WRITER)
+                .putEntityPropertyMap(StringConstants.STORAGE_ENCRYPTION, ENABLED)
+                .putEntityPropertyMap(StringConstants.STORAGE_AUTOSCALING, DISABLED)
+                .putEntityPropertyMap(StringConstants.AWS_PERFORMANCE_INSIGHTS, "");
 
         final DatabaseServerAspectMapper mapper = new DatabaseServerAspectMapper();
         // act
@@ -74,5 +82,11 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(MAX_CONCURRENT_WORKER, databaseServerAspect.getMaxConcurrentWorkers());
         assertEquals(PRICING_MODEL, databaseServerAspect.getPricingModel());
         assertEquals(ClusterRole.Writer, databaseServerAspect.getClusterRole());
+        assertEquals(FeatureState.Enabled, databaseServerAspect.getFeatureStateMap().get(
+                DatabaseServerFeatures.StorageEncryption));
+        assertEquals(FeatureState.Disabled, databaseServerAspect.getFeatureStateMap().get(
+                DatabaseServerFeatures.StorageAutoscaling));
+        assertEquals(null, databaseServerAspect.getFeatureStateMap().get(
+                DatabaseServerFeatures.PerformanceInsights));
     }
 }

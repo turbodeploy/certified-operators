@@ -2,7 +2,6 @@ package com.vmturbo.topology.graph.search.filter;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -358,6 +357,27 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
             case SearchableProperties.DB_VERSION: {
                 return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getDatabaseVersion()),
                         DatabaseServerProps.class);
+            }
+            case SearchableProperties.DB_STORAGE_ENCRYPTION: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getStorageEncryption()),
+                        DatabaseServerProps.class);
+            }
+            case SearchableProperties.DB_STORAGE_AUTOSCALING: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getStorageAutoscaling()),
+                        DatabaseServerProps.class);
+            }
+            case SearchableProperties.DB_PERFORMANCE_INSIGHTS: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getPerformanceInsights()),
+                        DatabaseServerProps.class);
+            }
+            case SearchableProperties.DB_CLUSTER_ROLE: {
+                return PropertyFilter.typeSpecificFilter(d -> {
+                    if (StringUtils.isBlank(d.getClusterRole())) {
+                        return false;
+                    } else {
+                        return stringPredicate.test(d.getClusterRole());
+                    }
+                }, DatabaseServerProps.class);
             }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName

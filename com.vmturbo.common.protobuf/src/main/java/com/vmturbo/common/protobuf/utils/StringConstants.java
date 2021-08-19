@@ -530,4 +530,26 @@ public class StringConstants {
      * Wehbhook key subject in the secure storage
      */
     public static final String WEBHOOK_PASSWORD_SUBJECT = "webhook-password";
+
+    /**
+     * Database Server Cluster Role entity property key.
+     */
+    public static final String CLUSTER_ROLE = "cluster_role";
+
+    /**
+     * Database Server Storage Encryption state entity property key.
+     */
+    public static final String STORAGE_ENCRYPTION = "storage_encryption";
+
+    /**
+     * Database Server Storage Autoscaling state entity property key.
+     */
+    public static final String STORAGE_AUTOSCALING = "storage_autoscaling";
+
+    /**
+     * Database Server Performance Insights state entity property key.
+     */
+    public static final String AWS_PERFORMANCE_INSIGHTS = "aws_performance_insights";
+
+
 }
