@@ -237,6 +237,10 @@ spec:
     resources:
       limits:
         memory: 32Gi
+  mediation-gcpbilling:
+    resources:
+      limits:
+        memory: 32Gi
   mediation-hds:
     resources:
       limits:

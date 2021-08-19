@@ -265,6 +265,10 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-gcpbilling:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-hds:
     resources:
       limits:
