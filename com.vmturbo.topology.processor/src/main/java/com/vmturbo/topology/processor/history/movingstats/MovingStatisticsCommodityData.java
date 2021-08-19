@@ -149,23 +149,24 @@ public class MovingStatisticsCommodityData implements
                                             double analysisStandardDeviationsAbove,
                                             double desiredStateTargetValue) {
         final Double analysisValue = sampler.meanPlusSigma(field, analysisStandardDeviationsAbove);
+        final Double thresholdsValue = sampler.getMinThreshold(field,
+            analysisStandardDeviationsAbove, desiredStateTargetValue);
+
         if (analysisValue != null) {
             // Set the value
             commodityFieldsAccessor.updateHistoryValue(field,
                 hv -> hv.setMovingMeanPlusStandardDeviations(analysisValue),
                 MovingStatisticsEditor.class.getSimpleName());
-
-            final Double thresholdsValue = sampler.getMinThreshold(field,
-                analysisStandardDeviationsAbove, desiredStateTargetValue);
-            if (thresholdsValue != null) {
-                // Set the thresholds
-                commodityFieldsAccessor.updateThresholds(field, thresholdsUpdater(thresholdsValue),
-                    MovingStatisticsEditor.class.getSimpleName());
-            } else {
-                logger.trace("Skipping min threshold for {}", () -> field);
-            }
         } else {
             logger.trace("Skipping movingMeanPlusStandardDeviations for {}", () -> field);
+        }
+
+        if (thresholdsValue != null) {
+            // Set the thresholds
+            commodityFieldsAccessor.updateThresholds(field, thresholdsUpdater(thresholdsValue),
+                MovingStatisticsEditor.class.getSimpleName());
+        } else {
+            logger.trace("Skipping min threshold for {}", () -> field);
         }
     }
 
