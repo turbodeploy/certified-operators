@@ -10,6 +10,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -311,6 +312,29 @@ public class ThickSearchableProps implements SearchableProps {
                 return entityOrBldr.getTypeSpecificInfo().getDatabase().getVersion();
             }
             return UNKNOWN;
+        }
+
+        @Override
+        public String getStorageEncryption() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.STORAGE_ENCRYPTION,
+                    null);
+        }
+
+        @Override
+        public String getStorageAutoscaling() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.STORAGE_AUTOSCALING,
+                    null);
+        }
+
+        @Override
+        public String getPerformanceInsights() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(
+                    StringConstants.AWS_PERFORMANCE_INSIGHTS, null);
+        }
+
+        @Override
+        public String getClusterRole() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE, null);
         }
     }
 

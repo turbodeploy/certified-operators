@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Physica
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -129,7 +130,7 @@ public class ThinSearchableProps implements SearchableProps {
             case BUSINESS_ACCOUNT:
                 return new ThinBusinessAccountProps(tagIndex, commodities, info);
             case DATABASE_SERVER:
-                return new ThinDatabaseServerProps(tagIndex, commodities, info);
+                return new ThinDatabaseServerProps(tagIndex, commodities, entity);
             default:
                 return new ThinSearchableProps(tagIndex, commodities);
         }
@@ -355,12 +356,17 @@ public class ThinSearchableProps implements SearchableProps {
         private final DatabaseEngine databaseEngine;
         private final String databaseEdition;
         private final String databaseVersion;
+        private final String storageEncryption;
+        private final String storageAutoscaling;
+        private final String performanceInsights;
+        private final String clusterRole;
 
 
         private ThinDatabaseServerProps(@Nonnull final TagIndex tagIndex,
                                          @Nonnull final CommodityValueFetcher commodities,
-                                         @Nonnull final TypeSpecificInfo typeSpecificInfo) {
+                                         @Nonnull final TopologyEntityDTO entityDTO) {
             super(tagIndex, commodities);
+            final TypeSpecificInfo typeSpecificInfo = entityDTO.getTypeSpecificInfo();
             final boolean hasDatabaseEngine = typeSpecificInfo.getDatabase().hasEngine();
             final boolean hasDatabaseEdition = typeSpecificInfo.getDatabase().hasEdition()
                     && typeSpecificInfo.getDatabase().getEdition() != DatabaseEdition.NONE;
@@ -377,6 +383,14 @@ public class ThinSearchableProps implements SearchableProps {
             }
             databaseVersion = hasDatabaseVersion ? typeSpecificInfo.getDatabase().getVersion()
                     : UNKNOWN;
+            storageEncryption = entityDTO.getEntityPropertyMapOrDefault(
+                    StringConstants.STORAGE_ENCRYPTION, null);
+            storageAutoscaling = entityDTO.getEntityPropertyMapOrDefault(
+                    StringConstants.STORAGE_AUTOSCALING, null);
+            performanceInsights = entityDTO.getEntityPropertyMapOrDefault(
+                    StringConstants.AWS_PERFORMANCE_INSIGHTS, null);
+            clusterRole = entityDTO.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE,
+                    null);
         }
 
         @Nonnull
@@ -395,6 +409,26 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public String getDatabaseVersion() {
             return databaseVersion;
+        }
+
+        @Override
+        public String getStorageEncryption() {
+            return storageEncryption;
+        }
+
+        @Override
+        public String getStorageAutoscaling() {
+            return storageAutoscaling;
+        }
+
+        @Override
+        public String getPerformanceInsights() {
+            return performanceInsights;
+        }
+
+        @Override
+        public String getClusterRole() {
+            return clusterRole;
         }
     }
 }

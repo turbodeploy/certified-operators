@@ -226,7 +226,11 @@
             {"inputType": "*", "elements": "dbEngine", "filterCategory": "property", "filterType": "databaseServerByEngine"},
             {"inputType": "*", "elements": "dbEdition", "filterCategory": "property", "filterType": "databaseServerByEdition"},
             {"inputType": "*", "elements": "dbVersion", "filterCategory": "property", "filterType": "databaseServerByVersion"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "databaseServerByState", "loadOptions": true}
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "databaseServerByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "dbStorageAutoscaling", "filterCategory": "property", "filterType": "databaseServerByStorageAutoscaling", "loadOptions": true},
+            {"inputType": "s|*", "elements": "dbPerformanceInsights", "filterCategory": "property", "filterType": "databaseServerByPerformanceInsights", "loadOptions": true},
+            {"inputType": "s|*", "elements": "dbStorageEncryption", "filterCategory": "property", "filterType": "databaseServerByStorageEncryption", "loadOptions": true},
+            {"inputType": "s|*", "elements": "dbClusterRole", "filterCategory": "property", "filterType": "databaseServerByClusterRole", "loadOptions": true}
         ]
     },
 

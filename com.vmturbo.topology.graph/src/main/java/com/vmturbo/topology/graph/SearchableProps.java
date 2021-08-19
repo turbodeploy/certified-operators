@@ -261,6 +261,34 @@ public interface SearchableProps {
          */
         @Nonnull
         String getDatabaseVersion();
+
+        /**
+         * Get Storage Encryption state.
+         *
+         * @return Storage Encryption state
+         */
+        String getStorageEncryption();
+
+        /**
+         * Get StorageAutoscaling state.
+         *
+         * @return StorageAutoscaling state
+         */
+        String getStorageAutoscaling();
+
+        /**
+         * Get PerformanceInsights state.
+         *
+         * @return PerformanceInsights state
+         */
+        String getPerformanceInsights();
+
+        /**
+         * Get Cluster Role.
+         *
+         * @return Cluster Role
+         */
+        String getClusterRole();
     }
 
 }

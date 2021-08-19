@@ -72,8 +72,10 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.ClusterRole;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -238,6 +240,10 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .put(EntityFilterMapper.USER_DEFINED_ENTITY, (a, b, c) -> getBooleanFilterOptions())
+                .put(SearchableProperties.DB_STORAGE_ENCRYPTION,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
+                .put(SearchableProperties.DB_STORAGE_AUTOSCALING,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
+                .put(SearchableProperties.DB_PERFORMANCE_INSIGHTS,(a, b, c) -> getEnumFilterOptions(FeatureState.class))
+                .put(SearchableProperties.DB_CLUSTER_ROLE,(a, b, c) -> getEnumFilterOptions(ClusterRole.class))
                 .build();
     }
 
@@ -1184,6 +1190,21 @@ public class SearchService implements ISearchService {
                     optionApiDTOs.add(optionApiDTO);
                 });
         return optionApiDTOs;
+    }
+
+    /**
+     * Get Enum filter dropdown-menu options.
+     *
+     * @param clazz Enum class
+     * @return List of {@CriteriaOptionApiDTO} to be presented in the UI.
+     */
+    @Nonnull
+    private <E extends Enum<E>> List<CriteriaOptionApiDTO> getEnumFilterOptions(Class<E> clazz) {
+        return Arrays.stream(clazz.getEnumConstants()).map(v -> {
+            final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+            optionApiDTO.setValue(v.name());
+            return optionApiDTO;
+        }).collect(Collectors.toList());
     }
 
     @Nonnull
