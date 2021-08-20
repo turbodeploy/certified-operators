@@ -195,7 +195,7 @@ public class MovingStatisticsCommodityDataTest extends MovingStatisticsBaseTest 
     @Test
     public void testAggregateHistoryAndThresholds() {
         when(mockSampler.meanPlusSigma(any(EntityCommodityFieldReference.class), anyDouble()))
-            .thenReturn(2.0);
+            .thenReturn(null);
         when(mockSampler.getMinThreshold(any(EntityCommodityFieldReference.class), anyDouble(), anyDouble()))
             .thenReturn(3.0);
 
@@ -204,9 +204,10 @@ public class MovingStatisticsCommodityDataTest extends MovingStatisticsBaseTest 
         data.init(cpuRef, null, config, context);
         data.aggregate(cpuRef, config, context);
 
-        verify(fieldAccessor).updateHistoryValue(argThat(refMatching(CommodityDTO.CommodityType.VCPU_VALUE)),
+        // Even when there is no analysis value, we should still set thresholds when they are available.
+        verify(fieldAccessor, never()).updateHistoryValue(argThat(refMatching(CommodityDTO.CommodityType.VCPU_VALUE)),
             any(), anyString());
-        verify(fieldAccessor).updateHistoryValue(argThat(refMatching(CommodityDTO.CommodityType.BALLOONING_VALUE)),
+        verify(fieldAccessor, never()).updateHistoryValue(argThat(refMatching(CommodityDTO.CommodityType.BALLOONING_VALUE)),
             any(), anyString());
 
         verify(fieldAccessor).updateThresholds(argThat(refMatching(CommodityDTO.CommodityType.VCPU_VALUE)),
