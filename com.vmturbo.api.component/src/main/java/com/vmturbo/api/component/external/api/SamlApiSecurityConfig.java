@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api;
 
 import static java.util.Arrays.asList;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +41,8 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
     private static final String BASE_URL = "/vmturbo";
     private static final String LOGIN_PROCESSING_URL = BASE_URL + "/saml2/sso/{registrationId}";
 
+    private final Logger logger = LogManager.getLogger();
+
     // SAML web SSO end point, e.g.:
     // https://dev-771202.oktapreview.com/app/ibmdev771202_turboxl1_1/exkfdsn6oy5xywqCO0h7/sso/saml
     @Value("${samlWebSsoEndpoint}")
@@ -58,6 +62,10 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
 
     @Value("${sessionTimeoutSeconds:1800}")
     private int sessionTimeoutSeconds;
+
+    // Signing request with public key in certificate? True by default.
+    @Value("${samlSignRequest:true}")
+    private boolean samlSignRequest;
 
     /**
      * SAML IDP certificate.
@@ -134,11 +142,12 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
                 Saml2X509CredentialsUtil.buildSaml2X509Credential(samlIdpCertificate);
         String acsUrlTemplate =
                 "https://{baseHost}" + LOGIN_PROCESSING_URL;
+        logger.info("SAML sign request is: {}", samlSignRequest);
         return RelyingPartyRegistration.withRegistrationId(samlRegistrationId)
                 .providerDetails(c -> {
                     c.webSsoUrl(samlWebSsoEndpoint);
                     c.binding(Saml2MessageBinding.POST);
-                    c.signAuthNRequest(true);
+                    c.signAuthNRequest(samlSignRequest);
                     c.entityId(samlEntityId);
                 })
                 .credentials(c -> c.add(signingCredential))
