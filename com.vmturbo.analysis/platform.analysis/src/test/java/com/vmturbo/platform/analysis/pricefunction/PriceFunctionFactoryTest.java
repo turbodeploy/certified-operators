@@ -16,6 +16,12 @@ import junitparams.naming.TestCaseName;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
@@ -256,5 +262,34 @@ public class PriceFunctionFactoryTest {
             {pfStd, "Starndard Weighted"},
             {pfCustom, "Custom"}
         };
+    }
+
+    /**
+     * Test consumer fits price function.
+     */
+    @Test
+    public void testConsumerFitsPriceFunction() {
+        Economy e = new Economy();
+        Basket consumerBasketSold = new Basket(TestUtils.VMEM);
+        Basket consumerBasketBought = new Basket(TestUtils.MEM);
+        Basket providerBasketSold1 = new Basket(TestUtils.MEM);
+        Basket providerBasketSold2 = new Basket(TestUtils.MEM);
+        Trader consumer = e.addTrader(0, TraderState.ACTIVE, consumerBasketSold);
+        ShoppingList consumerShoppingList = e.addBasketBought(consumer, consumerBasketBought);
+        consumerShoppingList.setQuantity(0, 15);
+        Trader provider1 = e.addTrader(1, TraderState.ACTIVE, providerBasketSold1);
+        CommoditySold provider1CommSold = provider1.getCommoditiesSold().get(0).setCapacity(40).setQuantity(80);
+        Trader provider2 = e.addTrader(2, TraderState.ACTIVE, providerBasketSold2);
+        CommoditySold provider2CommSold = provider2.getCommoditiesSold().get(0).setCapacity(10).setQuantity(20);
+        PriceFunction consumerFitsPF = PriceFunctionFactory.createConsumerFitsPriceFunction();
+        // When consumer fits in supplier.
+        assertTrue(consumerFitsPF.unitPrice(provider1CommSold.getQuantity() / provider1CommSold.getCapacity(),
+            consumerShoppingList, provider1, provider1CommSold, e) == 0);
+        // When consumer does not fit in supplier.
+        assertTrue(consumerFitsPF.unitPrice(provider2CommSold.getQuantity() / provider2CommSold.getCapacity(),
+                consumerShoppingList, provider2, provider2CommSold, e) == Double.POSITIVE_INFINITY);
+        // When unit price is not for consumer.
+        assertTrue(consumerFitsPF.unitPrice(provider2CommSold.getQuantity() / provider2CommSold.getCapacity(),
+                null, provider2, provider2CommSold, e) == 0);
     }
 }

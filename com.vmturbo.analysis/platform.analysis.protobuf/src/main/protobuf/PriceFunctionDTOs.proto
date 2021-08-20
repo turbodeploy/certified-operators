@@ -73,6 +73,10 @@ message PriceFunctionTO {
         optional float stepTwo = 4 [default = 2.0];
     }
 
+    // Price function for checking if consumer's consumption fits within seller's capacity.
+    message ConsumerFits {
+    }
+
     // Which one of the available functions this message contains.
     oneof price_function_type {
         StandardWeighted standard_weighted = 1;
@@ -86,5 +90,6 @@ message PriceFunctionTO {
         IgnoreUtilization ignore_utilization = 9;
         ScaledCapacityStandardWeighted scaled_capacity_standard_weighted = 10;
         OverProvision over_provision = 11;
+        ConsumerFits consumer_fits = 12;
     }
 }

@@ -54,6 +54,7 @@ import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
 import com.vmturbo.platform.analysis.pricefunction.ConstantPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.ConsumerFitsPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.ExternalPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.FiniteStandardWeightedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.IgnoreUtilizationPriceFunction;
@@ -178,6 +179,8 @@ public final class AnalysisToProtobuf {
                     .setConstant((float)input.getParams()[1])
                     .setStepOne((float)input.getParams()[2])
                     .setStepTwo((float)input.getParams()[3]));
+        } else if (input instanceof ConsumerFitsPriceFunction) {
+            builder.setConsumerFits(PriceFunctionTO.ConsumerFits.newBuilder());
         }
 
         return builder.build();

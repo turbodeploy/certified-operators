@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.pricefunction;
 
 import java.util.concurrent.ConcurrentMap;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.MapMaker;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -232,6 +234,21 @@ public class PriceFunctionFactory {
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
             pf = new OverProvisionedPriceFunction(weight, constant, stepOne, stepTwo);
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
+
+    /**
+     * ConsumerFitsPriceFunction for checking if consumer's consumption fits within seller's capacity.
+     *
+     * @return Return the price function.
+     */
+    public static @Nonnull PriceFunction createConsumerFitsPriceFunction() {
+        String key = "CFPF";
+        PriceFunction pf = pfMap.getOrDefault(key, new ConsumerFitsPriceFunction());
+        if (pf == null) {
+            pf = new ConsumerFitsPriceFunction();
             pfMap.put(key, pf);
         }
         return pf;
