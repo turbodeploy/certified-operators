@@ -225,16 +225,13 @@ public class VcpuThrottlingSamplerTest {
         assertNull(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0));
 
         setThrottlingAtCapacity(7.0, 100.0, sampler);
-        assertThat(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0),
-            greaterThan(100.0));
+        assertEquals(100.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), 0);
 
         setThrottlingAtCapacity(7.5, 90.0, sampler);
-        assertThat(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0),
-            greaterThan(100.0));
+        assertEquals(100.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), 0);
 
         setThrottlingAtCapacity(6.0, 200.0, sampler);
-        assertThat(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0),
-            greaterThan(200.0));
+        assertEquals(200.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), 0);
     }
 
     /**
@@ -261,7 +258,7 @@ public class VcpuThrottlingSamplerTest {
         assertNull(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0));
 
         setThrottlingAtCapacity(6.0, 200.0, sampler);
-        assertThat(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), greaterThan(200.0));
+        assertEquals(200.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), 0);
 
         setThrottlingAtCapacity(3.0, 500.0, sampler);
         assertEquals(300.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), SMALL_DELTA);
@@ -296,8 +293,7 @@ public class VcpuThrottlingSamplerTest {
         setThrottlingAtCapacity(20, 100.0, sampler);
         setThrottlingAtCapacity(0, 50.0, sampler);
 
-        assertThat(sampler.getMinThreshold(VCPU_FIELD, 0, 5.0),
-            greaterThan(100.0));
+        assertEquals(100.0, sampler.getMinThreshold(VCPU_FIELD, 0, 5.0), SMALL_DELTA);
     }
 
     /**

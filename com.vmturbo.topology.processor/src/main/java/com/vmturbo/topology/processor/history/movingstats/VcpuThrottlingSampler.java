@@ -325,11 +325,9 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
         }
 
         // If we have samples above the target throttling but none below, or somehow we have a higher
-        // capacity above than below, return a value just above the capacity above. We want to prevent
-        // sizing exactly back down to the vcpuCapacityAbove because if we do, we'll just immediately
-        // go back up.
+        // capacity above than below, return the capacity above
         if (throttlingValueBelow < 0 || vcpuCapacityAbove > vcpuCapacityBelow) {
-            return vcpuCapacityAbove + 1.0;
+            return vcpuCapacityAbove;
         }
 
         // Compute value t such that lower + t * (upper - lower) == target
