@@ -244,6 +244,18 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(moveAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
                 Optional.of(graphCreator.build()), null));
+        // Test deleted policy(s).
+        assertEquals("(^_^)~Emily doesn't comply with setting1, a compliance policy that used to exist",
+                     ExplanationComposer.composeExplanation(moveAction,
+                                                ImmutableMap.of(reasonSetting1,
+                                                    "setting1"),
+                                                Optional.of(graphCreator.build()),
+                                                null));
+        assertEquals("(^_^)~Emily doesn't comply with compliance policies that used to exist",
+                     ExplanationComposer.composeExplanation(moveAction,
+                                                ImmutableMap.of(),
+                                                Optional.of(graphCreator.build()),
+                                                null));
     }
 
     /**
