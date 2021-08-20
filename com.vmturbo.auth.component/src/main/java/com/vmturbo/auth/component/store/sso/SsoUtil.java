@@ -745,16 +745,28 @@ public class SsoUtil {
      *
      * @param userName the user name to be asserted.
      * @param assignedGroups the assigned external group from SAML assertions
+     * @param enableMultiExternalGroupSupport enable combine scopes in multiple external groups.
      * @return {@link SecurityGroupDTO} if matches found.
      */
     @Nonnull
     public Optional<SecurityGroupDTO> authorizeSAMLUserInGroups(@Nonnull final String userName,
-            @Nonnull final Iterable<String> assignedGroups) {
+            @Nonnull final Iterable<String> assignedGroups,
+            final boolean enableMultiExternalGroupSupport) {
         // find the matches groups
         final Set<SecurityGroupDTO> matchedGroup = findMatchedGroups(assignedGroups);
+        if (logger.isDebugEnabled()) {
+            matchedGroup.stream().forEach(
+                    group -> logger.debug("Matched group name: {}, Scopes: {}",
+                            group.getDisplayName(), group.getScopeGroups()));
+        }
         // this is the least privilege group
-        final Optional<SecurityGroupDTO> leastPrivilegedGroup =
-                sortGroupWithLeastPrivilege(matchedGroup).stream().findFirst();
+        final Optional<SecurityGroupDTO> leastPrivilegedGroup = sortGroupWithLeastPrivilege(
+                matchedGroup).stream().findFirst();
+        if (enableMultiExternalGroupSupport) {
+            return leastPrivilegedGroup.map(
+                    group -> new SecurityGroupDTO(group.getDisplayName(), group.getType(),
+                            group.getRoleName(), combineScopes(matchedGroup)));
+        }
         return leastPrivilegedGroup;
     }
 
@@ -787,5 +799,26 @@ public class SsoUtil {
                 .replace("(", "\\28")
                 .replace(")", "\\29")
                 .replace("\000", "\\00");
+    }
+
+    /**
+     * Combine scope groups.
+     * If one group is not scoped, the user will be no scoped (empty scope)
+     * Otherwise, we combines all the scopes.
+     * @param userGroups user groups to be combined scopes
+     * @return combined scopes.
+     */
+    @Nonnull
+    public List<Long> combineScopes(final @Nonnull Collection<SecurityGroupDTO> userGroups) {
+        if (userGroups.stream()
+                .anyMatch(group -> group.getScopeGroups() == null
+                        || group.getScopeGroups().isEmpty())) {
+            return Collections.emptyList();
+        }
+        return userGroups.stream()
+                .flatMap(group -> group.getScopeGroups().stream())
+                .collect(Collectors.toSet())
+                .stream()
+                .collect(Collectors.toList());
     }
 }
