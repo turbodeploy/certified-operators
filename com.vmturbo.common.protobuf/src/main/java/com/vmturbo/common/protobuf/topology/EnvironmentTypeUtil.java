@@ -33,6 +33,7 @@ public class EnvironmentTypeUtil {
         SDKProbeType.GCP_SERVICE_ACCOUNT,
         SDKProbeType.GCP,
         SDKProbeType.GCP_COST,
+        SDKProbeType.GCP_BILLING,
         SDKProbeType.GCP_PROJECT);
 
     /**

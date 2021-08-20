@@ -34,6 +34,7 @@ public class CloudTypeMapper {
                     .put(SDKProbeType.GCP_COST.getProbeType(), CloudType.GCP)
                     .put(SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(), CloudType.GCP)
                     .put(SDKProbeType.GCP_PROJECT.getProbeType(), CloudType.GCP)
+                    .put(SDKProbeType.GCP_BILLING.getProbeType(), CloudType.GCP)
                     .build();
 
     private static final BiMap<CloudTypeEnum.CloudType, CloudType> CLOUD_TYPE_MAPPINGS =

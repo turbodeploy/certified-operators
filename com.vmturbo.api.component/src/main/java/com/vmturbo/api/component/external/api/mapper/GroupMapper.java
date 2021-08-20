@@ -124,6 +124,7 @@ public class GroupMapper {
             SDKProbeType.AWS.getProbeType(), SDKProbeType.AWS_BILLING.getProbeType(),
             SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
             SDKProbeType.GCP.getProbeType(), SDKProbeType.GCP_PROJECT.getProbeType(),
+            SDKProbeType.GCP.getProbeType(), SDKProbeType.GCP_BILLING.getProbeType(),
             SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
             SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
 
