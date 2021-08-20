@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -72,6 +73,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -713,7 +715,7 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     /**
-     * Tests getting the costs and count of workloads for for cloud tab of realtime market.
+     * Tests getting the costs and count of workloads for cloud tab of realtime market.
      *
      * @throws Exception if something goes wrong.
      */
@@ -782,6 +784,78 @@ public class CloudCostsStatsSubQueryTest {
                 .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
                 .findFirst();
         Assert.assertEquals(Float.valueOf(cloudTabWorkloads.size()),
+                numWorkloadsStat.get().getValue());
+    }
+
+    /**
+     * Tests getting the count of workloads for Plans.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetNumWorkloadStatsPlan() throws Exception {
+        // ARRANGE
+        long planId = 1234L;
+        Set<Long> planWorkloads = Collections.singleton(1L);
+        final Set<StatApiInputDTO> requestedStats =
+                Collections.singleton(createNumWorkloadsInputDto());
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(false);
+        when(context.getPlanInstance()).thenReturn(Optional.of(
+                PlanDTO.PlanInstance.newBuilder()
+                        .setPlanId(planId)
+                        .setStatus(PlanDTO.PlanInstance.PlanStatus.SUCCEEDED)
+                        .build()));
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(true);
+        when(inputScope.isCloud()).thenReturn(false);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+                ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+                Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture()))
+                .thenReturn(Collections.singletonList(response));
+
+        // Behaviors associated to query scope
+        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
+        SupplyChainNodeFetcherBuilder nodeFetcherBuilder = mockSupplyChainNodeFetcherBuilder(planWorkloads);
+        when(nodeFetcherBuilder.topologyContextId(anyLong())).thenCallRealMethod();
+        ArgumentCaptor<Long> longCaptor = ArgumentCaptor.forClass(Long.class);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
+        // ACT
+        List<StatSnapshotApiDTO> aggregateStats = query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we add the right topologyContextId
+        verify(nodeFetcherBuilder).topologyContextId(longCaptor.capture());
+        Assert.assertEquals(planId, longCaptor.getValue().longValue());
+
+        // check that count of workloads is calculated correctly (test plan has 1 workload)
+        final Optional<StatApiDTO> numWorkloadsStat = aggregateStats.iterator()
+                .next()
+                .getStatistics()
+                .stream()
+                .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
+                .findFirst();
+        Assert.assertEquals(Float.valueOf(planWorkloads.size()),
                 numWorkloadsStat.get().getValue());
     }
 
