@@ -100,8 +100,6 @@ public class ExplanationComposer {
         "Configure supplier to update resource(s) ";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
-    private static final String SINGLE_DELETED_POLICY_MSG = "a compliance policy that used to exist";
-    private static final String MULTIPLE_DELETED_POLICY_MSG = "compliance policies that used to exist";
     private static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defined";
     private static final String EXPLANATION_ERROR =
@@ -987,78 +985,14 @@ public class ExplanationComposer {
      * @return the explanation sentence
      */
     private static String buildReasonSettingsExplanation(
-                                                         @Nonnull final ActionEntity target,
-                                                         @Nonnull final List<Long> reasonSettings,
-                                                         @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-                                                         @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-                                                         final boolean keepItShort) {
+            @Nonnull final ActionEntity target, @Nonnull final List<Long> reasonSettings,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology, final boolean keepItShort) {
         if (keepItShort) {
             return REASON_SETTING_EXPLANATION_CATEGORY;
         }
-        return evaluateAndFormatReasonSettingsExplanation(target, reasonSettings,
-                                                          settingPolicyIdToSettingPolicyName,
-                                                          topology);
-    }
-
-    /**
-     * Evaluate and format reason settings explanation.
-     *
-     * @param target the target entity
-     * @param reasonSettings a list of settingPolicyIds that causes this action
-     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
-     * @return the explanation sentence
-     */
-    private static String evaluateAndFormatReasonSettingsExplanation(@Nonnull final ActionEntity target, @Nonnull final List<Long> reasonSettings,
-                                                                     @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-                                                                     @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
-        Set policyNamesForAction = new HashSet<>();
-        final int numAllPoliciesForAction = reasonSettings.size();
-        int numNonDeletedPoliciesForAction = 0;
-        for (Long policyId : reasonSettings) {
-            final String policyName = settingPolicyIdToSettingPolicyName.get(policyId);
-            if (policyName != null) {
-                numNonDeletedPoliciesForAction++;
-                policyNamesForAction.add(policyName);
-            }
-        }
-        final int numDeletedPoliciesForAction = numAllPoliciesForAction
-                                                - numNonDeletedPoliciesForAction;
-
-        StringBuilder explanation = new StringBuilder();
-        if (!policyNamesForAction.isEmpty()) {
-            explanation.append(policyNamesForAction.stream().collect(Collectors.joining(", ")));
-        }
-        final String entityInformation = buildEntityNameOrType(target, topology);
-        if (numDeletedPoliciesForAction == 1) { // as in the case of a now deleted policy,
-            // that was instrumental in the action recommendation.
-            if (numDeletedPoliciesForAction < numAllPoliciesForAction) {
-                explanation.append(", " + SINGLE_DELETED_POLICY_MSG);
-            } else {
-                explanation.append(SINGLE_DELETED_POLICY_MSG);
-            }
-            return MessageFormat.format(REASON_SETTINGS_EXPLANATION,
-                                        entityInformation, explanation.toString());
-
-        } else if (numDeletedPoliciesForAction > 1) { // as in the case of a now deleted policies,
-            // that was instrumental in the action recommendation.
-            if (numDeletedPoliciesForAction < numAllPoliciesForAction) {
-                explanation.append(", " + MULTIPLE_DELETED_POLICY_MSG);
-            } else { // all policies deleted
-                explanation.append(MULTIPLE_DELETED_POLICY_MSG);
-            }
-            return MessageFormat.format(REASON_SETTINGS_EXPLANATION,
-                                        entityInformation, explanation.toString());
-
-        } else {
-            return MessageFormat
-                            .format(REASON_SETTINGS_EXPLANATION,
-                                    entityInformation,
-                                    reasonSettings.stream()
-                                                    .map(settingPolicyIdToSettingPolicyName::get)
-                                                    .collect(Collectors.joining(", ")));
-        }
+        return MessageFormat.format(REASON_SETTINGS_EXPLANATION, buildEntityNameOrType(target, topology),
+            reasonSettings.stream().map(settingPolicyIdToSettingPolicyName::get).collect(Collectors.joining(", ")));
     }
 
     /**
