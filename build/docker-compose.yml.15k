@@ -539,6 +539,20 @@ services:
 #      service: mediation-xen-prod
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
+#
+#  mediation-gcp:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-gcp-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-gcpcost:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-gcpcost-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
 
   mediation-actionscript:
     extends:
