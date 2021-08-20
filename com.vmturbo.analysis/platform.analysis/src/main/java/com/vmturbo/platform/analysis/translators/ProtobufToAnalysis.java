@@ -119,6 +119,8 @@ public final class ProtobufToAnalysis {
                     input.getOverProvision().getConstant(),
                     input.getOverProvision().getStepOne(),
                     input.getOverProvision().getStepTwo());
+            case CONSUMER_FITS:
+                return PriceFunctionFactory.createConsumerFitsPriceFunction();
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
