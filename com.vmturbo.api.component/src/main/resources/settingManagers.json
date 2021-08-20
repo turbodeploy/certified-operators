@@ -275,6 +275,12 @@
       "planRetentionDays"
       ]
     },
+    "internalonlymanager": {
+      "displayName": "Internal Only Settings",
+      "settings": [
+        "embeddedReportingRetentionDays"
+      ]
+    },
     "emailmanager": {
       "displayName": "Email Settings",
       "defaultCategory": "Email",
