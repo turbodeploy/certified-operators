@@ -443,6 +443,7 @@
                 <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
+                <module>../com.vmturbo.mediation.gcp.billing.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
@@ -1319,6 +1320,7 @@
                 <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
+                <module>../com.vmturbo.mediation.gcp.billing.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
