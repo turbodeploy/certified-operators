@@ -289,6 +289,13 @@ public interface SearchableProps {
          * @return Cluster Role
          */
         String getClusterRole();
+
+        /**
+         * Get Storage Tier.
+         *
+         * @return Storage Tier
+         */
+        String getStorageTier();
     }
 
 }

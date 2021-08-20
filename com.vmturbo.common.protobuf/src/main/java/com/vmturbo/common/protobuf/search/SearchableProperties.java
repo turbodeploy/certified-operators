@@ -197,5 +197,10 @@ public class SearchableProperties {
      */
     public static final String DB_CLUSTER_ROLE = "dbClusterRole";
 
+    /**
+     * Database Server Storage Type.
+     */
+    public static final String DB_STORAGE_TYPE = "dbStorageTier";
+
     private SearchableProperties() {}
 }

@@ -371,13 +371,12 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
                         DatabaseServerProps.class);
             }
             case SearchableProperties.DB_CLUSTER_ROLE: {
-                return PropertyFilter.typeSpecificFilter(d -> {
-                    if (StringUtils.isBlank(d.getClusterRole())) {
-                        return false;
-                    } else {
-                        return stringPredicate.test(d.getClusterRole());
-                    }
-                }, DatabaseServerProps.class);
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getClusterRole()),
+                        DatabaseServerProps.class);
+            }
+            case SearchableProperties.DB_STORAGE_TYPE: {
+                return PropertyFilter.typeSpecificFilter(d -> stringPredicate.test(d.getStorageTier()),
+                        DatabaseServerProps.class);
             }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
@@ -858,6 +857,9 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
         final Pattern pattern = Pattern.compile(filter.getStringPropertyRegex(),
                 filter.getCaseSensitive() ? 0 : Pattern.CASE_INSENSITIVE);
         return str -> {
+            if (str == null) {
+                return false;
+            }
             if (!StringUtils.isEmpty(filter.getStringPropertyRegex())) {
                 return filter.getPositiveMatch() == pattern.matcher(str).find();
             } else {

@@ -551,5 +551,9 @@ public class StringConstants {
      */
     public static final String AWS_PERFORMANCE_INSIGHTS = "aws_performance_insights";
 
+    /**
+     * Database Server storage tier.
+     */
+    public static final String DBS_STORAGE_TIER = "storage_tier";
 
 }

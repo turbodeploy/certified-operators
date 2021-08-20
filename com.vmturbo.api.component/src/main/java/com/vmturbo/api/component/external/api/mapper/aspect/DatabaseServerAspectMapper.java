@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.DBS_STORAGE_TIER;
+
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -28,7 +30,6 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
     private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
     private static final String PRICING_MODEL = "pricing_model";
-    private static final String STORAGE_TIER = "storage_tier";
 
     @Nullable
     @Override
@@ -71,7 +72,7 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
             aspect.setPricingModel(pricingModel);
         }
 
-        String storageTier = entity.getEntityPropertyMapOrDefault(STORAGE_TIER, null);
+        String storageTier = entity.getEntityPropertyMapOrDefault(DBS_STORAGE_TIER, null);
         if (storageTier != null) {
             aspect.setStorageTier(storageTier);
         }

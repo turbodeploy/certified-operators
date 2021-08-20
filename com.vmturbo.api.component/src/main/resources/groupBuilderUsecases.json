@@ -230,7 +230,10 @@
             {"inputType": "s|*", "elements": "dbStorageAutoscaling", "filterCategory": "property", "filterType": "databaseServerByStorageAutoscaling", "loadOptions": true},
             {"inputType": "s|*", "elements": "dbPerformanceInsights", "filterCategory": "property", "filterType": "databaseServerByPerformanceInsights", "loadOptions": true},
             {"inputType": "s|*", "elements": "dbStorageEncryption", "filterCategory": "property", "filterType": "databaseServerByStorageEncryption", "loadOptions": true},
-            {"inputType": "s|*", "elements": "dbClusterRole", "filterCategory": "property", "filterType": "databaseServerByClusterRole", "loadOptions": true}
+            {"inputType": "s|*", "elements": "dbClusterRole", "filterCategory": "property", "filterType": "databaseServerByClusterRole", "loadOptions": true},
+            {"inputType": "*", "elements": "dbStorageTier", "filterCategory": "property", "filterType": "databaseServerByStorageTier", "loadOptions": false},
+            {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "databaseServerByAvailabilityZoneName"},
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "databaseServerByRegionName"}
         ]
     },
 

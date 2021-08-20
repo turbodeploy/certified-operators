@@ -336,6 +336,11 @@ public class ThickSearchableProps implements SearchableProps {
         public String getClusterRole() {
             return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE, null);
         }
+
+        @Override
+        public String getStorageTier() {
+            return entityOrBldr.getEntityPropertyMapOrDefault(StringConstants.DBS_STORAGE_TIER, null);
+        }
     }
 
 }
