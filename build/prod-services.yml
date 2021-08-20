@@ -1007,3 +1007,25 @@ services:
       component_type: mediation-webhook
       instance_id: mediation-webhook-1
     restart: always
+
+  mediation-gcp-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.gcp.component
+    environment:
+      consul_host: consul
+      component_type: mediation-gcp
+      instance_id: mediation-gcp-1
+    restart: always
+
+  mediation-gcpcost-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.gcp.cost.component
+    environment:
+      consul_host: consul
+      component_type: mediation-gcpcost
+      instance_id: mediation-gcpcost-1
+    restart: always
