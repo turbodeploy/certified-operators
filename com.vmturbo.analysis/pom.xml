@@ -5,17 +5,19 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>OpsManager</artifactId>
-        <version>8.3.1-SNAPSHOT</version>
-    <relativePath>../build/pom.xml</relativePath>
+        <version>${revision}</version>
+        <relativePath>../build/pom.xml</relativePath>
     </parent>
 
     <artifactId>analysis-parent</artifactId>
     <name>All Analysis Modules</name>
     <description>A parent pom to host common configuration and build all Analysis (Market 2) modules.</description>
-    <version>4.3.1-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
+    <version>${market-revision}</version> <!-- Since its going to be the 2nd major version of the Market. -->
     <packaging>pom</packaging>
 
     <properties>
+        <!-- This market-revision refers to market version. `market-revision` is a property that is treated in a special way by Maven and this is mandatory property -->
+        <market-revision>4.3.1-SNAPSHOT</market-revision>
         <vmturbo.mt.branch.version>8.3.1-SNAPSHOT</vmturbo.mt.branch.version>
         <java.version>1.8</java.version>
         <checkstyle.config.version>${vmturbo.mt.branch.version}</checkstyle.config.version>
@@ -53,6 +55,36 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+          <!-- This plugin is needed to correctly create pom files during install/deploy phase
+          Otherwise, the version '${market-revision}' would not be replaced properly.
+          See: https://maven.apache.org/maven-ci-friendly.html -->
+          <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>flatten-maven-plugin</artifactId>
+              <version>1.2.4</version>
+              <configuration>
+                  <updatePomFile>true</updatePomFile>
+                  <flattenMode>resolveCiFriendliesOnly</flattenMode>
+              </configuration>
+              <executions>
+                  <execution>
+                      <id>flatten</id>
+                      <phase>process-resources</phase>
+                      <goals>
+                          <goal>flatten</goal>
+                      </goals>
+                  </execution>
+                  <execution>
+                      <id>flatten.clean</id>
+                      <phase>clean</phase>
+                      <goals>
+                          <goal>clean</goal>
+                      </goals>
+                  </execution>
+              </executions>
+          </plugin>
+        </plugins>
     </build>
 
     <distributionManagement>
