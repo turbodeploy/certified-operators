@@ -62,12 +62,6 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Value("${websocket.send.atomic.timeout:30}")
     private long websocketAtomicSendTimeout;
 
-    @Value("${websocketChunkSize:65536}")
-    private int websocketChunkSize;
-
-    @Value("${websocketChunkReadTimeoutSec:120}")
-    private long websocketChunkReadTimeoutSec;
-
     // just for debugging - for now
     @Value("${instance_id}")
     private String instance_id;
@@ -144,16 +138,6 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Override
     public long getAtomicSendTimeoutSec() {
         return websocketAtomicSendTimeout;
-    }
-
-    @Override
-    public int getWebsocketChunkSize() {
-        return websocketChunkSize;
-    }
-
-    @Override
-    public long getWebsocketChunkReadTimeoutSec() {
-        return websocketChunkReadTimeoutSec;
     }
 
     @PostConstruct

@@ -145,23 +145,22 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
         @Nonnull String targetIdentifyingValues) {
         final Pair<String, String> lookupKey = new Pair<>(probeType,
             targetIdentifyingValues);
-
-        logger.debug("Assigning target {} to transport {}", lookupKey, transport);
-        ITransport<MediationServerMessage, MediationClientMessage> oldTransport =
-                        targetIdToTransport.put(lookupKey, transport);
-        if (oldTransport != null && !transport.equals(oldTransport)) {
+        if (targetIdToTransport.containsKey(lookupKey) && !transport.equals(
+            targetIdToTransport.get(lookupKey))) {
             logger.warn("Transport {} for target {} being replaced with transport {}",
                 targetIdToTransport.get(lookupKey), targetIdentifyingValues,
                 transport);
         }
+        logger.debug("Assigning target {} to transport {}", lookupKey, transport);
+        targetIdToTransport.put(lookupKey,
+            transport);
     }
 
-    private static boolean probeSupportsPersistentConnections(@Nonnull ProbeInfo probeInfo) {
+    private boolean probeSupportsPersistentConnections(@Nonnull ProbeInfo probeInfo) {
         return probeInfo.hasIncrementalRediscoveryIntervalSeconds();
     }
 
-    private Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                    getProbeTransports(long probeId, @Nonnull Target target) throws ProbeException {
+    private Collection<ITransport<MediationServerMessage, MediationClientMessage>> getProbeTransports(long probeId, @Nonnull Target target) throws ProbeException {
         Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportCollection = probeStore.getTransport(probeId);
         if (target.getSpec() != null && target.getSpec().hasCommunicationBindingChannel()) {
             transportCollection = getTransportsWithChannel(transportCollection,

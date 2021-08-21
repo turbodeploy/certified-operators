@@ -223,8 +223,8 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 messageHandlers.remove(messageId);
             }
         } else {
-            logger.info("No handler found for message {} for operation {}. Aborting the task on {}",
-                    message.getMediationClientMessageCase(), messageId, serverEndpoint);
+            logger.info("No handler found for message with id {}. Aborting the task on {}",
+                    messageId, serverEndpoint);
             try {
                 serverEndpoint.send(MediationServerMessage.newBuilder()
                         .setMessageID(nextMessageId())

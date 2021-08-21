@@ -37,12 +37,6 @@ public class SdkServerConfig {
     @Value("${websocket.atomic.send.timeout.sec:30}")
     private long websocketAtomicSendTimeout;
 
-    @Value("${websocketChunkSize:65536}")
-    private int websocketChunkSize;
-
-    @Value("${websocketChunkReadTimeoutSec:120}")
-    private long websocketChunkReadTimeoutSec;
-
     @Value("${applyPermitsToContainers:true}")
     private boolean applyPermitsToContainers;
 
@@ -131,8 +125,7 @@ public class SdkServerConfig {
     @Bean
     public WebsocketServerTransportManager remoteMediationServerTransportManager() {
         return new WebsocketServerTransportManager(remoteMediationTransportHandler(),
-                sdkServerThreadPool(), websocketAtomicSendTimeout, websocketChunkSize,
-                websocketChunkReadTimeoutSec);
+                sdkServerThreadPool(), websocketAtomicSendTimeout);
     }
 
     /**
