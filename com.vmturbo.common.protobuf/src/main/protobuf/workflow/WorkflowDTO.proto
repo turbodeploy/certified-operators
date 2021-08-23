@@ -78,6 +78,8 @@ message WorkflowInfo {
         optional AuthenticationMethod authentication_method = 5;
         // the user name for authentication
         optional string username = 6;
+        // request headers
+        repeated RequestHeader headers = 7;
 
 
         // the type of http method made to webhook
@@ -92,6 +94,14 @@ message WorkflowInfo {
         enum AuthenticationMethod {
             NONE = 1;
             BASIC = 2;
+        }
+
+        // Represent a header that can be sent as part of http request.
+        message RequestHeader {
+            // The header name
+            optional string name = 1;
+            // The header value
+            optional string value = 2;
         }
     }
 }
