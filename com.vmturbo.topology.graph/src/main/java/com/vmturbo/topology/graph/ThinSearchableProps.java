@@ -360,6 +360,7 @@ public class ThinSearchableProps implements SearchableProps {
         private final String storageAutoscaling;
         private final String performanceInsights;
         private final String clusterRole;
+        private final String storageTier;
 
 
         private ThinDatabaseServerProps(@Nonnull final TagIndex tagIndex,
@@ -390,6 +391,8 @@ public class ThinSearchableProps implements SearchableProps {
             performanceInsights = entityDTO.getEntityPropertyMapOrDefault(
                     StringConstants.AWS_PERFORMANCE_INSIGHTS, null);
             clusterRole = entityDTO.getEntityPropertyMapOrDefault(StringConstants.CLUSTER_ROLE,
+                    null);
+            storageTier = entityDTO.getEntityPropertyMapOrDefault(StringConstants.DBS_STORAGE_TIER,
                     null);
         }
 
@@ -429,6 +432,11 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public String getClusterRole() {
             return clusterRole;
+        }
+
+        @Override
+        public String getStorageTier() {
+            return storageTier;
         }
     }
 }
