@@ -28,13 +28,13 @@ public class WorkflowMapperTest {
     public static final long WORKFLOW_OID = 1L;
     private static final String TARGET_CATEGORY = "CATEGORY";
     private static final String TARGET_TYPE = "TYPE";
-    public static final String WORKFLOW_1_DISPLAYNAME = "workflow 1";
-    public static final String WORKFLOW_1_NAME = "workflow-1";
+    private static final String WORKFLOW_1_DISPLAYNAME = "workflow 1";
+    private static final String WORKFLOW_1_NAME = "workflow-1";
     private static final String WORKFLOW_1_DESCRIPTION = "Workflow 1 description";
     private static final String WORKFLOW_1_SCRIPT_PATH = "/scripts/script1.sh";
     private static final String WORKFLOW_1_ACTION_TYPE_NAME = "MOVE";
     private static final String WORKFLOW_1_ACTION_PHASE_NAME = "PRE";
-    private static final long WORKFLOW_1_TIME_LIMIT = 15*60;
+    private static final long WORKFLOW_1_TIME_LIMIT = 15 * 60;
     private static final String WORKFLOW_CLASSNAME = "Workflow";
     private static final String WEBHOOK_URL = "http://turbonomic.com";
     private static final String TEMPLATE = "testTemplate";
@@ -153,9 +153,9 @@ public class WorkflowMapperTest {
         }
 
         Workflow workflow = Workflow.newBuilder()
-            .setId(WORKFLOW_OID)
-            .setWorkflowInfo(workflowInfo)
-            .build();
+                .setId(WORKFLOW_OID)
+                .setWorkflowInfo(workflowInfo)
+                .build();
         return workflow;
     }
 
@@ -177,9 +177,9 @@ public class WorkflowMapperTest {
             .setTimeLimitSeconds(WORKFLOW_1_TIME_LIMIT)
             .build();
         Workflow workflow = Workflow.newBuilder()
-            .setId(WORKFLOW_OID)
-            .setWorkflowInfo(workflowInfo)
-            .build();
+                .setId(WORKFLOW_OID)
+                .setWorkflowInfo(workflowInfo)
+                .build();
         return workflow;
     }
 

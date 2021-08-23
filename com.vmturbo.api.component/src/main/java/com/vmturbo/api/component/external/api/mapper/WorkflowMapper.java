@@ -11,6 +11,7 @@ import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.HttpMethod;
+import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
@@ -26,7 +27,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  **/
 public class WorkflowMapper {
 
-    public static final String WORKFLOW_API_DTO_CLASSNAME = "Workflow";
+    private static final String WORKFLOW_API_DTO_CLASSNAME = "Workflow";
 
     /**
      * Map an internal Workflow item to the API WorkflowApiDTO, including
@@ -84,6 +85,12 @@ public class WorkflowMapper {
             if (webhookInfo.hasUsername()) {
                 webhookApiDTO.setUsername(webhookInfo.getUsername());
             }
+            if (!webhookInfo.getHeadersList().isEmpty()) {
+                webhookApiDTO.setHeaders(webhookInfo.getHeadersList()
+                        .stream()
+                        .map(el -> new RequestHeader(el.getName(), el.getValue()))
+                        .collect(Collectors.toList()));
+            }
             webhookApiDTO.setTrustSelfSignedCertificates(webhookInfo.getTrustSelfSignedCertificates());
             answer.setTypeSpecificDetails(webhookApiDTO);
         }
@@ -98,6 +105,7 @@ public class WorkflowMapper {
      * @param workflowApiDTO the UI object for the workflow.
      * @param name the name for workflow.
      * @return the converted object.
+
      */
     public Workflow fromUiWorkflowApiDTO(@Nonnull WorkflowApiDTO workflowApiDTO, String name) {
         Objects.requireNonNull(workflowApiDTO);
@@ -148,11 +156,19 @@ public class WorkflowMapper {
             if (trustSelfSignedCertificates != null) {
                 builder.setTrustSelfSignedCertificates(trustSelfSignedCertificates);
             }
+            final List<RequestHeader> headers = webhookApiDTO.getHeaders();
+            if (headers != null) {
+                headers.forEach(
+                        header -> builder.addHeaders(WebhookInfo.RequestHeader.newBuilder().setName(
+                                header.getName()).setValue(header.getValue()).build()));
+
+            }
             workflowInfo.setWebhookInfo(builder);
         }
 
         convertedWorkflow.setWorkflowInfo(workflowInfo);
         return convertedWorkflow.build();
+
     }
 
     /**

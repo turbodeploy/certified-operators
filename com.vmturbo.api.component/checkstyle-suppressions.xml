@@ -64,7 +64,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]UserMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]UuidMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]WidgetsetMapper.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]WorkflowMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]AbstractAspectMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]CloudAspectMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]DesktopPoolAspectMapper.java" />
@@ -199,7 +198,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]TopologyDataDefinitionMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]UuidMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]WidgetsetMapperTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]WorkflowMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]BaseAspectMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]CloudAspectMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]mapper[/\\]aspect[/\\]DatabaseAspectMapperTest.java" />

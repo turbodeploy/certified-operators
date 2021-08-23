@@ -11,9 +11,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.CharMatcher;
 import com.google.common.collect.Lists;
 
 import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +25,7 @@ import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
+import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
@@ -288,6 +291,28 @@ public class WorkflowsService implements IWorkflowsService {
                     throw new IllegalArgumentException("The \"username\" must not contain a colon.");
                 }
             }
+
+            // validate webhook headers if any
+            if (webhookApiDTO.getHeaders() != null) {
+                for (RequestHeader header : webhookApiDTO.getHeaders()) {
+                    final String headerName = header.getName();
+                    validateRequestHeaderName(headerName);
+                }
+            }
+        }
+    }
+
+    private static void validateRequestHeaderName(final String headerName) {
+        boolean headerNameIsAscii = CharMatcher.ascii().matchesAllOf(headerName);
+        if (!headerNameIsAscii) {
+            throw new IllegalArgumentException(
+                    "Header name should has only ASCII symbols. \"" + headerName
+                            + "\" is wrong header name");
+        }
+        if (StringUtils.isBlank(headerName)) {
+            throw new IllegalArgumentException(
+                    "Header name shouldn't be empty or has only whitespaces. \"" + headerName
+                            + "\" is wrong header name");
         }
     }
 

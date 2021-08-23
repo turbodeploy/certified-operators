@@ -33,6 +33,7 @@ import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
+import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -636,6 +637,28 @@ public class WorkflowsServiceTest {
             workflowsService.addWorkflow(workflowApiDTO);
             fail();
         } catch (IllegalArgumentException | InvalidOperationException e) {
+        }
+
+        // test header name are not in ASCII.
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setHeaders(
+                Collections.singletonList(new RequestHeader("⊗ invalid header ⊗", "header_value")));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test header name is empty (or has only whitespaces)
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setHeaders(
+                Collections.singletonList(new RequestHeader("", "header_value")));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
         }
     }
 
