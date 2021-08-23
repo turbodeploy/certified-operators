@@ -100,7 +100,6 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis;
@@ -307,8 +306,12 @@ public class TopologyConverter {
 
 
     //Store the entities whose commodity usage need to be modified because of reservation during convertingToMarket
-    //<commBought, providerId>
-    final private Map<CommodityBoughtDTO, Long> commoditiesWithReservationGreaterThanUsed = Maps.newHashMap();
+    //<buyerId, commBought, providerId>
+    private final Map<Long, Map<CommodityBoughtDTO, Long>> commoditiesWithReservationGreaterThanUsed = Maps.newHashMap();
+
+    // Update projected provider sold value with buyer reserved value after market analysis
+    // Map<providerOid, Map<the commodity type to update, the value to be subtracted from sold value>>
+    private final Map<Long, Map<CommodityType, Double>> projectedProviderUsedSubtractionMap = Maps.newHashMap();
 
     private static final float MEDIUM_RATE_OF_RESIZE = 2.0f;
 
@@ -929,7 +932,8 @@ public class TopologyConverter {
                                             commodity.getReservedCapacity() > commodity.getUsed()) {
                                             logger.debug("Adding entity {} 's {} commodity into commoditiesWithReservationGreaterThanUsed table"
                                             , entity.getOid(), commodity.getCommodityType().getType());
-                                            commoditiesWithReservationGreaterThanUsed.put(commodity, commoditiesBoughtFromProvider.getProviderId());
+                                            commoditiesWithReservationGreaterThanUsed.computeIfAbsent(entity.getOid(), key -> new HashMap<>())
+                                                .put(commodity, commoditiesBoughtFromProvider.getProviderId());
                                         }
                                     }
                                 }
@@ -948,10 +952,11 @@ public class TopologyConverter {
 
             Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> providerUsedModificationMap = createProviderUsedModificationMap(entityOidToDto, oidsToRemove);
             //For bought commodities whose reservation is greater than used, we need to add reservation - used onto its provider.
-            for (Entry<CommodityBoughtDTO, Long> commodityBoughtWithReservationGreaterThanUsed: commoditiesWithReservationGreaterThanUsed.entrySet()) {
-                addReservationUsedDiffIntoProviderUsedModificationMap(providerUsedModificationMap,
-                        commodityBoughtWithReservationGreaterThanUsed.getKey(), commodityBoughtWithReservationGreaterThanUsed.getValue());
-            }
+            commoditiesWithReservationGreaterThanUsed.values().stream()
+                .flatMap(map -> map.entrySet().stream())
+                .forEach(entry ->
+                    addReservationUsedDiffIntoProviderUsedModificationMap(providerUsedModificationMap,
+                        entry.getKey(), entry.getValue()));
             commodityConverter.setProviderUsedSubtractionMap(providerUsedModificationMap);
 
             Collection<TraderTO> convertedTraders = convertToMarket();
@@ -1108,6 +1113,9 @@ public class TopologyConverter {
             logger.info("Converting {} projectedTraders to topologyEntityDTOs", projectedTraders.size());
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             projectedRICoverageCalculator.relinquishCoupons(projectedTraders);
+            if (useVMReservationAsUsed) {
+                generateProjectedProviderUsedSubtractionMap(projectedTraders, originalTopology);
+            }
             final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
@@ -1142,6 +1150,47 @@ public class TopologyConverter {
             return new HashMap<>();
         } finally {
             conversionErrorCounts.endPhase();
+        }
+    }
+
+    /**
+     * Generate ProjectedProviderUsedSubtractionMap to update projected provider sold value
+     * with buyer reserved value after market analysis
+     * Map<providerOid, Map<the commodity type to update, the value to be subtracted from sold value>>
+     *
+     * @param projectedTraders list of {@link TraderTO}s that are to be converted to {@link TopologyEntityDTO}s.
+     * @param originalTopology the original set of {@link TopologyEntityDTO}s by OID.
+     */
+    private void generateProjectedProviderUsedSubtractionMap(@Nonnull final List<TraderTO> projectedTraders,
+                                                             @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology) {
+        for (TraderTO trader : projectedTraders) {
+            final long traderOid = trader.getOid();
+            final TopologyDTO.TopologyEntityDTO originalEntity = originalTopology.get(traderOid);
+            // Check if trader is part of commoditiesWithReservationGreaterThanUsed.
+            // If so, it means the reserved capacity of a commodity is greater than its used value.
+            // We need to update the sold value of its current supplier.
+            if (originalEntity != null
+                && commoditiesWithReservationGreaterThanUsed.containsKey(traderOid)
+                && ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.containsKey(originalEntity.getEntityType())) {
+                for (ShoppingListTO sl : trader.getShoppingListsList()) {
+                    final long supplierOid = sl.getSupplier();
+                    final TopologyDTO.TopologyEntityDTO supplier = entityOidToDto.get(supplierOid);
+                    if (supplier != null && ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.get(originalEntity.getEntityType()).containsKey(supplier.getEntityType())) {
+                        commoditiesWithReservationGreaterThanUsed.get(traderOid).keySet().stream()
+                            .filter(commBought -> ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION.get(originalEntity.getEntityType())
+                                .get(supplier.getEntityType()).contains(commBought.getCommodityType().getType()))
+                            .forEach(commBought -> {
+                                final Map<CommodityType, Double> subtraction =
+                                    projectedProviderUsedSubtractionMap.computeIfAbsent(supplierOid, key -> new HashMap<>());
+                                // Update the sold value of its current supplier by
+                                // (commBought.getReservedCapacity() - commBought.getUsed())
+                                subtraction.put(commBought.getCommodityType(),
+                                    subtraction.getOrDefault(commBought.getCommodityType(), 0d)
+                                        + (commBought.getReservedCapacity() - commBought.getUsed()));
+                            });
+                    }
+                }
+            }
         }
     }
 
@@ -4289,7 +4338,8 @@ public class TopologyConverter {
         //If commBought is in this map, that means its reservation is greater than used, and we use reservation as quantity
         float[] usedQuantities = new float[1];
         float[] peakQuantities = new float[1];
-        if (commoditiesWithReservationGreaterThanUsed.containsKey(topologyCommBought)) {
+        if (commoditiesWithReservationGreaterThanUsed.containsKey(buyer.getOid())
+            && commoditiesWithReservationGreaterThanUsed.get(buyer.getOid()).containsKey(topologyCommBought)) {
             logger.debug("replacing buyer {}'s {} comm used with reservation", buyer.getOid(), topologyCommBought.getCommodityType().getType());
             usedQuantities[0] = (float)topologyCommBought.getReservedCapacity();
             peakQuantities[0] = (float)topologyCommBought.getPeak();
@@ -4446,6 +4496,15 @@ public class TopologyConverter {
                 reverseScaleQuantity *= inverseScalingFactor;
                 reverseScaleCapacity *= inverseScalingFactor;
                 reverseScalePeakQuantity *= inverseScalingFactor;
+            }
+        }
+        if (useVMReservationAsUsed) {
+            reverseScaleQuantity -= projectedProviderUsedSubtractionMap.getOrDefault(traderOid, Collections.emptyMap())
+                .getOrDefault(commType, 0d).floatValue();
+            if (reverseScaleQuantity < 0) {
+                logger.error("reverseScaleQuantity {} is negative. Entity oid {}. Commodity Sold {}",
+                    reverseScaleQuantity, traderOid, commType.getType());
+                reverseScaleQuantity = 0;
             }
         }
 
@@ -5152,5 +5211,15 @@ public class TopologyConverter {
                             .ifPresent(storageId -> matchingVolumeIds.add(volume.getOid()));
         }
         return matchingVolumeIds;
+    }
+
+    /**
+     * Set useVMReservationAsUsed feature flag.
+     *
+     * @param useVMReservationAsUsed useVMReservationAsUsed
+     */
+    @VisibleForTesting
+    void setUseVMReservationAsUsed(final boolean useVMReservationAsUsed) {
+        this.useVMReservationAsUsed = useVMReservationAsUsed;
     }
 }
