@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -57,9 +56,7 @@ public class Placement {
 
     static final Logger logger = LogManager.getLogger(Placement.class);
 
-    public static int globalCounter = 0;
-    private static boolean printMaxPlacementIterations = true;
-    public static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
+    private static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
     public static int exceptionCounterShopAlone = 0;
     public static int exceptionCounterShopTogether = 0;
 
@@ -241,9 +238,8 @@ public class Placement {
                 if (!shoppingList.getUnquotedCommoditiesBaseTypeList()
                         .equals(shoppingList.getModifiableUnquotedCommoditiesBaseTypeList())) {
                     shoppingList.getModifiableUnquotedCommoditiesBaseTypeList().clear();
-                    shoppingList.getUnquotedCommoditiesBaseTypeList().forEach(c -> {
-                        shoppingList.addModifiableUnquotedCommodityBaseType(c);
-                    });
+                    shoppingList.getUnquotedCommoditiesBaseTypeList().forEach(
+                        shoppingList::addModifiableUnquotedCommodityBaseType);
                 } else {
                     break;
                 }
@@ -278,11 +274,10 @@ public class Placement {
             @NonNull HashSet<@NonNull Trader> sellers =
                     economy.getMarket(shoppingList).getActiveSellersAvailableForPlacementForConsumer(shoppingList);
             if (logger.isTraceEnabled()) {
-                logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
+                logger.trace("PSL Sellers for shoppingList: {}", shoppingList);
                 for (Trader trader : sellers) {
                     if (AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
-                        logger.trace("PSL Seller: " +
-                                trader.toString());
+                        logger.trace("PSL Seller: {}", trader);
                     }
                 }
             }
@@ -524,14 +519,13 @@ public class Placement {
                 }
 
                 if (minimizer == null) {
-                    economy.moveableSlByMarket(buyingTrader).forEach(e -> {
-                        createReconfigureForEmptySeller(economy, e.getKey(), placementResults);
-                    });
+                    economy.moveableSlByMarket(buyingTrader).forEach(e ->
+                        createReconfigureForEmptySeller(economy, e.getKey(), placementResults));
                     continue;
                 } else if (Double.isInfinite(minimizer.getBestTotalQuote())) {
                     // Add trader with best quote infinity to unplacedTraders of placementResults
-                    placementResults.addInfinityQuoteTraders(buyingTrader, minimizer
-                            .getInfiniteQuoteTrackers().values().stream().collect(Collectors.toList()));
+                    placementResults.addInfinityQuoteTraders(buyingTrader,
+                            Lists.newArrayList(minimizer.getInfiniteQuoteTrackers().values()));
                 }
             } catch (Exception e) {
                 if (exceptionCounterShopTogether < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
@@ -804,20 +798,6 @@ public class Placement {
     }
 
     /**
-     * Convert a stream of traders to a set of the traders' ids. The id of a trader
-     * is its economy index.
-     *
-     * @param tradersStream a stream of traders
-     * @return a set contain ing the ids of the traders
-     */
-    private static Set<Integer> traderIds(Stream<Trader> tradersStream) {
-        return tradersStream
-                    .map(trader -> trader == null ? null : trader.getEconomyIndex())
-                    .collect(Collectors.toSet());
-
-    }
-
-    /**
      * Compute the best quote for the given trader.
      *
      * @param economy the economy.
@@ -852,9 +832,12 @@ public class Placement {
                     .stream().map(Entry::getValue).collect(Collectors.toSet()), economy);
             if (logger.isDebugEnabled()) {
                 logger.debug("Buying trader {} has possible context combination: {}, parentId {}",
-                        trader.getDebugInfoNeverUseInCode(), contextCombination.stream()
-                        .collect(Collectors.toSet()), contextCombination.stream()
-                        .map(c -> c.getBalanceAccount().getParentId()).collect(Collectors.toSet()));
+                        trader.getDebugInfoNeverUseInCode(),
+                        contextCombination,
+                        contextCombination.stream()
+                                .map(Context::getBalanceAccount)
+                                .map(BalanceAccount::getParentId)
+                                .collect(Collectors.toSet()));
             }
             CliqueMinimizer bestMinimizer = null;
             Context bestContext = null;
@@ -1024,7 +1007,7 @@ public class Placement {
      */
     public static @NonNull PlacementResults runPlacementsTillConverge(Economy economy,
                     Ledger ledger, String callerPhase) {
-        return runPlacementsTillConverge(economy, new ArrayList<ShoppingList>(), ledger,
+        return runPlacementsTillConverge(economy, new ArrayList<>(), ledger,
                         false, callerPhase);
     }
 
@@ -1054,26 +1037,18 @@ public class Placement {
             initializeMarketExpenses(economy, ledger);
         }
         int counter = 0;
-        if (printMaxPlacementIterations) {
-            logger.info("The maximum placement iteration number has been set to: " + economy.getSettings().getMaxPlacementIterations());
-            printMaxPlacementIterations = false;
-        }
         while (keepRunning) {
             // in certain edge cases, we may have placement keep generating move actions
             // while they don't really improve the performance. We force the placement to
             // stop when reaching the max number allowed.
             if (counter >= economy.getSettings().getMaxPlacementIterations()) {
-                keepRunning = false;
-                logger.warn("The placement has been running for " +
-                    economy.getSettings().getMaxPlacementIterations()
-                    + " rounds, forcing placement to stop now!");
+                logger.debug("Max Placement iterations exceeded in {}. Breaking.", callerPhase);
                 break;
             }
             final PlacementResults intermediateResults =
                 placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
 
             counter++;
-            globalCounter++;
             keepRunning = !(intermediateResults.getActions().isEmpty()
                             || intermediateResults.getActions().stream().allMatch(a -> a instanceof ReconfigureConsumer)
                             || (useExpenseMetric && areSavingsLessThanThreshold(economy)));
@@ -1083,9 +1058,7 @@ public class Placement {
             }
 
         }
-        if (logger.isDebugEnabled()) {
-            logger.debug(callerPhase + " Total Placement Iterations: " + counter + " " + globalCounter);
-        }
+        logger.debug("Total Placement Iterations for {}: {}", callerPhase, counter);
         return placementResults;
     }
 
@@ -1172,7 +1145,7 @@ public class Placement {
     public static List<Action> breakDownCompoundMove(List<Action> compoundMoves) {
         // break down the compound move to individual moves so that legacy UI can assimilate it.
         // TODO: if new UI can support compoundMove, we do not need this break down
-        List<Action> moveActions = new ArrayList<Action>();
+        List<Action> moveActions = new ArrayList<>();
         compoundMoves.forEach(a -> {
             if (a instanceof CompoundMove) {
                 moveActions.addAll(((CompoundMove)a).getConstituentMoves());
