@@ -102,6 +102,10 @@ public class SMAConverter {
                 long vmOid = smaMatch.getVirtualMachine().getOid();
                 TraderTO projectedVmTraderTO =
                         oidToProjectedTraderMap.get(vmOid);
+                if (projectedVmTraderTO == null) {
+                    // do not try updating an entity that was removed
+                    continue;
+                }
                 Long destinationOnDemandMarketTierOid = converter.getCloudTc().getTraderTOOid(
                         new OnDemandMarketTier(converter.getUnmodifiableEntityOidToDtoMap()
                                 .get(smaMatch.getTemplate().getOid())));
@@ -185,6 +189,10 @@ public class SMAConverter {
                 long vmOid = smaMatch.getVirtualMachine().getOid();
                 TraderTO projectedVmTraderTO =
                         oidToProjectedTraderMap.get(vmOid);
+                if (projectedVmTraderTO == null) {
+                    // do not try updating an entity that was removed
+                    continue;
+                }
                 Long destinationOnDemandMarketTierOid = converter.getCloudTc().getTraderTOOid(
                         new OnDemandMarketTier(converter.getUnmodifiableEntityOidToDtoMap()
                                 .get(smaMatch.getTemplate().getOid())));
