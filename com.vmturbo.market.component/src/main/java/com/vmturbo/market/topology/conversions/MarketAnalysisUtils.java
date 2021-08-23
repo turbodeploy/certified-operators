@@ -431,6 +431,10 @@ public final class MarketAnalysisUtils {
                     .setIgnoreUtilization(PriceFunctionTO.IgnoreUtilization.newBuilder())
                     .build();
 
+    private static final PriceFunctionTO CFPF = PriceFunctionTO.newBuilder()
+                    .setConsumerFits(PriceFunctionTO.ConsumerFits.newBuilder())
+                    .build();
+
     /**
      * A low price weight. Setting a low price on a standard-weighted price function can make it so
      * that a commodity does not put much weight on move actions until it is extremely congested
@@ -537,6 +541,9 @@ public final class MarketAnalysisUtils {
                             .setWeight(1 + additionalSoldWeight)
                             .build())
                     .build();
+        } else if (commodityType == CommodityDTO.CommodityType.NUM_VCORE_VALUE
+                && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+            return CFPF;
         } else {
             return (additionalSoldWeight == 0) ? SWP : PriceFunctionTO.newBuilder().setStandardWeighted(
                     PriceFunctionTO.StandardWeighted.newBuilder().setWeight(1 + additionalSoldWeight).build()).build();
