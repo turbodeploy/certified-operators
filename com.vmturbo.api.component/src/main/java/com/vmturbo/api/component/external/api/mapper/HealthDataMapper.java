@@ -214,6 +214,7 @@ public class HealthDataMapper {
     private static boolean ignoreFailedDiscovery(TargetHealth healthInfo,
             int failedDiscoveryCountThreshold) {
         return healthInfo.getSubcategory() == TargetHealthSubCategory.DISCOVERY
+            && healthInfo.hasErrorType()
             && healthInfo.getConsecutiveFailureCount() < failedDiscoveryCountThreshold;
     }
 

@@ -18,6 +18,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.api.component.external.api.HealthChecksTestBase;
 import com.vmturbo.api.component.external.api.service.util.HealthDataAggregator;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.HealthCategoryReponseDTO;
@@ -39,7 +40,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 /**
  * Tests the work of {@link HealthDataAggregator}.
  */
-public class HealthDataAggregatorTest {
+public class HealthDataAggregatorTest extends HealthChecksTestBase {
 
     private TargetsServiceMole targetBackend = spy(TargetsServiceMole.class);
     private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
@@ -237,51 +238,12 @@ public class HealthDataAggregatorTest {
             .collect(Collectors.toMap(TargetDetails::getTargetId, Function.identity())));
     }
 
-    private TargetDetails createTargetDetails(Long id, TargetHealth health, List<Long> derived,
-        List<Long> parents, boolean hidden) {
-        return TargetDetails.newBuilder()
-            .setTargetId(id)
-            .setHealthDetails(health)
-            .addAllDerived(derived)
-            .addAllParents(parents)
-            .setHidden(hidden)
-            .build();
-    }
-
     private void mockTargetHealth(Map<Long, TargetDetails> targetDetails) {
         doAnswer(invocationOnMock -> {
             GetTargetDetailsResponse.Builder respBuilder = GetTargetDetailsResponse.newBuilder();
             respBuilder.putAllTargetDetails(targetDetails);
             return respBuilder.build();
         }).when(targetBackend).getTargetDetails(any());
-    }
-
-    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName,
-            final ErrorType errorType, final String errorText,
-            final long failureTime, final int failureTimes) {
-        return TargetHealth.newBuilder()
-                .setSubcategory(category)
-                .setTargetName(targetDisplayName)
-                .setErrorText(errorText)
-                .setErrorType(errorType)
-                .setTimeOfFirstFailure(failureTime)
-                .setConsecutiveFailureCount(failureTimes)
-                .build();
-    }
-
-    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName, final String errorText) {
-        return TargetHealth.newBuilder()
-                .setSubcategory(category)
-                .setTargetName(targetDisplayName)
-                .setErrorText(errorText)
-                .build();
-    }
-
-    private TargetHealth makeHealth(final TargetHealthSubCategory category, final String targetDisplayName) {
-        return TargetHealth.newBuilder()
-                .setSubcategory(category)
-                .setTargetName(targetDisplayName)
-                .build();
     }
 
     /**
