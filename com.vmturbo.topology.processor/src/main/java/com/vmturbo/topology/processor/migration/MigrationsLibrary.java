@@ -104,7 +104,9 @@ public class MigrationsLibrary {
             .put("V_01_01_08__AWS_Add_AccountType",
                 new V_01_01_08__AWS_Add_AccountType(keyValueStore))
             .put("V_01_01_09__VV_Metadata_Change_Migration",
-                new V_01_01_09__VV_Metadata_Change_Migration(probeStore, dslContext, identityProvider));
+                new V_01_01_09__VV_Metadata_Change_Migration(probeStore, dslContext, identityProvider))
+            .put("V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag",
+                new V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag(targetStore, probeStore));
         return builder.build();
     }
 }
