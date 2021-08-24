@@ -190,6 +190,8 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.AWS_BILLING);
             case MICROSOFTAZUREAPPLICATIONINSIGHTS:
                 return Collections.singleton(SDKProbeType.APPINSIGHTS);
+            case CLOUDFOUNDRY:
+                return Collections.singleton(SDKProbeType.CLOUD_FOUNDRY);
             case KUBERNETES:
                 return Collections.singleton(SDKProbeType.KUBERNETES);
             case NEWRELIC:
