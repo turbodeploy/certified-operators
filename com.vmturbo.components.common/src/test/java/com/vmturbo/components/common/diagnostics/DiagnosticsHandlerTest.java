@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -86,7 +87,7 @@ public class DiagnosticsHandlerTest {
         Assert.assertEquals(Arrays.asList(FILE1, FILE2 + DiagsZipReader.TEXT_DIAGS_SUFFIX),
                 new ArrayList<>(getZipEntries(bytes).keySet()));
         restoreDiags(handler, bytes);
-        Mockito.verify(restorable).restoreDiags(Mockito.any(), Mockito.any());
+        Mockito.verify(restorable).restoreDiags(Mockito.any(Stream.class), Mockito.any());
     }
 
     /**
@@ -130,17 +131,27 @@ public class DiagnosticsHandlerTest {
         final String restoreException = "Restore failed";
         Mockito.doThrow(new DiagnosticsException(restoreException))
                 .when(failing)
-                .restoreDiags(Mockito.any(), Mockito.any());
+                .restoreDiags(Mockito.any(Stream.class), Mockito.any());
+
+        List<String> contents = new ArrayList<>();
+        Mockito.doAnswer(new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                final Stream<String> lines = invocation.getArgumentAt(0, Stream.class);
+                lines.forEach(contents::add);
+                return null;
+            }
+        }).when(restorable).restoreDiags(Mockito.any(Stream.class), Mockito.any());
+
         try {
             restoreDiags(handler, bytes);
         } catch (DiagnosticsException e) {
             // NOOP This is expected
         }
-        Mockito.verify(failing).restoreDiags(Mockito.any(), Mockito.any());
-        @SuppressWarnings("unchecked") final ArgumentCaptor<List<String>> captor =
-                (ArgumentCaptor<List<String>>)ArgumentCaptor.forClass((Class)List.class);
-        Mockito.verify(restorable).restoreDiags(captor.capture(), Mockito.any());
-        Assert.assertEquals(CONTENTS2, captor.getValue());
+        // failing
+        Mockito.verify(failing).restoreDiags(Mockito.any(Stream.class), Mockito.any());
+        // good diags
+        Assert.assertEquals(CONTENTS2, contents);
     }
 
     /**
@@ -214,7 +225,7 @@ public class DiagnosticsHandlerTest {
         }
         Assert.assertEquals(Collections.singletonList("some exception"), errors);
         Mockito.verify(diagnosable, Mockito.atLeastOnce()).restoreDiags(Mockito.any(), Mockito.any());
-        Mockito.verify(restorable, Mockito.atLeastOnce()).restoreDiags(Mockito.any(), Mockito.any());
+        Mockito.verify(restorable, Mockito.atLeastOnce()).restoreDiags(Mockito.any(Stream.class), Mockito.any());
     }
 
     /**

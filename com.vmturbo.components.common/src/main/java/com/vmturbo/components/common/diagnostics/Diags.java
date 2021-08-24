@@ -1,9 +1,10 @@
 package com.vmturbo.components.common.diagnostics;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Arrays;
-import java.util.List;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,7 +15,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,7 +41,7 @@ public interface Diags {
      * @return the content of the diagnostics as a list of lines, or null.
      */
     @Nullable
-    List<String> getLines();
+    Stream<String> getLines();
 
     /**
      * If the diags entry is a binary file, returns the contents. If it's a text file, returns null.
@@ -50,13 +50,6 @@ public interface Diags {
      */
     @Nullable
     byte[] getBytes();
-
-    /**
-     * The content of the diagnostics item as one string.
-     *
-     * @return the content of the diagnostics as one string
-     */
-    String getContent();
 
     /**
      * A {@link Diags} implementation which compresses the content in-memory, and decompresses
@@ -103,22 +96,18 @@ public interface Diags {
 
         @Nonnull
         private UncompressedDiags getDecompressed() {
-            try {
-                if (isCompressed) {
-                    // Supplier doesn't return null, so this will never return null.
-                    final LZ4FastDecompressor decompressor =
-                            LZ4Factory.fastestJavaInstance().fastDecompressor();
-                    byte[] uncompressed =
-                            decompressor.decompress(bytes, uncompressedLength);
+            if (isCompressed) {
+                // Supplier doesn't return null, so this will never return null.
+                final LZ4FastDecompressor decompressor =
+                        LZ4Factory.fastestJavaInstance().fastDecompressor();
+                byte[] uncompressed =
+                        decompressor.decompress(bytes, uncompressedLength);
 
-                    return new UncompressedDiags(name, uncompressed);
-                } else {
-                    logger.info("Uncompressed diag ({}) with size ({}) is retrieved.", name,
-                            bytes.length);
-                    return new UncompressedDiags(name, bytes);
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
+                return new UncompressedDiags(name, uncompressed);
+            } else {
+                logger.info("Uncompressed diag ({}) with size ({}) is retrieved.", name,
+                        bytes.length);
+                return new UncompressedDiags(name, bytes);
             }
         }
 
@@ -129,7 +118,7 @@ public interface Diags {
 
         @Nullable
         @Override
-        public List<String> getLines() {
+        public Stream<String> getLines() {
             return getDecompressed().getLines();
         }
 
@@ -140,13 +129,7 @@ public interface Diags {
         }
 
         @Override
-        public String getContent() {
-            return getDecompressed().getContent();
-        }
-
-        @Override
         public String toString() {
-            final String description;
             return name + " : compressed";
         }
     }
@@ -156,22 +139,28 @@ public interface Diags {
      */
     class UncompressedDiags implements Diags {
         private final String name;
-        private final List<String> lines;
+        private final Stream<String> lines;
         private final byte[] bytes;
 
-        UncompressedDiags(String name, byte[] content) throws IOException {
+        UncompressedDiags(String name, byte[] bytes) {
             this.name = name;
             if (Diags.isTextDiags(name)) {
-                this.lines = IOUtils.readLines(new ByteArrayInputStream(content),
-                        Charsets.UTF_8);
+                this.lines = new BufferedReader(new InputStreamReader(
+                        new ByteArrayInputStream(bytes), Charsets.UTF_8)).lines();
                 this.bytes = null;
             } else if (Diags.isBinaryDiags(name)) {
                 this.lines = null;
-                this.bytes = content;
+                this.bytes = bytes;
             } else {
-               // should never happen, but if it does, treat it as an iterator-terminating condition
-               throw new IllegalArgumentException("Invalid file extension for diags entry: " + name);
+                // should never happen, but if it does, treat it as an iterator-terminating condition
+                throw new IllegalArgumentException("Invalid file extension for diags entry: " + name);
             }
+        }
+
+        UncompressedDiags(String name, Stream<String> lines) {
+            this.name = name;
+            this.lines = lines;
+            this.bytes = null;
         }
 
         @Override
@@ -181,7 +170,7 @@ public interface Diags {
 
         @Override
         @Nullable
-        public List<String> getLines() {
+        public Stream<String> getLines() {
             return lines;
         }
 
@@ -189,11 +178,6 @@ public interface Diags {
         @Nullable
         public byte[] getBytes() {
             return bytes;
-        }
-
-        @Override
-        public String getContent() {
-            return String.join("\n", lines);
         }
 
         @Override

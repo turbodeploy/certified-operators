@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.eq;
@@ -651,7 +652,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
         }
-        verify(identityProvider).restoreDiags(any(), any());
+        verify(identityProvider).restoreDiags(anyList(), any());
 
         ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(probeStore).overwriteProbeInfo(mapCaptor.capture());

@@ -6,7 +6,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,7 +63,7 @@ public class DiagsZipReaderTest extends Assert {
             {"c.binary", bytes(1, 2, 3)},
             {"e.diags", bytes("e", "f", "g")},
             {"f.binary", bytes(1, 2, 3)},
-            {"g.diags", bytes("g", "h", "i")}
+            {"g.diags", Stream.of("g", "h", "i")}
         });
     }
 
@@ -74,13 +75,18 @@ public class DiagsZipReaderTest extends Assert {
             Diags actualDiags = diagsIter.next();
             String name = (String) objects[0];
             Object content = objects[1];
-            boolean isText = content instanceof List;
-            byte[] castContent = (byte[]) content;
-            Diags expectedDiags = new UncompressedDiags(name, castContent);
+            boolean isText = content instanceof Stream;
+            Diags expectedDiags;
+            if (content instanceof byte[]) {
+                expectedDiags = new UncompressedDiags(name, (byte[]) content);
+            } else {
+                expectedDiags = new UncompressedDiags(name, (Stream<String>)content);
+            }
             assertEquals("Incorrect diags name",
                 expectedDiags.getName(), actualDiags.getName());
             if (isText) {
-                assertEquals(expectedDiags.getLines(), actualDiags.getLines());
+                assertEquals(expectedDiags.getLines().collect(Collectors.toList()),
+                        actualDiags.getLines().collect(Collectors.toList()));
             } else {
                 assertArrayEquals(expectedDiags.getBytes(), actualDiags.getBytes());
             }
