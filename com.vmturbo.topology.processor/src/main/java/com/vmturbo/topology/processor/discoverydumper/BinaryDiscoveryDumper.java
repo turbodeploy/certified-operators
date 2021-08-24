@@ -119,7 +119,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
         File fileInDiags = new File(zipEntry.getName());
         try {
             FileUtils.writeByteArrayToFile(new File(dumpDirectory.getAbsolutePath() + '/' + fileInDiags.getName()),
-                zipEntry.getContent());
+                zipEntry.getBytes());
         } catch (IOException e) {
             logger.error("Error in copying file {} from the zip stream",
                 zipEntry.getName());

@@ -1,15 +1,20 @@
 package com.vmturbo.components.common.diagnostics;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Charsets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -109,7 +114,7 @@ public class RecursiveZipIterator implements Iterator<WrappedZipEntry>, AutoClos
                         if (isEmbeddedZip(nextEntry)) {
                             // embedded ZIP file - get its content as an input stream
                             final ByteArrayInputStream baiStream =
-                                new ByteArrayInputStream(wrappedEntry.getContent());
+                                new ByteArrayInputStream(wrappedEntry.getBytes());
                             // and create an iterator to get its entries
                             this.subIterator = new RecursiveZipIterator(new ZipInputStream(baiStream));
                             // leave nextValue null, so next loop iteration will ask the new
@@ -225,7 +230,7 @@ public class RecursiveZipIterator implements Iterator<WrappedZipEntry>, AutoClos
          * @return the entry's content, as a byte array
          * @throws IOException if we fail to obtain the content from the zip stream
          */
-        public byte[] getContent() throws IOException {
+        public byte[] getBytes() throws IOException {
             if (throwable != null) {
                 throw new IOException(
                     "Attempted to read ZipEntry content from exception-bearing fake entry",
@@ -239,6 +244,21 @@ public class RecursiveZipIterator implements Iterator<WrappedZipEntry>, AutoClos
                 baoStream.write(buffer, 0, count);
             }
             return baoStream.toByteArray();
+        }
+
+        /**
+         * Get the lines stream from the current ZipEntry.
+         *
+         * @return lines in the entry, as a stream of strings
+         * @throws IOException if we fail to obtain the content from the zip stream
+         */
+        public Stream<String> getLines() throws IOException {
+            if (throwable != null) {
+                throw new IOException(
+                        "Attempted to read ZipEntry content from exception-bearing fake entry",
+                        throwable);
+            }
+            return new BufferedReader(new InputStreamReader(zipStream, Charsets.UTF_8)).lines();
         }
 
         /**

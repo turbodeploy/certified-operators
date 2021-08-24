@@ -20,6 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -420,7 +421,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
 
         for (Diags diags : sortedDiagnostics) {
             final String diagsName = diags.getName();
-            final List<String> diagsLines = diags.getLines();
+            final List<String> diagsLines = diags.getLines() == null ? null : diags.getLines().collect(Collectors.toList());
             final byte[] bytes = diags.getBytes();
             if (Stream.of(diagsLines, bytes).allMatch(Objects::isNull)) {
                 continue;

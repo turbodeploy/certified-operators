@@ -373,7 +373,7 @@ public class SQLCloudScopeStoreTest {
         final List<EntityCloudScopeRecord> entriesBefore = getScopeRecords();
         assertTrue(entriesBefore.isEmpty());
 
-        cloudScopeStore.restoreDiags(pre816SchemaLines, null);
+        cloudScopeStore.restoreDiags(pre816SchemaLines.stream(), null);
 
         final List<EntityCloudScopeRecord> entriesAfter = getScopeRecords();
         assertEquals(2, entriesAfter.size());
@@ -398,7 +398,7 @@ public class SQLCloudScopeStoreTest {
         final List<EntityCloudScopeRecord> entriesBefore = getScopeRecords();
         assertTrue(entriesBefore.isEmpty());
 
-        cloudScopeStore.restoreDiags(post816SchemaLines, null);
+        cloudScopeStore.restoreDiags(post816SchemaLines.stream(), null);
 
         final List<EntityCloudScopeRecord> entriesAfter = getScopeRecords();
         assertEquals(2, entriesAfter.size());

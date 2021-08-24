@@ -100,7 +100,7 @@ public class RecursiveZipIteratorTest extends Assert {
         String expectedText = Stream.of(Arrays.copyOfRange(expected, 2, expected.length))
             .map(line -> (String) line)
             .collect(Collectors.joining("\n"));
-        String actualText = new String(entry.getContent(), Charsets.UTF_8);
+        String actualText = new String(entry.getBytes(), Charsets.UTF_8);
         assertEquals("Unexpected text content", expectedText, actualText);
     }
 
@@ -110,7 +110,7 @@ public class RecursiveZipIteratorTest extends Assert {
         for (int i = 0; i < bytes.length; i++) {
             bytes[i] = (byte) ((int) ((Integer) expected[i+2]));
         }
-        assertArrayEquals("Unexpected binary content", bytes,  entry.getContent());
+        assertArrayEquals("Unexpected binary content", bytes,  entry.getBytes());
     }
 
     private void checkDirectoryEntry(WrappedZipEntry entry, Object[] expected) {

@@ -34,7 +34,7 @@ import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZip
  * Otherwise this case is indistinguishable from coming having fully scanned the input.
  *
  */
-public class DiagsZipReader implements Iterable<Diags> {
+public class DiagsZipReader implements Iterable<Diags>, AutoCloseable {
 
     /**
      * Files with this suffix should have text/string diagnostic data.
@@ -49,7 +49,11 @@ public class DiagsZipReader implements Iterable<Diags> {
     private final DiagsIterator diagsIterator;
 
     /**
-     * Create a new instance to scan the given input stream.
+     * Create a new instance to scan the given input stream, without any compression to the entry
+     * data. The entry will be read from input stream line by line in the original order as
+     * defined in the zip. If there is a need to read diags in different order, then
+     * {@link DiagsZipReader#DiagsZipReader(InputStream, CustomDiagHandler, boolean)} should be
+     * used with compress set to true, so it reads all files into memory and then sort.
      *
      * @param inputStream input stream to be scanned
      */
@@ -88,10 +92,15 @@ public class DiagsZipReader implements Iterable<Diags> {
         return diagsIterator.getException();
     }
 
+    @Override
+    public void close() {
+        diagsIterator.close();
+    }
+
     /**
      * Iterator class supporting the top-level Iterable.
      */
-    private static class DiagsIterator implements Iterator<Diags> {
+    private static class DiagsIterator implements Iterator<Diags>, AutoCloseable {
 
         private RecursiveZipIterator zipIterator;
         private Diags nextValue = null;
@@ -113,23 +122,23 @@ public class DiagsZipReader implements Iterable<Diags> {
             this.zipIterator = zipIterator;
             this.compress = compress;
             this.customDiagHandler = customDiagHandler;
-            // tee up first value for delivery
-            produceNextValue();
         }
 
         @Override
         public boolean hasNext() {
+            if (nextValue == null) {
+                produceNextValue();
+            }
             return nextValue != null;
         }
 
         @Override
         public Diags next() {
-            if (nextValue != null) {
+            if (hasNext()) {
                 try {
                     return nextValue;
                 } finally {
-                    // tee up next value to deliver, while returning current value
-                    produceNextValue();
+                    nextValue = null;
                 }
             } else {
                 throw new NoSuchElementException();
@@ -137,7 +146,6 @@ public class DiagsZipReader implements Iterable<Diags> {
         }
 
         private void produceNextValue() {
-            nextValue = null;
             while (nextValue == null && zipIterator.hasNext()) {
                 // Get next entry from zip file (or recursively embedded zip file)
                 WrappedZipEntry nextEntry = zipIterator.next();
@@ -162,10 +170,6 @@ public class DiagsZipReader implements Iterable<Diags> {
                     }
                 }
             }
-            if (nextValue == null) {
-                // tie off zip stream once we've gotten everything
-                zipIterator.close();
-            }
         }
 
         /**
@@ -189,12 +193,17 @@ public class DiagsZipReader implements Iterable<Diags> {
          * @throws IOException if the conversion fails
          */
         private Diags toDiags(WrappedZipEntry entry) throws IOException {
-            final byte[] content = entry.getContent();
+            final String entryName = entry.getName();
             try {
                 if (compress) {
-                    return new CompressedDiags(entry.getName(), content, sharedByteBuffer);
+                    return new CompressedDiags(entryName, entry.getBytes(), sharedByteBuffer);
                 } else {
-                    return new UncompressedDiags(entry.getName(), content);
+                    if (Diags.isTextDiags(entryName)) {
+                        // for text diags, read line by line from input stream
+                        return new UncompressedDiags(entryName, entry.getLines());
+                    } else {
+                        return new UncompressedDiags(entryName, entry.getBytes());
+                    }
                 }
             } catch (RuntimeException e) {
                 handleException(e);
@@ -203,7 +212,7 @@ public class DiagsZipReader implements Iterable<Diags> {
         }
 
         /**
-         * Shut down the iterator and stash the exception that's the casue.
+         * Shut down the iterator and stash the exception that's the cause.
          *
          * @param e exception causing the iterator to terminate early
          */
@@ -221,6 +230,11 @@ public class DiagsZipReader implements Iterable<Diags> {
          */
         public Throwable getException() {
             return exception;
+        }
+
+        @Override
+        public void close() {
+            zipIterator.close();
         }
     }
 }

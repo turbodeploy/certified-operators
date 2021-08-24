@@ -72,7 +72,7 @@ public class TestTableDiagsRestorable {
 
         //clean table and export diagnostic
         dsl.truncate(dumper.getTable()).execute();
-        dumper.restoreDiags(sb, null);
+        dumper.restoreDiags(sb.stream(), null);
 
         Result<BuyReservedInstanceRecord> result = dsl.selectFrom(dumper.getTable()).where(
                 BUY_RESERVED_INSTANCE.ID.eq(rec1.getId())).fetch();

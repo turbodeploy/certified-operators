@@ -66,17 +66,19 @@ public class DiagnosticsHandlerImportable<T> extends DiagnosticsHandler implemen
     @Override
     public String restore(@Nonnull InputStream inputStream, @Nonnull T context) throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
-        for (final Diags diags : zipReaderFactory.createReader(inputStream)) {
-            final RestoreProcedure diagnosable = consumers.get(diags.getName());
-            if (diagnosable == null) {
-                logger.info("Skipping file: {}", diags.getName());
-            } else {
-                try {
-                    diagnosable.restoreDiags(diags, context);
-                    logger.info("Import from file {} finished successfully", diags.getName());
-                } catch (DiagnosticsException e) {
-                    logger.error("Failed to import file " + diags.getName(), e);
-                    errors.addAll(e.getErrors());
+        try (DiagsZipReader diagsZipReader = zipReaderFactory.createReader(inputStream)) {
+            for (final Diags diags : diagsZipReader) {
+                final RestoreProcedure diagnosable = consumers.get(diags.getName());
+                if (diagnosable == null) {
+                    logger.info("Skipping file: {}", diags.getName());
+                } else {
+                    try {
+                        diagnosable.restoreDiags(diags, context);
+                        logger.info("Import from file {} finished successfully", diags.getName());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Failed to import file " + diags.getName(), e);
+                        errors.addAll(e.getErrors());
+                    }
                 }
             }
         }

@@ -11,7 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.protobuf.TextFormat;
 import com.google.protobuf.TextFormat.ParseException;
 
@@ -73,7 +73,7 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
     }
 
     @Override
-    default void restoreDiags(@Nonnull List<String> collectedDiags, T context) {
+    default void restoreDiags(@Nonnull Stream<String> lines, T context) {
         final Field<?>[] fields = getTable().fields();
         final ObjectMapper mapper = constructObjectMapper();
         getDSLContext().transaction(transactionContext -> {
@@ -82,8 +82,7 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
             logger.info("Disabling foreign key constraint checks while loading diags for '{}'", getTable());
             JooqUtil.disableForeignKeyConstraints(transaction);
 
-
-            Iterables.partition(collectedDiags, getBatchRestoreSize()).forEach(batchLines -> {
+            Iterators.partition(lines.iterator(), getBatchRestoreSize()).forEachRemaining(batchLines -> {
 
                 final List<S> batchRecords = batchLines.stream()
                         .map(line -> {
