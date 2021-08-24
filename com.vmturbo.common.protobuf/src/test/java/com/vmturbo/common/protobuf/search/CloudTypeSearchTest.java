@@ -22,6 +22,8 @@ public class CloudTypeSearchTest {
         verifyProbeType("Azure Service Principal", CloudType.AZURE);
         verifyProbeType("Azure EA", CloudType.AZURE);
         verifyProbeType("Azure Cost", CloudType.AZURE);
+        verifyProbeType("GCP Service Account", CloudType.GCP);
+        verifyProbeType("GCP Project", CloudType.GCP);
         verifyProbeType("VCenter", null);
     }
 
