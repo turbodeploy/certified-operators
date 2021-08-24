@@ -188,12 +188,20 @@ public class IntersightTargetConverter {
                 return Collections.singleton(SDKProbeType.AWS);
             case AMAZONWEBSERVICEBILLING:
                 return Collections.singleton(SDKProbeType.AWS_BILLING);
-            case CLOUDFOUNDRY:
-                return Collections.singleton(SDKProbeType.CLOUD_FOUNDRY);
             case MICROSOFTAZUREAPPLICATIONINSIGHTS:
                 return Collections.singleton(SDKProbeType.APPINSIGHTS);
             case KUBERNETES:
                 return Collections.singleton(SDKProbeType.KUBERNETES);
+            case NEWRELIC:
+                return Collections.singleton(SDKProbeType.NEWRELIC);
+            case VMWAREHORIZON:
+                return Collections.singleton(SDKProbeType.VMWARE_HORIZON_VIEW);
+            case MICROSOFTSYSTEMCENTERVIRTUALMACHINEMANAGER:
+                return Collections.singleton(SDKProbeType.VMM);
+            case DATADOG:
+                return Collections.singleton(SDKProbeType.DATADOG);
+            case SERVICENOW:
+                return Collections.singleton(SDKProbeType.SERVICENOW);
             default:
                 logger.debug("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());
