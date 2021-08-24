@@ -102,7 +102,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceInventoryMatcher.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceInventoryMatcherFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceSpecMatcher.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]ReservedInstanceSpecMatcherFactory.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]inventory[/\\]RISpecMatcherFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostDebugConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostDebugRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]rpc[/\\]CostRpcService.java" />

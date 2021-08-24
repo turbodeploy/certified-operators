@@ -4,6 +4,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.CostDBConfig;
@@ -12,6 +13,7 @@ import com.vmturbo.cost.component.CostDBConfig;
  * Configuration of computer tier demand stats.
  */
 @Import({CostDBConfig.class})
+@Configuration
 public class ComputeTierDemandStatsConfig {
 
     @Autowired

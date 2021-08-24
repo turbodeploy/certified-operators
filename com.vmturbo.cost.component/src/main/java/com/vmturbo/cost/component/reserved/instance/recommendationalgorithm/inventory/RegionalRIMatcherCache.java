@@ -11,7 +11,6 @@ import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstancePurchaseConstraints;
 
 /**
  * Provides a mapping of {@link ReservedInstanceSpecMatcher} and {@link ReservedInstanceInventoryMatcher}
@@ -28,7 +27,7 @@ public class RegionalRIMatcherCache {
 
     private final Map<Long, ReservedInstanceInventoryMatcher> riInventoryMatchersByRegionOid = new HashMap<>();
 
-    private final ReservedInstanceSpecMatcherFactory riSpecMatcherFactory;
+    private final RISpecMatcherFactory riSpecMatcherFactory;
 
     private final ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory;
 
@@ -39,7 +38,7 @@ public class RegionalRIMatcherCache {
     private final TopologyInfo topologyInfo;
 
 
-    public RegionalRIMatcherCache(@Nonnull ReservedInstanceSpecMatcherFactory riSpecMatcherFactory,
+    public RegionalRIMatcherCache(@Nonnull RISpecMatcherFactory riSpecMatcherFactory,
                                   @Nonnull ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory,
                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
                                   @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,

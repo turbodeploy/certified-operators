@@ -15,7 +15,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
  */
 public class RegionalRIMatcherCacheFactory {
 
-    private final ReservedInstanceSpecMatcherFactory riSpecMatcherFactory;
+    private final RISpecMatcherFactory riSpecMatcherFactory;
 
     private final ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory;
 
@@ -29,7 +29,7 @@ public class RegionalRIMatcherCacheFactory {
      * @param computeTierFamilyResolverFactory The compute tier family resolver, used to resolve the family
      *                                         coverage for size flexible RIs.
      */
-    public RegionalRIMatcherCacheFactory(@Nonnull ReservedInstanceSpecMatcherFactory riSpecMatcherFactory,
+    public RegionalRIMatcherCacheFactory(@Nonnull RISpecMatcherFactory riSpecMatcherFactory,
                                          @Nonnull ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory,
                                          @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory) {
 
