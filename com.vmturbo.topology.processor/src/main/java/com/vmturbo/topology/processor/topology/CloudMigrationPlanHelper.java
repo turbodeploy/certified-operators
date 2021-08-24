@@ -186,7 +186,8 @@ public class CloudMigrationPlanHelper {
             CommodityType.MEM_PROVISIONED,
             CommodityType.INSTANCE_DISK_SIZE,
             CommodityType.INSTANCE_DISK_TYPE,
-            CommodityType.INSTANCE_DISK_COUNT
+            CommodityType.INSTANCE_DISK_COUNT,
+            CommodityType.HOST_LUN_ACCESS
     );
 
     /**
