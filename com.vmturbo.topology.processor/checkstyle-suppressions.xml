@@ -356,7 +356,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]group[/\\]settings[/\\]SettingOverridesTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]group[/\\]settings[/\\]VsanStorageApplicatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]historical[/\\]HistoricalUtilizationDatabaseTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]history[/\\]AbstractCachingHistoricalEditorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]history[/\\]HistoryAggregatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]history[/\\]percentile[/\\]PercentileEditorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]identity[/\\]IdentityRpcServiceTest.java" />
