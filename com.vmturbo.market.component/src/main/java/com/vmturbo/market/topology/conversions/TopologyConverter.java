@@ -43,6 +43,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
+import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 
 import org.apache.commons.lang3.StringUtils;
@@ -4458,6 +4459,20 @@ public class TopologyConverter {
             capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier,
                 reverseScaleCapacity, commSoldTO.getSpecification().getBaseType(),
                 scalingFactor);
+        }
+        // Do a fuzzy comparison of the capacity with the original capacity. If they are close
+        // enough, just use the original capacity, as there may be precision loss during CPU
+        // scale and reverse scale even though the capacity is not changed.
+        // For example:
+        //   - The original capacity (double): 1E12
+        //   - The scalingFactor (double): 3.186912
+        //   - The scaled capacity (float): 3.18691187E12 (from double to float with precision loss)
+        //   - The reverse scaled capacity (float): 9.9999993E11
+        if (originalCommoditySold.isPresent()) {
+            final double originalCapacity = originalCommoditySold.get().getCapacity();
+            if (DoubleMath.fuzzyEquals(1.0D, capacity/originalCapacity, EPSILON)) {
+                capacity = originalCapacity;
+            }
         }
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(capacity)
