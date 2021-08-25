@@ -2,6 +2,8 @@ package com.vmturbo.mediation.webhook.connector;
 
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,7 +40,8 @@ public class WebhookConnectorTest {
                 webhookCredentials).build());
         webhookConnector = new WebhookConnector(webhookCredentials, connectorFactory);
         httpConnector = Mockito.spy(HttpConnector.class);
-        webhookPostQuery = new WebhookQuery(HttpMethodType.POST, new WebhookBody("Fake webhook body"));
+        webhookPostQuery = new WebhookQuery(HttpMethodType.POST,
+                new WebhookBody("Fake webhook body"), Collections.emptyList());
     }
 
     /**
