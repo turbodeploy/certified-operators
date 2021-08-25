@@ -948,6 +948,9 @@ public class EntitiesService implements IEntitiesService {
         final long oid = getEntityOrGroupOidFromString(s);
         final boolean isGroup = uuidMapper.fromUuid(s).isGroup();
         final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
+
+        // TODO: After a deprecation cycle, this logic should be changed to only support
+        // entities and not support groups.  Group tags are supported through the groups endpoints.
         if (isGroup) {
             final GetTagsRequest tagsRequest =
                     GetTagsRequest.newBuilder().addGroupId(oid).build();

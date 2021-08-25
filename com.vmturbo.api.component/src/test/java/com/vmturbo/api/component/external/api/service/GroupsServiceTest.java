@@ -85,6 +85,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
@@ -126,6 +127,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -163,6 +166,8 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -190,6 +195,11 @@ public class GroupsServiceTest {
     private static final String GROUP_TEST_PATTERN = "groupTestString";
     private static final String CLUSTER_TEST_PATTERN = "clusterTestString";
     private static final Integer DEFAULT_N_ENTITIES = 20;
+    
+    private static final long VM_ID = 1L;
+    private static final long GROUP_ID = 2L;
+    private static final String TAG_KEY = "TAG_KEY";
+    private static final List<String> TAG_VALUES = ImmutableList.of("tagValue1", "tagValue2");
 
     @Mock
     private ActionSpecMapper actionSpecMapper;
@@ -2411,5 +2421,79 @@ public class GroupsServiceTest {
             definitionCustomizer.accept(groupBldr.getDefinitionBuilder());
         }
         return groupBldr.build();
+    }
+
+    /**
+     * Test get tags for groups.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetGroupTags() throws Exception {
+        final GetTagsResponse tagsForGroupsResponse = GetTagsResponse.newBuilder()
+                .putTags(GROUP_ID, Tags.newBuilder()
+                        .putTags(TAG_KEY,
+                                TagValuesDTO.newBuilder().addAllValues(TAG_VALUES).build())
+                        .build())
+                .build();
+        when(groupServiceSpyMole.getTags(
+                GetTagsRequest.newBuilder().addGroupId(GROUP_ID).build())).thenReturn(
+                tagsForGroupsResponse);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(GROUP_ID);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(GROUP_ID))).thenReturn(apiId);
+
+        final List<TagApiDTO> tags = groupsService.getTagsByGroupUuid(String.valueOf(GROUP_ID));
+        Assert.assertEquals(1, tags.size());
+        final TagApiDTO tagInfo = tags.iterator().next();
+        Assert.assertEquals(TAG_KEY, tagInfo.getKey());
+        Assert.assertEquals(TAG_VALUES, tagInfo.getValues());
+    }
+
+    /**
+     * Get tags by entity id should work as expected, if tags don't exist.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetGroupEmptyTags() throws Exception {
+        final GetTagsResponse tagsForGroupsResponse = GetTagsResponse.newBuilder()
+                .putTags(GROUP_ID, Tags.newBuilder()
+                        .build())
+                .build();
+        when(groupServiceSpyMole.getTags(
+                GetTagsRequest.newBuilder().addGroupId(GROUP_ID).build())).thenReturn(
+                tagsForGroupsResponse);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(GROUP_ID);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(GROUP_ID))).thenReturn(apiId);
+
+        final List<TagApiDTO> tags = groupsService.getTagsByGroupUuid(String.valueOf(GROUP_ID));
+
+        // check tags
+        Assert.assertEquals(0, tags.size());
+    }
+
+    /**
+     * Tests the illegal group uuid exception, which occurs 
+     * when the argument is a non-group uuid (i.e. an entity uuid).
+     *
+     * @throws Exception in case of illegal group uuid.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetTagsForGroup() throws Exception {
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        final List<TagApiDTO> tags = groupsService.getTagsByGroupUuid(String.valueOf(VM_ID));
     }
 }
