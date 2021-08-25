@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -49,6 +50,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
@@ -125,6 +127,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -152,6 +156,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -209,6 +215,8 @@ public class GroupsService implements IGroupsService {
     static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     @VisibleForTesting
     static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
+
+    private static final String ILLEGAL_GROUP_UUID_MESSAGE = "%s is an illegal group uuid.";
 
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
@@ -1175,7 +1183,20 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<TagApiDTO> getTagsByGroupUuid(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        // if s is not a group uuid, it will throw an exception
+        final long oid = getGroupOidFromString(s);
+        final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
+
+        final GetTagsRequest tagsRequest =
+                GetTagsRequest.newBuilder().addGroupId(oid).build();
+        final GetTagsResponse tagsForGroups =
+                groupServiceRpc.getTags(tagsRequest);
+        final Tags tags = tagsForGroups.getTagsMap().get(oid);
+        if (tags != null) {
+            tagsMap.putAll(tags.getTagsMap());
+        }
+        return TagsMapper.convertTagsToApi(tagsMap);
     }
 
     @Override
@@ -1953,5 +1974,20 @@ public class GroupsService implements IGroupsService {
         }
 
         return result;
+    }
+
+    /**
+     * Get the group's OID.
+     *
+     * @param uuid the uuid.
+     * @throws OperationFailedException if the string is not an groups's OID.
+     */
+    private long getGroupOidFromString(@Nonnull final String uuid)
+            throws OperationFailedException {
+        ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (!apiId.isGroup()) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_GROUP_UUID_MESSAGE, uuid));
+        }
+        return apiId.oid();
     }
 }
