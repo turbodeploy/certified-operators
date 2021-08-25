@@ -1,13 +1,10 @@
 package com.vmturbo.mediation.webhook.connector;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
-
-import org.apache.http.Header;
 
 import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.connector.common.Response;
@@ -31,17 +28,14 @@ public class WebHookQueries {
          *
          * @param httpMethodType type of method of the request, decided by the target credentials.
          * @param body the body of the request to send to the webhook endpoint.
-         * @param headers the headers of the http request.
          */
         public WebhookQuery(
                 @Nonnull HttpMethodType httpMethodType,
-                @Nullable WebhookBody body,
-                @Nonnull Collection<Header> headers) {
+                @Nullable WebhookBody body) {
             super(httpMethodType,
                     "", // not used because we overrode the query converter
                     Collections.emptyMap(), // not used because we overrode the query converter
                     body, // not used because we overrode the query converter
-                    headers,
                     WebhookResponse.class);
         }
     }

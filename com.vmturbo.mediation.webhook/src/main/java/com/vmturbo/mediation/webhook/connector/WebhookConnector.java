@@ -249,9 +249,6 @@ public class WebhookConnector implements HttpConnector, Closeable {
             if (webhookPostQuery.getBody().isPresent()) {
                 httpRequestWithEntity.setEntity(new StringEntity(webhookPostQuery.getBody().get().getWebhookBody()));
             }
-
-            webhookPostQuery.getHeaders().forEach(httpRequestWithEntity::addHeader);
-
             return httpRequestWithEntity;
         }
     }

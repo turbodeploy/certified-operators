@@ -10,7 +10,6 @@ import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -21,8 +20,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.http.Header;
-import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.velocity.exception.MethodInvocationException;
@@ -51,7 +48,6 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
-import com.vmturbo.platform.sdk.common.util.WebhookConstants;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IActionAudit;
 import com.vmturbo.platform.sdk.probe.IActionExecutor;
@@ -220,36 +216,6 @@ public class WebhookProbe
     }
 
     /**
-     * Gets the webhook headers.
-     *
-     * @param webhookProperties list of webhook properties.
-     * @return collection of http headers for webhook request.
-     * @throws WebhookException if there's multiple values found under the same key.
-     */
-    private Collection<Header> getWebhookHeaders(final List<Property> webhookProperties)
-            throws WebhookException {
-        List<Header> webhookHeaders = new ArrayList<>();
-        int headerCount = 0;
-        // iterate until there are no more headers.
-        while (true) {
-            Optional<String> headerName = getWebhookPropertyValue(
-                    String.format(WebhookConstants.HEADER_NAME, headerCount),
-                    webhookProperties);
-
-            Optional<String> headerValue = getWebhookPropertyValue(
-                    String.format(WebhookConstants.HEADER_VALUE, headerCount++),
-                    webhookProperties);
-
-            if (!headerName.isPresent() || !headerValue.isPresent()) {
-                break;
-            }
-            webhookHeaders.add(new BasicHeader(headerName.get(), headerValue.get()));
-        }
-
-        return webhookHeaders;
-    }
-
-    /**
      * Creates webhook credentials used for sending request to webhook server.
      *
      * @param webhookProperties the list of webhook properties
@@ -337,11 +303,11 @@ public class WebhookProbe
                 probeConfiguration)) {
 
             final WebhookBody body = getWebhookBody(actionExecutionDto, actionApiDTO);
-            final List<Property> webhookProperties =
-                    actionExecutionDto.getWorkflow().getPropertyList();
+
             final WebhookQuery webhookQuery = new WebhookQuery(
-                    getWebhookMethodType(webhookProperties), body,
-                    getWebhookHeaders(webhookProperties));
+                    getWebhookMethodType(actionExecutionDto.getWorkflow().getPropertyList()),
+                    body);
+
             final WebhookResponse webhookResponse = webhookConnector.execute(webhookQuery);
             logger.info("The webhook call for action {} succeeded http status code {}.",
                     actionExecutionDto.getActionOid(), webhookResponse.getResponseCode());

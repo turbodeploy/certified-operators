@@ -296,51 +296,6 @@ public class WorkflowsServiceTest {
     }
 
     /**
-     * Failed to create webhook workflow when webhook headers name are not in ASCII.
-     *
-     * @throws InvalidOperationException if something goes wrong.
-     */
-    @Test
-    public void testFailedWebhookWorkflowCreation() throws InvalidOperationException {
-        // ARRANGE
-        thrown.expect(InvalidOperationException.class);
-        thrown.expectMessage(containsString("header name has not only ASCII symbols"));
-        final WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto("Wrong header name ⊗", "test value");
-        ArgumentCaptor<WorkflowDTO.CreateWorkflowRequest> requestArgumentCaptor =
-                ArgumentCaptor.forClass(WorkflowDTO.CreateWorkflowRequest.class);
-        Mockito.when(workflowServiceMole.createWorkflow(requestArgumentCaptor.capture()))
-                .thenReturn(WorkflowDTO.CreateWorkflowResponse.newBuilder()
-                        .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
-                        .build());
-
-        // ACT
-        workflowsService.addWorkflow(workflowApiDTO);
-    }
-
-    /**
-     * Failed to create webhook workflow when webhook header name is empty.
-     *
-     * @throws InvalidOperationException if something goes wrong.
-     */
-    @Test
-    public void testFailedWebhookWithEmptyHeaderCreation() throws InvalidOperationException {
-        // ARRANGE
-        thrown.expect(InvalidOperationException.class);
-        thrown.expectMessage(containsString("header name is empty or has only whitespaces."));
-        final WorkflowApiDTO workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto("",
-                "test value");
-        ArgumentCaptor<WorkflowDTO.CreateWorkflowRequest> requestArgumentCaptor =
-                ArgumentCaptor.forClass(WorkflowDTO.CreateWorkflowRequest.class);
-        Mockito.when(workflowServiceMole.createWorkflow(requestArgumentCaptor.capture()))
-                .thenReturn(WorkflowDTO.CreateWorkflowResponse.newBuilder()
-                        .setWorkflow(WorkflowMapperTest.createWebhookWorkflow())
-                        .build());
-
-        // ACT
-        workflowsService.addWorkflow(workflowApiDTO);
-    }
-
-    /**
      * Tests creating actionscript workflow. This should fail as creating actionscript
      * workflow should not be possible from API.
      */

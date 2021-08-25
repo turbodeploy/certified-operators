@@ -4,19 +4,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -173,8 +166,7 @@ public class WebhookProbeTest {
                             .setId("4521")
                             .build())
                     .build())
-            .setWorkflow(createWorkflow(url, template, method, null, null, null,
-                    Collections.emptyList())).build();
+            .setWorkflow(createWorkflow(url, template, method, null, null, null)).build();
     }
 
     /**
@@ -186,12 +178,10 @@ public class WebhookProbeTest {
      * @param authenticationMethod the method to use to do authentication.
      * @param username the username to use for authentication
      * @param password the password to use for authentication
-     * @param headers the request headers
      * @return the workflow object created.
      */
     public static Workflow createWorkflow(String url, String template, String method,
-            AuthenticationMethod authenticationMethod, String username, String password,
-            final List<RequestHeader> headers) {
+                              AuthenticationMethod authenticationMethod, String username, String password) {
         Workflow.Builder workflow = Workflow.newBuilder()
                 .setId("Webhook");
 
@@ -236,41 +226,6 @@ public class WebhookProbeTest {
                     .setValue(password)
                     .build());
         }
-
-        if (!headers.isEmpty()) {
-            workflow.addAllProperty(populateHeadersAsProperties(headers));
-        }
         return workflow.build();
-    }
-
-    /**
-     * Represent request headers as workflow properties.
-     * Used the same conversion logic as we have in production in TP (AbstractActionExecutionContext#getWebhookProperties)
-     *
-     * @param headers request headers
-     * @return the list of workflow properties
-     */
-    private static List<Property> populateHeadersAsProperties(
-            @Nonnull List<RequestHeader> headers) {
-        final List<Property> result = new ArrayList<>(headers.size());
-        final AtomicInteger headerCount = new AtomicInteger();
-        headers.forEach(header -> {
-            String webhookHeaderName = String.format(WebhookConstants.HEADER_NAME,
-                    headerCount.get());
-            String webhookHeaderValue = String.format(WebhookConstants.HEADER_VALUE,
-                    headerCount.getAndIncrement());
-
-            final Property headerName = Property.newBuilder().setName(webhookHeaderName).setValue(
-                    header.getName()).build();
-
-            final Property headerValue = Workflow.Property.newBuilder()
-                    .setName(webhookHeaderValue)
-                    .setValue(header.getValue())
-                    .build();
-
-            result.add(headerName);
-            result.add(headerValue);
-        });
-        return result;
     }
 }

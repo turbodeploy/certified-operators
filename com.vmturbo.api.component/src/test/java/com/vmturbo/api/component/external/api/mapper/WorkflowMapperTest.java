@@ -2,27 +2,19 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-
-import java.util.Collections;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.HttpMethod;
-import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
-import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo;
 
 /**
  * Test the mapper from internal Workflow DTO to External API WorkflowApiDTO.
@@ -45,8 +37,6 @@ public class WorkflowMapperTest {
     private static final long WORKFLOW_1_TIME_LIMIT = 15 * 60;
     private static final String WORKFLOW_CLASSNAME = "Workflow";
     private static final String WEBHOOK_URL = "http://turbonomic.com";
-    private static final String WEBHOOK_REQUEST_HEADER = "Authorization";
-    private static final String WEBHOOK_REQUEST_HEADER_VALUE = "Basic ABC123";
     private static final String TEMPLATE = "testTemplate";
 
     /**
@@ -97,11 +87,9 @@ public class WorkflowMapperTest {
 
     /**
      * Test the logic for converting API object internal workflow.
-     *
-     * @throws InvalidOperationException if failed to create workflow
      */
     @Test
-    public void testMapWebhookWorkflowFromApi() throws InvalidOperationException {
+    public void testMapWebhookWorkflowFromApi() {
         // ARRANGE
         WorkflowApiDTO workflowApiDTO = createWebhookWorkflowApiDto();
 
@@ -120,19 +108,6 @@ public class WorkflowMapperTest {
      * @return an instance of {@link WorkflowApiDTO}.
      */
     public static WorkflowApiDTO createWebhookWorkflowApiDto() {
-        return createWebhookWorkflowApiDto(WEBHOOK_REQUEST_HEADER, WEBHOOK_REQUEST_HEADER_VALUE);
-    }
-
-    /**
-     * Creates an instance of {@link WorkflowApiDTO} of type webhook.
-     *
-     * @param headerName custom header name
-     * @param headerValue custom header value
-     *
-     * @return an instance of {@link WorkflowApiDTO}.
-     */
-    public static WorkflowApiDTO createWebhookWorkflowApiDto(@Nonnull String headerName,
-            @Nonnull String headerValue) {
         WorkflowApiDTO workflowApiDTO = new WorkflowApiDTO();
         workflowApiDTO.setClassName(WORKFLOW_CLASSNAME);
         workflowApiDTO.setUuid(String.valueOf(WORKFLOW_OID));
@@ -144,8 +119,6 @@ public class WorkflowMapperTest {
         webhookApiDTO.setMethod(HttpMethod.POST);
         webhookApiDTO.setTemplate(TEMPLATE);
         webhookApiDTO.setTrustSelfSignedCertificates(true);
-        webhookApiDTO.setHeaders(
-                Collections.singletonList(new RequestHeader(headerName, headerValue)));
         workflowApiDTO.setTypeSpecificDetails(webhookApiDTO);
         return workflowApiDTO;
     }
@@ -169,13 +142,11 @@ public class WorkflowMapperTest {
         final WorkflowDTO.WorkflowInfo.Builder workflowInfo = WorkflowDTO.WorkflowInfo.newBuilder()
             .setDisplayName(WORKFLOW_1_DISPLAYNAME)
             .setType(WorkflowDTO.OrchestratorType.WEBHOOK)
-            .setWebhookInfo(WebhookInfo.newBuilder()
+            .setWebhookInfo(WorkflowDTO.WorkflowInfo.WebhookInfo.newBuilder()
                 .setUrl(WEBHOOK_URL)
-                .setHttpMethod(WebhookInfo.HttpMethod.POST)
+                .setHttpMethod(WorkflowDTO.WorkflowInfo.WebhookInfo.HttpMethod.POST)
                 .setTemplate(TEMPLATE)
                 .setTrustSelfSignedCertificates(true)
-                .addHeaders(WebhookInfo.RequestHeader.newBuilder().setName(
-                        WEBHOOK_REQUEST_HEADER).setValue(WEBHOOK_REQUEST_HEADER_VALUE).build())
                 .build());
         if (populateName) {
             workflowInfo.setName(WORKFLOW_1_NAME);
@@ -257,8 +228,5 @@ public class WorkflowMapperTest {
         assertThat(firstWebhookApiDTO.getTemplate(), equalTo(secondWebhookApiDTO.getTemplate()));
         assertThat(firstWebhookApiDTO.getTrustSelfSignedCertificates(),
                 equalTo(secondWebhookApiDTO.getTrustSelfSignedCertificates()));
-        assertEquals(firstWebhookApiDTO.getHeaders().size(), 1);
-        assertEquals(firstWebhookApiDTO.getHeaders().get(0),
-                new RequestHeader(WEBHOOK_REQUEST_HEADER, WEBHOOK_REQUEST_HEADER_VALUE));
     }
 }

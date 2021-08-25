@@ -1,5 +1,14 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.WEBHOOK_PASSWORD_SUBJECT;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATION_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,8 +35,10 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo.WebhookInfo.AuthenticationMethod;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -740,7 +751,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                 .collect(Collectors.toList()));
 
         // add webhook workflow info
-        wfBuilder.addAllProperty(WebhookContext.getProperties(workflow, secureStorageClient));
+        wfBuilder.addAllProperty(getWebhookProperties(workflow));
 
         if (workflowInfo.hasScriptPath()) {
             wfBuilder.setScriptPath(workflowInfo.getScriptPath());
@@ -825,5 +836,78 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
         final long probeId = target.get().getProbeId();
         return probeStore.getProbe(probeId);
+    }
+
+    private List<Workflow.Property> getWebhookProperties(@Nonnull final WorkflowDTO.Workflow workflow)
+            throws ContextCreationException {
+        if (!workflow.hasWorkflowInfo() || !workflow.getWorkflowInfo().hasWebhookInfo()) {
+            return Collections.emptyList();
+        }
+
+        List<Workflow.Property> webhookProperties = new ArrayList<>();
+        WorkflowDTO.WorkflowInfo.WebhookInfo webhookInfo = workflow.getWorkflowInfo().getWebhookInfo();
+        if (!webhookInfo.hasHttpMethod() || !webhookInfo.hasUrl()) {
+            throw new ContextCreationException("The HTTP METHOD, URL are required parameters "
+                    + "for Webhook workflows");
+        }
+
+        webhookProperties.add(Workflow.Property.newBuilder()
+                        .setName(HTTP_METHOD)
+                        .setValue(webhookInfo.getHttpMethod().name())
+                        .build());
+
+        webhookProperties.add(Workflow.Property.newBuilder()
+                        .setName(URL)
+                        .setValue(webhookInfo.getUrl())
+                        .build());
+
+        String trustedValue = Boolean.toString(webhookInfo.getTrustSelfSignedCertificates());
+        webhookProperties.add(Workflow.Property.newBuilder()
+                .setName(TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME)
+                .setValue(trustedValue)
+                .build());
+
+        if (webhookInfo.hasTemplate()) {
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(TEMPLATED_ACTION_BODY)
+                    .setValue(webhookInfo.getTemplate())
+                    .build());
+        }
+
+        if (webhookInfo.hasAuthenticationMethod()) {
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(AUTHENTICATION_METHOD)
+                    .setValue(webhookInfo.getAuthenticationMethod().name())
+                    .build()
+            );
+        }
+
+        if (webhookInfo.hasUsername()) {
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(USER_NAME)
+                    .setValue(webhookInfo.getUsername())
+                    .build());
+        }
+
+        if (webhookInfo.getAuthenticationMethod() == AuthenticationMethod.BASIC) {
+            final String password;
+            try {
+                password = secureStorageClient
+                        .getValue(WEBHOOK_PASSWORD_SUBJECT, Long.toString(workflow.getId()))
+                        .orElseThrow(() -> new IllegalStateException("Cannot retrieve the password for workflow "
+                                + workflow.getId()));
+            } catch (CommunicationException e) {
+                throw new ContextCreationException("Cannot get the password from the secure storage for"
+                        + " webhook workflow with ID" + workflow.getId(), e);
+            }
+
+            webhookProperties.add(Workflow.Property.newBuilder()
+                    .setName(PASSWORD)
+                    .setValue(password)
+                    .build()
+            );
+        }
+
+        return webhookProperties;
     }
 }
