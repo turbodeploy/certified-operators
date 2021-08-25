@@ -28,14 +28,19 @@ import io.grpc.stub.StreamObserver;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.MovingStatisticsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.SetMovingStatisticsResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics;
 import com.vmturbo.topology.processor.history.moving.statistics.MovingStatisticsDto.MovingStatistics.MovingStatisticsRecord;
@@ -75,6 +80,27 @@ public class AbstractBlobsPersistenceTaskTest {
 
     private final TestConfig config = new TestConfig(clock);
 
+    private StatsHistoryServiceStub statsHistoryServiceStub;
+
+    private final StatsHistoryServiceMole statsHistoryServiceMole = Mockito.spy(
+            new StatsHistoryServiceMole());
+
+    /**
+     * Grpc server for mocking services. The rule handles starting it and cleaning it up.
+     */
+    @Rule
+    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(statsHistoryServiceMole);
+
+    /**
+     * Set up test environment.
+     *
+     * @throws IOException if failed to start grpc server
+     */
+    @Before
+    public void init() throws IOException {
+        statsHistoryServiceStub = StatsHistoryServiceGrpc.newStub(grpcServer.getChannel());
+    }
+
     /**
      * Test successful save functionality.
      *
@@ -88,7 +114,8 @@ public class AbstractBlobsPersistenceTaskTest {
             (CallStreamObserver<MovingStatisticsChunk>)mock(CallStreamObserver.class);
         when(streamObserver.isReady()).thenReturn(true);
 
-        final BlobPersister persister = new BlobPersister(streamObserver, null, null);
+        final BlobPersister persister = new BlobPersister(streamObserver, null, null,
+                statsHistoryServiceStub);
 
         persister.save(MovingStatistics.newBuilder().addStatisticRecords(record).build(),
             0L, config);
@@ -108,7 +135,7 @@ public class AbstractBlobsPersistenceTaskTest {
             (CallStreamObserver<MovingStatisticsChunk>)mock(CallStreamObserver.class);
         when(streamObserver.isReady()).thenReturn(true);
 
-        final BlobPersister persister = new BlobPersister(streamObserver, new Exception("My Error"), null);
+        final BlobPersister persister = new BlobPersister(streamObserver, new Exception("My Error"), null, statsHistoryServiceStub);
 
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to persist BlobPersister data for 0 start timestamp");
@@ -125,7 +152,7 @@ public class AbstractBlobsPersistenceTaskTest {
     @Test
     public void testLoadSuccess() throws HistoryCalculationException, InterruptedException {
         final BlobPersister persister = new BlobPersister(null, null,
-            record.toByteString());
+            record.toByteString(), statsHistoryServiceStub);
         final Map<EntityCommodityFieldReference, MovingStatisticsRecord> loadedRecords
             = persister.load(Collections.emptyList(), config, LongSets.EMPTY_SET);
 
@@ -146,7 +173,7 @@ public class AbstractBlobsPersistenceTaskTest {
     @Test
     public void testErrorDuringLoad() throws HistoryCalculationException, InterruptedException {
         final BlobPersister persister = new BlobPersister(null, null,
-            ByteString.copyFrom(new byte[] {1, 2, 3}));
+            ByteString.copyFrom(new byte[] {1, 2, 3}), statsHistoryServiceStub);
 
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to deserialize BlobPersister blob for 0");
@@ -193,11 +220,13 @@ public class AbstractBlobsPersistenceTaskTest {
          * @param errorToAdd     Error to add to WriterObserver on save. If null, no error
          *                       will be added and instead the observer will be completed.
          * @param getRequestChunkBytes Bytes to insert into chunk for response to getRequest call.
+         * @param statsHistoryServiceStub stats history client
          */
         private BlobPersister(@Nullable final StreamObserver<MovingStatisticsChunk> streamObserver,
-                             @Nullable final Throwable errorToAdd,
-                             @Nullable final ByteString getRequestChunkBytes) {
-            super(null, clock, Pair.create(0L, 0L), false);
+                @Nullable final Throwable errorToAdd,
+                @Nullable final ByteString getRequestChunkBytes,
+                final StatsHistoryServiceStub statsHistoryServiceStub) {
+            super(statsHistoryServiceStub, clock, Pair.create(0L, 0L), false);
             this.streamObserver = streamObserver;
             this.errorToAdd = errorToAdd;
             this.getRequestChunkBytes = getRequestChunkBytes;

@@ -6,8 +6,13 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -20,6 +25,7 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
 import com.vmturbo.platform.sdk.common.util.WebhookConstants;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
@@ -40,8 +46,10 @@ public class AbstractActionExecutionContextTest {
     private static final String URL = "http://www.turbonomic.com/test";
     private static final String METHOD = "PUT";
     private static final String TEMPLATE_BODY = "{json:$actionId}";
+    private static final String AUTH_METHOD = "BASIC";
     private static final String USER_NAME = "testUser";
     private static final String PASSWORD = "testPassword";
+    private static final boolean TRUST_SELF_SIGNED_CERT = false;
 
     private static final ActionDTO.ActionSpec testAction = ActionDTO.ActionSpec.newBuilder()
             .setRecommendation(
@@ -67,6 +75,8 @@ public class AbstractActionExecutionContextTest {
                             .setSupportingLevel(ActionDTO.Action.SupportLevel.SUPPORTED)
                             .build())
             .build();
+    private static final String WEBHOOK_UNRELATED_PROP = "UNRELATED_PROP";
+    private static final String WEBHOOK_UNRELATED_PROP_VALUE = "SomeVal";
 
     @Mock
     private TargetStore targetStore;
@@ -143,8 +153,8 @@ public class AbstractActionExecutionContextTest {
                 .setWorkflowInfo(WorkflowInfo.newBuilder()
                         .setName("Testwf")
                         .addWorkflowProperty(WorkflowDTO.WorkflowProperty.newBuilder()
-                                .setName("UNRELATED_PROP")
-                                .setValue("SomeVal")
+                                .setName(WEBHOOK_UNRELATED_PROP)
+                                .setValue(WEBHOOK_UNRELATED_PROP_VALUE)
                                 .build())
                         .build())
                 .build());
@@ -155,8 +165,11 @@ public class AbstractActionExecutionContextTest {
         // ASSERT
         assertTrue(context.getWorkflow().isPresent());
         assertThat(context.getWorkflow().get().getPropertyCount(), equalTo(1));
-        assertThat(context.getWorkflow().get().getProperty(0).getName(), equalTo("UNRELATED_PROP"));
-        assertThat(context.getWorkflow().get().getProperty(0).getValue(), equalTo("SomeVal"));
+
+        // verify webhook properties
+        verifyWebhookProperty(
+                context.getWorkflow().get().getPropertyList(), WEBHOOK_UNRELATED_PROP,
+                WEBHOOK_UNRELATED_PROP_VALUE);
     }
 
     /**
@@ -171,8 +184,8 @@ public class AbstractActionExecutionContextTest {
                 .setWorkflowInfo(WorkflowInfo.newBuilder()
                         .setName("Testwf")
                         .addWorkflowProperty(WorkflowDTO.WorkflowProperty.newBuilder()
-                                .setName("UNRELATED_PROP")
-                                .setValue("SomeVal")
+                                .setName(WEBHOOK_UNRELATED_PROP)
+                                .setValue(WEBHOOK_UNRELATED_PROP_VALUE)
                                 .build())
                         .setWebhookInfo(WorkflowInfo.WebhookInfo.newBuilder()
                                 .setHttpMethod(WorkflowInfo.WebhookInfo.HttpMethod.PUT)
@@ -187,15 +200,18 @@ public class AbstractActionExecutionContextTest {
 
         // ASSERT
         assertTrue(context.getWorkflow().isPresent());
-        assertThat(context.getWorkflow().get().getPropertyCount(), equalTo(4));
-        assertThat(context.getWorkflow().get().getProperty(0).getName(), equalTo("UNRELATED_PROP"));
-        assertThat(context.getWorkflow().get().getProperty(0).getValue(), equalTo("SomeVal"));
-        assertThat(context.getWorkflow().get().getProperty(1).getName(), equalTo(WebhookConstants.HTTP_METHOD));
-        assertThat(context.getWorkflow().get().getProperty(1).getValue(), equalTo(METHOD));
-        assertThat(context.getWorkflow().get().getProperty(2).getName(), equalTo(WebhookConstants.URL));
-        assertThat(context.getWorkflow().get().getProperty(2).getValue(), equalTo(URL));
-        assertThat(context.getWorkflow().get().getProperty(3).getName(), equalTo(WebhookConstants.TEMPLATED_ACTION_BODY));
-        assertThat(context.getWorkflow().get().getProperty(3).getValue(), equalTo(TEMPLATE_BODY));
+        assertThat(context.getWorkflow().get().getPropertyCount(), equalTo(5));
+        final List<Property> webhookProperties = context.getWorkflow().get().getPropertyList();
+
+        // verify webhook properties
+        verifyWebhookProperty(webhookProperties, WEBHOOK_UNRELATED_PROP,
+                WEBHOOK_UNRELATED_PROP_VALUE);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.HTTP_METHOD, METHOD);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.URL, URL);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.TEMPLATED_ACTION_BODY,
+                TEMPLATE_BODY);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME,
+                String.valueOf(TRUST_SELF_SIGNED_CERT));
     }
 
     /**
@@ -227,19 +243,37 @@ public class AbstractActionExecutionContextTest {
 
         // ASSERT
         assertTrue(context.getWorkflow().isPresent());
-        assertThat(context.getWorkflow().get().getPropertyCount(), equalTo(6));
-        assertThat(context.getWorkflow().get().getProperty(0).getName(), equalTo(WebhookConstants.HTTP_METHOD));
-        assertThat(context.getWorkflow().get().getProperty(0).getValue(), equalTo(METHOD));
-        assertThat(context.getWorkflow().get().getProperty(1).getName(), equalTo(WebhookConstants.URL));
-        assertThat(context.getWorkflow().get().getProperty(1).getValue(), equalTo(URL));
-        assertThat(context.getWorkflow().get().getProperty(2).getName(), equalTo(WebhookConstants.TEMPLATED_ACTION_BODY));
-        assertThat(context.getWorkflow().get().getProperty(2).getValue(), equalTo(TEMPLATE_BODY));
-        assertThat(context.getWorkflow().get().getProperty(3).getName(), equalTo(WebhookConstants.AUTHENTICATION_METHOD));
-        assertThat(context.getWorkflow().get().getProperty(3).getValue(), equalTo("BASIC"));
-        assertThat(context.getWorkflow().get().getProperty(4).getName(), equalTo(WebhookConstants.USER_NAME));
-        assertThat(context.getWorkflow().get().getProperty(4).getValue(), equalTo(USER_NAME));
-        assertThat(context.getWorkflow().get().getProperty(5).getName(), equalTo(WebhookConstants.PASSWORD));
-        assertThat(context.getWorkflow().get().getProperty(5).getValue(), equalTo(PASSWORD));
+        assertThat(context.getWorkflow().get().getPropertyCount(), equalTo(7));
+        final List<Property> webhookProperties = context.getWorkflow().get().getPropertyList();
+
+        // verify webhook properties
+        verifyWebhookProperty(webhookProperties, WebhookConstants.HTTP_METHOD, METHOD);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.URL, URL);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.TEMPLATED_ACTION_BODY,
+                TEMPLATE_BODY);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.AUTHENTICATION_METHOD,
+                AUTH_METHOD);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.USER_NAME, USER_NAME);
+        verifyWebhookProperty(webhookProperties, WebhookConstants.PASSWORD, PASSWORD);
+        verifyWebhookProperty(webhookProperties,
+                WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME,
+                String.valueOf(TRUST_SELF_SIGNED_CERT));
+    }
+
+    private void verifyWebhookProperty(@Nonnull final List<Property> webhookProperties,
+            @Nonnull final String webhookPropertyName, @Nonnull final String webhookPropertyValue) {
+        final List<String> propertyValues = webhookProperties.stream()
+                .filter(property -> webhookPropertyName.equals(property.getName()))
+                .map(Property::getValue)
+                .collect(Collectors.toList());
+
+        if (propertyValues.size() == 1) {
+            assertThat(propertyValues.get(0), equalTo(webhookPropertyValue));
+        } else if (propertyValues.isEmpty()) {
+            Assert.fail(String.format("There is no specified %s webhook property.", webhookPropertyName));
+        } else {
+            Assert.fail(String.format("More than one %s properties found!", webhookPropertyName));
+        }
     }
 
     private AbstractActionExecutionContext createContext(ExecuteActionRequest request) throws ContextCreationException {
