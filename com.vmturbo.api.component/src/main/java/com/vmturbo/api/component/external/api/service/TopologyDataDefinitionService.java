@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Create
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.DeleteTopologyDataDefinitionResponse;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionResponse;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionsRequest;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinitionEntry;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinitionID;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.UpdateTopologyDataDefinitionRequest;
@@ -342,6 +343,31 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
             throw new UnknownObjectException(errorText);
         }
         return entryToContextBasedApiDTO(response.getTopologyDataDefinition());
+    }
+
+    @Override
+    public TopoDataDefContextBasedApiDTO editContextBasedTopologyDefinition(
+            String id, TopoDataDefContextBasedApiDTO dto)
+            throws UnknownObjectException, IllegalArgumentException {
+        // Verify that topology definition exists.
+        // If one does not exist then it throws UnknownObjectException.
+        getContextBasedTopologyDefinition(id);
+        final TopologyDataDefinition tdd = topologyDataDefinitionMapper
+                .convertTopologyDataDefinitionApiDTO(dto);
+        final UpdateTopologyDataDefinitionRequest req = UpdateTopologyDataDefinitionRequest
+                .newBuilder()
+                .setId(parseId(id))
+                .setTopologyDataDefinition(tdd)
+                .build();
+        final UpdateTopologyDataDefinitionResponse resp = topologyDataDefinitionServiceBlockingStub
+                .updateTopologyDataDefinition(req);
+        if (!resp.hasUpdatedTopologyDataDefinition()
+                || !resp.getUpdatedTopologyDataDefinition().hasDefinition()) {
+            final String errorText = String.format("Cannot update topology definition by ID: %s", id);
+            logger.error(errorText);
+            throw new UnknownObjectException(errorText);
+        }
+        return entryToContextBasedApiDTO(resp.getUpdatedTopologyDataDefinition());
     }
 
     /**
