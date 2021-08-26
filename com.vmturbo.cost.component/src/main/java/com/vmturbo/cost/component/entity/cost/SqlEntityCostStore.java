@@ -157,25 +157,18 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             latestEntityCostStore.updateEntityCosts(entityCosts);
         }
         final Optional<Long> planId = isPlan ? Optional.of(topologyCreationTimeOrContextId) : Optional.empty();
-        final List<Runnable> bulkInsertTasks = Streams.stream(Iterables.partition(costJournals.values(), chunkSize))
-                .map(chunk -> (Runnable)() -> batchInsertTask(cloudTopology, chunk, planId, createdTime))
-                .collect(ImmutableList.toImmutableList());
         final CompletionService<Void> completionService = new ExecutorCompletionService(batchExecutorService);
-
-        // submit all the tasks
-        final List<Future<Void>> bulkInsertFutures = bulkInsertTasks.stream()
-                .map(task -> completionService.submit(task, null))
+        final List<Future<Void>> insertTaskFutures = Streams.stream(Iterables.partition(costJournals.values(), chunkSize))
+                .map(chunk -> (Runnable)() -> batchInsertTask(cloudTopology, chunk, planId, createdTime))
+                .map(taskRunnable -> completionService.submit(taskRunnable, null))
                 .collect(ImmutableList.toImmutableList());
 
         // wait for all tasks to complete
-        for (int i = 0; i < bulkInsertTasks.size(); i++) {
+        for (int i = 0; i < insertTaskFutures.size(); i++) {
             try {
                 completionService.take().get();
             } catch (ExecutionException|InterruptedException e) {
                 logger.error("Error during bulk entity cost insert. Canceling all remaining tasks", e);
-                bulkInsertFutures.subList(i + 1, bulkInsertTasks.size()).forEach(f -> f.cancel(true));
-
-                throw new RuntimeException(e);
             }
         }
 
@@ -588,66 +581,73 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 // Bind values to the batch insert statement. Each "bind" should have values for
                 // all fields set during batch initialization.
 
-                costJournals.forEach(journal -> journal.getCategories().forEach(costType -> {
-                    Map<CostSource, TraxNumber> filteredCostsBySource = journal
-                            .getFilteredCategoryCostsBySource(
-                                    costType,
-                                    costSourceFilter);
-                    filteredCostsBySource.forEach((costSource, categoryCost) -> {
+                costJournals.forEach(journal -> {
+                    try {
+                        journal.getCategories().forEach(costType -> {
+                            Map<CostSource, TraxNumber> filteredCostsBySource = journal
+                                    .getFilteredCategoryCostsBySource(
+                                            costType,
+                                            costSourceFilter);
+                            filteredCostsBySource.forEach((costSource, categoryCost) -> {
 
-                        // We should always record the on-demand rate cost source, in order to properly
-                        // average the cost for an entity over time, including when an entity is powered
-                        // off and the on-demand rate is zero.
-                        final boolean persistCostItem = categoryCost != null
-                                && Double.isFinite(categoryCost.getValue())
-                                && (costSource == CostSource.ON_DEMAND_RATE
-                                    || !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d));
+                                // We should always record the on-demand rate cost source, in order to properly
+                                // average the cost for an entity over time, including when an entity is powered
+                                // off and the on-demand rate is zero.
+                                final boolean persistCostItem = categoryCost != null
+                                        && Double.isFinite(categoryCost.getValue())
+                                        && (costSource == CostSource.ON_DEMAND_RATE
+                                        || !DoubleMath.fuzzyEquals(0d, categoryCost.getValue(), .0000001d));
 
-                        if (persistCostItem) {
-                            final long entityOid = journal.getEntity().getOid();
-                            if (planId.isPresent()) {
-                                batch.bind(entityOid,
-                                        createdTime,
-                                        journal.getEntity().getEntityType(),
-                                        costType.getNumber(),
-                                        costSource.getNumber(),
-                                        // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                        //  calculation yet.
-                                        CurrencyAmount.getDefaultInstance().getCurrency(),
-                                        BigDecimal.valueOf(categoryCost.getValue()),
-                                        cloudTopology.getOwner(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                        cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                        cloudTopology.getConnectedRegion(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                        planId.get());
-                            } else {
-                                batch.bind(entityOid,
-                                        createdTime,
-                                        journal.getEntity().getEntityType(),
-                                        costType.getNumber(),
-                                        costSource.getNumber(),
-                                        // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                        //  calculation yet.
-                                        CurrencyAmount.getDefaultInstance().getCurrency(),
-                                        BigDecimal.valueOf(categoryCost.getValue()),
-                                        cloudTopology.getOwner(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                        cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L),
-                                        cloudTopology.getConnectedRegion(entityOid)
-                                                .map(TopologyEntityDTO::getOid).orElse(0L)
-                                );
-                            }
-                        } else {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Skipping cost item for entity '{}' with source '{}' and cost '{}'",
-                                        journal.getEntity().getOid(), costSource, categoryCost);
-                            }
-                        }
-                    });
-                }));
+                                if (persistCostItem) {
+                                    final long entityOid = journal.getEntity().getOid();
+                                    if (planId.isPresent()) {
+                                        batch.bind(entityOid,
+                                                createdTime,
+                                                journal.getEntity().getEntityType(),
+                                                costType.getNumber(),
+                                                costSource.getNumber(),
+                                                // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                                //  calculation yet.
+                                                CurrencyAmount.getDefaultInstance().getCurrency(),
+                                                BigDecimal.valueOf(categoryCost.getValue()),
+                                                cloudTopology.getOwner(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedRegion(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                planId.get());
+                                    } else {
+                                        batch.bind(entityOid,
+                                                createdTime,
+                                                journal.getEntity().getEntityType(),
+                                                costType.getNumber(),
+                                                costSource.getNumber(),
+                                                // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                                //  calculation yet.
+                                                CurrencyAmount.getDefaultInstance().getCurrency(),
+                                                BigDecimal.valueOf(categoryCost.getValue()),
+                                                cloudTopology.getOwner(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L),
+                                                cloudTopology.getConnectedRegion(entityOid)
+                                                        .map(TopologyEntityDTO::getOid).orElse(0L)
+                                        );
+                                    }
+                                } else {
+                                    if (logger.isTraceEnabled()) {
+                                        logger.trace("Skipping cost item for entity '{}' with source '{}' and cost '{}'",
+                                                journal.getEntity().getOid(), costSource, categoryCost);
+                                    }
+                                }
+                            });
+                        });
+                    } catch (Exception e) {
+                        logger.error("Error in processing journal for entity '{}'",
+                                journal.getEntity().getOid(), e);
+                    }
+                });
 
                 if (batch.size() > 0) {
                     logger.debug("Persisting batch of size: {}", batch::size);
