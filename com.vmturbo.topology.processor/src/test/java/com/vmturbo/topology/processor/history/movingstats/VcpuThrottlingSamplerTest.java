@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.history.movingstats;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -176,6 +177,38 @@ public class VcpuThrottlingSamplerTest {
 
         elapseHours(0, 0, SLOW_HALFLIFE_HOURS, sampler);
         assertHistoricalThrottling(25.0, sampler, SMALL_DELTA);
+    }
+
+    /**
+     * Test that with throttling values that alternate between the extremes of the
+     * possible range, we correctly compute essentially the maximum standard deviation.
+     * <p/>
+     * Because the standard deviation is a measure of how values are distributed in a population,
+     * a single standard deviation should not exceed half the range of the population
+     * `(population_max - population_min) / 2`.
+     */
+    @Test
+    public void testLargeVariance() {
+        final VcpuThrottlingSampler sampler = new VcpuThrottlingSampler(VCPU_FIELD);
+        for (int i = 0; i < 5_000; i++) {
+            setThrottlingAtCapacity(0, 100.0, sampler);
+            setThrottlingAtCapacity(100.0, 100.0, sampler);
+        }
+
+        final ThrottlingCapacityMovingStatistics stats =
+            sampler.serialize().getThrottlingRecord().getCapacityRecordsList().get(0);
+        final double fastStdDev = Math.sqrt(stats.getThrottlingFastMovingVariance());
+        final double slowStdDev = Math.sqrt(stats.getThrottlingSlowMovingVariance());
+        // Both the fast and slow standard deviations should be very close to, but not
+        // in excess of 50.
+        assertThat(fastStdDev, lessThanOrEqualTo(50.0));
+        assertThat(50.0 - fastStdDev, lessThan(0.01));
+        assertThat(slowStdDev, lessThanOrEqualTo(50.0));
+        assertThat(50.0 - slowStdDev, lessThan(0.01));
+
+        // The fast and slow moving averages should also be close to 50.
+        assertEquals(stats.getThrottlingFastMovingAverage(), 50.0, 1.0);
+        assertEquals(stats.getThrottlingSlowMovingAverage(), 50.0, 0.1);
     }
 
     /**

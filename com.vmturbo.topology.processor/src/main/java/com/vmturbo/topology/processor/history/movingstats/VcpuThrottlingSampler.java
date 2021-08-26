@@ -472,12 +472,12 @@ public class VcpuThrottlingSampler implements MovingStatisticsSampler {
             final double movingVariance = speed == StatisticsSpeed.FAST ? throttlingFastMovingVariance : throttlingSlowMovingVariance;
             double sampleDelta = sample - movingAverage;
 
-            // From formula 125 in https://fanf2.user.srcf.net/hermes/doc/antiforgery/stats.pdf
+            // From formula 122 in https://fanf2.user.srcf.net/hermes/doc/antiforgery/stats.pdf
             final double newMovingAverage = movingAverage + exponentialSmoothingAlpha * sampleDelta;
 
             // From formula 141 in https://fanf2.user.srcf.net/hermes/doc/antiforgery/stats.pdf
             final double newMovingVariance = (1.0 - exponentialSmoothingAlpha) * movingVariance
-                + exponentialSmoothingAlpha * (sampleDelta) * (sample - movingAverage);
+                + exponentialSmoothingAlpha * (sampleDelta) * (sample - newMovingAverage);
 
             if (speed == StatisticsSpeed.FAST) {
                 throttlingFastMovingAverage = newMovingAverage;
