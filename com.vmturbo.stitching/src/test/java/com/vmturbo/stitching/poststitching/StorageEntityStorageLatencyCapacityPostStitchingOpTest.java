@@ -30,29 +30,29 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
 /**
  * Unit tests for {@link StorageEntityCapacityPostStitchingOperation}.
  */
-public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
+public class StorageEntityStorageLatencyCapacityPostStitchingOpTest {
 
-    private static final double CAPACITY = 250;
-    private static final CommodityType COMMODITY_TYPE = CommodityType.STORAGE_ACCESS;
+    private static final double CAPACITY = 5;
+    private static final CommodityType COMMODITY_TYPE = CommodityType.STORAGE_LATENCY;
     private static final TopologyEntityBuilder PROVIDER = TopologyEntityBuilder.newBuilder()
-        .withEntityType(EntityType.LOGICAL_POOL_VALUE)
+        .withEntityType(EntityType.DISK_ARRAY_VALUE)
         .withCommoditiesSold(
             CommoditySoldBuilder.newBuilder().withType(COMMODITY_TYPE).withCapacity(CAPACITY));
 
-    private static final float IOPS_SETTING_DEFAULT = 7.0f;
+    private static final float STORAGE_LATENCY_SETTING_DEFAULT = 10.0f;
 
-    private static final Setting IOPS_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.IOPSCapacity.getSettingName())
+    private static final Setting STORAGE_LATENCY_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.LatencyCapacity.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder()
-                    .setValue(IOPS_SETTING_DEFAULT))
+                    .setValue(STORAGE_LATENCY_SETTING_DEFAULT))
             .build();
 
     private final StorageEntityCapacityPostStitchingOperation op =
-        new StorageEntityCapacityPostStitchingOperation(CommodityType.STORAGE_ACCESS,
-                EntitySettingSpecs.IOPSCapacity);
+        new StorageEntityCapacityPostStitchingOperation(CommodityType.STORAGE_LATENCY,
+                EntitySettingSpecs.LatencyCapacity);
 
     private final CommoditySoldDTO emptyCommodity = CommoditySoldBuilder.newBuilder()
-        .withType(CommodityType.STORAGE_ACCESS).build();
+        .withType(CommodityType.STORAGE_LATENCY).build();
 
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -79,7 +79,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
     }
 
     /**
-     * Test getting default iops setting with no providers
+     * Test getting default latency setting with no providers
      */
     @Test
     public void testNoProvidersSetFromSettings() {
@@ -88,19 +88,19 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             .withCommoditiesSold(emptyCommodity)
             .build();
 
-        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
-                .thenReturn(Optional.of(IOPS_SETTING));
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.LatencyCapacity))
+                .thenReturn(Optional.of(STORAGE_LATENCY_SETTING));
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
 
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(IOPS_SETTING_DEFAULT,
+        assertEquals(STORAGE_LATENCY_SETTING_DEFAULT,
                 te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
     /**
-     * Test with no iops setting and no providers
+     * Test with no latency setting and no providers
      */
     @Test
     public void testNoProvidersOrSettings() {
@@ -109,14 +109,14 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
                 .withCommoditiesSold(emptyCommodity)
                 .build();
 
-        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.LatencyCapacity))
             .thenReturn(Optional.empty());
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
     /**
-     * Test getting default iops setting if there are no valid providers
+     * Test getting default latency setting if there are no valid providers
      */
     @Test
     public void testNoGoodProvidersSetFromSettings() {
@@ -131,7 +131,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         final TopologyEntityBuilder ineligibleProvider2 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.DISK_ARRAY_VALUE).withCommoditiesSold(
                 CommoditySoldBuilder.newBuilder()
-                    .withType(CommodityType.STORAGE_ACCESS)
+                    .withType(CommodityType.STORAGE_LATENCY)
             );
 
         final TopologyEntityBuilder ineligibleProvider3 = TopologyEntityBuilder.newBuilder()
@@ -143,13 +143,13 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             .withProviders(ineligibleProvider1, ineligibleProvider2, ineligibleProvider3)
             .build();
 
-        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
-                .thenReturn(Optional.of(IOPS_SETTING));
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.LatencyCapacity))
+                .thenReturn(Optional.of(STORAGE_LATENCY_SETTING));
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(IOPS_SETTING_DEFAULT,
+        assertEquals(STORAGE_LATENCY_SETTING_DEFAULT,
                 te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
@@ -165,8 +165,8 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
 
         // Even though we get the setting, we should use the provider's capacity.
-        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
-                .thenReturn(Optional.of(IOPS_SETTING));
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.LatencyCapacity))
+                .thenReturn(Optional.of(STORAGE_LATENCY_SETTING));
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
@@ -182,21 +182,20 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
     public void testManyGoodProviders() {
         //if there are several viable providers, one is selected arbitrarily.
 
-        final double arbitraryCapacity = 500;
+        final double arbitraryCapacity = 15;
         final List<Double> acceptableCapacities = Arrays.asList(arbitraryCapacity, CAPACITY);
 
         final TopologyEntityBuilder provider2 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.DISK_ARRAY_VALUE)
             .withCommoditiesSold(
                 CommoditySoldBuilder.newBuilder()
-                    .withType(CommodityType.STORAGE_ACCESS).withCapacity(arbitraryCapacity)
+                    .withType(CommodityType.STORAGE_LATENCY).withCapacity(arbitraryCapacity)
             );
 
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.STORAGE_VALUE)
             .withCommoditiesSold(emptyCommodity)
             .withProviders(PROVIDER, provider2).build();
-
 
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
@@ -217,7 +216,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             .withEntityType(EntityType.STORAGE_VALUE)
             .withProviders(PROVIDER)
             .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
-                .withCapacity(11).withType(CommodityType.STORAGE_ACCESS))
+                .withCapacity(11).withType(CommodityType.STORAGE_LATENCY))
             .build();
 
         op.performOperation(Stream.of(te), settingsMock, resultBuilder);
@@ -239,11 +238,11 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
                 .withEntityType(EntityType.STORAGE_VALUE)
                 .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
                         .withCapacity(existingCapacity)
-                        .withType(CommodityType.STORAGE_ACCESS))
+                        .withType(CommodityType.STORAGE_LATENCY))
                 .build();
 
-        when(settingsMock.getEntitySetting(te, EntitySettingSpecs.IOPSCapacity))
-                .thenReturn(Optional.of(IOPS_SETTING));
+        when(settingsMock.getEntitySetting(te, EntitySettingSpecs.LatencyCapacity))
+                .thenReturn(Optional.of(STORAGE_LATENCY_SETTING));
         op.performOperation(Stream.of(te), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
