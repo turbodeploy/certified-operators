@@ -27,9 +27,6 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.CommodityS
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.TopologyEntityBuilder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
-/**
- * Unit tests for {@link StorageEntityCapacityPostStitchingOperation}.
- */
 public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
     private static final double CAPACITY = 250;
@@ -47,9 +44,8 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
                     .setValue(IOPS_SETTING_DEFAULT))
             .build();
 
-    private final StorageEntityCapacityPostStitchingOperation op =
-        new StorageEntityCapacityPostStitchingOperation(CommodityType.STORAGE_ACCESS,
-                EntitySettingSpecs.IOPSCapacity);
+    private final StorageEntityAccessCapacityPostStitchingOperation op =
+        new StorageEntityAccessCapacityPostStitchingOperation();
 
     private final CommoditySoldDTO emptyCommodity = CommoditySoldBuilder.newBuilder()
         .withType(CommodityType.STORAGE_ACCESS).build();
@@ -61,26 +57,17 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
     private final IStitchingJournal<TopologyEntity> stitchingJournal =
         (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
-    /**
-     * Setup for tests
-     */
     @Before
     public void setup() {
         resultBuilder = new UnitTestResultBuilder();
     }
 
-    /**
-     * Test if there is not entity
-     */
     @Test
     public void testNoEntity() {
         op.performOperation(Stream.empty(), settingsMock, resultBuilder);
         assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
-    /**
-     * Test getting default iops setting with no providers
-     */
     @Test
     public void testNoProvidersSetFromSettings() {
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
@@ -99,9 +86,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
                 te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
-    /**
-     * Test with no iops setting and no providers
-     */
     @Test
     public void testNoProvidersOrSettings() {
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
@@ -115,9 +99,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         assertTrue(resultBuilder.getChanges().size() == 1);
     }
 
-    /**
-     * Test getting default iops setting if there are no valid providers
-     */
     @Test
     public void testNoGoodProvidersSetFromSettings() {
 
@@ -153,9 +134,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
                 te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
-    /**
-     * Test settings getting over-ridden by provider capacity
-     */
     @Test
     public void testOneGoodProviderOverridesSettingCapacity() {
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
@@ -175,9 +153,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
-    /**
-     * Test with multiple valid providers
-     */
     @Test
     public void testManyGoodProviders() {
         //if there are several viable providers, one is selected arbitrarily.
@@ -207,9 +182,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         assertTrue(acceptableCapacities.contains(resultCapacity));
     }
 
-    /**
-     * Test provider capacity over-writing pre-existing capacity
-     */
     @Test
     public void testProviderCapacityOverwritePreexistingCapacity() {
 
@@ -228,9 +200,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
-    /**
-     * Test pre-existing capacity not getting over-written by provider capacity or default setting
-     */
     @Test
     public void testSettingCapacityNotOverwritePreexistingCapacity() {
         final float existingCapacity = 11;
