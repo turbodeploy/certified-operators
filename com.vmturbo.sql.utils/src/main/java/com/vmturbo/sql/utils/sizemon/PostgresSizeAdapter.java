@@ -81,6 +81,22 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
          * @return SizeInfo for each chunk, ordered by reverse chronology of time range
          */
         private List<SizeInfo> populateHypertableData() {
+            if (isHypertableCompressed()) {
+                return getHypertableInfoWithCompression();
+            } else {
+                return getHypertableInfoWithoutCompression();
+            }
+        }
+
+        private boolean isHypertableCompressed() {
+            String sql = String.format("SELECT DISTINCT hypertable_name "
+                            + "FROM timescaledb_information.compression_settings "
+                            + "WHERE hypertable_schema='%1$s' and hypertable_name='%2$s'",
+                    schema.getName(), tableName);
+            return dsl.resultQuery(sql).fetchAny() != null;
+        }
+
+        private List<SizeInfo> getHypertableInfoWithCompression() {
             String sql = String.format("SELECT "
                             // chunk identity and compression state
                             + "  c.chunk_name, c.range_start, c.range_end, c.is_compressed, "
@@ -129,6 +145,32 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
                                 toastSize, (Long)rec.get("compressed_toast"),
                                 Math.round((Float)rec.get("rows")));
                     })
+                    .collect(Collectors.toList());
+        }
+
+        private List<SizeInfo> getHypertableInfoWithoutCompression() {
+            String sql = String.format("SELECT " +
+                    // chunk identity and compression state
+                    "  c.chunk_name, c.range_start, c.range_end, " +
+                    // position of this chunk in the reverse-chronological sequence
+                    "  row_number() OVER (ORDER BY range_start DESC) AS number, " +
+                    // size breakdown of each chunk
+                    "  cds.table_bytes, cds.index_bytes, cds.toast_bytes, cds.total_bytes," +
+                    // number of rows in chunk
+                    "  pgc.reltuples AS rows " +
+                    "FROM timescaledb_information.chunks AS c, " +
+                    "  pg_class AS pgc, " +
+                    "  pg_namespace AS pgns," +
+                    "  chunks_detailed_size('%1$s.%2$s') AS cds " +
+                    "WHERE c.hypertable_schema = '%1$s' AND c.hypertable_name = '%2$s' " +
+                    "  AND pgc.relname = c.chunk_name " +
+                    "  AND pgc.relnamespace = pgns.oid" +
+                    "  AND pgns.nspname = c.chunk_schema" +
+                    "  AND cds.chunk_name = c.chunk_name", schema.getName(), tableName);
+            return dsl.resultQuery(sql).fetch().intoMaps().stream()
+                    .map(rec -> new SizeInfo(tableName, getChunkName(rec),
+                            (long)rec.get("table_bytes"), (long)rec.get("index_bytes"),
+                            (long)rec.get("toast_bytes"), Math.round((Float)rec.get("rows"))))
                     .collect(Collectors.toList());
         }
 
@@ -219,7 +261,11 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
          * @param rows      row count
          */
         SizeInfo(String tableName, long dataSize, long indexSize, long toastSize, long rows) {
-            this(tableName, null, dataSize, null, indexSize, null, toastSize, null, rows);
+            this(tableName, null, dataSize, indexSize, toastSize, rows);
+        }
+
+        SizeInfo(String tableName, String chunkname, long dataSize, long indexSize, long toastSize, long rows) {
+            this(tableName, chunkname, dataSize, null, indexSize, null, toastSize, null, rows);
         }
 
         /**
