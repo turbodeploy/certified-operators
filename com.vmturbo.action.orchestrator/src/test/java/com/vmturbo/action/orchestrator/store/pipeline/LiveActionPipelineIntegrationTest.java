@@ -60,7 +60,6 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
@@ -239,7 +238,6 @@ public class LiveActionPipelineIntegrationTest {
     private Collection<Long> actionPlanTargetEntities;
     private ActionPlanInfo actionPlanInfo;
     private ActionAuditSender actionAuditSender;
-    private AuditedActionsManager auditedActionsManager;
 
     /**
      * setup.
@@ -248,7 +246,6 @@ public class LiveActionPipelineIntegrationTest {
     @Before
     public void setup() {
         actionAuditSender = mock(ActionAuditSender.class);
-        auditedActionsManager = mock(AuditedActionsManager.class);
         // license check client will default to acting as if a valid license is installed.
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         final IdentityDataStore<ActionInfoModel> idDataStore = new InMemoryIdentityStore<>();
@@ -270,7 +267,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, spyActionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender);
 
         when(targetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -558,7 +555,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -619,7 +616,7 @@ public class LiveActionPipelineIntegrationTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, targetSelector, actionTranslator, actionsStatistician,
-            listener, auditedActionsManager);
+            listener);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

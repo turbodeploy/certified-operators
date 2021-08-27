@@ -49,7 +49,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
@@ -237,46 +236,21 @@ public class ActionPipelineStagesTest {
     }
 
     /**
-     * Test {@link GetInvolvedEntityIdsStage} for live action plan.
+     * Test {@link GetInvolvedEntityIdsStage}.
      *
      * @throws PipelineStageException on exception.
      * @throws InterruptedException on exception.
      */
     @Test
-    public void testGetInvolvedEntityIdsStageForLiveActionPlan() throws PipelineStageException, InterruptedException {
+    public void testGetInvolvedEntityIdsStage() throws PipelineStageException, InterruptedException {
         final ActionPlanAndStore planAndStore = new ActionPlanAndStore(actionPlan, actionStore);
-        final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
-        when(auditedActionsManager.getAuditedActionsTargetEntityIds()).thenReturn(Collections.singleton(5001L));
-        final GetInvolvedEntityIdsStage stage = new GetInvolvedEntityIdsStage(auditedActionsManager, true);
+        final GetInvolvedEntityIdsStage stage = new GetInvolvedEntityIdsStage();
 
         stage.setContext(context);
         stage.execute(actionPlan);
         final Set<Long> involvedEntities = captureContextMember(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS);
 
-        final Set<Long> expectedMembers = new HashSet<>();
-        expectedMembers.addAll(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()));
-        expectedMembers.add(5001L);
-
-        assertEquals(expectedMembers, involvedEntities);
-    }
-
-    /**
-     * Test {@link GetInvolvedEntityIdsStage} for an action plan.
-     *
-     * @throws PipelineStageException on exception.
-     * @throws InterruptedException on exception.
-     */
-    @Test
-    public void testGetInvolvedEntityIdsStageForPlan() throws PipelineStageException, InterruptedException {
-        final ActionPlanAndStore planAndStore = new ActionPlanAndStore(actionPlan, actionStore);
-        final GetInvolvedEntityIdsStage stage = new GetInvolvedEntityIdsStage(null, false);
-
-        stage.setContext(context);
-        stage.execute(actionPlan);
-        final Set<Long> involvedEntities = captureContextMember(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS);
-
-        final Set<Long> expectedMembers = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
-        assertEquals(expectedMembers, involvedEntities);
+        assertEquals(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), involvedEntities);
     }
 
     /**

@@ -500,9 +500,9 @@ public class InterpretCloudExplanationTest {
         // Free scale up for VCPU and VMEM, wasted cost.
         interpretFreeScaleUpAction(EntityType.DATABASE_VALUE, 10, 120, 120, 2, 0, true);
 
-        // Same scenarios for VMs should not result in scale up commodities
-        interpretFreeScaleUpAction(EntityType.VIRTUAL_MACHINE_VALUE, 10, 80, 120, 0, 1, false);
-        interpretFreeScaleUpAction(EntityType.VIRTUAL_MACHINE_VALUE, 10, 120, 120, 0, 0, true);
+        // Same scenarios for database servers should not result in scale up commodities
+        interpretFreeScaleUpAction(EntityType.DATABASE_SERVER_VALUE, 10, 80, 120, 0, 1, false);
+        interpretFreeScaleUpAction(EntityType.DATABASE_SERVER_VALUE, 10, 120, 120, 0, 0, true);
     }
 
     private void interpretFreeScaleUpAction(int entityType, double savings, double newVmemCapacity, double newVcpuCapacity,

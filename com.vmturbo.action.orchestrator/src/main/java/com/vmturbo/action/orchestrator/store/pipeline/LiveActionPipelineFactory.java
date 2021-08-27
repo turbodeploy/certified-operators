@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
-import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
@@ -94,7 +93,6 @@ public class LiveActionPipelineFactory {
     private final ActionTranslator actionTranslator;
     private final LiveActionsStatistician actionsStatistician;
     private final ActionAuditSender actionAuditSender;
-    private final AuditedActionsManager auditedActionsManager;
 
     /**
      * Create a new {@link LiveActionPipelineFactory}.
@@ -117,7 +115,6 @@ public class LiveActionPipelineFactory {
      * @param actionTranslator the {@link ActionTranslator}.
      * @param actionsStatistician the {@link LiveActionsStatistician}.
      * @param actionAuditSender the {@link ActionAuditSender}.
-     * @param auditedActionsManager the {@link AuditedActionsManager}.
      */
     public LiveActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse,
                                      @Nonnull final ActionAutomationManager automationManager,
@@ -133,8 +130,7 @@ public class LiveActionPipelineFactory {
                                      @Nonnull final ActionTargetSelector actionTargetSelector,
                                      @Nonnull final ActionTranslator actionTranslator,
                                      @Nonnull final LiveActionsStatistician actionsStatistician,
-                                     @Nonnull final ActionAuditSender actionAuditSender,
-                                     @Nonnull final AuditedActionsManager auditedActionsManager) {
+                                     @Nonnull final ActionAuditSender actionAuditSender) {
         Preconditions.checkArgument(liveActionsLockMaxWaitTimeMinutes > 0,
             "Illegal value %s for liveActionsLockMaxWaitTimeMinutes", liveActionsLockMaxWaitTimeMinutes);
         Preconditions.checkArgument(queryTimeWindowForLastExecutedActionsMins > 0,
@@ -155,7 +151,6 @@ public class LiveActionPipelineFactory {
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
-        this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
     }
 
     /**
@@ -231,7 +226,7 @@ public class LiveActionPipelineFactory {
         return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
             .initialContextMember(ActionPipelineContextMembers.CURRENT_ACTION_PLAN_COUNTS, newCountsSupplier)
             .initialContextMember(ActionPipelineContextMembers.PREVIOUS_ACTION_PLAN_COUNTS, previousCountsSupplier)
-            .addStage(new GetInvolvedEntityIdsStage(auditedActionsManager, true))
+            .addStage(new GetInvolvedEntityIdsStage())
             .addStage(new PrepareAggregatedActionsStage(atomicActionFactory))
             .addStage(new GetOrCreateLiveActionStoreStage(actionStorehouse))
             .addStage(new GetEntitiesAndSettingsSnapshotStage(entitiesAndSettingsSnapshotFactory))

@@ -232,7 +232,7 @@ public class ActionExecutionRpcTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, actionTargetSelector, actionTranslator, statistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender);
     }
 
     /**
@@ -553,7 +553,7 @@ public class ActionExecutionRpcTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, actionTargetSelector, actionTranslator, statistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender);
 
         pipelineFactory.actionPipeline(plan).run(plan);
         when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any(), any())).thenReturn(

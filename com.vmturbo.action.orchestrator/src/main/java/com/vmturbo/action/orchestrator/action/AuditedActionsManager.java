@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
@@ -225,20 +224,6 @@ public class AuditedActionsManager {
                 .filter(el -> el.getColumnKey() == workflowId)
                 .map(Cell::getValue)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * The set of all entity ids involved in the actions already sent for auditing.
-     *
-     * @return the set of ids of all entities.
-     */
-    @Nonnull
-    public Set<Long> getAuditedActionsTargetEntityIds() {
-        return sentActionsToWorkflowCache.cellSet()
-                .stream()
-                .map(Cell::getValue)
-                .map(AuditedActionInfo::getTargetEntityId)
-                .collect(Collectors.toSet());
     }
 
     /**
