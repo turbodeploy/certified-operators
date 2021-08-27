@@ -7,6 +7,7 @@ import java.time.Clock;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
@@ -47,6 +48,7 @@ public class ActionPipelineFactoryTest {
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
     private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
+    private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
 
     private final ActionPlan actionPlan = ActionPlan.newBuilder()
         .setId(1)
@@ -75,7 +77,7 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender);
+            actionAuditSender, auditedActionsManager);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
@@ -93,7 +95,7 @@ public class ActionPipelineFactoryTest {
             maxWaitTimeMinutes, probeCapabilityCache, actionHistoryDao,
             actionFactory, clock, queryTimeWindowForLastExecutedActionsMins,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender);
+            actionAuditSender, auditedActionsManager);
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
