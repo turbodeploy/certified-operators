@@ -75,6 +75,9 @@ public class IdentityProviderConfig {
     @Value("${expirationDaysPerEntity:}")
     private String serializedExpirationDaysPerEntity;
 
+    @Value("${initialExpirationDelayMins:720}")
+    private int initialExpirationDelayMin;
+
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
         return new IdentityDatabaseStore(topologyProcessorDBConfig.dsl());
@@ -131,15 +134,14 @@ public class IdentityProviderConfig {
                     mapper.convertValue(mapper.readTree(serializedExpirationDaysPerEntity),
                         HashMap.class);
             } catch (JsonProcessingException e) {
-                logger.error("Could not convert the expirationDaysPerEntity into a map, those " +
-                    "settings will be ignored");
+                logger.error("Could not convert the expirationDaysPerEntity into a map, those "
+                        + "settings will be ignored");
             }
         }
-        return new StaleOidManagerImpl(Math.max(TimeUnit.DAYS.toMillis(1),
-            TimeUnit.DAYS.toMillis(entityExpirationTimeDays)),
-            Math.max(TimeUnit.HOURS.toMillis(1),
-                TimeUnit.HOURS.toMillis(entityValidationFrequencyHours)),
-            topologyProcessorDBConfig.dsl(), clockConfig.clock(), expireOids,
-                oidsExpirationScheduledExecutor(), expirationDaysMap);
+        return new StaleOidManagerImpl(
+                Math.max(TimeUnit.DAYS.toMillis(1), TimeUnit.DAYS.toMillis(entityExpirationTimeDays)),
+                Math.max(TimeUnit.HOURS.toMillis(1), TimeUnit.HOURS.toMillis(entityValidationFrequencyHours)),
+                Math.max(0, TimeUnit.MINUTES.toMillis(initialExpirationDelayMin)), topologyProcessorDBConfig.dsl(),
+                clockConfig.clock(), expireOids, oidsExpirationScheduledExecutor(), expirationDaysMap);
     }
 }
