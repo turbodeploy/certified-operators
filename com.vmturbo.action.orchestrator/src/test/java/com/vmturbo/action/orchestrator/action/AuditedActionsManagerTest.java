@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -13,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -182,6 +185,26 @@ public class AuditedActionsManagerTest {
         Assert.assertEquals(expiredUpdate.getAuditedActions(), actualExpireUpdate.getAuditedActions());
         Assert.assertEquals(expiredUpdate.getRecentlyClearedActions(), actualExpireUpdate.getRecentlyClearedActions());
         Assert.assertEquals(expiredUpdate.getRemovedAudits(), actualExpireUpdate.getRemovedAudits());
+    }
+
+    /**
+     * Tests getting all the entity ids that has been sent for audit.
+     *
+     * @throws ActionStoreOperationException shouldn't happen
+     */
+    @Test
+    public void testGetAuditedActionsTargetEntityIds() {
+        // ARRANGE
+        final AuditedActionsUpdate update = new AuditedActionsUpdate();
+        update.addAuditedAction(new AuditedActionInfo(100L, 1L, 50L, VMEM_RESIZE_UP_ONGEN, Optional.empty()));
+        update.addAuditedAction(new AuditedActionInfo(101L, 3L, 51L, VMEM_RESIZE_UP_ONGEN, Optional.empty()));
+        auditedActionsManager.persistAuditedActionsUpdates(update);
+
+        // ACT
+        final Set<Long> entityIds = auditedActionsManager.getAuditedActionsTargetEntityIds();
+
+        // ASSERT
+        assertThat(entityIds, containsInAnyOrder(50L, 51L));
     }
 
     /**
