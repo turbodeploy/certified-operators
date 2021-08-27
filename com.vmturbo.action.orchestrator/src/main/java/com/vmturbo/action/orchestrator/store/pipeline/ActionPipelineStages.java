@@ -25,6 +25,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -40,6 +41,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
@@ -163,22 +165,38 @@ public class ActionPipelineStages {
      * Get the IDs of the entities involved in the actions in an {@link ActionPlan}.
      */
     public static class GetInvolvedEntityIdsStage extends RequiredPassthroughStage<ActionPlan> {
+        private AuditedActionsManager auditedActionsManager;
+        private boolean isLiveActionPlan;
+
         // The set of involved entity ids. This set gets replaced with a new set computed
         // during the execution of the stage.
         private Set<Long> involvedEntityIds = Collections.emptySet();
 
         /**
          * Create a new {@link GetInvolvedEntityIdsStage}.
+         * @param auditedActionsManager the audited action manager.
+         * @param isLiveActionPlan if the stage is running on live action plan.
          */
-        public GetInvolvedEntityIdsStage() {
+        public GetInvolvedEntityIdsStage(@Nullable AuditedActionsManager auditedActionsManager,
+                                         boolean isLiveActionPlan) {
             providesToContext(ActionPipelineContextMembers.INVOLVED_ENTITY_IDS,
-                (Supplier<Set<Long>>)this::getInvolvedEntityIds);
+                    (Supplier<Set<Long>>)this::getInvolvedEntityIds);
+            this.isLiveActionPlan = isLiveActionPlan;
+            if (isLiveActionPlan) {
+                this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
+            }
+
         }
 
         @Nonnull
         @Override
         public Status passthrough(ActionPlan input) {
             involvedEntityIds = ActionDTOUtil.getInvolvedEntityIds(input.getActionList());
+            // add the entities for the actions that are involved in the audit process as we
+            // may need the setting for them for sending cleared message for them
+            if (isLiveActionPlan) {
+                involvedEntityIds.addAll(auditedActionsManager.getAuditedActionsTargetEntityIds());
+            }
             return Status.success();
         }
 
