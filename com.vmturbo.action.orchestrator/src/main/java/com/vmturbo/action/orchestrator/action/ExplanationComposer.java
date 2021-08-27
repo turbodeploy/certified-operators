@@ -28,7 +28,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -137,6 +139,11 @@ public class ExplanationComposer {
     // Explanation overrides for cloud migration
     private static final String CLOUD_MIGRATION_LIFT_AND_SHIFT_EXPLANATION = "Lift & Shift migration";
     private static final String CLOUD_MIGRATION_OPTIMIZED_EXPLANATION = "Optimized migration";
+
+    private static final Map<ChangeProviderExplanation.WastedCostCategory, String> wastedCostCategoryExplanations =
+            ImmutableMap.of(
+                    ChangeProviderExplanation.WastedCostCategory.COMPUTE, "Compute",
+                    ChangeProviderExplanation.WastedCostCategory.STORAGE, "Storage");
 
     /**
      * Private to prevent instantiation.
@@ -502,12 +509,25 @@ public class ExplanationComposer {
      */
     private static Set<String> buildCongestionExplanation(
             @Nonnull final Congestion congestion, final boolean keepItShort) {
+        Set<String> result = Sets.newHashSet();
         final List<ReasonCommodity> congestedCommodities = congestion.getCongestedCommoditiesList();
         if (!congestedCommodities.isEmpty()) {
-            return buildCommodityUtilizationExplanation(congestedCommodities,
-                ChangeProviderExplanationTypeCase.CONGESTION, keepItShort);
+            result.addAll(buildCommodityUtilizationExplanation(congestedCommodities,
+                ChangeProviderExplanationTypeCase.CONGESTION, keepItShort));
+            if (congestion.getIsWastedCost()) {
+                StringBuilder wastedCost = new StringBuilder();
+                if (congestion.hasWastedCostCategory()) {
+                    wastedCost.append(wastedCostCategoryExplanations.get(congestion.getWastedCostCategory())).append(" ");
+                }
+                wastedCost.append(WASTED_COST);
+                result.add(wastedCost.toString());
+            }
+            if (!congestion.getUnderUtilizedCommoditiesList().isEmpty()) {
+                result.addAll(buildCommodityUtilizationExplanation(congestion.getUnderUtilizedCommoditiesList(),
+                        ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort));
+            }
         }
-        return Collections.emptySet();
+        return result;
     }
 
     /**
@@ -574,11 +594,18 @@ public class ExplanationComposer {
         Set<String> result = new LinkedHashSet<>();
         if (efficiency.getIsRiCoverageIncreased()) {
             result.add(INCREASE_RI_UTILIZATION);
-        } else if (!efficiency.getUnderUtilizedCommoditiesList().isEmpty()) {
+        }
+        if (!efficiency.getUnderUtilizedCommoditiesList().isEmpty()) {
             result.addAll(buildCommodityUtilizationExplanation(efficiency.getUnderUtilizedCommoditiesList(),
                     ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort));
-        } else if (efficiency.getIsWastedCost()) {
-            result.add(WASTED_COST);
+        }
+        if (efficiency.getIsWastedCost()) {
+            StringBuilder wastedCost = new StringBuilder();
+            if (efficiency.hasWastedCostCategory()) {
+                wastedCost.append(wastedCostCategoryExplanations.get(efficiency.getWastedCostCategory())).append(" ");
+            }
+            wastedCost.append(WASTED_COST);
+            result.add(wastedCost.toString());
         }
         if (ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(actionEntity.getType())) {
             if (!efficiency.getScaleUpCommodityList().isEmpty()) {
