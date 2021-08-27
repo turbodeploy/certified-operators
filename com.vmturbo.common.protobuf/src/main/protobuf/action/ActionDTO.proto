@@ -53,6 +53,11 @@ message Explanation {
             Efficiency efficiency = 6;
         }
 
+        enum WastedCostCategory {
+            COMPUTE = 1;
+            STORAGE = 2;
+        }
+
         // This boolean should be set to true for simple moves, which have only one change provider.
         // In case of compound moves, we can have multiple change providers and multiple
         // change provider explanations. Generally, if a PM move is accompanied by a storage move,
@@ -96,9 +101,11 @@ message Explanation {
 
             // For the cloud, these are the commodities sold by the target entity which are
             // under-utilized
-            // Congested commodity is the driver of congestion action. So we are deprecating
-            // under_utilized_commodities which is part of Effciency.
-            repeated ReasonCommodity __deprecated_under_utilized_reason_commodities = 5 [deprecated = true];
+            repeated ReasonCommodity under_utilized_commodities = 5;
+
+            optional bool is_wasted_cost = 6;
+
+            optional WastedCostCategory wasted_cost_category = 7;
         }
 
         // A move explanation suggesting evacuation of buyers.
@@ -162,6 +169,8 @@ message Explanation {
             // In many scenario even with an efficiency action, the destination commodity scales up.
             // This list captures those commodities.
             repeated topology.CommodityType scale_up_commodity = 7;
+
+            optional WastedCostCategory wasted_cost_category = 8;
         }
     }
 
