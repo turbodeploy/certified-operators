@@ -650,11 +650,44 @@ public class WorkflowsServiceTest {
         } catch (IllegalArgumentException ex) {
         }
 
+        // test header value are not in ASCII.
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setHeaders(
+                Collections.singletonList(new RequestHeader("header_name", "⊗ header_value ⊗")));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
         // test header name is empty (or has only whitespaces)
         workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
         webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
         webhookApiDTO.setHeaders(
                 Collections.singletonList(new RequestHeader("", "header_value")));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test header name wasn't provided or was null
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setHeaders(
+                Collections.singletonList(new RequestHeader(null, "header_value")));
+        try {
+            workflowsService.validateInput(workflowApiDTO);
+            fail();
+        } catch (IllegalArgumentException ex) {
+        }
+
+        // test header value wasn't provided or was null
+        workflowApiDTO = WorkflowMapperTest.createWebhookWorkflowApiDto();
+        webhookApiDTO = (WebhookApiDTO)workflowApiDTO.getTypeSpecificDetails();
+        webhookApiDTO.setHeaders(
+                Collections.singletonList(new RequestHeader("header_name", null)));
         try {
             workflowsService.validateInput(workflowApiDTO);
             fail();

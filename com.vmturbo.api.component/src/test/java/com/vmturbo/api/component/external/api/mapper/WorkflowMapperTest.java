@@ -7,8 +7,6 @@ import static org.junit.Assert.assertNull;
 
 import java.util.Collections;
 
-import javax.annotation.Nonnull;
-
 import org.junit.Test;
 
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -131,8 +129,8 @@ public class WorkflowMapperTest {
      *
      * @return an instance of {@link WorkflowApiDTO}.
      */
-    public static WorkflowApiDTO createWebhookWorkflowApiDto(@Nonnull String headerName,
-            @Nonnull String headerValue) {
+    public static WorkflowApiDTO createWebhookWorkflowApiDto(String headerName,
+            String headerValue) {
         WorkflowApiDTO workflowApiDTO = new WorkflowApiDTO();
         workflowApiDTO.setClassName(WORKFLOW_CLASSNAME);
         workflowApiDTO.setUuid(String.valueOf(WORKFLOW_OID));
