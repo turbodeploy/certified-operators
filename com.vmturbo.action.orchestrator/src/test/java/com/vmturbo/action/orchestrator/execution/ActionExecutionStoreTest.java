@@ -11,7 +11,9 @@ import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
 
@@ -28,12 +30,16 @@ public class ActionExecutionStoreTest {
         final ActionExecutionStore store = new ActionExecutionStore();
 
         // Create the first execution and check that it is stored
-        final ActionExecution execution1 = store.createExecution(ImmutableList.of(1L, 2L),
+        final Action action1 = mockAction(1L, 2L);
+        final Action action2 = mockAction(3L, 4L);
+        final ActionExecution execution1 = store.createExecution(ImmutableList.of(action1, action2),
                 Collections.emptyList());
         checkThatExecutionIsStored(execution1, store);
 
         // Create the second execution and check that it is stored
-        final ActionExecution execution2 = store.createExecution(ImmutableList.of(3L, 4L),
+        final Action action3 = mockAction(5L, 6L);
+        final Action action4 = mockAction(7L, 8L);
+        final ActionExecution execution2 = store.createExecution(ImmutableList.of(action3, action4),
                 Collections.emptyList());
         checkThatExecutionIsStored(execution2, store);
 
@@ -57,7 +63,9 @@ public class ActionExecutionStoreTest {
         final List<SkippedAction> rejectedActions = ImmutableList.of(
                 SkippedAction.newBuilder().setActionId(3L).build(),
                 SkippedAction.newBuilder().setActionId(4L).build());
-        final ActionExecution execution = store.createExecution(ImmutableList.of(1L, 2L),
+        final Action action1 = mockAction(1L, 2L);
+        final Action action2 = mockAction(3L, 4L);
+        final ActionExecution execution = store.createExecution(ImmutableList.of(action1, action2),
                 rejectedActions);
 
         Assert.assertEquals(rejectedActions, execution.getSkippedActionList());
@@ -71,20 +79,24 @@ public class ActionExecutionStoreTest {
         final ActionExecutionStore store = new ActionExecutionStore();
 
         // Create an execution consisting of 2 actions
-        final long actionId1 = 1L;
-        final long actionId2 = 2L;
-        final long executionId = store.createExecution(ImmutableList.of(actionId1, actionId2),
+        final long action1Id = 1L;
+        final long recommendation1Id = 2L;
+        final Action action1 = mockAction(action1Id, recommendation1Id);
+        final long action2Id = 3L;
+        final long recommendation2Id = 4L;
+        final Action action2 = mockAction(action2Id, recommendation2Id);
+        final long executionId = store.createExecution(ImmutableList.of(action1, action2),
                 Collections.emptyList()).getId();
 
         // The first action is completed: execution should contain a single action now
-        store.removeCompletedAction(actionId1);
+        store.removeCompletedAction(action1Id);
         final Optional<ActionExecution> execution = store.getActionExecution(executionId);
         Assert.assertTrue(execution.isPresent());
         final Set<Long> actionIds = new HashSet<>(execution.get().getActionIdList());
-        Assert.assertEquals(ImmutableSet.of(actionId2), actionIds);
+        Assert.assertEquals(ImmutableSet.of(recommendation2Id), actionIds);
 
         // The second action is completed: execution should be removed
-        store.removeCompletedAction(actionId2);
+        store.removeCompletedAction(action2Id);
         Assert.assertFalse(store.getActionExecution(executionId).isPresent());
     }
 
@@ -95,5 +107,12 @@ public class ActionExecutionStoreTest {
                 execution.getId());
         Assert.assertTrue(executionOpt.isPresent());
         Assert.assertEquals(execution, executionOpt.get());
+    }
+
+    private static Action mockAction(final long actionId, final long recommendationOid) {
+        final Action action = Mockito.mock(Action.class);
+        Mockito.when(action.getId()).thenReturn(actionId);
+        Mockito.when(action.getRecommendationOid()).thenReturn(recommendationOid);
+        return action;
     }
 }

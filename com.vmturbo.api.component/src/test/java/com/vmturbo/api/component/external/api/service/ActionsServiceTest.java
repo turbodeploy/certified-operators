@@ -16,7 +16,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,9 +24,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -63,10 +64,12 @@ import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
+import com.vmturbo.api.dto.action.SkippedActionApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
@@ -76,8 +79,12 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.AllActionExecutionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetInstanceIdsForRecommendationIdsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
@@ -103,6 +110,11 @@ public class ActionsServiceTest {
     private static final long SECOND_ACTION_ID = 20L;
     private static final long FIRST_ACTION_RECOMMENDATION_ID = 101L;
     private static final long SECOND_ACTION_RECOMMENDATION_ID = 201L;
+
+    private static final long ACTION_EXECUTION_ID = 1111L;
+    private static final List<Long> ACTION_EXECUTION_ACTION_IDS = ImmutableList.of(1L, 2L);
+    private static final Long ACTION_EXECUTION_SKIPPED_ACTION_ID = 3L;
+    private static final String ACTION_EXECUTION_SKIPPED_ACTION_REASON = "Action is in the wrong state";
 
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
@@ -217,25 +229,95 @@ public class ActionsServiceTest {
     }
 
     /**
-     * Test execute multiple actions in one request.
+     * Test creating a new action execution to execute multiple actions in one request.
      *
      * @throws Exception On any error.
      */
     @Test
-    public void testExecuteActions() throws Exception {
-        when(actionsServiceBackend.acceptActions(any()))
-                .thenReturn(ActionExecution.getDefaultInstance());
-        final List<Long> actionOids = ImmutableList.of(1L, 2L);
-        final List<String> actionUuids = actionOids.stream()
-                .map(String::valueOf)
-                .collect(Collectors.toList());
-        actionsServiceUnderTest.createActionExecution(actionUuids);
-
+    public void testCreateActionExecution() throws Exception {
+        // ARRANGE
         final MultiActionRequest request = MultiActionRequest.newBuilder()
                 .setTopologyContextId(REALTIME_TOPOLOGY_ID)
-                .addAllActionIds(actionOids)
+                .addAllActionIds(ACTION_EXECUTION_ACTION_IDS)
                 .build();
-        verify(actionsServiceBackend, times(1)).acceptActions(request);
+        final ActionExecution actionExecution = createActionExecution();
+        when(actionsServiceBackend.acceptActions(request)).thenReturn(actionExecution);
+
+        // ACT
+        final ActionExecutionApiDTO actionExecutionDto = actionsServiceUnderTest
+                .createActionExecution(ACTION_EXECUTION_ACTION_IDS.stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.toList()));
+
+        // ASSERT
+        checkActionExecution(actionExecutionDto);
+    }
+
+    /**
+     * Test getting action execution by ID.
+     */
+    @Test
+    public void testGetActionExecution() {
+        // ARRANGE
+        final ActionExecutionRequest request = ActionExecutionRequest.newBuilder()
+                .setExecutionId(ACTION_EXECUTION_ID)
+                .build();
+        final ActionExecution actionExecution = createActionExecution();
+        when(actionsServiceBackend.getActionExecution(request)).thenReturn(actionExecution);
+
+        // ACT
+        final ActionExecutionApiDTO actionExecutionDto = actionsServiceUnderTest
+                .getActionExecution(ACTION_EXECUTION_ID);
+
+        // ASSERT
+        checkActionExecution(actionExecutionDto);
+    }
+
+    /**
+     * Test getting a list all action executions.
+     */
+    @Test
+    public void testGetActionExecutions() throws Exception {
+        // ARRANGE
+        final AllActionExecutionsRequest request = AllActionExecutionsRequest.newBuilder()
+                .build();
+        final ActionExecution actionExecution = createActionExecution();
+        final AllActionExecutionsResponse response = AllActionExecutionsResponse.newBuilder()
+                .addExecutions(actionExecution)
+                .build();
+        when(actionsServiceBackend.getAllActionExecutions(request)).thenReturn(response);
+
+        // ACT
+        final List<ActionExecutionApiDTO> actionExecutionDtoList = actionsServiceUnderTest
+                .getActionExecutions();
+
+        // ASSERT
+        assertEquals(1, actionExecutionDtoList.size());
+        checkActionExecution(actionExecutionDtoList.get(0));
+    }
+
+    private static ActionExecution createActionExecution() {
+        return ActionExecution.newBuilder()
+                .setId(ACTION_EXECUTION_ID)
+                .addAllActionId(ACTION_EXECUTION_ACTION_IDS)
+                .addSkippedAction(SkippedAction.newBuilder()
+                        .setActionId(ACTION_EXECUTION_SKIPPED_ACTION_ID)
+                        .setReason(ACTION_EXECUTION_SKIPPED_ACTION_REASON)
+                        .build())
+                .build();
+    }
+
+    private static void checkActionExecution(ActionExecutionApiDTO actionExecutionDto) {
+        assertEquals(String.valueOf(ACTION_EXECUTION_ID), actionExecutionDto.getId());
+        final Set<String> expectedActionIds = ACTION_EXECUTION_ACTION_IDS.stream()
+                .map(String::valueOf)
+                .collect(Collectors.toSet());
+        final Set<String> actualActionIds = new HashSet<>(actionExecutionDto.getActionIds());
+        assertEquals(expectedActionIds, actualActionIds);
+        assertEquals(1, actionExecutionDto.getSkippedActions().size());
+        final SkippedActionApiDTO skippedActionDto = actionExecutionDto.getSkippedActions().get(0);
+        assertEquals(String.valueOf(ACTION_EXECUTION_SKIPPED_ACTION_ID), skippedActionDto.getActionId());
+        assertEquals(ACTION_EXECUTION_SKIPPED_ACTION_REASON, skippedActionDto.getReason());
     }
 
     @Test

@@ -202,6 +202,8 @@ public class ActionExecutionSecureRpcTest {
     private IdentityServiceImpl actionIdentityService;
     private final EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
 
+    private long lastGeneratedActionOid;
+
     // utility for creating / interacting with a debugging JWT context
     JwtContextUtil jwtContextUtil;
 
@@ -283,7 +285,8 @@ public class ActionExecutionSecureRpcTest {
             final int size = invocation.getArgumentAt(0, List.class).size();
             final List<Long> result = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                result.add(IdentityGenerator.next());
+                lastGeneratedActionOid = IdentityGenerator.next();
+                result.add(lastGeneratedActionOid);
             }
             return result;
         });
@@ -339,7 +342,7 @@ public class ActionExecutionSecureRpcTest {
             .acceptActions(acceptActionRequest);
 
         assertEquals(1, response.getActionIdCount());
-        assertEquals(ACTION_ID_1, response.getActionId(0));
+        assertEquals(lastGeneratedActionOid, response.getActionId(0));
         // verify log message includes admin user.
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
@@ -371,7 +374,7 @@ public class ActionExecutionSecureRpcTest {
             .acceptActions(acceptActionRequest);
 
         assertEquals(1, response.getActionIdCount());
-        assertEquals(ACTION_ID_1, response.getActionId(0));
+        assertEquals(lastGeneratedActionOid, response.getActionId(0));
         // verify log message include admin user
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
@@ -429,7 +432,7 @@ public class ActionExecutionSecureRpcTest {
             .acceptActions(acceptActionRequest); // don't pass JWT token
 
         assertEquals(1, response.getActionIdCount());
-        assertEquals(ACTION_ID_1, response.getActionId(0));
+        assertEquals(lastGeneratedActionOid, response.getActionId(0));
     }
 
     // we want to ensure gRPC service can still be functional even the public key is NOT available
@@ -473,7 +476,7 @@ public class ActionExecutionSecureRpcTest {
             .acceptActions(acceptActionRequest);
 
         assertEquals(1, response.getActionIdCount());
-        assertEquals(ACTION_ID_1, response.getActionId(0));
+        assertEquals(lastGeneratedActionOid, response.getActionId(0));
 
         // clean up
         managedChannel.shutdown();

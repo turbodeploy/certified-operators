@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.execution;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
 
@@ -27,17 +27,21 @@ public class ActionExecutionStore {
     /**
      * Create and store new {@code ActionExecution}.
      *
-     * @param actionIds List of action OIDs.
+     * @param actions List of actions.
      * @param skippedActions List of actions that were skipped by Action Orchestrator.
      * @return Created {@code ActionExecution} instance.
      */
     public synchronized ActionExecution createExecution(
-            @Nonnull final List<Long> actionIds,
+            @Nonnull final List<Action> actions,
             @Nonnull final List<SkippedAction> skippedActions) {
         final long id = currentId++;
-        final Execution execution = new Execution(id, actionIds, skippedActions);
-        executionsById.put(id, execution);
-        actionIds.forEach(actionId -> executionsByActionId.put(actionId, execution));
+        final Map<Long, Long> actionIdToRecommendationOidMap = actions.stream()
+                .collect(Collectors.toMap(Action::getId, Action::getRecommendationOid));
+        final Execution execution = new Execution(id, actionIdToRecommendationOidMap, skippedActions);
+        if (!actions.isEmpty()) {
+            executionsById.put(id, execution);
+            actions.forEach(action -> executionsByActionId.put(action.getId(), execution));
+        }
         return execution.toActionExecution();
     }
 
@@ -86,16 +90,16 @@ public class ActionExecutionStore {
      */
     private static class Execution {
         private final long id;
-        private final List<Long> actionIds;
+        private final Map<Long, Long> actionIdToRecommendationOidMap;
         private final List<SkippedAction> skippedActions;
         private final long acceptedTimestamp;
 
         private Execution(
                 final long id,
-                @Nonnull final List<Long> actionIds,
+                @Nonnull final Map<Long, Long> actionIdToRecommendationOidMap,
                 @Nonnull final List<SkippedAction> skippedActions) {
             this.id = id;
-            this.actionIds = new ArrayList<>(actionIds);
+            this.actionIdToRecommendationOidMap = new HashMap<>(actionIdToRecommendationOidMap);
             this.skippedActions = skippedActions;
             acceptedTimestamp = System.currentTimeMillis();
         }
@@ -105,14 +109,14 @@ public class ActionExecutionStore {
         }
 
         private boolean removeActionAndCheckIfEmpty(final long actionId) {
-            actionIds.remove(actionId);
-            return actionIds.isEmpty();
+            actionIdToRecommendationOidMap.remove(actionId);
+            return actionIdToRecommendationOidMap.isEmpty();
         }
 
         private ActionExecution toActionExecution() {
             return ActionExecution.newBuilder()
                     .setId(id)
-                    .addAllActionId(actionIds)
+                    .addAllActionId(actionIdToRecommendationOidMap.values())
                     .addAllSkippedAction(skippedActions)
                     .setAcceptedTimestamp(acceptedTimestamp)
                     .build();

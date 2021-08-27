@@ -154,6 +154,7 @@ public class ActionExecutionRpcTest {
     private static final long ACTION_PLAN_ID = 2;
     private static final long TOPOLOGY_CONTEXT_ID = 3;
     private static final long ACTION_ID = 9999;
+    private static final long RECOMMENDATION_OID = 10000;
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
@@ -184,7 +185,7 @@ public class ActionExecutionRpcTest {
                 acceptedActionsStore, actionExecutionListener);
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
-                .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));
+                .thenReturn(Arrays.asList(RECOMMENDATION_OID, 2L, 3L, 4L, 5L, 6L, 7L));
         actionsRpcService = new ActionsRpcService(
             clock,
             actionStorehouse,
@@ -198,7 +199,7 @@ public class ActionExecutionRpcTest {
             rejectedActionsStore,
             auditedActionsManager,
             actionAuditSender,
-                actionExecutionStore,
+            actionExecutionStore,
             500,
             777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
@@ -263,7 +264,7 @@ public class ActionExecutionRpcTest {
                 createActionRequest());
 
         Assert.assertEquals(1, response.getActionIdCount());
-        assertEquals(ACTION_ID, response.getActionId(0));
+        assertEquals(RECOMMENDATION_OID, response.getActionId(0));
     }
 
     /**
@@ -305,7 +306,7 @@ public class ActionExecutionRpcTest {
                 actionOrchestratorServiceClient.acceptActions(createActionRequest());
 
         Assert.assertEquals(1, response.getActionIdCount());
-        Assert.assertEquals(ACTION_ID, response.getActionId(0));
+        Assert.assertEquals(RECOMMENDATION_OID, response.getActionId(0));
         final Action action = actionStoreSpy.getAction(ACTION_ID).get();
         Mockito.verify(acceptedActionsStore)
                 .persistAcceptedAction(Mockito.eq(action.getRecommendationOid()),
@@ -348,6 +349,8 @@ public class ActionExecutionRpcTest {
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
         assertEquals(0, result.getActionIdCount());
+        assertEquals(1, result.getSkippedActionCount());
+        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
     }
 
     /**
@@ -370,9 +373,13 @@ public class ActionExecutionRpcTest {
         actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
             ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
 
-        final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
-                createActionRequest());
-        assertEquals(0, result.getActionIdCount());
+        try {
+            actionOrchestratorServiceClient.acceptActions(createActionRequest());
+        } catch (StatusRuntimeException ex) {
+            assertEquals("NOT_FOUND: Action " + ACTION_ID + " doesn't exist.", ex.getMessage());
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -433,6 +440,8 @@ public class ActionExecutionRpcTest {
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
         assertEquals(0, result.getActionIdCount());
+        assertEquals(1, result.getSkippedActionCount());
+        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
     }
 
     @Test
@@ -454,6 +463,8 @@ public class ActionExecutionRpcTest {
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
         assertEquals(0, result.getActionIdCount());
+        assertEquals(1, result.getSkippedActionCount());
+        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
     }
 
     @Test
@@ -481,6 +492,8 @@ public class ActionExecutionRpcTest {
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
         assertEquals(0, result.getActionIdCount());
+        assertEquals(1, result.getSkippedActionCount());
+        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
     }
 
     /**
@@ -556,6 +569,8 @@ public class ActionExecutionRpcTest {
         final ActionExecution result = actionOrchestratorServiceClient.acceptActions(
                 createActionRequest());
         assertEquals(0, result.getActionIdCount());
+        assertEquals(1, result.getSkippedActionCount());
+        assertEquals(RECOMMENDATION_OID, result.getSkippedAction(0).getActionId());
     }
 
     private static MultiActionRequest createActionRequest() {
