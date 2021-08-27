@@ -94,7 +94,7 @@ public class MarketConfig {
             actionStoreConfig.queryTimeWindowForLastExecutedActionsMins(),
             actionStoreConfig.actionIdentityService(), actionExecutionConfig.actionTargetSelector(),
             actionTranslationConfig.actionTranslator(), actionStatsConfig.actionsStatistician(),
-            auditCommunicationConfig.actionAuditSender());
+            auditCommunicationConfig.actionAuditSender(), auditCommunicationConfig.auditedActionsManager());
     }
 
     /**
