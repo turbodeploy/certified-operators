@@ -16,7 +16,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.CloudCommitmentCoverage;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails.TierCostDetails;
 import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.FuzzyDouble;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -248,6 +250,13 @@ public interface CloudActionSavingsCalculator {
              */
             @Nonnull
             Optional<CloudCommitmentCoverage> cloudCommitmentCoverage();
+
+            /**
+             * The cost journal.
+             * @return The cost journal.
+             */
+            @Nonnull
+            Optional<CostJournal<TopologyEntityDTO>> costJournal();
 
             /**
              * Converts this {@link TraxTierCostDetails} to {@link TierCostDetails}.
