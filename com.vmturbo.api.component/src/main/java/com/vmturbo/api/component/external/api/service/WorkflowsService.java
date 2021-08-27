@@ -49,6 +49,8 @@ import com.vmturbo.communication.CommunicationException;
 public class WorkflowsService implements IWorkflowsService {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String HEADER_FIELD_NAME = "name";
+    private static final String HEADER_FIELD_VALUE = "value";
     private final WorkflowServiceBlockingStub workflowServiceRpc;
     private final TargetsService targetsService;
     private final WorkflowMapper workflowMapper;
@@ -295,24 +297,51 @@ public class WorkflowsService implements IWorkflowsService {
             // validate webhook headers if any
             if (webhookApiDTO.getHeaders() != null) {
                 for (RequestHeader header : webhookApiDTO.getHeaders()) {
-                    final String headerName = header.getName();
-                    validateRequestHeaderName(headerName);
+                    validateRequestHeader(header);
                 }
             }
         }
     }
 
-    private static void validateRequestHeaderName(final String headerName) {
-        boolean headerNameIsAscii = CharMatcher.ascii().matchesAllOf(headerName);
-        if (!headerNameIsAscii) {
-            throw new IllegalArgumentException(
-                    "Header name should has only ASCII symbols. \"" + headerName
-                            + "\" is wrong header name");
-        }
+    /**
+     * Validate request header.
+     *
+     * @param header the header
+     */
+    private static void validateRequestHeader(@Nonnull RequestHeader header) {
+        final String headerName = header.getName();
+        validateRequestHeaderField(headerName, HEADER_FIELD_NAME);
+        validateRequestHeaderField(header.getValue(), HEADER_FIELD_VALUE);
+
+        // Specific validation for header name, because header with empty name doesn't make sense
+        // and wouldn't be sent in the request.
+        // But header value can be blank (empty string or only whitespaces) and we don't want to restrict it.
         if (StringUtils.isBlank(headerName)) {
             throw new IllegalArgumentException(
-                    "Header name shouldn't be empty or has only whitespaces. \"" + headerName
-                            + "\" is wrong header name");
+                    "Header name shouldn't be empty or contain only whitespace.");
+        }
+    }
+
+    /**
+     * The HTTP header fields (name and value) should follow the generic rules provided in RFC - <a
+     * href="https://datatracker.ietf.org/doc/html/rfc822#section-3.1">LEXICAL ANALYSIS OF
+     * MESSAGES</a>.
+     *
+     * @param headerField the header field (name or value)
+     * @param headerFieldTypeName "name" or "value" used for having more detailed error
+     *         message
+     */
+    private static void validateRequestHeaderField(final String headerField,
+            final String headerFieldTypeName) {
+        if (headerField == null) {
+            throw new IllegalArgumentException(
+                    "Header " + headerFieldTypeName + " must not be null.");
+        }
+        boolean headerFieldIsAscii = CharMatcher.ascii().matchesAllOf(headerField);
+        if (!headerFieldIsAscii) {
+            throw new IllegalArgumentException("Header " + headerFieldTypeName
+                    + " must be a sequence of printable ASCII characters. \"" + headerField
+                    + "\" is wrong header " + headerFieldTypeName);
         }
     }
 
