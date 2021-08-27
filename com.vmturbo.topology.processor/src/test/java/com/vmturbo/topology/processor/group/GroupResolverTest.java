@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -90,6 +91,8 @@ public class GroupResolverTest {
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
         groupResolver = new GroupResolver(searchResolver,
                 GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), searchFilterResolver);
+
+        when(topologyGraph.getEntity(anyLong())).thenReturn(Optional.empty());
     }
 
     /**
@@ -124,6 +127,9 @@ public class GroupResolverTest {
             .setGroupFilter(GroupFilter.newBuilder()
                 .addId(childGroupId))
             .build());
+
+        when(topologyGraph.getEntity(vmId))
+                .thenReturn(Optional.of(topologyEntity(vmId, EntityType.VIRTUAL_MACHINE).build()));
 
         assertThat(groupResolver.resolve(parentGroup, topologyGraph).getAllEntities(), containsInAnyOrder(vmId));
     }
@@ -167,6 +173,8 @@ public class GroupResolverTest {
             .setGroupFilter(GroupFilter.newBuilder()
                 .addId(childGroupId))
             .build());
+        when(topologyGraph.getEntity(vmId))
+                .thenReturn(Optional.of(topologyEntity(vmId, EntityType.VIRTUAL_MACHINE).build()));
 
         assertThat(groupResolver.resolve(parentGroup, topologyGraph).getAllEntities(), containsInAnyOrder(vmId));
     }
@@ -311,6 +319,37 @@ public class GroupResolverTest {
                         .addAllMembers(Arrays.asList(1L, 2L)))))
                 .setId(1234L).build();
 
+        when(topologyGraph.getEntity(1L))
+                .thenReturn(Optional.of(topologyEntity(1L, EntityType.VIRTUAL_MACHINE).build()));
+        when(topologyGraph.getEntity(2L))
+                .thenReturn(Optional.of(topologyEntity(2L, EntityType.VIRTUAL_MACHINE).build()));
+
+        assertThat(groupResolver.resolve(staticGroup, topologyGraph).getAllEntities(), containsInAnyOrder(1L, 2L));
+    }
+
+    /**
+     * Test resolving a static group that consists of UUIDs of entities
+     * that no longer exist in the topology.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testResolveStaticGroupWithNonExistingEntityIds() throws Exception {
+        Grouping staticGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                        .addAllMembers(Arrays.asList(1L, 2L, 3L, 4L)))))
+                .setId(1234L).build();
+
+        when(topologyGraph.getEntity(1L))
+                .thenReturn(Optional.of(topologyEntity(1L, EntityType.VIRTUAL_MACHINE).build()));
+        when(topologyGraph.getEntity(2L))
+                .thenReturn(Optional.of(topologyEntity(2L, EntityType.VIRTUAL_MACHINE).build()));
+
         assertThat(groupResolver.resolve(staticGroup, topologyGraph).getAllEntities(), containsInAnyOrder(1L, 2L));
     }
 
@@ -321,6 +360,11 @@ public class GroupResolverTest {
      */
     @Test
     public void testResolveCluster() throws Exception {
+        when(topologyGraph.getEntity(1L))
+                .thenReturn(Optional.of(topologyEntity(1L, EntityType.PHYSICAL_MACHINE).build()));
+        when(topologyGraph.getEntity(2L))
+                .thenReturn(Optional.of(topologyEntity(2L, EntityType.PHYSICAL_MACHINE).build()));
+
         Grouping cluster = Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
