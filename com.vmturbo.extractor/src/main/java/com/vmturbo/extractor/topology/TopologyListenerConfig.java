@@ -337,6 +337,8 @@ public class TopologyListenerConfig {
         List<TopologyWriterFactory<?>> retFactories = new ArrayList<>();
         ExtractorFeatureFlags featureFlags = extractorGlobalConfig.featureFlags();
         if (featureFlags.isSearchEnabled()) {
+            //TODO: this needs to be replaced by mysql endpoint call (com.vmturbo.extractor.ExtractorDbConfig.ingesterMySqlEndpoint)
+            // for new search transition when the logic for writing is fully implemented
             retFactories.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
         if (featureFlags.isReportingEnabled()) {
