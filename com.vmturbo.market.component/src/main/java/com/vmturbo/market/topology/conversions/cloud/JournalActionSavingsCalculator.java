@@ -425,8 +425,7 @@ public class JournalActionSavingsCalculator implements CloudActionSavingsCalcula
 
         final TraxTierCostDetails.Builder tierCostDetails = TraxTierCostDetails.builder()
                 .onDemandRate(onDemandRate)
-                .onDemandCost(onDemandCost)
-                .costJournal(costJournal);
+                .onDemandCost(onDemandCost);
 
         if (reservedInstanceCoverage.isPresent()) {
             final CloudCommitmentCoverage.Builder cloudCommitmentCoverage =
