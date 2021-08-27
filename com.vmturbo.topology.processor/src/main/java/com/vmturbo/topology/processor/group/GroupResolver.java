@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -160,8 +161,15 @@ public class GroupResolver {
                     if (members.getType().hasGroup()) {
                         groups.addAll(members.getMembersList());
                     } else {
+                        // select members uuid's for entities that exist in the topology
+                        List<Long> validMembers  = members.getMembersList().stream()
+                                .map(id -> graph.getEntity(id))
+                                .filter(Optional::isPresent)
+                                .map(entity -> entity.get().getOid())
+                                .collect(Collectors.toList());
                         result.computeIfAbsent(ApiEntityType.fromType(members.getType().getEntity()),
-                            k -> new HashSet<>(members.getMembersCount())).addAll(members.getMembersList());
+                                k -> new HashSet<>(validMembers.size()))
+                                .addAll(validMembers);
                     }
                 }
                 break;
