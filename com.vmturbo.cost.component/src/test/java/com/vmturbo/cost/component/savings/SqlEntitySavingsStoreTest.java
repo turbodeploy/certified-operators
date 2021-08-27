@@ -98,22 +98,22 @@ public class SqlEntitySavingsStoreTest {
     /**
      * Realized savings test value.
      */
-    private static final double realizedSavings = 1.0d;
+    private static final double realizedSavings = 0.0001d;
 
     /**
      * Missed savings test value.
      */
-    private static final double missedSavings = 2.0d;
+    private static final double missedSavings = 0.0002;
 
     /**
      * Realized investments test value.
      */
-    private static final double realizedInvestments = 4.0d;
+    private static final double realizedInvestments = 0.0004d;
 
     /**
      * Missed investments test value.
      */
-    private static final double missedInvestments = 8.0d;
+    private static final double missedInvestments = 0.0008d;
 
     /**
      * Get some exact times in a day based on our fixed clock.
@@ -301,17 +301,17 @@ public class SqlEntitySavingsStoreTest {
         assertNotNull(statsByDay);
         assertEquals(3, statsByDay.size());
         // 23 hours Jan-13, $100/hr
-        assertEquals(2300.0, statsByDay.get(0).getValue(), EPSILON_PRECISION);
+        assertEquals(0.23, statsByDay.get(0).getValue(), EPSILON_PRECISION);
         // 24 hours Jan-14, $100/hr
-        assertEquals(2400.0, statsByDay.get(1).getValue(), EPSILON_PRECISION);
+        assertEquals(0.24, statsByDay.get(1).getValue(), EPSILON_PRECISION);
         // 3 hours Jan-15, $100/hr
-        assertEquals(300.0, statsByDay.get(2).getValue(), EPSILON_PRECISION);
+        assertEquals(0.03, statsByDay.get(2).getValue(), EPSILON_PRECISION);
 
         final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
                 monthRangeStart, monthRangeEnd, entityOids, entityTypes, billingFamilies, resourceGroups);
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
-        assertEquals(4700.0, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
+        assertEquals(0.47, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
     }
 
     /**
@@ -327,6 +327,8 @@ public class SqlEntitySavingsStoreTest {
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
 
+        long vmId = 10L;
+
         // Add hourly stats records every hour, starting at 2am 11 months ago, and up to and
         // including 2pm today.
         LocalDateTime startTime = timeExact1PM.minusMonths(11).toLocalDate().atStartOfDay().plusHours(2);
@@ -335,9 +337,11 @@ public class SqlEntitySavingsStoreTest {
         long endTimeMillis = TimeUtil.localDateTimeToMilli(endTime, clock);
         for (long tMillis = startTimeMillis; tMillis <= endTimeMillis; tMillis += TimeUnit.HOURS.toMillis(1)) {
             LocalDateTime time = LocalDateTime.ofInstant(Instant.ofEpochMilli(tMillis), ZoneOffset.UTC);
-            setStatsValues(hourlyStats, vm1Id, time, 1, statsTypes);
+            setStatsValues(hourlyStats, vmId, time, 1, statsTypes);
             hourlyTimes.add(tMillis);
         }
+        // all the stats have the same stats value - remember it for expected rollup results
+        final double baseValue = hourlyStats.iterator().next().getValue();
         // save all the hourly records to the hourly table
         store.addHourlyStats(hourlyStats, dsl);
         int count = dsl.fetchCount(EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR);
@@ -350,7 +354,7 @@ public class SqlEntitySavingsStoreTest {
         logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
                 newLastTimes);
 
-        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
+        Collection<Long> entityOids = ImmutableSet.of(vmId);
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
@@ -381,9 +385,9 @@ public class SqlEntitySavingsStoreTest {
         // check the hourly results
         // we should have a record for each of the timestamps we collected
         assertEquals(hourlyStats.size(), hourlyResult.size());
-        // each record should show a value of 400.0
+        // each record should have our base value
         hourlyResult.forEach(result -> assertEquals("Failed for hour " + Instant.ofEpochMilli(result.getTimestamp()),
-                400.0, result.value, EPSILON_PRECISION));
+                baseValue, result.value, EPSILON_PRECISION));
         // first record is at our start time, and then they're separated by 1 hour
         assertEquals(startTimeMillis, hourlyResult.get(0).getTimestamp());
         IntStream.range(1, hourlyResult.size()).forEach(i ->
@@ -395,15 +399,15 @@ public class SqlEntitySavingsStoreTest {
         // we should have a record for every day on which an hourly timestamp fell
         long expectedDays = endTime.toLocalDate().toEpochDay() - startTime.toLocalDate().toEpochDay() + 1;
         assertEquals(expectedDays, dailyResult.size());
-        // 400.0 per hour over 24 hours for most days, but first day only has (02-23), and final
+        // baseValue per hour over 24 hours for most days, but first day only has (02-23), and final
         // day only has 15 (00-14)
         IntStream.range(1, dailyResult.size() - 1).forEach(i ->
                 assertEquals("Failed for day " + Instant.ofEpochMilli(dailyResult.get(i).getTimestamp()),
-                        24 * 400.0, dailyResult.get(i).value, EPSILON_PRECISION));
+                        24 * baseValue, dailyResult.get(i).value, EPSILON_PRECISION));
         int firstDayHours = 24 - startTime.getHour();
-        assertEquals(firstDayHours * 400.0, dailyResult.get(0).value, EPSILON_PRECISION);
+        assertEquals(firstDayHours * baseValue, dailyResult.get(0).value, EPSILON_PRECISION);
         int lastDayHours = endTime.getHour() + 1;
-        assertEquals(lastDayHours * 400.0, dailyResult.get(dailyResult.size() - 1).value, EPSILON_PRECISION);
+        assertEquals(lastDayHours * baseValue, dailyResult.get(dailyResult.size() - 1).value, EPSILON_PRECISION);
         // first record timestamp should be midnight of day containing first hourly timestamp, and
         // then they should be spaced by one day.
         assertEquals(TimeUnit.DAYS.toMillis(startTime.atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()),
@@ -430,16 +434,16 @@ public class SqlEntitySavingsStoreTest {
             // midnight on last day of month
             LocalDateTime monthDate = SavingsUtil.getLocalDateTime(monthlyResult.get(i).getTimestamp(), clock);
             assertEquals("Failed for month ending on " + monthDate,
-                    monthDate.getDayOfMonth() * 24 * 400.0, monthlyResult.get(i).getValue(), EPSILON_PRECISION);
+                    monthDate.getDayOfMonth() * 24 * baseValue, monthlyResult.get(i).getValue(), EPSILON_PRECISION);
         });
         // first and last months are adjusted by day/hour of start/end times respectively
         int firstMonthHours =
                 SavingsUtil.getLocalDateTime(monthlyResult.get(0).getTimestamp(), clock).getDayOfMonth() * 24
                         - (startTime.getDayOfMonth() - 1) * 24 - startTime.getHour();
-        assertEquals(firstMonthHours * 400.0, monthlyResult.get(0).getValue(), EPSILON_PRECISION);
+        assertEquals(firstMonthHours * baseValue, monthlyResult.get(0).getValue(), EPSILON_PRECISION);
         // last active day in month is not yet rolled up into monthly since the day may not be complete
         int lastMonthHours = (endTime.getDayOfMonth() - 1) * 24;
-        assertEquals(lastMonthHours * 400.0, monthlyResult.get(monthlyResult.size() - 1).getValue(), EPSILON_PRECISION);
+        assertEquals(lastMonthHours * baseValue, monthlyResult.get(monthlyResult.size() - 1).getValue(), EPSILON_PRECISION);
     }
 
     /**

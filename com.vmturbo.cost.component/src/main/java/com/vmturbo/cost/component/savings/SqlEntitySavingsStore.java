@@ -5,7 +5,6 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
-import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -33,7 +32,6 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.InsertValuesStep4;
-import org.jooq.Record;
 import org.jooq.Record3;
 import org.jooq.Record5;
 import org.jooq.Result;
@@ -42,7 +40,6 @@ import org.jooq.SelectJoinStep;
 import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
-import org.jooq.impl.SQLDataType;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
@@ -339,67 +336,40 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         final List<LocalDateTime> fromDateTimes = fromTimes.stream()
                 .map(millis -> LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), clock.getZone()))
                 .collect(Collectors.toList());
-        final InsertOnDuplicateSetMoreStep<? extends Record> upsert = durationType == RollupDurationType.DAILY
-                ? getDailyUpsert(toDateTime, fromDateTimes)
-                : getMonthlyUpsert(toDateTime, fromDateTimes);
-        upsert.execute();
+        getRollupUpsert(durationType, toDateTime, fromDateTimes).execute();
     }
 
     /**
-     * Create an UPSERT statement to perform daily rollups.
+     * Create an UPSERT statement to perform roll-ups of for given rollup type (hourly -> daily or
+     * daily -> monthly).
      *
-     * <p>Unfortunately, it's difficult to use a single method for both daily and monthly rollups
-     * because of the different handling of `samples` data.</p>
-     *
-     * @param toDateTime the timestamp for rolled-up data in the daily table
-     * @param fromDateTimes timestamps in the hourly data for data that should be part of the rollup
+     * @param rollupDuration duration of rollup - DAILY or MONTHLY
+     * @param toDateTime     the timestamp for rolled-up data in the rollup table
+     * @param fromDateTimes  timestamps for records rolled up from the source table
      * @return jOOQ UPSERT statement
      */
-    private InsertOnDuplicateSetMoreStep<?> getDailyUpsert(
-            @Nonnull final LocalDateTime toDateTime,
-            @Nonnull final List<LocalDateTime> fromDateTimes) {
-        final StatsTypeFields sourceFields = statsFieldsByRollup.get(RollupDurationType.HOURLY);
-        final StatsTypeFields rollupFields = statsFieldsByRollup.get(RollupDurationType.DAILY);
+    private InsertOnDuplicateSetMoreStep<?> getRollupUpsert(@Nonnull final RollupDurationType rollupDuration,
+            @Nonnull final LocalDateTime toDateTime, @Nonnull final List<LocalDateTime> fromDateTimes) {
+        final Table<?> sourceTable = rollupDuration == RollupDurationType.DAILY
+                ? ENTITY_SAVINGS_BY_HOUR
+                : ENTITY_SAVINGS_BY_DAY;
+        final Table<?> rollupTable = rollupDuration == RollupDurationType.DAILY
+                ? ENTITY_SAVINGS_BY_DAY
+                : ENTITY_SAVINGS_BY_MONTH;
+        final RollupDurationType sourceDuration = rollupDuration == RollupDurationType.DAILY
+                ? RollupDurationType.HOURLY
+                : RollupDurationType.DAILY;
+        final StatsTypeFields sourceFields = statsFieldsByRollup.get(sourceDuration);
+        final StatsTypeFields rollupFields = statsFieldsByRollup.get(rollupDuration);
         final SelectHavingStep<Record5<LocalDateTime, Long, Integer, Double, Integer>> embeddedSelect =
                 DSL.select(DSL.val(toDateTime).as("stats_time"), sourceFields.oidField,
                                 sourceFields.typeField,
-                                DSL.sum(sourceFields.valueField).cast(SQLDataType.DOUBLE),
+                                DSL.sum(sourceFields.valueField).coerce(Double.class),
                                 DSL.count())
-                        .from(ENTITY_SAVINGS_BY_HOUR)
+                        .from(sourceTable)
                         .where(sourceFields.timeField.in(fromDateTimes))
                         .groupBy(sourceFields.oidField, sourceFields.typeField);
-        return dsl.insertInto(ENTITY_SAVINGS_BY_DAY)
-                .columns(rollupFields.timeField, rollupFields.oidField, rollupFields.typeField,
-                        rollupFields.valueField, rollupFields.samplesField)
-                .select(embeddedSelect)
-                .onDuplicateKeyUpdate()
-                .set(rollupFields.valueField, rollupFields.valueField.plus(values(rollupFields.valueField)))
-                .set(rollupFields.samplesField, rollupFields.samplesField.plus(values(rollupFields.samplesField)));
-    }
-
-    /**
-     * Create an UPSERT statement to perform daily rollups.
-     *
-     * <p>Unfortunately, it's difficult to use a single method for both daily and monthly rollups
-     * because of the different handling of `samples` data.</p>
-     *
-     * @param toDateTime the timestamp for rolled-up data in the daily table
-     * @param fromDateTimes timestamps in the hourly data for data that should be part of the rollup
-     * @return jOOQ UPSERT statement
-     */
-    private InsertOnDuplicateSetMoreStep<?> getMonthlyUpsert(
-            @Nonnull LocalDateTime toDateTime,
-            @Nonnull final List<LocalDateTime> fromDateTimes) {
-        final StatsTypeFields sourceFields = statsFieldsByRollup.get(RollupDurationType.DAILY);
-        final StatsTypeFields rollupFields = statsFieldsByRollup.get(RollupDurationType.MONTHLY);
-        final SelectHavingStep<Record5<LocalDateTime, Long, Integer, Double, Integer>> embeddedSelect =
-                DSL.select(DSL.val(toDateTime).as("stats_time"), sourceFields.oidField, sourceFields.typeField,
-                                sum(sourceFields.valueField).cast(SQLDataType.DOUBLE),
-                                sum(sourceFields.samplesField).cast(SQLDataType.INTEGER))
-                        .from(ENTITY_SAVINGS_BY_DAY)
-                        .where(sourceFields.timeField.in(fromDateTimes))
-                        .groupBy(sourceFields.oidField, sourceFields.typeField);
-        return dsl.insertInto(ENTITY_SAVINGS_BY_MONTH)
+        return dsl.insertInto(rollupTable)
                 .columns(rollupFields.timeField, rollupFields.oidField, rollupFields.typeField,
                         rollupFields.valueField, rollupFields.samplesField)
                 .select(embeddedSelect)
@@ -474,8 +444,8 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             boolean isResourceGroups = !resourceGroups.isEmpty();
             SelectJoinStep<Record3<LocalDateTime, Integer, BigDecimal>> selectStatsStatement =
                     dsl.select(fieldInfo.timeField,
-                            fieldInfo.typeField,
-                            sum(fieldInfo.valueField).as(fieldInfo.valueField))
+                                    fieldInfo.typeField,
+                                    DSL.sum(fieldInfo.valueField).as(fieldInfo.valueField))
                     .from(fieldInfo.table);
 
             if (isCloudScopeEntity || isBillingFamilies || isResourceGroups) {
