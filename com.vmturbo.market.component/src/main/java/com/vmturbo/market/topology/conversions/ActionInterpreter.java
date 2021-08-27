@@ -118,8 +118,6 @@ public class ActionInterpreter {
             ImmutableSet.of(EntityType.STORAGE_TIER_VALUE,
                     EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                     EntityType.COMPUTE_TIER_VALUE);
-    private static final Set<Integer> FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES =
-            ImmutableSet.of(EntityType.DATABASE_VALUE);
     private final CommodityIndex commodityIndex;
     private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
 
@@ -1268,6 +1266,11 @@ public class ActionInterpreter {
         final ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
         ChangeProviderExplanation.Builder changeProviderExplanation;
+        int actionTargetEntityType = projectedTopology.containsKey(actionTargetId) ?
+                projectedTopology.get(actionTargetId).getEntity().getEntityType() : -1;
+        ChangeExplainer changeExplainer = ChangeExplainerFactory.createChangeExplainer(actionTargetEntityType,
+                commoditiesResizeTracker, cloudTc, projectedRICoverageCalculator, shoppingListOidToInfos,
+                commodityIndex, originalTopology);
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
                 changeProviderExplanation = null;
@@ -1283,7 +1286,7 @@ public class ActionInterpreter {
                                     .newBuilder(overrideAndExplanation.getSecond());
                         } else {
                             // No existing override explanation, get one from tracker, e.g for VMs.
-                            changeProviderExplanation = changeExplanationFromTracker(moveTO, savings, projectedTopology)
+                            changeProviderExplanation = changeExplainer.changeExplanationFromTracker(moveTO, savings, projectedTopology)
                                     .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
                                             ChangeProviderExplanation.Efficiency.getDefaultInstance()));
                         }
@@ -1323,7 +1326,7 @@ public class ActionInterpreter {
                     break;
                 }
                 // For cloud entities we create either an efficiency or congestion change explanation
-                Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplanationFromTracker(moveTO, savings, projectedTopology);
+                Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplainer.changeExplanationFromTracker(moveTO, savings, projectedTopology);
                 ChangeProviderExplanation.Builder explanationFromM2 = ChangeProviderExplanation.newBuilder().setCongestion(
                         ChangeProviderExplanation.Congestion.newBuilder()
                         .addAllCongestedCommodities(moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
@@ -1383,7 +1386,7 @@ public class ActionInterpreter {
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation
-                changeProviderExplanation = changeExplanationFromTracker(moveTO, savings, projectedTopology)
+                changeProviderExplanation = changeExplainer.changeExplanationFromTracker(moveTO, savings, projectedTopology)
                     .orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
                 break;
@@ -1395,305 +1398,6 @@ public class ActionInterpreter {
         }
         changeProviderExplanation.setIsPrimaryChangeProviderExplanation(isPrimaryChangeExplanation);
         return changeProviderExplanation;
-    }
-
-    @Nonnull
-    private Optional<ChangeProviderExplanation.Builder> changeExplanationFromTracker(
-            @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
-        ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-        final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
-        int actionTargetEntityType = projectedTopology.containsKey(actionTargetId) ?
-                projectedTopology.get(actionTargetId).getEntity().getEntityType() : -1;
-        long sellerId = slInfo.getSellerId();
-
-        // First, check if this entity has congested commodities pre-stored.
-        Optional<ChangeProviderExplanation.Builder> congestedExplanation =
-            getCongestedExplanationFromTracker(actionTargetId, sellerId);
-        if (congestedExplanation.isPresent()) {
-            return congestedExplanation;
-        }
-
-        // Second, check if this entity is cloud and has RI change.
-        Optional<ChangeProviderExplanation.Builder> increaseRiUtilExplanation =
-            getRIIncreaseExplanation(actionTargetId, moveTO);
-        if (increaseRiUtilExplanation.isPresent()) {
-            return increaseRiUtilExplanation;
-        }
-
-        // Find the commodities which have lower and higher capacity in the projected topology
-        Pair<Set<CommodityType>, Set<CommodityType>> lowerAndHigherCapacityPair =
-            calculateCommWithChangingProjectedCapacity(moveTO, actionTargetId, projectedTopology, sellerId);
-        // Collection of commodities with lower projected capacity in projected topology.
-        final Set<CommodityType> lowerProjectedCapacityComms = lowerAndHigherCapacityPair.getFirst();
-        // Collection of commodities with higher projected capacity in projected topology.
-        final Set<CommodityType> higherProjectedCapacityComms = lowerAndHigherCapacityPair.getSecond();
-
-        // Third, check if there is an under-utilized commodity which became lower capacity
-        // in the projected topology.
-        Optional<ChangeProviderExplanation.Builder> underUtilizedExplanation =
-            getUnderUtilizedExplanationFromTracker(actionTargetId, sellerId, lowerProjectedCapacityComms,
-                higherProjectedCapacityComms, savings, actionTargetEntityType);
-        if (underUtilizedExplanation.isPresent()) {
-            return underUtilizedExplanation;
-        }
-
-        // Fourth, check if there is savings
-        Optional<ChangeProviderExplanation.Builder> savingsExplanation =
-            getExplanationFromSaving(savings, higherProjectedCapacityComms, actionTargetEntityType);
-        if (savingsExplanation.isPresent()) {
-            return savingsExplanation;
-        }
-
-        // Fifth, check if the action is a CSG action
-        Optional<ChangeProviderExplanation.Builder> csgExplanation =
-            getConistentScalingExplanationForCloud(moveTO);
-        if (csgExplanation.isPresent()) {
-            return csgExplanation;
-        }
-
-        // Sixth, check if we got an action with zero savings and the same projected capacities.
-        // E.g. it happens when AWS IO1 volume is scaled to IO2. Both IO1 and IO2 provide the same
-        // capacities and costs but IO2 is newer and has better durability.
-        final Optional<ChangeProviderExplanation.Builder> zeroSavingsExplanation =
-                getZeroSavingsAndNoCommodityChangeExplanation(moveTO, savings,
-                        lowerProjectedCapacityComms, higherProjectedCapacityComms);
-        if (zeroSavingsExplanation.isPresent()) {
-            return zeroSavingsExplanation;
-        }
-
-        return getDefaultExplanationForCloud(actionTargetId, moveTO);
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getZeroSavingsAndNoCommodityChangeExplanation(
-            @Nonnull final MoveTO moveTO,
-            @Nonnull final CalculatedSavings savings,
-            @Nonnull final Set<CommodityType> lowerProjectedCapacityComms,
-            @Nonnull final Set<CommodityType> higherProjectedCapacityComms) {
-        // Check if this is a Cloud Move action with zero savings and no commodity changes
-        if (cloudTc.isMarketTier(moveTO.getSource())
-                && cloudTc.isMarketTier(moveTO.getDestination())
-                && savings.isZeroSavings()
-                && lowerProjectedCapacityComms.isEmpty()
-                && higherProjectedCapacityComms.isEmpty()) {
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    Efficiency.newBuilder()));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getConistentScalingExplanationForCloud(MoveTO moveTO) {
-        ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-        TopologyEntityDTO originalTrader = slInfo != null ? originalTopology.get(slInfo.getBuyerId()) : null;
-        if (moveTO.hasScalingGroupId() && originalTrader != null
-                && originalTrader.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-            return Optional.of(ChangeProviderExplanation.newBuilder().setCompliance(
-                Compliance.newBuilder().setIsCsgCompliance(true)));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getCongestedExplanationFromTracker(long actionTargetId, long sellerId) {
-        Set<CommodityTypeWithLookup> congestedCommodityTypes = commoditiesResizeTracker.getCongestedCommodityTypes(actionTargetId, sellerId);
-        if (congestedCommodityTypes != null && !congestedCommodityTypes.isEmpty()) {
-            Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
-                    .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedCommodityTypes
-                        .stream().map(CommodityTypeWithLookup::commodityType).collect(Collectors.toSet())));
-            logger.debug("CongestedCommodities from tracker for buyer: {}, seller: {} : [{}]",
-                    actionTargetId, sellerId,
-                    congestedCommodityTypes.stream().map(type -> type.toString()).collect(Collectors.joining()));
-            return Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
-                    congestionBuilder));
-        }
-        return Optional.empty();
-    }
-
-    @Nonnull
-    private Optional<ChangeProviderExplanation.Builder> getUnderUtilizedExplanationFromTracker(
-            long actionTargetId,
-            long sellerId,
-            @Nonnull Set<CommodityType> lowerProjectedCapacityComms,
-            @Nonnull Set<CommodityType> higherProjectedCapacityComms,
-            CalculatedSavings savings,
-            int actionTargetEntityType) {
-        if (!lowerProjectedCapacityComms.isEmpty()) {
-            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(lowerProjectedCapacityComms));
-            logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
-                    actionTargetId, sellerId,
-                lowerProjectedCapacityComms.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
-            if ((savings.isSavings() || savings.isZeroSavings())
-                    && FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
-                // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
-                // and there are some commodities which have higher projected capacities.
-                efficiencyBuilder
-                    .addAllScaleUpCommodity(higherProjectedCapacityComms);
-            }
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    efficiencyBuilder));
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * Commodities with either lower projected capacity values or higher projected values compared to original topology.
-     *
-     * @param moveTO the moveTO from m2
-     * @param actionTargetId   current action.
-     * @param projectedTopology    projected topology indexed by id.
-     * @param sellerId the seller which supplied the shopping list before anlaysis took place
-     * @return Pair set of lower projected commodities and higher projected commodity.
-     */
-    @Nonnull
-    private Pair<Set<CommodityType>, Set<CommodityType>> calculateCommWithChangingProjectedCapacity(
-            final MoveTO moveTO,
-            final long actionTargetId,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            long sellerId) {
-        Set<CommodityTypeWithLookup> underutilizedCommTypesWithLookup = commoditiesResizeTracker
-            .getUnderutilizedCommodityTypes(actionTargetId, sellerId);
-        final Set<CommodityType> lowerProjectedCapacity = Sets.newHashSet();
-        final Set<CommodityType> higherProjectedCapacity = Sets.newHashSet();
-        if (!underutilizedCommTypesWithLookup.isEmpty()) {
-            final Map<CommodityType, CommoditySoldDTO> originalCommoditySoldBySource = Maps.newHashMap();
-            final Map<CommodityType, CommoditySoldDTO> originalCommoditySoldByTarget = Maps.newHashMap();
-            Map<CommodityType, CommoditySoldDTO> projectedCommoditySoldByDestination = Maps.newHashMap();
-            Map<CommodityType, CommoditySoldDTO> projectedCommoditySoldByTarget = Maps.newHashMap();
-            // Segregate under-utilized commodities by lookup types - consumer lookup and provider lookup.
-            // Some commodities like VMEM/VCPU are sold by the consumer. The projected capacity needs
-            // to be compared with original capacity at the consumer.
-            // Some commodities like IOThroughput/NetThroughput are bought by the consumer, and sold
-            // by the provider. The projected capacity needs to be compared with original capacity
-            // at the provider for these commodities.
-            Map<CommodityLookupType, List<CommodityTypeWithLookup>> underUtilizedCommoditiesByLookup =
-                underutilizedCommTypesWithLookup.stream().collect(Collectors.groupingBy(CommodityTypeWithLookup::lookupType));
-            List<CommodityType> underUtilCommsWithConsumerLookup = underUtilizedCommoditiesByLookup.containsKey(CommodityLookupType.CONSUMER)
-                ? underUtilizedCommoditiesByLookup.get(CommodityLookupType.CONSUMER).stream()
-                .map(CommodityTypeWithLookup::commodityType).collect(Collectors.toList())
-                : Collections.emptyList();
-            List<CommodityType> underUtilizedCommsWithProviderLookup = underUtilizedCommoditiesByLookup.containsKey(CommodityLookupType.PROVIDER)
-                ? underUtilizedCommoditiesByLookup.get(CommodityLookupType.PROVIDER).stream()
-                .map(CommodityTypeWithLookup::commodityType).collect(Collectors.toList())
-                : Collections.emptyList();
-
-            // populate projectedCommoditySoldByTarget and originalCommoditySoldByTarget
-            if (!underUtilCommsWithConsumerLookup.isEmpty()) {
-                projectedCommoditySoldByTarget = projectedTopology.containsKey(actionTargetId)
-                    ? projectedTopology.get(actionTargetId).getEntity()
-                    .getCommoditySoldListList().stream()
-                    .filter(commoditySoldDTO -> underUtilCommsWithConsumerLookup.contains(commoditySoldDTO.getCommodityType()))
-                    .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()))
-                    : Collections.emptyMap();
-                underUtilCommsWithConsumerLookup.forEach(comm -> commodityIndex.getCommSold(actionTargetId, comm)
-                    .ifPresent(cSold -> originalCommoditySoldByTarget.put(comm, cSold)));
-            }
-
-            // populate projectedCommoditySoldByDestination and originalCommoditySoldBySource
-            if (!underUtilizedCommsWithProviderLookup.isEmpty()) {
-                long sourceId = moveTO.getSource();
-                if (cloudTc.isMarketTier(sourceId)) {
-                    Optional<Long> sourceTierId = cloudTc.getSourceOrDestinationTierFromMoveTo(moveTO, actionTargetId, true);
-                    if (sourceTierId.isPresent()) {
-                        sourceId = sourceTierId.get();
-                        populateCommoditiesSoldByCommodityTypeFromCommodityIndex(sourceId, underUtilizedCommsWithProviderLookup, originalCommoditySoldBySource);
-                    }
-                } else {
-                    populateCommoditiesSoldByCommodityTypeFromCommodityIndex(sourceId, underUtilizedCommsWithProviderLookup, originalCommoditySoldBySource);
-                }
-
-                long destinationId = moveTO.getDestination();
-                if (cloudTc.isMarketTier(destinationId)) {
-                    Optional<Long> destinationTierId = cloudTc.getSourceOrDestinationTierFromMoveTo(moveTO, actionTargetId, false);
-                    if (destinationTierId.isPresent()) {
-                        destinationId = destinationTierId.get();
-                        populateCommoditiesSoldByCommodityTypeFromCommodityIndex(destinationId, underUtilizedCommsWithProviderLookup, projectedCommoditySoldByDestination);
-                    }
-                } else {
-                    if (projectedTopology.get(destinationId) != null) {
-                        projectedCommoditySoldByDestination =
-                            projectedTopology.get(destinationId).getEntity()
-                                .getCommoditySoldListList().stream()
-                                .filter(commoditySoldDTO -> underUtilizedCommsWithProviderLookup.contains(commoditySoldDTO.getCommodityType()))
-                                .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()));
-                    }
-                }
-            }
-
-            // Loop through the under utilized commodities, and compare the capacity of the commodity
-            // sold of the original with projected.
-            for (CommodityTypeWithLookup underutilizedComm : underutilizedCommTypesWithLookup) {
-                if (underutilizedComm.lookupType() == CommodityLookupType.CONSUMER) {
-                    if (projectedCommoditySoldByTarget.containsKey(underutilizedComm.commodityType())
-                        && originalCommoditySoldByTarget.containsKey(underutilizedComm.commodityType())) {
-                        double projectedCapacity = projectedCommoditySoldByTarget.get(underutilizedComm.commodityType()).getCapacity();
-                        double originalCapacity = originalCommoditySoldByTarget.get(underutilizedComm.commodityType()).getCapacity();
-                        if (projectedCapacity < originalCapacity) {
-                            lowerProjectedCapacity.add(underutilizedComm.commodityType());
-                        } else if (projectedCapacity > originalCapacity) {
-                            higherProjectedCapacity.add(underutilizedComm.commodityType());
-                        }
-                    }
-                } else if (underutilizedComm.lookupType() == CommodityLookupType.PROVIDER) {
-                    if (projectedCommoditySoldByDestination.containsKey(underutilizedComm.commodityType())
-                        && originalCommoditySoldBySource.containsKey(underutilizedComm.commodityType())) {
-                        double projectedCapacity = projectedCommoditySoldByDestination.get(underutilizedComm.commodityType()).getCapacity();
-                        double originalCapacity = originalCommoditySoldBySource.get(underutilizedComm.commodityType()).getCapacity();
-                        if (projectedCapacity < originalCapacity) {
-                            lowerProjectedCapacity.add(underutilizedComm.commodityType());
-                        } else if (projectedCapacity > originalCapacity) {
-                            higherProjectedCapacity.add(underutilizedComm.commodityType());
-                        }
-                    }
-                }
-            }
-        }
-        return new Pair<>(lowerProjectedCapacity, higherProjectedCapacity);
-    }
-
-    private void populateCommoditiesSoldByCommodityTypeFromCommodityIndex(long entityId, List<CommodityType> commodityTypeSoldFilter,
-                                                                          Map<CommodityType, CommoditySoldDTO> mapToPopulate) {
-        for (CommodityType commType : commodityTypeSoldFilter) {
-            commodityIndex.getCommSold(entityId, commType)
-                .ifPresent(cSold -> mapToPopulate.put(commType, cSold));
-        }
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getRIIncreaseExplanation(long id, @Nonnull final MoveTO moveTO) {
-        if (cloudTc.isMarketTier(moveTO.getSource())
-                && cloudTc.isMarketTier(moveTO.getDestination())
-                && TopologyDTOUtil.isPrimaryTierEntityType(cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType())
-                && didRiCoverageIncrease(id)) {
-            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                    .setIsRiCoverageIncreased(true);
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    efficiencyBuilder));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(
-        @Nonnull final CalculatedSavings savings,
-        @Nonnull Set<CommodityType> higherProjectedCapacityComms,
-        @Nonnull int actionTargetEntityType) {
-        if (savings.isSavings()) {
-            Efficiency.Builder efficiencyBuilder = Efficiency.newBuilder().setIsWastedCost(true);
-            if (!higherProjectedCapacityComms.isEmpty() &&
-                    FREE_SCALE_UP_EXPLANATION_ENTITY_TYPES.contains(actionTargetEntityType)) {
-                efficiencyBuilder.addAllScaleUpCommodity(higherProjectedCapacityComms);
-            }
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(efficiencyBuilder));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> getDefaultExplanationForCloud(long id, @Nonnull final MoveTO moveTO) {
-        if (cloudTc.isMarketTier(moveTO.getSource())
-                && cloudTc.isMarketTier(moveTO.getDestination())) {
-            logger.error("Could not explain cloud scale action. MoveTO = {} .Entity oid = {}", moveTO, id);
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    Efficiency.getDefaultInstance()));
-        }
-        return Optional.empty();
     }
 
     /**
@@ -1744,51 +1448,6 @@ public class ActionInterpreter {
             }
         }
         return trackerExplanation;
-    }
-
-    /**
-     * Check if RI coverage increased for entity.
-     * Get the original number of coupons covered from the original EntityReservedInstanceCoverage
-     * Get the projected number of coupons covered from the projected EntityReservedInstanceCoverage
-     * The RI coverage for the entity increased if the projected coupons covered is greater than
-     * the original coupons covered.
-     *
-     * @param entityId id of entity for which ri coverage increase is to be checked
-     * @return true if the RI coverage increased. False otherwise.
-     */
-    private boolean didRiCoverageIncrease(long entityId) {
-        double projectedCouponsCovered = 0;
-        double originalCouponsCovered = 0;
-        double projectedCouponsCapacity = 0;
-        double originalCouponsCapacity = 0;
-        double originalCoveragePercentage = 0;
-        double projectedCoveragePercentage = 0;
-        EntityReservedInstanceCoverage projectedCoverage = projectedRICoverageCalculator
-            .getProjectedRICoverageForEntity(entityId);
-        if (projectedCoverage != null) {
-            projectedCouponsCapacity = projectedCoverage.getEntityCouponCapacity();
-            if (!projectedCoverage.getCouponsCoveredByRiMap().isEmpty()) {
-                projectedCouponsCovered = projectedCoverage.getCouponsCoveredByRiMap().values()
-                    .stream().reduce(0.0, Double::sum);
-            }
-        }
-        if (projectedCouponsCapacity > 0) {
-            projectedCoveragePercentage = projectedCouponsCovered / projectedCouponsCapacity;
-        }
-        Optional<EntityReservedInstanceCoverage> originalCoverage = cloudTc.getRiCoverageForEntity(entityId);
-        if (originalCoverage.isPresent()) {
-            originalCouponsCapacity = originalCoverage.get().getEntityCouponCapacity();
-            if (!originalCoverage.get().getCouponsCoveredByRiMap().isEmpty()) {
-                originalCouponsCovered = originalCoverage.get()
-                    .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);
-            }
-        }
-        if (originalCouponsCapacity > 0) {
-            originalCoveragePercentage = originalCouponsCovered / originalCouponsCapacity;
-        }
-        return projectedCouponsCovered > originalCouponsCovered
-                // check if the coverage change is over 1%.
-                && projectedCoveragePercentage - originalCoveragePercentage >= TopologyDTOUtil.ONE_PERCENT;
     }
 
     private ActionEntity createActionTargetEntity(@Nonnull ShoppingListInfo shoppingListInfo,
