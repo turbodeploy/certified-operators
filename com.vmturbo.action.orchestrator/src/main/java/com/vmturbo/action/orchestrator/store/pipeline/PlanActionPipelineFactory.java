@@ -69,7 +69,7 @@ public class PlanActionPipelineFactory {
 
 
         return new ActionPipeline<>(PipelineDefinition.<ActionPlan, ActionProcessingInfo, ActionPipelineContext>newBuilder(pipelineContext)
-                    .addStage(new ActionPipelineStages.GetInvolvedEntityIdsStage(null, false))
+                    .addStage(new ActionPipelineStages.GetInvolvedEntityIdsStage())
                     .addStage(new ActionPipelineStages.PrepareAggregatedActionsStage(atomicActionFactory))
                     .addStage(new ActionPipelineStages.CreatePlanAtomicActionsStage(atomicActionFactory))
                     .addStage(new GetOrCreatePlanActionStoreStage(actionStorehouse))

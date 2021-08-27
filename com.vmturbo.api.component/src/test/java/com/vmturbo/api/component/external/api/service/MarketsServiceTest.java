@@ -163,7 +163,6 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -210,7 +209,6 @@ public class MarketsServiceTest {
     private static final long PHYSICAL_MACHINE_OID = 3L;
     private static final String PHYSICAL_MACHINE_NAME = "AnyOldPhysicalMachine";
     private static final long VM_OID = 4L;
-    private static final long POD_OID = 5L;
     private static final long STORAGE_OID = 999;
 
     // Allowable difference when comparing doubles
@@ -1193,71 +1191,24 @@ public class MarketsServiceTest {
                 .build())
             .build();
 
-        UnplacementReason podComputeReason = UnplacementReason.newBuilder()
-                .addFailedResources(FailedResources.newBuilder()
-                        .setCommType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.VCPU.getValue())
-                                .build())
-                        .setRequestedAmount(1919.2) // = 800 mCore
-                        .setMaxAvailable(1199.5) // = 500 mCore
-                        .build())
-                .addFailedResources(FailedResources.newBuilder()
-                        .setCommType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.VCPU_REQUEST.getValue())
-                                .build())
-                        .setRequestedAmount(959.6) // = 400 mCore
-                        .setMaxAvailable(479.8) // = 200 mCore
-                        .build())
-                .build();
-
-        TopologyEntityDTO unplacedPod = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.CONTAINER_POD_VALUE)
-                .setOid(POD_OID)
-                .addUnplacedReason(podComputeReason)
-                .addCommoditySoldList(TopologyDTO.CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE)
-                                .build())
-                        // This value (in millicores) is copied over to the requested amount in
-                        // pods unplaced reason
-                        .setUsed(800)
-                        .setScalingFactor(1.0)
-                        .build())
-                .addCommoditySoldList(TopologyDTO.CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE)
-                                .build())
-                        // This value (in millicores) is copied over to the requested amount in
-                        // pods unplaced reason
-                        .setUsed(400)
-                        .setScalingFactor(1.0)
-                        .build())
-                .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
-                        .setContainerPod(TopologyDTO.TypeSpecificInfo.ContainerPodInfo
-                                // CPU freq and the scaling factor are used to convert the value
-                                // of maxAvailable of pod unplaced reason
-                                .newBuilder().setHostingNodeCpuFrequency(2399)))
-                .build();
-
         ServiceEntityApiDTO unplacedVmApiDto = new ServiceEntityApiDTO();
-        ServiceEntityApiDTO unplacedPodApiDto = new ServiceEntityApiDTO();
+
         Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(unplacedVm))
-                .thenReturn(unplacedVmApiDto);
-        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(unplacedPod))
-                .thenReturn(unplacedPodApiDto);
+            .thenReturn(unplacedVmApiDto);
 
         List<ServiceEntityApiDTO> unplacedEntities =
             marketsService.convertServiceEntitiesForPlan(plan,
-                Collections.unmodifiableList(Arrays.asList(unplacedVm, unplacedPod)))
+                Collections.singletonList(unplacedVm))
             .stream()
             .map(entity -> entity.apiEntity)
             .collect(Collectors.toList());
 
-        assertEquals(2, unplacedEntities.size());
+        assertEquals(1, unplacedEntities.size());
+        ServiceEntityApiDTO unplaced = unplacedEntities.get(0);
 
-        // Check the unplacement details for VM
-        ServiceEntityApiDTO unplacedVMEntity = unplacedEntities.get(0);
-        UnplacementDetailsApiDTO details = unplacedVMEntity.getUnplacementDetails();
+        // Check the unplacement details
+
+        UnplacementDetailsApiDTO details = unplaced.getUnplacementDetails();
         assertNotNull(details);
 
         List<BaseApiDTO> placedOn = details.getPlacedOn();
@@ -1336,8 +1287,8 @@ public class MarketsServiceTest {
         // we should have fallen back to the oid.
 
         assertEquals(PHYSICAL_MACHINE_NAME + "," + String.valueOf(STORAGE_OID),
-            unplacedVMEntity.getPlacedOn());
-        assertEquals("COMPUTE_TIER,STORAGE_TIER", unplacedVMEntity.getNotPlacedOn());
+            unplaced.getPlacedOn());
+        assertEquals("COMPUTE_TIER,STORAGE_TIER", unplaced.getNotPlacedOn());
 
         assertEquals("When looking for supplier of type ComputeTier: needed resource CPU with a "
             + "requested amount of 1000.0 but the max available was 500.0, needed resource Mem "
@@ -1345,34 +1296,7 @@ public class MarketsServiceTest {
             + "found; the closest match was t3.nano. When looking for supplier of type "
             + "StorageTier for VirtualVolume myDisk: needed resource StorageAccess with a "
             + "requested amount of 100.0 but the max available was 50.0. entity is not controllable.",
-            unplacedVMEntity.getUnplacedExplanation());
-
-        // Check the unplacement details for the Pod.
-        // These checks mainly ensure the updates and conversions applied on the
-        // VCPU and VCPU_REQUEST requestedAmount and maxAvailable on unplaced reason.
-        ServiceEntityApiDTO unplacedPodEntity = unplacedEntities.get(1);
-        UnplacementDetailsApiDTO podDetails = unplacedPodEntity.getUnplacementDetails();
-        assertNotNull(podDetails);
-
-        List<UnplacementReasonApiDTO> podReasons = podDetails.getReasons();
-        assertNotNull(podReasons);
-        assertEquals(1, podReasons.size());
-
-        List<FailedResourceApiDTO> podFailedResources = podReasons.get(0).getFailedResources();
-        assertNotNull(podFailedResources);
-        assertEquals(2, podFailedResources.size());
-
-        assertEquals(com.vmturbo.api.enums.CommodityType.VCPU,
-                podFailedResources.get(0).getCommodity().getType());
-        assertNull(podFailedResources.get(0).getCommodity().getKey());
-        assertEquals(800.0, podFailedResources.get(0).getRequestedAmount(), EPSILON);
-        assertEquals(500.0, podFailedResources.get(0).getMaxAvailable(), EPSILON);
-
-        assertEquals(com.vmturbo.api.enums.CommodityType.VCPU_REQUEST,
-                podFailedResources.get(1).getCommodity().getType());
-        assertNull(podFailedResources.get(1).getCommodity().getKey());
-        assertEquals(400.0, podFailedResources.get(1).getRequestedAmount(), EPSILON);
-        assertEquals(200.0, podFailedResources.get(1).getMaxAvailable(), EPSILON);
+            unplaced.getUnplacedExplanation());
     }
 
     @NotNull

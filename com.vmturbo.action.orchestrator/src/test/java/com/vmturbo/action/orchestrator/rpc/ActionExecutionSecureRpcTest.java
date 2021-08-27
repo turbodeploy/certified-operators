@@ -306,7 +306,7 @@ public class ActionExecutionSecureRpcTest {
             atomicActionFactory, entitySettingsCache, 10, probeCapabilityCache,
             actionHistoryDao, actionFactory, clock, 10,
             actionIdentityService, actionTargetSelector, actionTranslator, actionsStatistician,
-            actionAuditSender, auditedActionsManager);
+            actionAuditSender);
     }
 
     @After

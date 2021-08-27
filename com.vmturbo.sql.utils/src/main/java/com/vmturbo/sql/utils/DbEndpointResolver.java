@@ -186,6 +186,7 @@ public class DbEndpointResolver {
                 config.getHost(), fromTemplate,
                 // backward compatibility for customers who are still using old operator
                 // this should be dropped when we have no at-risk customers
+                resolver.apply("dbHost"),
                 DEFAULT_HOST_VALUE));
     }
 

@@ -181,7 +181,6 @@ data:
         bridgePort: 8120
       extractor:
         dbHost: timescaledb
-        searchDbHost: db
         dbPort: {{ .Values.global.externalTimescaleDBPort | default 5432 }}
         enableReporting: {{ .Values.reporting.enabled }}
         grafanaAdminPassword: {{ .Values.grafana.adminPassword }}

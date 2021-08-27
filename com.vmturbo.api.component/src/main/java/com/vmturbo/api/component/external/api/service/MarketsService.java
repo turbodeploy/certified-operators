@@ -175,8 +175,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -188,7 +186,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
@@ -1534,7 +1531,7 @@ public class MarketsService implements IMarketsService {
 
         unplacedData.setPlacedOn(placedProviders);
         unplacedData.setReasons(entity.getUnplacedReasonList().stream()
-            .map(reason -> convertUnplacedReason(reason, providers, entity))
+            .map(reason -> convertUnplacedReason(reason, providers))
             .collect(Collectors.toList()));
 
         // Deprecated fields, for backward compatibility.
@@ -1620,12 +1617,11 @@ public class MarketsService implements IMarketsService {
 
     @Nonnull
     private UnplacementReasonApiDTO convertUnplacedReason(@Nonnull UnplacementReason reasonDTO,
-                                                          @Nonnull Map<Long, TopologyEntityDTO> providers,
-                                                          @Nonnull TopologyEntityDTO entity) {
+                                                          @Nonnull Map<Long, TopologyEntityDTO> providers) {
         UnplacementReasonApiDTO reasonApiDTO = new UnplacementReasonApiDTO();
 
         reasonApiDTO.setFailedResources(reasonDTO.getFailedResourcesList().stream()
-            .map(f -> convertFailedResource(f, entity))
+            .map(this::convertFailedResource)
             .collect(Collectors.toList()));
 
         if (reasonDTO.hasProviderType()) {
@@ -1660,8 +1656,7 @@ public class MarketsService implements IMarketsService {
     }
 
     @Nonnull
-    private FailedResourceApiDTO convertFailedResource(@Nonnull FailedResources failedResource,
-                                                       @Nonnull TopologyEntityDTO entity) {
+    private FailedResourceApiDTO convertFailedResource(@Nonnull FailedResources failedResource) {
         FailedResourceApiDTO resourceApiDTO = new FailedResourceApiDTO();
 
         BaseCommodityApiDTO commodity = new BaseCommodityApiDTO();
@@ -1674,7 +1669,7 @@ public class MarketsService implements IMarketsService {
 
         String units = null;
         try {
-            units = CommodityTypeMapping.getUnitForEntityCommodityType(entity.getEntityType(), sdkType.getNumber());
+            units = CommodityTypeMapping.getUnitForCommodityType(sdkType);
         } catch (IllegalArgumentException ex) {
             logger.warn("Unable to find units for commodity type {}", sdkType.name());
         }
@@ -1686,113 +1681,13 @@ public class MarketsService implements IMarketsService {
             commodity.setKey(failedResource.getCommType().getKey());
         }
 
-        // We pick the used amount from commodity sold for vcpu related commodities
-        // of pods (and only for pods) to ensure that the values are in millicores.
-        resourceApiDTO.setRequestedAmount(requestedAmountFromCommoditySold(failedResource, entity));
+        resourceApiDTO.setRequestedAmount(failedResource.getRequestedAmount());
 
         if (failedResource.hasMaxAvailable()) {
-            // To keep the values consistent in millicores, we update the maxAvailable on pods
-            // VCPU entities too.
-            resourceApiDTO.setMaxAvailable(maxAvailableToRawUnits(failedResource, entity));
+            resourceApiDTO.setMaxAvailable(failedResource.getMaxAvailable());
         }
 
         return resourceApiDTO;
-    }
-
-    /**
-     * Checks if we should update the failed resource. Failed resource commodity values are
-     * updated only for vcpu related commodities (vcpu and vcpu_request) for pods.
-     *
-     * @param failedResource {@link FailedResources} the resource with failed commodity
-     *                                              and its values.
-     * @param entity  {@link TopologyEntityDTO} the actual entity.
-     * @return boolean indicating if resource needs update.
-     */
-    private boolean shouldUpdateFailedResource(@Nonnull FailedResources failedResource,
-                                                @Nonnull TopologyEntityDTO entity) {
-        return entity.getEntityType() == EntityType.CONTAINER_POD_VALUE
-                && (failedResource.getCommType().getType() == CommodityDTO.CommodityType.VCPU_VALUE
-                || failedResource.getCommType().getType() == CommodityDTO.CommodityType.VCPU_REQUEST_VALUE);
-    }
-
-    /**
-     * Set the requestedAmount to value read from the actual entity's sold commodity used value.
-     * We do this only for vcpu related commodities (vcpu and vcpu_request) for pods.
-     *
-     * @param failedResource {@link FailedResources} the resource with failed commodity
-     *                                              and its values.
-     * @param entity  {@link TopologyEntityDTO} the actual entity.
-     * @return new value if found.
-     */
-    private double requestedAmountFromCommoditySold(@Nonnull FailedResources failedResource,
-                                               @Nonnull TopologyEntityDTO entity) {
-        if (shouldUpdateFailedResource(failedResource, entity)) {
-            for (CommoditySoldDTO commoditySoldDTO : entity.getCommoditySoldListList()) {
-                if (commoditySoldDTO.getCommodityType().getType() == failedResource.getCommType().getType()) {
-                    return commoditySoldDTO.getUsed();
-                }
-            }
-        }
-        return failedResource.getRequestedAmount();
-    }
-
-    /**
-     * Convert the maxAvailable amount to raw unit values (millicore).
-     * We convert only if the entity is pod and the commodities are vcpu related
-     * commodities (vcpu and vcpu_request).
-     *
-     * @param failedResource {@link FailedResources} the resource with failed commodity
-     *                                              and its values.
-     * @param entity  {@link TopologyEntityDTO} the actual entity.
-     * @return converted value.
-     */
-    private double maxAvailableToRawUnits(@Nonnull FailedResources failedResource,
-                                          @Nonnull TopologyEntityDTO entity) {
-        if (shouldUpdateFailedResource(failedResource, entity)) {
-            return convertToMilliCores(failedResource.getMaxAvailable(), failedResource.getCommType(), entity);
-        }
-
-        return failedResource.getMaxAvailable();
-    }
-
-    /**
-     * Convert the market set normalized Mhz value to millicores (for a Pod).
-     *
-     * @param amount the amount to convert.
-     * @param commodityType the type of the commodity.
-     * @param entity the actual entity.
-     * @return converted value.
-     */
-    private double convertToMilliCores(@Nonnull final double amount,
-                                         final TopologyDTO.CommodityType commodityType,
-                                         @Nonnull final TopologyEntityDTO entity) {
-        double cpuFreqMhz = 1000.0;
-        double scalingFactor = getScalingFactor(commodityType, entity);
-        if (entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasContainerPod() &&
-                entity.getTypeSpecificInfo().getContainerPod().hasHostingNodeCpuFrequency()) {
-            cpuFreqMhz = entity.getTypeSpecificInfo().getContainerPod().getHostingNodeCpuFrequency();
-            logger.trace("Converted failed resource entity type {} of unplaced entity {} to millicores.",
-                    commodityType, entity.getDisplayName());
-        }
-
-        return (amount / scalingFactor / (cpuFreqMhz / 1000));
-    }
-
-    /**
-     * Get scaling factor from the entity for a specific commodity.
-     *
-     * @param commodityType the type of the commodity.
-     * @param entity the actual entity.
-     * @return scaling factor.
-     */
-    private double getScalingFactor(final TopologyDTO.CommodityType commodityType,
-                                    @Nonnull final TopologyEntityDTO entity) {
-        for (CommoditySoldDTO commoditySoldDTO : entity.getCommoditySoldListList()) {
-            if (commoditySoldDTO.getCommodityType().getType() == commodityType.getType()) {
-                return commoditySoldDTO.getScalingFactor();
-            }
-        }
-        return 1.0;
     }
 
     /**
