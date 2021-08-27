@@ -236,17 +236,16 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     .orElseThrow(() -> new ExecutionInitiationException(
                             "Unknown topology context: " + topologyContextId,
                             Status.Code.NOT_FOUND));
-            final List<Long> actionIds = new ArrayList<>(request.getActionIdsList().size());
+            final List<Action> actions = new ArrayList<>(request.getActionIdsList().size());
             final List<SkippedAction> skippedActions = new ArrayList<>();
             for (final long actionId : request.getActionIdsList()) {
+                final Optional<Action> actionOpt = store.getAction(actionId);
+                if (!actionOpt.isPresent()) {
+                    throw new ExecutionInitiationException("Action " + actionId + " doesn't exist.",
+                            Status.Code.NOT_FOUND);
+                }
+                final Action action = actionOpt.get();
                 try {
-                    final Optional<Action> actionOpt = store.getAction(actionId);
-                    if (!actionOpt.isPresent()) {
-                        throw new ExecutionInitiationException("Action " + actionId + " doesn't exist.",
-                                Status.Code.NOT_FOUND);
-                    }
-                    final Action action = actionOpt.get();
-
                     // check if the action is manually scheduled and it does not have next occurrence and is
                     // not currently active
                     if (hasExpiredSchedule(action)) {
@@ -259,17 +258,17 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
                     final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
                     actionApprovalManager.attemptAndExecute(store, userNameAndUuid, action);
-                    actionIds.add(actionId);
+                    actions.add(action);
                 } catch (ExecutionInitiationException e) {
                     skippedActions.add(SkippedAction.newBuilder()
-                            .setActionId(actionId)
+                            .setActionId(action.getRecommendationOid())
                             .setReason(e.getMessage())
                             .build());
                     logger.error("Failed to accept action with ID {}", actionId, e);
                 }
             }
             responseObserver.onNext(actionExecutionStore.createExecution(
-                    actionIds, skippedActions));
+                    actions, skippedActions));
             responseObserver.onCompleted();
         } catch (ExecutionInitiationException e) {
             responseObserver.onError(e.toStatus());

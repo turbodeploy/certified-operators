@@ -50,6 +50,7 @@ import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
+import com.vmturbo.api.dto.action.SkippedActionApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -65,6 +66,7 @@ import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecution.SkippedAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionExecutionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -263,7 +265,18 @@ public class ActionsService implements IActionsService {
         result.setActionIds(actionsExecution.getActionIdList().stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList()));
+        result.setSkippedActions(actionsExecution.getSkippedActionList().stream()
+                .map(ActionsService::convertSkippedAction)
+                .collect(Collectors.toList()));
         result.setAcceptTime(DateTimeUtil.toString(actionsExecution.getAcceptedTimestamp()));
+        return result;
+    }
+
+    private static SkippedActionApiDTO convertSkippedAction(
+            @Nonnull final SkippedAction skippedAction) {
+        final SkippedActionApiDTO result = new SkippedActionApiDTO();
+        result.setActionId(String.valueOf(skippedAction.getActionId()));
+        result.setReason(skippedAction.getReason());
         return result;
     }
 
