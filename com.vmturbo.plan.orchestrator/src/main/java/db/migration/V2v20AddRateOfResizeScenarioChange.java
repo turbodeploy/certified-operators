@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,8 +45,9 @@ public class V2v20AddRateOfResizeScenarioChange implements JdbcMigration, Migrat
     private Map<Long, ScenarioInfo> updateScenarioTable(final Connection connection)
             throws SQLException, InvalidProtocolBufferException {
         final Map<Long, ScenarioInfo> scenarioIdToInfo = new HashMap<>();
-        try (ResultSet rs = connection.createStatement()
-            .executeQuery("SELECT id, scenario_info FROM scenario")) {
+        try (final Statement statement = connection.createStatement();
+                final ResultSet rs = statement
+                    .executeQuery("SELECT id, scenario_info FROM scenario")) {
             while (rs.next()) {
                 final long scenarioId = rs.getLong("id");
                 final byte[] binaryScenarioInfo = rs.getBytes("scenario_info");
@@ -66,12 +68,13 @@ public class V2v20AddRateOfResizeScenarioChange implements JdbcMigration, Migrat
                         .build());
 
                     scenarioIdToInfo.put(scenarioId, newScenarioInfo.build());
-                    final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE scenario SET scenario_info=? WHERE id=?");
-                    stmt.setBytes(1, scenarioInfo.toByteArray());
-                    stmt.setLong(2, scenarioId);
-                    stmt.addBatch();
-                    stmt.executeBatch();
+                    try (final PreparedStatement stmt = connection.prepareStatement(
+                        "UPDATE scenario SET scenario_info=? WHERE id=?")) {
+                        stmt.setBytes(1, scenarioInfo.toByteArray());
+                        stmt.setLong(2, scenarioId);
+                        stmt.addBatch();
+                        stmt.executeBatch();
+                    }
                 }
             }
         }
@@ -81,8 +84,9 @@ public class V2v20AddRateOfResizeScenarioChange implements JdbcMigration, Migrat
 
     private void updatePlanInstanceTable(final Connection connection, final Map<Long, ScenarioInfo> scenarioIdToInfo)
             throws SQLException, InvalidProtocolBufferException {
-        try (ResultSet planResults = connection.createStatement()
-            .executeQuery("SELECT id, plan_instance FROM plan_instance")) {
+        try (final Statement statement = connection.createStatement();
+                 final ResultSet planResults = statement
+                    .executeQuery("SELECT id, plan_instance FROM plan_instance")) {
             while (planResults.next()) {
                 final long planId = planResults.getLong("id");
                 final byte[] planInstanceBinary = planResults.getBytes("plan_instance");
@@ -98,12 +102,13 @@ public class V2v20AddRateOfResizeScenarioChange implements JdbcMigration, Migrat
                         .toBuilder()
                         .clearScenario()
                         .setScenario(newScenario).build();
-                    final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE plan_instance SET plan_instance=? WHERE id=?");
-                    stmt.setBytes(1, planInstance.toByteArray());
-                    stmt.setLong(2, planId);
-                    stmt.addBatch();
-                    stmt.executeBatch();
+                    try (final PreparedStatement stmt = connection.prepareStatement(
+                        "UPDATE plan_instance SET plan_instance=? WHERE id=?")) {
+                        stmt.setBytes(1, planInstance.toByteArray());
+                        stmt.setLong(2, planId);
+                        stmt.addBatch();
+                        stmt.executeBatch();
+                    }
                 }
             }
         }

@@ -16,6 +16,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Record;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.testbases.dropdead.DbObject.EventObject;
@@ -265,11 +266,12 @@ public class DeadDbObjectScanner {
         final String sql = "SELECT table_name AS name, view_definition as definition "
                 + "FROM information_schema.views "
                 + "WHERE table_schema = '" + schemaName + "' ";
-        DSL.using(conn).resultQuery(sql).stream()
-                .map(r -> new ViewObject(
-                        r.getValue("name", String.class), r.getValue("definition", String.class)))
-                .peek(v -> views.put(v.getName(), v))
-                .forEach(v -> logger.debug("Discovered {}", v));
+        try (Stream<Record> stream = DSL.using(conn).resultQuery(sql).stream()) {
+            stream.map(r -> new ViewObject(
+                    r.getValue("name", String.class), r.getValue("definition", String.class)))
+                    .peek(v -> views.put(v.getName(), v))
+                    .forEach(v -> logger.debug("Discovered {}", v));
+        }
     }
 
     private void scanForFunctions() {
@@ -277,11 +279,12 @@ public class DeadDbObjectScanner {
                 + "FROM information_schema.routines "
                 + "WHERE routine_schema = '" + schemaName + "' "
                 + "AND routine_type = 'FUNCTION'";
-        DSL.using(conn).resultQuery(sql).stream()
-                .map(r -> new FunctionObject(
-                        r.getValue("name", String.class), r.getValue("definition", String.class)))
-                .peek(f -> functions.put(f.getName(), f))
-                .forEach(f -> logger.debug("Discovered {}", f));
+        try (Stream<Record> stream = DSL.using(conn).resultQuery(sql).stream()) {
+            stream.map(r -> new FunctionObject(
+                    r.getValue("name", String.class), r.getValue("definition", String.class)))
+                    .peek(f -> functions.put(f.getName(), f))
+                    .forEach(f -> logger.debug("Discovered {}", f));
+        }
     }
 
     private void scanForProcs() {
@@ -289,22 +292,24 @@ public class DeadDbObjectScanner {
                 + "FROM information_schema.routines "
                 + "WHERE routine_schema = '" + schemaName + "' "
                 + "AND routine_type = 'PROCEDURE'";
-        DSL.using(conn).resultQuery(sql).stream()
-                .map(r -> new ProcObject(
-                        r.getValue("name", String.class), r.getValue("definition", String.class)))
-                .peek(p -> procedures.put(p.getName(), p))
-                .forEach(p -> logger.debug("Discovered {}", p));
+        try (Stream<Record> stream = DSL.using(conn).resultQuery(sql).stream()) {
+            stream.map(r -> new ProcObject(
+                    r.getValue("name", String.class), r.getValue("definition", String.class)))
+                    .peek(p -> procedures.put(p.getName(), p))
+                    .forEach(p -> logger.debug("Discovered {}", p));
+        }
     }
 
     private void scanForEvents() {
         final String sql = "SELECT event_name AS name, event_definition as definition "
                 + "FROM information_schema.events "
                 + "WHERE event_schema = '" + schemaName + "'";
-        DSL.using(conn).resultQuery(sql).stream()
-                .map(r -> new EventObject(
-                        r.getValue("name", String.class), r.getValue("definition", String.class)))
-                .peek(e -> events.put(e.getName(), e))
-                .forEach(e -> logger.info("Discovered {}", e));
+        try (Stream<Record> stream = DSL.using(conn).resultQuery(sql).stream()) {
+            stream.map(r -> new EventObject(
+                    r.getValue("name", String.class), r.getValue("definition", String.class)))
+                    .peek(e -> events.put(e.getName(), e))
+                    .forEach(e -> logger.info("Discovered {}", e));
+        }
     }
 
     private void markDead(DbObject dbo) {

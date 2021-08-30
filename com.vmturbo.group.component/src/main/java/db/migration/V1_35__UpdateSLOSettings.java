@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import javax.annotation.Nonnull;
 
@@ -78,33 +79,35 @@ public class V1_35__UpdateSLOSettings extends BaseJdbcMigration
                 + " OR entity_type = " + EntityType.DATABASE_SERVER_VALUE
                 + ")";
         logger.info("Executing query {}", query);
-        final ResultSet rs = connection.createStatement().executeQuery(query);
-        while (rs.next()) {
-            final long policyId = rs.getLong("id");
-            final int entityType = rs.getInt("entity_type");
-            final String policyType = rs.getString("policy_type");
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery(query)) {
+            while (rs.next()) {
+                final long policyId = rs.getLong("id");
+                final int entityType = rs.getInt("entity_type");
+                final String policyType = rs.getString("policy_type");
 
-            logger.info("changing SLO setting names for {} policy {} for entity type {}",
-                    policyType, policyId, entityType);
+                logger.info("changing SLO setting names for {} policy {} for entity type {}",
+                        policyType, policyId, entityType);
 
-            changeSettingName(connection, policyId, RESPONSE_TIME_CAPACITY, RESPONSE_TIME_SLO);
-            changeSettingName(connection, policyId, AUTO_SET_RESPONSE_TIME_CAPACITY, RESPONSE_TIME_SLO_ENABLED);
-            changeSettingName(connection, policyId, TRANSACTION_CAPACITY, TRANSACTION_SLO);
-            changeSettingName(connection, policyId, AUTO_SET_TRANSACTION_CAPACITY, TRANSACTION_SLO_ENABLED);
+                changeSettingName(connection, policyId, RESPONSE_TIME_CAPACITY, RESPONSE_TIME_SLO);
+                changeSettingName(connection, policyId, AUTO_SET_RESPONSE_TIME_CAPACITY, RESPONSE_TIME_SLO_ENABLED);
+                changeSettingName(connection, policyId, TRANSACTION_CAPACITY, TRANSACTION_SLO);
+                changeSettingName(connection, policyId, AUTO_SET_TRANSACTION_CAPACITY, TRANSACTION_SLO_ENABLED);
 
-            // In user policies we need to change the value as well.
-            // For example, if the user set "Disable SLO = true" then we need to change it
-            // to "Enable SLO = false"
-            if (USER_POLICY.equals(policyType)) {
-                changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "false", "true");
-                changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "true", "false");
-                changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "false", "true");
-                changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "true", "false");
-            } else {
-                // In default policies, change the "Enable SLO" value only if the user changed the
-                // default value (false) to true.
-                changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "true", "false");
-                changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "true", "false");
+                // In user policies we need to change the value as well.
+                // For example, if the user set "Disable SLO = true" then we need to change it
+                // to "Enable SLO = false"
+                if (USER_POLICY.equals(policyType)) {
+                    changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "false", "true");
+                    changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "true", "false");
+                    changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "false", "true");
+                    changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "true", "false");
+                } else {
+                    // In default policies, change the "Enable SLO" value only if the user changed the
+                    // default value (false) to true.
+                    changeSettingValue(connection, policyId, RESPONSE_TIME_SLO_ENABLED, "true", "false");
+                    changeSettingValue(connection, policyId, TRANSACTION_SLO_ENABLED, "true", "false");
+                }
             }
         }
     }
@@ -122,11 +125,12 @@ public class V1_35__UpdateSLOSettings extends BaseJdbcMigration
                                    long policyId,
                                    @Nonnull final String oldName,
                                    @Nonnull final String newName) throws SQLException {
-        PreparedStatement stmt = connection.prepareStatement(CHANGE_SETTING_NAME_COMMAND);
-        stmt.setString(1, newName);
-        stmt.setLong(2, policyId);
-        stmt.setString(3, oldName);
-        stmt.execute();
+        try (PreparedStatement stmt = connection.prepareStatement(CHANGE_SETTING_NAME_COMMAND)) {
+            stmt.setString(1, newName);
+            stmt.setLong(2, policyId);
+            stmt.setString(3, oldName);
+            stmt.execute();
+        }
     }
 
     /**
@@ -144,11 +148,12 @@ public class V1_35__UpdateSLOSettings extends BaseJdbcMigration
                                    @Nonnull final String settingName,
                                    @Nonnull final String oldValue,
                                    @Nonnull final String newValue) throws SQLException {
-        PreparedStatement stmt = connection.prepareStatement(CHANGE_SETTING_VALUE_COMMAND);
-        stmt.setString(1, newValue);
-        stmt.setLong(2, policyId);
-        stmt.setString(3, settingName);
-        stmt.setString(4, oldValue);
-        stmt.execute();
+        try (PreparedStatement stmt = connection.prepareStatement(CHANGE_SETTING_VALUE_COMMAND)) {
+            stmt.setString(1, newValue);
+            stmt.setLong(2, policyId);
+            stmt.setString(3, settingName);
+            stmt.setString(4, oldValue);
+            stmt.execute();
+        }
     }
 }

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,7 +40,8 @@ public class V1_41__ReplaceGlobalDefaultRateOfResizeWithEntityLevelRateOfResize
 
         // Store existing rate of resize settings in the map.
         final Map<Integer, Float> entityTypeToRateOfResizeSettingValue = new HashMap<>();
-        try (ResultSet rs = connection.createStatement().executeQuery(selectGlobalSettingQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery(selectGlobalSettingQuery)) {
             while (rs.next()) {
                 final String name = rs.getString("name");
                 final Setting settingData = Setting.parseFrom(rs.getBytes("setting_data"));
@@ -60,7 +62,8 @@ public class V1_41__ReplaceGlobalDefaultRateOfResizeWithEntityLevelRateOfResize
             + " AND (entity_type = " + EntityType.VIRTUAL_MACHINE_VALUE
             + " OR entity_type = " + EntityType.CONTAINER_VALUE + ")";
         logger.info("Executing query {}", selectSettingPolicyQuery);
-        try (ResultSet rs = connection.createStatement().executeQuery(selectSettingPolicyQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery(selectSettingPolicyQuery)) {
             while (rs.next()) {
                 final long policyId = rs.getLong("id");
                 final int entityType = rs.getInt("entity_type");
@@ -77,7 +80,9 @@ public class V1_41__ReplaceGlobalDefaultRateOfResizeWithEntityLevelRateOfResize
             + " WHERE name = \"" + defaultRateOfResize + "\""
             + " OR name = \"" + containerRateOfResize + "\"";
         logger.info("Executing query {}", deleteQuery);
-        connection.createStatement().executeQuery(deleteQuery);
+        try (Statement statement = connection.createStatement()) {
+            statement.executeQuery(deleteQuery);
+        }
         connection.setAutoCommit(true);
     }
 
@@ -88,6 +93,8 @@ public class V1_41__ReplaceGlobalDefaultRateOfResizeWithEntityLevelRateOfResize
             + policyId + ", \"" + EntitySettingSpecs.RateOfResize.getSettingName()
             + "\", " + Setting.NUMERIC_SETTING_VALUE_FIELD_NUMBER + ", " + settingValue + ")";
         logger.info("Executing query {}", insertQuery);
-        connection.createStatement().executeQuery(insertQuery);
+        try (Statement statement = connection.createStatement()) {
+            statement.executeQuery(insertQuery);
+        }
     }
 }

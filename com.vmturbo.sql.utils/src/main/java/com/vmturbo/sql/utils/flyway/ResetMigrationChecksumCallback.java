@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils.flyway;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Objects;
 import java.util.Set;
 
@@ -57,9 +58,14 @@ public class ResetMigrationChecksumCallback extends PreValidationMigrationCallba
      */
     @Override
     protected void performCallback(Connection connection) throws SQLException {
+        // Do not copy this code! It is susceptible to SQL injection. Unfortunately, it cannot
+        // be converted to a PreparedStatement in a straight forward way because PreparedStatements
+        // do not support placeholders for tables or column names.
         final String sql = String.format("UPDATE %s SET checksum = %s WHERE version = '%s'",
                 getMigrationTableName(), correctChecksum, migrationVersionToReset);
-        connection.createStatement().executeUpdate(sql);
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(sql);
+        }
     }
 
     @Override
@@ -80,9 +86,13 @@ public class ResetMigrationChecksumCallback extends PreValidationMigrationCallba
      */
     @Override
     protected boolean isCallbackNeeded(Connection connection) throws SQLException {
+        // Do not copy this code! It is susceptible to SQL injection. Unfortunately, it cannot
+        // be converted to a PreparedStatement in a straight forward way because PreparedStatements
+        // do not support placeholders for tables or column names.
         final String sql = String.format("SELECT checksum FROM %s where version = '%s'",
                 getMigrationTableName(), migrationVersionToReset);
-        try (ResultSet result = connection.createStatement().executeQuery(sql)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(sql)) {
             if (result.next()) {
                 final Integer currentChecksum = (Integer)result.getObject(1);
                 if (Objects.equals(currentChecksum, correctChecksum)) {

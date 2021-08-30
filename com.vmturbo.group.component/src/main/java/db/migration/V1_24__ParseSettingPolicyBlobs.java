@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,81 +49,86 @@ public class V1_24__ParseSettingPolicyBlobs implements JdbcMigration {
 
     @Nonnull
     private Set<Long> existingScheduleIds(@Nonnull Connection connection) throws SQLException {
-        final ResultSet rs = connection.createStatement().executeQuery("SELECT id FROM schedule");
-        final Set<Long> scheduleIds = new HashSet<>();
-        while (rs.next()) {
-            final long scheduleId = rs.getLong(1);
-            scheduleIds.add(scheduleId);
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT id FROM schedule")) {
+            final Set<Long> scheduleIds = new HashSet<>();
+            while (rs.next()) {
+                final long scheduleId = rs.getLong(1);
+                scheduleIds.add(scheduleId);
+            }
+            return Collections.unmodifiableSet(scheduleIds);
         }
-        return Collections.unmodifiableSet(scheduleIds);
     }
 
     @Nonnull
     private Set<Long> existingGroupIds(@Nonnull Connection connection) throws SQLException {
-        final ResultSet rs = connection.createStatement().executeQuery("SELECT id FROM grouping");
-        final Set<Long> groupIds = new HashSet<>();
-        while (rs.next()) {
-            final long groupId = rs.getLong(1);
-            groupIds.add(groupId);
+        try (Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("SELECT id FROM grouping")) {
+            final Set<Long> groupIds = new HashSet<>();
+            while (rs.next()) {
+                final long groupId = rs.getLong(1);
+                groupIds.add(groupId);
+            }
+            return Collections.unmodifiableSet(groupIds);
         }
-        return Collections.unmodifiableSet(groupIds);
     }
 
     private void migrateData(@Nonnull Connection connection)
             throws SQLException, InvalidProtocolBufferException {
-        final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data FROM setting_policy");
-        final PreparedStatement updatePolicy = connection.prepareStatement("UPDATE setting_policy"
-                + " SET name=?, display_name=?, entity_type=?, enabled=?, schedule_id=? WHERE id=?");
-        final PreparedStatement groups = connection.prepareStatement(
-                "INSERT INTO setting_policy_groups"
-                        + " (group_id, setting_policy_id) values (?, ?)");
-        final PreparedStatement settings = connection.prepareStatement(
-                "INSERT INTO setting_policy_setting"
-                        + " (policy_id, setting_name, setting_type, setting_value)"
-                        + " VALUES (?, ?, ?, ?)");
-        final PreparedStatement settingsOids = connection.prepareStatement(
-                "INSERT INTO setting_policy_setting_oids"
-                        + " (policy_id, setting_name, oid_number, oid)" + " VALUES (?, ?, ?, ?)");
-
-        final Set<Long> existingSchedules = existingScheduleIds(connection);
-        final Set<Long> existingGroups = existingGroupIds(connection);
-        while (rs.next()) {
-            final long id = rs.getLong(1);
-            final byte[] data = rs.getBytes(2);
-            final SettingPolicyInfo policy = SettingPolicyInfo.parseFrom(data);
-            final String name = policy.hasName() ? policy.getName() : Long.toString(id);
-            updatePolicy.setString(1, name);
-            final String displayName = policy.hasDisplayName() ? policy.getDisplayName() : name;
-            updatePolicy.setString(2, displayName);
-            if (policy.hasEntityType()) {
-                updatePolicy.setInt(3, policy.getEntityType());
-            } else {
-                logger.error("Entity type is not set for policy {}-{}. Skipping it", id, name);
-                continue;
-            }
-            updatePolicy.setBoolean(4, policy.getEnabled());
-            if (policy.hasScheduleId()) {
-                final long scheduleId = policy.getScheduleId();
-                if (existingSchedules.contains(scheduleId)) {
-                    updatePolicy.setLong(5, scheduleId);
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement
+                        .executeQuery("SELECT id, setting_policy_data FROM setting_policy");
+                PreparedStatement updatePolicy = connection.prepareStatement("UPDATE setting_policy"
+                        + " SET name=?, display_name=?, entity_type=?, enabled=?, schedule_id=? WHERE id=?");
+                PreparedStatement groups = connection.prepareStatement(
+                        "INSERT INTO setting_policy_groups"
+                                + " (group_id, setting_policy_id) values (?, ?)");
+                PreparedStatement settings = connection.prepareStatement(
+                        "INSERT INTO setting_policy_setting"
+                                + " (policy_id, setting_name, setting_type, setting_value)"
+                                + " VALUES (?, ?, ?, ?)");
+                PreparedStatement settingsOids = connection.prepareStatement(
+                        "INSERT INTO setting_policy_setting_oids"
+                                + " (policy_id, setting_name, oid_number, oid)" + " VALUES (?, ?, ?, ?)")) {
+            final Set<Long> existingSchedules = existingScheduleIds(connection);
+            final Set<Long> existingGroups = existingGroupIds(connection);
+            while (rs.next()) {
+                final long id = rs.getLong(1);
+                final byte[] data = rs.getBytes(2);
+                final SettingPolicyInfo policy = SettingPolicyInfo.parseFrom(data);
+                final String name = policy.hasName() ? policy.getName() : Long.toString(id);
+                updatePolicy.setString(1, name);
+                final String displayName = policy.hasDisplayName() ? policy.getDisplayName() : name;
+                updatePolicy.setString(2, displayName);
+                if (policy.hasEntityType()) {
+                    updatePolicy.setInt(3, policy.getEntityType());
+                } else {
+                    logger.error("Entity type is not set for policy {}-{}. Skipping it", id, name);
+                    continue;
+                }
+                updatePolicy.setBoolean(4, policy.getEnabled());
+                if (policy.hasScheduleId()) {
+                    final long scheduleId = policy.getScheduleId();
+                    if (existingSchedules.contains(scheduleId)) {
+                        updatePolicy.setLong(5, scheduleId);
+                    } else {
+                        updatePolicy.setNull(5, Types.BIGINT);
+                        logger.error("Policy {} is referencing absent schedule {}. Resetting to NULL",
+                                id, scheduleId);
+                    }
                 } else {
                     updatePolicy.setNull(5, Types.BIGINT);
-                    logger.error("Policy {} is referencing absent schedule {}. Resetting to NULL",
-                            id, scheduleId);
                 }
-            } else {
-                updatePolicy.setNull(5, Types.BIGINT);
+                updatePolicy.setLong(6, id);
+                updatePolicy.addBatch();
+                addGroups(groups, existingGroups, id, policy);
+                addSettingPolicies(settings, settingsOids, id, policy.getSettingsList());
             }
-            updatePolicy.setLong(6, id);
-            updatePolicy.addBatch();
-            addGroups(groups, existingGroups, id, policy);
-            addSettingPolicies(settings, settingsOids, id, policy.getSettingsList());
+            updatePolicy.executeBatch();
+            groups.executeBatch();
+            settings.executeBatch();
+            settingsOids.executeBatch();
         }
-        updatePolicy.executeBatch();
-        groups.executeBatch();
-        settings.executeBatch();
-        settingsOids.executeBatch();
     }
 
     private void addGroups(@Nonnull PreparedStatement groups, @Nonnull Set<Long> existingGroups,

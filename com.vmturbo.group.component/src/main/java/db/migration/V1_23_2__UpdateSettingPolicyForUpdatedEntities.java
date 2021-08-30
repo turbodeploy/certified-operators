@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -50,53 +51,57 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
      */
     private void migrateAppRelatedPolicies(Connection connection)
             throws SQLException, InvalidProtocolBufferException {
-        final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data "
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT id, setting_policy_data "
                     + "FROM setting_policy WHERE policy_type <> 'default' AND (entity_type = "
                     + EntityType.APPLICATION_VALUE
                     + " OR entity_type = "
                     + EntityType.APPLICATION_SERVER_VALUE
-                    + ")");
-        while (rs.next()) {
-            final long oid = rs.getLong("id");
-            final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
-            SettingPolicyInfo settingPolicyInfo =
-                    SettingPolicyInfo.parseFrom(settingPolicyDataBin);
-            if (isOldApplicationEntityType(settingPolicyInfo)) {
+                    + ")")) {
+            while (rs.next()) {
+                final long oid = rs.getLong("id");
+                final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
+                SettingPolicyInfo settingPolicyInfo =
+                        SettingPolicyInfo.parseFrom(settingPolicyDataBin);
+                if (isOldApplicationEntityType(settingPolicyInfo)) {
 
-                // For ex APPLICATION and APPLICATION_SERVER policies
-                // changing entity type to APPLICATION_COMPONENT
-                SettingPolicyInfo.Builder updatedSettingPolicyInfoBuilder =
-                        settingPolicyInfo.toBuilder().setEntityType(EntityType.APPLICATION_COMPONENT_VALUE);
+                    // For ex APPLICATION and APPLICATION_SERVER policies
+                    // changing entity type to APPLICATION_COMPONENT
+                    SettingPolicyInfo.Builder updatedSettingPolicyInfoBuilder =
+                            settingPolicyInfo.toBuilder().setEntityType(EntityType.APPLICATION_COMPONENT_VALUE);
 
-                // Adding resize setting for ex-APPLICATION policies
-                if (settingPolicyInfo.getEntityType() == EntityType.APPLICATION_VALUE) {
-                    EnumSettingValue resizeSettingValue = EnumSettingValue.newBuilder()
-                            .setValue("MANUAL")
-                            .build();
-                    SettingProto.Setting resizeSetting = SettingProto.Setting.newBuilder()
-                            .setSettingSpecName("resize")
-                            .setEnumSettingValue(resizeSettingValue)
-                            .build();
-                    updatedSettingPolicyInfoBuilder.addSettings(resizeSetting);
+                    // Adding resize setting for ex-APPLICATION policies
+                    if (settingPolicyInfo.getEntityType() == EntityType.APPLICATION_VALUE) {
+                        EnumSettingValue resizeSettingValue = EnumSettingValue.newBuilder()
+                                .setValue("MANUAL")
+                                .build();
+                        SettingProto.Setting resizeSetting = SettingProto.Setting.newBuilder()
+                                .setSettingSpecName("resize")
+                                .setEnumSettingValue(resizeSettingValue)
+                                .build();
+                        updatedSettingPolicyInfoBuilder.addSettings(resizeSetting);
+                    }
+
+                    // Perform policies updating
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "UPDATE setting_policy SET setting_policy_data=?, entity_type="
+                                + EntityType.APPLICATION_COMPONENT_VALUE + " WHERE id=?")) {
+                        stmt.setBytes(1, updatedSettingPolicyInfoBuilder.build().toByteArray());
+                        stmt.setLong(2, oid);
+                        stmt.execute();
+                    }
                 }
-
-                // Perform policies updating
-                final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE setting_policy SET setting_policy_data=?, entity_type="
-                            + EntityType.APPLICATION_COMPONENT_VALUE + " WHERE id=?");
-                stmt.setBytes(1, updatedSettingPolicyInfoBuilder.build().toByteArray());
-                stmt.setLong(2, oid);
-                stmt.execute();
             }
         }
         // Removing default APPLICATION and APPLICATION_SERVER policies
-        connection.createStatement()
-                .execute("DELETE FROM setting_policy WHERE policy_type = 'default' AND (entity_type = "
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(
+                    "DELETE FROM setting_policy WHERE policy_type = 'default' AND (entity_type = "
                     + EntityType.APPLICATION_VALUE
                     + " OR entity_type = "
                     + EntityType.APPLICATION_SERVER_VALUE
                     + ")");
+        }
     }
 
     /**
@@ -117,35 +122,38 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
      */
     private void migrateBusinessAppPolicies(Connection connection)
             throws SQLException, InvalidProtocolBufferException {
-        final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data "
-                    + "FROM setting_policy WHERE entity_type = "
-                    + EntityType.BUSINESS_APPLICATION_VALUE);
-        while (rs.next()) {
-            final long oid = rs.getLong("id");
-            final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
-            SettingPolicyInfo settingPolicyInfo =
-                    SettingPolicyInfo.parseFrom(settingPolicyDataBin);
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = connection.createStatement()
+                    .executeQuery("SELECT id, setting_policy_data "
+                        + "FROM setting_policy WHERE entity_type = "
+                        + EntityType.BUSINESS_APPLICATION_VALUE)) {
+            while (rs.next()) {
+                final long oid = rs.getLong("id");
+                final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
+                SettingPolicyInfo settingPolicyInfo =
+                        SettingPolicyInfo.parseFrom(settingPolicyDataBin);
 
-            // Setting autoSetResponseTimeCapacity setting (false by default) if not exist
-            if (settingPolicyInfo.getSettingsList()
-                    .stream()
-                    .noneMatch(s -> AUTO_SET_RESPONSE_TIME_CAPACITY.equals(s.getSettingSpecName()))) {
-                SettingProto.BooleanSettingValue newSettingValue = SettingProto.BooleanSettingValue.newBuilder()
-                        .setValue(false).build();
-                SettingProto.Setting newSetting = SettingProto.Setting.newBuilder()
-                        .setSettingSpecName(AUTO_SET_RESPONSE_TIME_CAPACITY)
-                        .setBooleanSettingValue(newSettingValue)
-                        .build();
-                SettingPolicyInfo updatedSettingPolicyInfo =
-                        settingPolicyInfo.toBuilder().addSettings(newSetting)
-                                .build();
+                // Setting autoSetResponseTimeCapacity setting (false by default) if not exist
+                if (settingPolicyInfo.getSettingsList()
+                        .stream()
+                        .noneMatch(s -> AUTO_SET_RESPONSE_TIME_CAPACITY.equals(s.getSettingSpecName()))) {
+                    SettingProto.BooleanSettingValue newSettingValue = SettingProto.BooleanSettingValue.newBuilder()
+                            .setValue(false).build();
+                    SettingProto.Setting newSetting = SettingProto.Setting.newBuilder()
+                            .setSettingSpecName(AUTO_SET_RESPONSE_TIME_CAPACITY)
+                            .setBooleanSettingValue(newSettingValue)
+                            .build();
+                    SettingPolicyInfo updatedSettingPolicyInfo =
+                            settingPolicyInfo.toBuilder().addSettings(newSetting)
+                                    .build();
 
-                final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
-                stmt.setBytes(1, updatedSettingPolicyInfo.toByteArray());
-                stmt.setLong(2, oid);
-                stmt.execute();
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "UPDATE setting_policy SET setting_policy_data=? WHERE id=?")) {
+                        stmt.setBytes(1, updatedSettingPolicyInfo.toByteArray());
+                        stmt.setLong(2, oid);
+                        stmt.execute();
+                    }
+                }
             }
         }
     }

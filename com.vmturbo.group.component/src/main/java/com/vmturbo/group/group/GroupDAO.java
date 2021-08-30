@@ -630,12 +630,14 @@ public class GroupDAO implements IGroupStore {
         if (targets.isEmpty()) {
             return Collections.emptySet();
         }
-        return dslContext.selectDistinct(GROUP_DISCOVER_TARGETS.GROUP_ID)
-                .from(GROUP_DISCOVER_TARGETS)
-                .where(GROUP_DISCOVER_TARGETS.TARGET_ID.in(targets))
-                .stream()
-                .map(Record1::value1)
-                .collect(Collectors.toSet());
+        try (Stream<Record1<Long>> stream = dslContext
+                     .selectDistinct(GROUP_DISCOVER_TARGETS.GROUP_ID)
+                     .from(GROUP_DISCOVER_TARGETS)
+                     .where(GROUP_DISCOVER_TARGETS.TARGET_ID.in(targets))
+                     .stream()) {
+            return stream.map(Record1::value1)
+                    .collect(Collectors.toSet());
+        }
     }
 
     /**

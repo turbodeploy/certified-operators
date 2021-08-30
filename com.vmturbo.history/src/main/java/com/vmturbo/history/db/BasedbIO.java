@@ -1491,27 +1491,33 @@ public abstract class BasedbIO {
         final String requestUser = String.format("'%s'@'%s'", getUserName(), hostName);
         logger.info("Initialize permissions for {} on `{}`...", requestUser, dbName);
         logger.info("Removing {} db user if it exists.", requestUser);
-        try {
-            rootConn.createStatement().execute(
+        try (Statement statement = rootConn.createStatement()) {
+            statement.execute(
                     // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
                     String.format("DROP USER %s", requestUser));
         } catch (SQLException e) {
-            // did not prevoiusly exist
+            // did not previously exist
         }
         logger.info("Creating {} db user.", requestUser);
-        rootConn.createStatement().execute(
+        try (Statement statement = rootConn.createStatement()) {
+            statement.execute(
                 String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, getPassword()));
+        }
         logger.info("Granting ALL vmtdb privileges to user {}.", requestUser);
-        rootConn.createStatement().execute(
+        try (Statement statement = rootConn.createStatement()) {
+            statement.execute(
                 String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", dbName, requestUser));
+        }
         logger.info("Granting global PROCESS privileges to user {}.", requestUser);
-        try {
-            rootConn.createStatement().execute(
+        try (Statement statement = rootConn.createStatement()) {
+            statement.execute(
                     String.format("GRANT PROCESS ON *.* TO %s", requestUser));
         } catch (SQLException e) {
             logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
         }
-        rootConn.createStatement().execute("FLUSH PRIVILEGES");
+        try (Statement statement = rootConn.createStatement()) {
+            statement.execute("FLUSH PRIVILEGES");
+        }
     }
 
     /**

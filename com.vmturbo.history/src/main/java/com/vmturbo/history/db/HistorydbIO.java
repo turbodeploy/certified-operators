@@ -1675,36 +1675,38 @@ public class HistorydbIO extends BasedbIO {
             @Nonnull String tempTableName,
             @Nonnull Connection conn) throws SQLException {
         String sql = String.format(FAST_SQL[FAST_SQL_SIZE], tempTableName);
-        PreparedStatement ps = conn.prepareStatement(sql);
-        String[] uuidArray = uuids.toArray(new String[]{});
-        int fullRows = uuidArray.length / FAST_SQL_SIZE;
-        int lastRow = uuidArray.length % FAST_SQL_SIZE;
-        // Full rows
-        int index = 0;
-        int count = 0;
-        for (int i = 0; i < fullRows; i++) {
-            for (int j = 1; j <= FAST_SQL_SIZE; j++) {
-                ps.setString(j, uuidArray[index++]);
+        try (final PreparedStatement ps = conn.prepareStatement(sql)) {
+            String[] uuidArray = uuids.toArray(new String[]{});
+            int fullRows = uuidArray.length / FAST_SQL_SIZE;
+            int lastRow = uuidArray.length % FAST_SQL_SIZE;
+            // Full rows
+            int index = 0;
+            int count = 0;
+            for (int i = 0; i < fullRows; i++) {
+                for (int j = 1; j <= FAST_SQL_SIZE; j++) {
+                    ps.setString(j, uuidArray[index++]);
+                }
+                ps.addBatch();
+                if (count++ == TMP_TABLE_BATCH_SIZE) {
+                    ps.executeBatch();
+                    count = 0;
+                }
             }
-            ps.addBatch();
-            if (count++ == TMP_TABLE_BATCH_SIZE) {
+            // Last batch
+            if (count > 0) {
                 ps.executeBatch();
-                count = 0;
             }
-        }
-        // Last batch
-        if (count > 0) {
-            ps.executeBatch();
-        }
-        if (lastRow > 0) {
-            // Last row.
-            sql = String.format(FAST_SQL[lastRow], tempTableName);
-            ps = conn.prepareStatement(sql);
-            for (int i = 1; index < uuidArray.length; index++, i++) {
-                ps.setString(i, uuidArray[index]);
+            if (lastRow > 0) {
+                // Last row.
+                sql = String.format(FAST_SQL[lastRow], tempTableName);
+                try (final PreparedStatement psLastRow = conn.prepareStatement(sql)) {
+                    for (int i = 1; index < uuidArray.length; index++, i++) {
+                        psLastRow.setString(i, uuidArray[index]);
+                    }
+                    psLastRow.addBatch();
+                    psLastRow.executeBatch();
+                }
             }
-            ps.addBatch();
-            ps.executeBatch();
         }
     }
 

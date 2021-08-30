@@ -36,6 +36,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.CreateTableColumnStep;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record2;
@@ -485,8 +486,10 @@ public class ScopeManager {
         protected List<String> getPreCopyHookSql(final Connection transConn) {
             Field<?>[] fields = new Field[]{SCOPE.SEED_OID, SCOPE.SCOPED_OID};
             this.tempTable = new TempTable<>((Table<?>)null, getWriteTableName(), fields);
-            try (DSLContext transDsl = DSL.using(transConn)) {
-                final String sql = transDsl.createTemporaryTable(tempTable.table()).columns(fields)
+            try (DSLContext transDsl = DSL.using(transConn);
+                    CreateTableColumnStep anotherTempTable = transDsl.createTemporaryTable(
+                            tempTable.table())) {
+                final String sql = anotherTempTable.columns(fields)
                         .getSQL(ParamType.INLINED);
                 return Collections.singletonList(sql);
             }

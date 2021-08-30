@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -122,7 +123,9 @@ public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcM
             try {
                 String originalTimeZone = getTimeZone(connection);
                 final String sql = String.format("SET SESSION time_zone = '%s'", timeZone);
-                connection.createStatement().execute(sql);
+                try (Statement statement = connection.createStatement()) {
+                    statement.execute(sql);
+                }
                 return originalTimeZone;
             } catch (SQLException e) {
                 logger.error("Failed to change session timezone for migration operations", e);
@@ -134,22 +137,14 @@ public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcM
     }
 
     private String getTimeZone(Connection connection) {
-        ResultSet result = null;
-        try {
-            String sql = "SELECT @@SESSION.time_zone";
-            result = connection.createStatement().executeQuery(sql);
+        String sql = "SELECT @@SESSION.time_zone";
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(sql);
+        ) {
             return result.next() ? result.getString(1) : null;
         } catch (SQLException e) {
             logger.error("Failed to retrieve current timezone setting from database", e);
             return null;
-        } finally {
-            if (result != null) {
-                try {
-                    result.close();
-                } catch (SQLException e) {
-                    logger.warn("Failed to close result set", e);
-                }
-            }
         }
     }
 

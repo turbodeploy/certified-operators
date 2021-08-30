@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.flyway;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -95,7 +96,8 @@ public class CostFlywayCallback extends BaseFlywayCallback {
 
     private boolean schemaTableExists(final Connection connection, String dbName) throws SQLException {
         String query = String.format(TABLE_EXISTS_QUERY, dbName, FLYWAY_TABLE_NAME);
-        try (ResultSet result = connection.createStatement().executeQuery(query)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(query)) {
             // if we got a row, the schema table exists
             return result.next();
         }
@@ -105,14 +107,16 @@ public class CostFlywayCallback extends BaseFlywayCallback {
         final String getChecksumQuery = String.format(
                 "SELECT checksum FROM %s WHERE version=%s",
                 FLYWAY_TABLE_NAME, version);
-        try (ResultSet result = connection.createStatement().executeQuery(getChecksumQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(getChecksumQuery)) {
             return result.next() &&
                 result.getInt(1) != checkSum;
         }
     }
 
     private String getDatabase(final Connection connection) throws SQLException {
-        try (ResultSet result = connection.createStatement().executeQuery(GET_DATABASE_QUERY)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(GET_DATABASE_QUERY)) {
             result.next();
             return result.getString(1);
         }
@@ -128,7 +132,8 @@ public class CostFlywayCallback extends BaseFlywayCallback {
                 "SELECT success FROM %s WHERE version=%s",
                 FLYWAY_TABLE_NAME, version);
         final boolean deleteMigration;
-        try (ResultSet result = connection.createStatement().executeQuery(getSucessQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(getSucessQuery)) {
             deleteMigration = result.next() &&
                     !result.getBoolean(1);
         }
@@ -137,7 +142,9 @@ public class CostFlywayCallback extends BaseFlywayCallback {
             final String deleteMigrationRun = String.format(
                     "DELETE FROM %s WHERE version='%s'",
                     FLYWAY_TABLE_NAME, version);
-            connection.createStatement().executeUpdate(deleteMigrationRun);
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate(deleteMigrationRun);
+            }
         } else {
             final String updateChecksumStmt;
             if (migrationDescription != null && !migrationDescription.isEmpty()) {
@@ -149,7 +156,10 @@ public class CostFlywayCallback extends BaseFlywayCallback {
                         "UPDATE %s SET checksum = %s WHERE version='%s'",
                         FLYWAY_TABLE_NAME, migrationUpdate.getNewChecksum(), version);
             }
-            connection.createStatement().executeUpdate(updateChecksumStmt);
+
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate(updateChecksumStmt);
+            }
         }
     }
 

@@ -132,7 +132,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
         final String selectQuery = String.format("SELECT policy_id FROM policy_group "
                 + "WHERE group_id IN (%s)", createJoiningString(deprecatedGroups));
         final Set<Long> deprecatedPolicies = Sets.newHashSet();
-        try (ResultSet resultSet = connection.createStatement().executeQuery(selectQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(selectQuery)) {
             while (resultSet.next()) {
                 deprecatedPolicies.add(resultSet.getLong("policy_id"));
             }
@@ -172,7 +173,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
                 + "          AND policy_type != 'discovered' ) temp_table "
                 + "    ) ", createJoiningString(deprecatedGroups));
         final Set<Long> deprecatedPolicies = Sets.newHashSet();
-        try (ResultSet resultSet = connection.createStatement().executeQuery(selectQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(selectQuery)) {
             while (resultSet.next()) {
                 deprecatedPolicies.add(resultSet.getLong("setting_policy_id"));
             }
@@ -255,7 +257,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
                 .map(String::valueOf).collect(Collectors.joining(","));
         final String query = String.format("SELECT distinct(group_id) FROM group_static_members_entities "
                 + "WHERE entity_type IN (%s)", deprecatedTypesNumbers);
-        try (ResultSet result = connection.createStatement().executeQuery(query)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(query)) {
             final Set<Long> ids = Sets.newHashSet();
             while (result.next()) {
                 ids.add(result.getLong(1));
@@ -278,7 +281,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
         final Set<Integer> deprecatedTypeNumbers = deprecatedTypes.stream().map(EntityType::getNumber).collect(Collectors.toSet());
         final Multimap<EntityType, Long> multimap = ArrayListMultimap.create();
         final String query = "SELECT id, entity_filters FROM grouping WHERE entity_filters IS NOT NULL AND group_type=0";
-        try (ResultSet result = connection.createStatement().executeQuery(query)) {
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(query)) {
             while (result.next()) {
                 final EntityFilters entityFilters = readEntityFilter(result.getBlob("entity_filters"));
                 final EntityType deprecatedType = findDeprecatedType(entityFilters, deprecatedTypeNumbers);
@@ -330,7 +334,8 @@ public class V1_32__DeprecatedEntityTypeMigration extends BaseJdbcMigration {
         final String updateQuery = "UPDATE grouping SET entity_filters=? WHERE id=?";
         final Map<Long, EntityFilters> convertedFiltersMap = Maps.newHashMap();
 
-        try (ResultSet result = connection.createStatement().executeQuery(selectQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(selectQuery)) {
             while (result.next()) {
                 final Blob filtersBlob = result.getBlob("entity_filters");
                 if (filtersBlob != null) {

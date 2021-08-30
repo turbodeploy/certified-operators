@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -137,15 +138,17 @@ class MariaDBMySqlAdapter extends DbAdapter {
 
     @Override
     protected Collection<String> getAllTableNames(final Connection conn) throws SQLException {
-        ResultSet results = conn.createStatement().executeQuery(String.format(
+        try (Statement statement = conn.createStatement();
+             ResultSet results = statement.executeQuery(String.format(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s' "
                         + "AND table_type = 'BASE TABLE' AND table_name != 'schema_version'",
-                config.getSchemaName()));
-        List<String> tables = new ArrayList<>();
-        while (results.next()) {
-            tables.add(results.getString(1));
+                config.getSchemaName()))) {
+            List<String> tables = new ArrayList<>();
+            while (results.next()) {
+                tables.add(results.getString(1));
+            }
+            return tables;
         }
-        return tables;
     }
 
     @Override

@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -22,9 +23,10 @@ public class V2v18RemoveDuplicateReservationNames implements JdbcMigration, Migr
     @Override
     public void migrate(final Connection connection) throws Exception {
         try (PreparedStatement stmt = connection.prepareStatement(
-                "UPDATE reservation SET name=? WHERE id=?")) {
-            ResultSet rs = connection.createStatement()
-                    .executeQuery("SELECT id, name FROM reservation ORDER BY name");
+                     "UPDATE reservation SET name=? WHERE id=?");
+                 Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery(
+                         "SELECT id, name FROM reservation ORDER BY name")) {
             String previousName = null;
             int count = 0;
             while (rs.next()) {
@@ -43,7 +45,9 @@ public class V2v18RemoveDuplicateReservationNames implements JdbcMigration, Migr
             }
             final String addUniqueConstraint = String.format("ALTER TABLE reservation "
                     + "ADD CONSTRAINT reservation_name_unique UNIQUE (name);");
-            connection.createStatement().execute(addUniqueConstraint);
+            try (Statement addUniqueConstraintStatement = connection.createStatement()) {
+                addUniqueConstraintStatement.execute(addUniqueConstraint);
+            }
         } catch (SQLException e) {
             logger.warn("Failed performing migration", e);
             throw e;

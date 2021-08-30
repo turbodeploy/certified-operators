@@ -334,13 +334,14 @@ public class VoltronsContainer {
             String fileName = file.getName();
             logger.info("Loading diags from file: {}", fileName);
             FileInputStream compressedInput = new FileInputStream(file);
-            ZipInputStream input = new ZipInputStream(compressedInput);
-            ZipEntry entry = null;
-            while ( (entry = input.getNextEntry()) != null ) {
-                if (entry.getName().startsWith("group") && targetComponents.contains(Component.GROUP)) {
-                    loadComponentDiags(Component.GROUP, input);
-                } else if (entry.getName().startsWith("topology-processor")) {
-                    loadComponentDiags(Component.TOPOLOGY_PROCESSOR, input);
+            try (ZipInputStream input = new ZipInputStream(compressedInput)) {
+                ZipEntry entry = null;
+                while ((entry = input.getNextEntry()) != null) {
+                    if (entry.getName().startsWith("group") && targetComponents.contains(Component.GROUP)) {
+                        loadComponentDiags(Component.GROUP, input);
+                    } else if (entry.getName().startsWith("topology-processor")) {
+                        loadComponentDiags(Component.TOPOLOGY_PROCESSOR, input);
+                    }
                 }
             }
             logger.info("Finished loading diags from file: {}", fileName);

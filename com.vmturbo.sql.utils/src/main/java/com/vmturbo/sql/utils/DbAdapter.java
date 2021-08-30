@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -393,7 +394,9 @@ public abstract class DbAdapter {
         } catch (SQLException ignored) {
         }
         logger.info("Executing SQL as {}: {}", connectionUser, obscurePasswords(sql));
-        conn.createStatement().execute(sql);
+        try (Statement statement = conn.createStatement()) {
+            statement.execute(sql);
+        }
     }
 
     /**
@@ -539,7 +542,9 @@ public abstract class DbAdapter {
     public void truncateAllTables() throws UnsupportedDialectException, SQLException {
         try (Connection conn = getNonRootConnection()) {
             for (final String table : getAllTableNames(conn)) {
-                conn.createStatement().execute(String.format("TRUNCATE TABLE \"%s\"", table));
+                try (Statement statement = conn.createStatement()) {
+                    statement.execute(String.format("TRUNCATE TABLE \"%s\"", table));
+                }
             }
         }
     }

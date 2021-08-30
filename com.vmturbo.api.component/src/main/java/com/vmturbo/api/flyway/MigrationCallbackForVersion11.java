@@ -3,6 +3,7 @@ package com.vmturbo.api.flyway;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,26 +66,31 @@ public class MigrationCallbackForVersion11 extends BaseFlywayCallback {
     private boolean schemaTableExists(final Connection connection, String dbName)
             throws SQLException {
         final String query = String.format(TABLE_EXISTS_QUERY, dbName, FLYWAY_TABLE_NAME);
-        try (ResultSet result = connection.createStatement().executeQuery(query)) {
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(query)) {
             // If we got a row, the schema_version table exists
             return result.next();
         }
     }
 
     private boolean checksumIsIncorrect(final Connection connection) throws SQLException {
-        try (ResultSet result = connection.createStatement().executeQuery(GET_CHECKSUM_QUERY)) {
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(GET_CHECKSUM_QUERY)) {
             return (result.next() && (result.getInt(1) != V1_1_CORRECT_CHECKSUM));
         }
     }
 
     private String getDatabase(final Connection connection) throws SQLException {
-        try (ResultSet result = connection.createStatement().executeQuery(GET_DATABASE_QUERY)) {
+        try (Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery(GET_DATABASE_QUERY)) {
             result.next();
             return result.getString(1);
         }
     }
 
     private void applyFix(Connection connection) throws SQLException {
-        connection.createStatement().executeUpdate(UPDATE_CHECKSUM_STMT);
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(UPDATE_CHECKSUM_STMT);
+        }
     }
 }
