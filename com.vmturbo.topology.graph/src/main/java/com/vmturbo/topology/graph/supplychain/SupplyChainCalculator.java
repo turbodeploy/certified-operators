@@ -107,10 +107,15 @@ public class SupplyChainCalculator {
         if (filterOutClasses.contains(entity.getEntityType())) {
             return false;
         }
-        if (entity.getConsumers().isEmpty()) {
+        List<E> filteredConsumers = entity.getConsumers();
+        if (filteredConsumers.isEmpty()) {
+            // If no consumers then get controlled entities for CONTROLLED_BY relationship
+            filteredConsumers = entity.getControlledEntities();
+        }
+        if (filteredConsumers.isEmpty()) {
             return true;
         }
-        final List<E> filteredConsumers = new ArrayList<>(entity.getConsumers());
+        filteredConsumers = new ArrayList<>(filteredConsumers);
         filteredConsumers.removeIf(e -> filterOutClasses.contains(e.getEntityType()));
         return filteredConsumers.isEmpty();
     }

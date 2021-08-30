@@ -2276,4 +2276,77 @@ public class SupplyChainCalculatorTest {
         ids = leaves.stream().map(BaseGraphEntity::getOid).collect(Collectors.toSet());
         assertThat(ids, containsInAnyOrder(app1Id, app2Id));
     }
+
+    /**
+     * It tests getting the leaf entities (highest entities without consumers)
+     * where path in supply chain contains CONTROLLED_BY relationship.
+     *
+     * The graph:
+     *      AppComponent
+     *          |
+     *      Container -- ContainerSpec
+     *          |             |
+     *        Pod ------ WorkloadController
+     *          |             |
+     *          |        Namespace
+     *          |             |
+     *          VM ----- ContainerCluster
+     *
+     * It expects to get:
+     *  - case 1. Seed is Workload Controller. Expect leaves: AppComponent(7)
+     *  - case 2. Seed is Namespace. Expected leaves: AppComponent(7)
+     */
+    @Test
+    public void testLeafEntitiesWithControlledByEntitiesInPath() {
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(
+                        CONTAINER_CLUSTER_ID, ApiEntityType.CONTAINER_PLATFORM_CLUSTER),
+
+                TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
+                        .addConnectedEntity(
+                                CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+
+                TestGraphEntity.newBuilder(NAMESPACE_DEMO_APP_ID, ApiEntityType.NAMESPACE)
+                        .addProviderId(CONTAINER_CLUSTER_ID)
+                        .addConnectedEntity(
+                                CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+
+                TestGraphEntity
+                        .newBuilder(WORKLOAD_CONTROLLER_CART_ID, ApiEntityType.WORKLOAD_CONTROLLER)
+                        .addProviderId(NAMESPACE_DEMO_APP_ID)
+                        .addConnectedEntity(
+                                NAMESPACE_DEMO_APP_ID, ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .addConnectedEntity(
+                                CONTAINER_SPEC_CART_ID, ConnectionType.OWNS_CONNECTION),
+
+                TestGraphEntity.newBuilder(CONTAINER_POD_CART1_ID, ApiEntityType.CONTAINER_POD)
+                        .addProviderId(VM_ID)
+                        .addProviderId(WORKLOAD_CONTROLLER_CART_ID)
+                        .addConnectedEntity(WORKLOAD_CONTROLLER_CART_ID,
+                                ConnectionType.AGGREGATED_BY_CONNECTION),
+
+                TestGraphEntity.newBuilder(CONTAINER_SPEC_CART_ID, ApiEntityType.CONTAINER_SPEC),
+
+                TestGraphEntity.newBuilder(CONTAINER_CART1_ID, ApiEntityType.CONTAINER)
+                        .addProviderId(CONTAINER_POD_CART1_ID)
+                        .addConnectedEntity(
+                                CONTAINER_SPEC_CART_ID, ConnectionType.CONTROLLED_BY_CONNECTION),
+
+                TestGraphEntity.newBuilder(APP_ID, ApiEntityType.APPLICATION_COMPONENT)
+                        .addProviderId(CONTAINER_CART1_ID)
+                );
+        final TraversalRulesLibrary rules = new TraversalRulesLibrary();
+
+        // Case 1: seed is Workload Controller
+        List<TestGraphEntity> leaves = new SupplyChainCalculator().getLeafEntities(graph,
+                Collections.singleton(WORKLOAD_CONTROLLER_CART_ID), Collections.emptyList(), rules);
+        Assert.assertEquals(1, leaves.size());
+        assertEquals(APP_ID, leaves.get(0).getOid());
+
+        // Case 2: seed is Namespace
+        leaves = new SupplyChainCalculator().getLeafEntities(graph,
+                Collections.singleton(NAMESPACE_DEMO_APP_ID), Collections.emptyList(), rules);
+        Assert.assertEquals(1, leaves.size());
+        assertEquals(APP_ID, leaves.get(0).getOid());
+    }
 }
