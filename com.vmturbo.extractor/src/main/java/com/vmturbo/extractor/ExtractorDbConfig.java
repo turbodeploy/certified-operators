@@ -21,7 +21,6 @@ import org.springframework.context.annotation.Primary;
 import com.vmturbo.extractor.flyway.ResetChecksumsForTimescaleDB201Migrations;
 import com.vmturbo.extractor.schema.Extractor;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
-import com.vmturbo.extractor.schema.SearchDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
@@ -31,7 +30,7 @@ import com.vmturbo.sql.utils.sizemon.DbSizeMonitor;
  * Config class that defines DB endpoints used by extractor component.
  */
 @Configuration
-@Import({SQLDatabaseConfig2.class, ExtractorGlobalConfig.class, ExtractorDbBaseConfig.class, SearchDbBaseConfig.class})
+@Import({SQLDatabaseConfig2.class, ExtractorGlobalConfig.class})
 public class ExtractorDbConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -43,9 +42,6 @@ public class ExtractorDbConfig {
 
     @Autowired
     private SQLDatabaseConfig2 dbConfig;
-
-    @Autowired
-    private SearchDbBaseConfig searchDbBaseConfig;
 
     /** whether to enable DbSizeMonitor at all. */
     @Value("${dbSizeMonitorEnabled:true}")
@@ -140,21 +136,6 @@ public class ExtractorDbConfig {
                 .withRootAccessEnabled(true)
                 .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
                 .withFlywayCallbacks(flywayCallbacks())
-                .build();
-    }
-
-    /**
-     * MYSQL DB endpoint to use for topology ingestion.
-     *
-     * @return endpoint the endpoint
-     */
-    @Bean
-    public DbEndpoint ingesterMySqlEndpoint() {
-        return dbConfig.derivedDbEndpoint("dbs.search", searchDbBaseConfig.extractorMySqlDbEndpoint())
-                .withAccess(DbEndpointAccess.ALL)
-                .withShouldProvision(true)
-                .withRootAccessEnabled(true)
-                .withEndpointEnabled(extractorGlobalConfig.requireDatabase())
                 .build();
     }
 

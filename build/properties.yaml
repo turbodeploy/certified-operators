@@ -48,7 +48,6 @@ defaultProperties:
     extractor:
         dbHost: timescaledb
         dbPort: 5432
-        searchDbHost: db
         enableReporting: true
     action-orchestrator:
         identityGeneratorPrefix: 9
