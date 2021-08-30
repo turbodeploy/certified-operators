@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.builders.SDKConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -170,9 +171,13 @@ public class ContainerClusterPreStitchingOperation implements PreStitchingOperat
                 .forEach(vm -> {
                     final Optional<Double> cpuSpeed = getVMCPUSpeed(vm);
                     if (!cpuSpeed.isPresent()) {
-                        logger.warn("Failed to get CPU speed for VM {} when converting VCPU to"
+                        //Only print the error when VM power state is not Unknown to avoid log pollution
+                        //See https://vmturbo.atlassian.net/browse/OM-73884
+                        if (vm.getEntityBuilder().getPowerState() != CommonDTO.EntityDTO.PowerState.POWERSTATE_UNKNOWN) {
+                            logger.warn("Failed to get CPU speed for VM {} when converting VCPU to"
                                             + " millicores for cluster {}.",
-                                    vm.getDisplayName(), cluster.getDisplayName());
+                                    vm.getOid(), cluster.getDisplayName());
+                        }
                         return;
                     }
                     vmCpuSpeedMap.putIfAbsent(vm, cpuSpeed.get());

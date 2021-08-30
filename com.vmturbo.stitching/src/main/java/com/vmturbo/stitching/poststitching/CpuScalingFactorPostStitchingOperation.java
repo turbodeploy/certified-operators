@@ -219,7 +219,11 @@ public abstract class CpuScalingFactorPostStitchingOperation implements PostStit
             return TopologyDTOUtil.getCPUCoreMhz(entity.getTopologyEntityDtoBuilder())
                 .map(cpuCoreMhz -> scalingFactor * cpuCoreMhz / 1000)
                 .orElseGet(() -> {
-                    logger.error("CPU core MHz is not found from VM {}", entity.getOid());
+                    //Only Print the log if the vm state is not unknown to avoid log pollution
+                    //See https://vmturbo.atlassian.net/browse/OM-73884
+                    if (entity.getEntityState() != TopologyDTO.EntityState.UNKNOWN) {
+                        logger.error("CPU core MHz is not found from VM {}", entity.getOid());
+                    }
                     return 0d;
                 });
         }
