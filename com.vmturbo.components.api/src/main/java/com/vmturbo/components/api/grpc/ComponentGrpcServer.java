@@ -27,7 +27,6 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
-import io.grpc.protobuf.services.ProtoReflectionService;
 import io.opentracing.contrib.grpc.TracingClientInterceptor;
 import io.opentracing.contrib.grpc.TracingServerInterceptor;
 
@@ -88,12 +87,6 @@ public class ComponentGrpcServer implements ServerStartedListener {
      * for the gRPC server to listen on.
      */
     public static final String PROP_SERVER_GRPC_PORT = "serverGrpcPort";
-
-    /**
-     * The name of the environment property that should be overridden to specify if the
-     * gRPC server needs to have reflection enabled.
-     */
-    public static final String PROP_SERVER_GRPC_REFLECTION = "enableGrpcReflection";
 
     /**
      * The name of the environment property that should be overriden to specify the maximum
@@ -221,7 +214,6 @@ public class ComponentGrpcServer implements ServerStartedListener {
                 environment.getProperty(PROP_GRPC_MAX_MESSAGE_BYTES,
                 Integer.toString(DEFAULT_GRPC_MAX_MESSAGE_BYTES)));
             final ServerBuilder serverBuilder;
-
             logger.info("Configuring gRPC server...");
             if (useInProcess()) {
                 serverBuilder = InProcessServerBuilder.forName(LOCAL_SERVER_NAME);
@@ -237,12 +229,6 @@ public class ComponentGrpcServer implements ServerStartedListener {
             }
 
             serviceDefinitions.values().forEach(serverBuilder::addService);
-
-            String enableGrpcReflection = environment.getProperty(PROP_SERVER_GRPC_REFLECTION);
-            if (enableGrpcReflection != null && Boolean.parseBoolean(enableGrpcReflection)) {
-                logger.info("Enabling gRPC server reflection...");
-                serverBuilder.addService(ProtoReflectionService.newInstance());
-            }
 
             try {
                 configurableEnvironment = environment;

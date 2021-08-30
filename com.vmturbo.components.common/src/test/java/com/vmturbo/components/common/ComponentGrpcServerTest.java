@@ -162,7 +162,6 @@ public class ComponentGrpcServerTest {
         for (int attempts = 0; attempts < 3; attempts++) {
             String availableTcpPort = Integer.toString(SocketUtils.findAvailableTcpPort());
             env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT, availableTcpPort);
-            env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_REFLECTION, "true");
             ComponentGrpcServer.get().start(env);
 
             // verify the grpc server started successfully
