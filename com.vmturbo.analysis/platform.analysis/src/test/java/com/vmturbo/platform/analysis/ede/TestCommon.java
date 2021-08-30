@@ -68,6 +68,8 @@ public class TestCommon {
             new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
     public static final Basket VM_BASKET =
             new Basket(TestUtils.VCPU, TestUtils.VMEM, TestUtils.createNewCommSpec());
+    public static final Basket CONTROLLER_BASKET =
+            new Basket(TestUtils.QUOTA);
 
     private @NonNull Economy first;
     private @NonNull Economy cloned;

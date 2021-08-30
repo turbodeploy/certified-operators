@@ -76,6 +76,7 @@ public class TestUtils {
     public static final int DC_TYPE = 12;
     public static final int NAMESPACE_TYPE = 13;
     public static final int DB_TIER_TYPE = 14;
+    public static final int CONTROLLER_TYPE = 12;
     /**
      * The service type.
      */
@@ -125,6 +126,7 @@ public class TestUtils {
     public static final CommoditySpecification COST_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification IOPS = createNewCommSpec();
     public static final CommoditySpecification PORT_CHANEL = createNewCommSpec();
+    public static final CommoditySpecification QUOTA = createNewCommSpec();
     /**
      * Construct the commodity specification for VCPU Request commodity.
      */

@@ -491,12 +491,17 @@ public final class Utility {
             // provision every daemon and place on the provisionedSeller
             for (Trader customer : daemonCustomers) {
                 // provision daemon.
-                ProvisionBySupply daemonProvision = (ProvisionBySupply) (new ProvisionBySupply(economy, customer, action.getReason())).take();
+                ProvisionBySupply daemonProvision =
+                    (ProvisionBySupply) (new ProvisionBySupply(economy,
+                            customer, action.getReason())).take();
                 daemonProvision.setReasonTrader(modelSeller);
                 actionsList.add(daemonProvision);
                 // place every leg of the cloned daemon on provisionedSeller.
                 economy.getMarketsAsBuyer(daemonProvision.getProvisionedSeller()).keySet()
-                        .forEach(sl -> actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
+                    .stream()
+                    .filter(sl -> sl.getBasket().isSatisfiedBy(modelSeller.getBasketSold()))
+                    .forEach(sl ->
+                            actionsList.add((new Move(economy, sl, provisionedSeller)).take()));
             }
     }
 

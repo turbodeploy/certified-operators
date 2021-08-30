@@ -352,7 +352,7 @@ public class ProvisionTest {
      * Test provision behavior of traders with daemon congestion.
      */
     @Test
-    public void testDoNotProvisionDaemonsProviders() {
+    public void testProvisionOfProvidersWithDaemonsConsumers() {
         Economy economy = new Economy();
         // Add a VM
         Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, TestCommon.VM_BASKET);
@@ -361,8 +361,18 @@ public class ProvisionTest {
                 .setCloneable(true)
                 .setCanAcceptNewCustomers(true)
                 .setMaxDesiredUtil(0.75)
-                .setMinDesiredUtil(0.65);
-        vm.getSettings().setDaemon(true);
+                .setMinDesiredUtil(0.65)
+                .setDaemon(true);
+
+        Trader wc = economy.addTrader(TestUtils.CONTROLLER_TYPE,
+                TraderState.ACTIVE, TestCommon.CONTROLLER_BASKET);
+        wc.getCommoditiesSold().stream().forEach(cs -> cs.setCapacity(100));
+        wc.setDebugInfoNeverUseInCode("WC").getSettings()
+                .setCloneable(false)
+                .setCanAcceptNewCustomers(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65)
+                .setDaemon(false);
 
         Trader daemon = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
         daemon.setDebugInfoNeverUseInCode("DAEMON").getSettings().setDaemon(true);
@@ -370,6 +380,11 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                 TestCommon.VM_BASKET.stream().collect(Collectors.toList()),
                 daemon, new double[]{70, 70, 70}, vm).setMovable(false);
+
+        // Place the daemon consuming 10% onto the WC
+        TestUtils.createAndPlaceShoppingList(economy,
+                TestCommon.CONTROLLER_BASKET.stream().collect(Collectors.toList()),
+                daemon, new double[]{10}, wc).setMovable(false);
 
         Trader pod1 = economy.addTrader(TestUtils.POD_TYPE, TraderState.ACTIVE, TestCommon.POD_BASKET);
         pod1.setDebugInfoNeverUseInCode("POD1");
@@ -384,7 +399,6 @@ public class ProvisionTest {
         Ledger ledger = new Ledger(economy);
         Provision provision = new Provision();
 
-        List<Action> acns = provision.provisionDecisions(economy, ledger);
         assertEquals(0, provision.provisionDecisions(economy, ledger).size());  // node doesnt provision.
 
         // Place the pod consuming 10% onto the VM
@@ -395,8 +409,11 @@ public class ProvisionTest {
         pod2.setDebugInfoNeverUseInCode("POD2");
 
         vm.getCommoditiesSold().stream().forEach(cs -> cs.setNumConsumers(3));
+        // wc contains 1 customer before provision
+        assertEquals(1, wc.getCustomers().size());
         assertEquals(4, provision.provisionDecisions(economy, new Ledger(economy)).size());  // node provisions.
-
+        // new customers not placed on wc
+        assertEquals(1, wc.getCustomers().size());
     }
 
     /**
