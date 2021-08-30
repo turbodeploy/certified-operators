@@ -25,11 +25,13 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.DoubleBinaryOperator;
@@ -142,6 +144,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final ScopeManager scopeManager;
     private HashedDataManager fileTableManager;
     private DSLContext dsl;
+    // Holds all volumes with duplicate files together with a comma-separated list of the targets
+    // the discovered the entity.
+    private final Map<Long, String> volumesWithDuplicateFiles = new HashMap<>();
 
     /**
      * Create a new writer instance.
@@ -477,21 +482,45 @@ public class EntityMetricWriter extends TopologyWriterBase {
         }
 
         final long storageId = storage.get();
+        final Set<String> uniqueFiles = new HashSet<>();
         volumeInfo.getFilesList().forEach(file -> {
-            Record fileRecord = new Record(FILE_TABLE);
-            fileRecord.set(VOLUME_OID, entity.getOid());
-            fileRecord.set(FILE_PATH, file.getPath());
-            fileRecord.set(FILE_TYPE, FileType.valueOf(file.getType().name()));
-            if (file.hasSizeKb()) {
-                fileRecord.set(FILE_SIZE, file.getSizeKb());
+
+            /* There is an issue with a volume coming from vcenter that has multiple files with the
+               same path. This causes an SQL error when copying from the temporary table
+               `file__upsert` to `file`. The impact is that table `file` is not updating.
+
+               In order to defend against this issue we have added a basic filtering of duplicates
+               to make sure that no files with the same volume_oid and path can be inserted in
+               `file__upsert` table.
+
+               OM-74450 tracks the vc issue.
+            */
+            if (uniqueFiles.add(file.getPath())) {
+                Record fileRecord = new Record(FILE_TABLE);
+                fileRecord.set(VOLUME_OID, entity.getOid());
+                fileRecord.set(FILE_PATH, file.getPath());
+                fileRecord.set(FILE_TYPE, FileType.valueOf(file.getType().name()));
+                if (file.hasSizeKb()) {
+                    fileRecord.set(FILE_SIZE, file.getSizeKb());
+                }
+                if (file.hasModificationTimeMs()) {
+                    fileRecord.set(MODIFICATION_TIME, new Timestamp(file.getModificationTimeMs()));
+                }
+                fileRecord.set(STORAGE_OID, storageId);
+                // storage name will be added later in finish stage
+                fileRecord.set(IS_ATTACHED, volumeInfo.getAttachmentState() != AttachmentState.UNATTACHED);
+                filesByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>()).add(fileRecord);
+            } else {
+                // file already exists, add the volume and its targets to the map to log them later
+                if ( !volumesWithDuplicateFiles.containsKey(entity.getOid())) {
+                    String targets =
+                            entity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap()
+                                    .keySet().stream()
+                                    .map(Object::toString)
+                                    .collect(Collectors.joining(","));
+                    volumesWithDuplicateFiles.put(entity.getOid(), targets);
+                }
             }
-            if (file.hasModificationTimeMs()) {
-                fileRecord.set(MODIFICATION_TIME,  new Timestamp(file.getModificationTimeMs()));
-            }
-            fileRecord.set(STORAGE_OID, storageId);
-            // storage name will be added later in finish stage
-            fileRecord.set(IS_ATTACHED, volumeInfo.getAttachmentState() != AttachmentState.UNATTACHED);
-            filesByStorageId.computeIfAbsent(storageId, k -> new ArrayList<>()).add(fileRecord);
         });
     }
 
@@ -698,6 +727,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
      */
     private void writeFileRecords(DataProvider dataProvider) {
         logger.info("Writing file records for topology {}", topologyLabel);
+
+        // log all volumes with duplicate files
+        if (!volumesWithDuplicateFiles.isEmpty()) {
+            String message = volumesWithDuplicateFiles.entrySet().stream()
+                    .map(entry -> "volume:" + entry.getKey() + " from targets:[" + entry.getValue() + "]")
+                    .collect(Collectors.joining(" || "));
+            logger.warn("Duplicate files in {}", message);
+        }
 
         try (CloseableConsumer<Record> consumer = fileTableManager.open(dsl, config)) {
             filesByStorageId.long2ObjectEntrySet().forEach(entry ->
