@@ -51,8 +51,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
      */
     public static final long TOTAL_TIMESTAMP = 0;
     private static final Logger logger = LogManager.getLogger();
-    private static final String FAILED_MESSAGE = "Failed to %s %s data for %s start timestamp";
-    private static final String PERSIST = "persist";
+    private static final String FAILED_MESSAGE = "Failed in %s for %s with start timestamp %s";
     private final StatsHistoryServiceStub statsHistoryClient;
     private final long startTimestamp;
     private final Clock clock;
@@ -103,7 +102,7 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
         ReaderObserver observer = new ReaderObserver(clock, config.getGrpcStreamTimeoutSec());
         makeGetRequest(statsHistoryClient, config, startTimestamp, observer);
         try (ByteArrayOutputStream baos = observer.getResult()) {
-            checkRemoteError(observer, "load", startTimestamp);
+            observer.checkRemoteError(getClass().getSimpleName(), startTimestamp);
             try (ByteArrayInputStream source = new ByteArrayInputStream(baos.toByteArray())) {
                 final Map<EntityCommodityFieldReference, DbRecordT> result =
                     parse(startTimestamp, source, oidsToUse, this.enableOidFiltering);
@@ -146,11 +145,11 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
             ByteString payload = ByteString.copyFrom(data, position, size);
             observer.checkIoAvailability((CallStreamObserver<ChunkT>)writer);
             writer.onNext(newChunk(startTimestamp, periodMs, payload));
-            checkRemoteError(observer, PERSIST, startTimestamp);
+            observer.checkRemoteError(getClass().getSimpleName(), startTimestamp);
         }
         writer.onCompleted();
         observer.waitForCompletion();
-        checkRemoteError(observer, PERSIST, startTimestamp);
+        observer.checkRemoteError(getClass().getSimpleName(), startTimestamp);
 
         logger.debug("Saved {} {} commodity entries for timestamp {} in {}",
             () -> getCount(stats), () -> getClass().getSimpleName(),
@@ -280,19 +279,12 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
      */
     protected abstract long getChunkPeriod(@Nonnull ChunkT chunk);
 
-    private void checkRemoteError(ErrorObserver<?> observer, String type,
-                    long startTimestamp) throws HistoryCalculationException, InterruptedException {
-        final Throwable error = observer.getError();
-        if (error != null) {
-            throw new HistoryCalculationException(
-                    String.format(FAILED_MESSAGE, type, getClass().getSimpleName(), startTimestamp), error);
-        }
-    }
-
     /**
      * Notifications handler for sending up blobs data stream.
      */
     protected class WriterObserver extends ErrorObserver<ResponseT> {
+        private static final long waitForChannelReadinessIntervalMs = 1;
+
         /**
          * Construct the observer instance.
          *
@@ -308,6 +300,32 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
             if (logger.isTraceEnabled()) {
                 logger.trace("Sent {} blob chunk {} for timestamp {}", getClass().getSimpleName(), chunkNo++,
                              startTimestamp);
+            }
+        }
+
+        /**
+         * Test whether we can proceed with stream IO operation, optionally wait for buffer
+         * availability if call observer is specified, but no more than given timeout.
+         *
+         * @param callObserver call observer, null for reading
+         * @throws HistoryCalculationException when general timeout occurs
+         * @throws InterruptedException when interrupted
+         */
+        protected void checkIoAvailability(CallStreamObserver<?> callObserver)
+                throws HistoryCalculationException, InterruptedException {
+            if (callObserver == null) {
+                logger.warn("Call observer is null; skip checking the IO availability. "
+                        + "But this shouldn't happen so we should investigate why.");
+                return;
+            }
+
+            if (Thread.interrupted()) {
+                throw new InterruptedException("Persisting blobs data on the history component was interrupted");
+            }
+            while (!callObserver.isReady()) {
+                checkRemoteError(callObserver.getClass().getSimpleName(), startTimestamp);
+                Thread.sleep(waitForChannelReadinessIntervalMs);
+                checkTimeout();
             }
         }
     }
@@ -344,7 +362,10 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
         @Override
         public void onNext(ChunkT chunk) {
             try {
-                checkIoAvailability(null);
+                if (Thread.interrupted()) {
+                    throw new InterruptedException("Reading blobs data on the history component was interrupted");
+                }
+                checkTimeout();
                 getChunkContent(chunk).writeTo(result);
                 lastCheckpointMs = getChunkPeriod(chunk);
                 if (logger.isTraceEnabled()) {
@@ -363,8 +384,6 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
      * @param <T> stream data type
      */
     private abstract static class ErrorObserver<T> implements StreamObserver<T> {
-        private static final long waitForChannelReadinessIntervalMs = 1;
-
         private final CountDownLatch cond = new CountDownLatch(1);
         private final long timeoutSec;
         private final long startMs;
@@ -396,52 +415,38 @@ public abstract class AbstractBlobsPersistenceTask<DataT, DbRecordT, ChunkT, Res
         }
 
         /**
-         * Get the error that occurred during sending or receiving data, if any.
-         *
-         * @return null if no error
-         * @throws InterruptedException when interrupted
-         * @throws HistoryCalculationException when timed out
-         */
-        public Throwable getError() throws HistoryCalculationException, InterruptedException {
-            return error;
-        }
-
-        /**
          * Awaits for command completion.
          *
          * @throws InterruptedException when interrupted
          * @throws HistoryCalculationException when timed out
          */
-        public void waitForCompletion() throws InterruptedException, HistoryCalculationException {
+        protected void waitForCompletion() throws InterruptedException, HistoryCalculationException {
             if (!cond.await(timeoutSec, TimeUnit.SECONDS)) {
                 throw new HistoryCalculationException("Timed out reading blobs data");
             }
         }
 
         /**
-         * Test whether we can proceed with stream IO operation, optionally wait for buffer
-         * availability if call observer is specified, but no more than given timeout.
+         * Checks the remote error and if present throws an {@link HistoryCalculationException}.
          *
-         * @param callObserver call observer, null for reading
-         * @throws HistoryCalculationException when general timeout occurs
-         * @throws InterruptedException when interrupted
+         * @param statsRelatedClassName the name of the stats class for logging purpose
+         * @param startTimestamp the start timestamp for logging purpose
+         * @throws HistoryCalculationException if such an error is encountered
          */
-        public void checkIoAvailability(@Nullable CallStreamObserver<?> callObserver)
-                throws HistoryCalculationException, InterruptedException {
-            if (Thread.interrupted()) {
-                throw new InterruptedException("Persisting blobs data on the history component was interrupted");
-            }
-            if (callObserver != null) {
-                while (!callObserver.isReady()) {
-                    Thread.sleep(waitForChannelReadinessIntervalMs);
-                    checkTimeout();
-                }
-            } else {
-                checkTimeout();
+        protected void checkRemoteError(String statsRelatedClassName, long startTimestamp)
+                throws HistoryCalculationException {
+            if (error != null) {
+                throw new HistoryCalculationException(String.format(FAILED_MESSAGE,
+                        getClass().getSimpleName(), statsRelatedClassName, startTimestamp), error);
             }
         }
 
-        private void checkTimeout() throws HistoryCalculationException {
+        /**
+         * Checks if we have waited long enough to declare timeout.
+         *
+         * @throws HistoryCalculationException if such an error is encountered
+         */
+        protected void checkTimeout() throws HistoryCalculationException {
             if (clock.millis() - startMs > TimeUnit.SECONDS.toMillis(timeoutSec)) {
                 throw new HistoryCalculationException("Stream I/O operation from history component timeout exceeded");
             }

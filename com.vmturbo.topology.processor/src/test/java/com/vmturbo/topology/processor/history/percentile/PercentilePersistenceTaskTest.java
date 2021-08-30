@@ -236,7 +236,7 @@ public class PercentilePersistenceTaskTest {
         final PercentilePersistenceTask task = new PercentilePersistenceTask(
                 StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         expectedException.expect(HistoryCalculationException.class);
-        expectedException.expectMessage("Failed to load");
+        expectedException.expectMessage("Failed in ReaderObserver for PercentilePersistenceTask with start timestamp 0");
         task.load(Collections.emptyList(), config, null);
     }
 
@@ -336,7 +336,7 @@ public class PercentilePersistenceTaskTest {
                         StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), clock, DEFAULT_RANGE, false);
         final PercentileCounts counts = PercentileCounts.newBuilder().build();
         expectedException.expect(HistoryCalculationException.class);
-        expectedException.expectMessage("Failed to persist PercentilePersistenceTask data for");
+        expectedException.expectMessage("Failed in WriterObserver for PercentilePersistenceTask with start timestamp 0");
         expectedException.expectCause(CoreMatchers
                         .allOf(CoreMatchers.instanceOf(StatusRuntimeException.class),
                                         Matchers.hasProperty("message",
