@@ -13,6 +13,7 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -299,13 +301,13 @@ public class V_01_00_00__Probe_Metadata_Change_Migration extends AbstractMigrati
      * which don't have a valid entity type.
      */
     private Set<Long> getEntityIdsWithNoEntityType() throws DataAccessException {
-        return dslContext
-                .select(ASSIGNED_IDENTITY.ID)
-                .from(ASSIGNED_IDENTITY)
-                .where(ASSIGNED_IDENTITY.ENTITY_TYPE.eq(Integer.MAX_VALUE))
-                .fetchStream()
-                .map(rec -> rec.value1())
-                .collect(Collectors.toSet());
+        try (Stream<Record1<Long>> stream = dslContext
+                     .select(ASSIGNED_IDENTITY.ID)
+                     .from(ASSIGNED_IDENTITY)
+                     .where(ASSIGNED_IDENTITY.ENTITY_TYPE.eq(Integer.MAX_VALUE))
+                     .fetchStream()) {
+            return stream.map(rec -> rec.value1()).collect(Collectors.toSet());
+        }
     }
 
     /**

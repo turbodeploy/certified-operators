@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.CreateTableColumnStep;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
@@ -209,8 +210,11 @@ public class BulkInserterFactory implements AutoCloseable {
             String transientTableName = tableNamePrefix + System.nanoTime();
             Table<OutT> transientTable = outTable.getClass().newInstance().as(transientTableName);
             // create that table in the database
-            basedbIO.using(conn).createTable(transientTable).columns(outTable.fields())
-                    .execute();
+            try (DSLContext dslContext = basedbIO.using(conn);
+                    CreateTableColumnStep table = dslContext.createTable(transientTable)) {
+                table.columns(outTable.fields())
+                        .execute();
+            }
             if (postTableCreateFunc != null) {
                 postTableCreateFunc.execute(transientTable);
             }

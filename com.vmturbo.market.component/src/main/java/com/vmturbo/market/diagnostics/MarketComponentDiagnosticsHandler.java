@@ -37,14 +37,14 @@ public class MarketComponentDiagnosticsHandler implements IDiagnosticsHandler {
                     File file = new File(Objects.requireNonNull(dumpDirectory), filename);
                     ZipEntry ze = new ZipEntry(filename);
                     zipStream.putNextEntry(ze);
-                    FileInputStream fis = new FileInputStream(file);
-                    int length;
-                    byte[] buffer = new byte[WRITE_CHUNK_SIZE];
-                    while ((length = fis.read(buffer)) > 0) {
-                        zipStream.write(buffer, 0, length);
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        int length;
+                        byte[] buffer = new byte[WRITE_CHUNK_SIZE];
+                        while ((length = fis.read(buffer)) > 0) {
+                            zipStream.write(buffer, 0, length);
+                        }
+                        zipStream.closeEntry();
                     }
-                    zipStream.closeEntry();
-                    fis.close();
                 }
             }
             zipStream.close();

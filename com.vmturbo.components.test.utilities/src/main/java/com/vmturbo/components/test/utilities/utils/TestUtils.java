@@ -46,19 +46,19 @@ public class TestUtils {
                     + fileName);
         }
 
-        final ZipFile zipFile = new ZipFile(ResourcePath.getTestResource(TestUtils.class, fileName).toFile());
-        final ZipEntry entry = zipFile.stream().findFirst().get();
-        final InputStream inputStream = zipFile.getInputStream(entry);
-        final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        return reader.lines()
-                .map(line -> {
-                    AbstractMessage.Builder builder = builderSupplier.get();
-                    try {
-                        JsonFormat.parser().merge(line, builder);
-                        return (Msg)builder.build();
-                    } catch (InvalidProtocolBufferException e) {
-                        throw new IllegalArgumentException("Exception parsing JSON file.", e);
-                    }
-                });
+        try (final ZipFile zipFile = new ZipFile(ResourcePath.getTestResource(TestUtils.class, fileName).toFile())) {
+            final ZipEntry entry = zipFile.stream().findFirst().get();
+            final InputStream inputStream = zipFile.getInputStream(entry);
+            final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            return reader.lines().map(line -> {
+                AbstractMessage.Builder builder = builderSupplier.get();
+                try {
+                    JsonFormat.parser().merge(line, builder);
+                    return (Msg)builder.build();
+                } catch (InvalidProtocolBufferException e) {
+                    throw new IllegalArgumentException("Exception parsing JSON file.", e);
+                }
+            });
+        }
     }
 }

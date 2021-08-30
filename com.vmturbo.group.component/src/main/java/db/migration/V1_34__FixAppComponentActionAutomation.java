@@ -38,7 +38,8 @@ public class V1_34__FixAppComponentActionAutomation extends BaseJdbcMigration {
                 ConfigurableActionSettings.Resize.getSettingName(),
                 EntityType.APPLICATION_COMPONENT.getNumber(),
                 SettingPolicyPolicyType.user.getLiteral());
-        try (ResultSet resultSet = connection.createStatement().executeQuery(selectQuery)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(selectQuery)) {
             while (resultSet.next()) {
                 final long id = resultSet.getLong("policy_id");
                 final String value = resultSet.getString("setting_value");

@@ -2,12 +2,14 @@ package com.vmturbo.auth.component.licensing.store;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -99,9 +101,8 @@ public class LicenseLocalStore implements ILicenseStore {
         Path licensePath = Paths.get(getLicenseFileDirectory() + File.separator);
 
         if (Files.exists(licensePath)) {
-            try {
-                return Files.walk(licensePath)
-                        .filter(path -> {
+            try (Stream<Path> stream = Files.walk(licensePath)) {
+                return stream.filter(path -> {
                             String filename = path.getFileName().toString();
                             return (filename.startsWith(VMT_LICENSE_FILE_PREFIX)
                                     && filename.endsWith(VMT_LICENSE_FILE_SUFFIX));
@@ -111,7 +112,7 @@ public class LicenseLocalStore implements ILicenseStore {
                                 return this.readLicenseFile(path);
                             } catch (IOException e) {
                                 // throw as RTE so we can catch outside the lambda.
-                                throw new RuntimeException(e);
+                                throw new UncheckedIOException(e);
                             }
                         })
                         .collect(Collectors.toList());

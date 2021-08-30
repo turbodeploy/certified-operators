@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -36,29 +37,32 @@ public class V1_20__RemoveVmResizeSetting implements JdbcMigration, MigrationChe
         boolean autoCommit = connection.getAutoCommit();
         try {
             connection.setAutoCommit(false);
-            final ResultSet rs = connection.createStatement()
-                    .executeQuery("SELECT id, setting_policy_data "
-                            + "FROM setting_policy WHERE policy_type = 'user' or name = "
-                            + virtualMachineDefaults);
-            while (rs.next()) {
-                final long oid = rs.getLong("id");
-                final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
-                SettingPolicyInfo settingPolicyInfo =
-                    SettingPolicyInfo.parseFrom(settingPolicyDataBin);
-                if (settingPolicyInfo.hasEntityType() && settingPolicyInfo.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    List<Setting> filteredSettings = settingPolicyInfo.getSettingsList()
-                        .stream()
-                        .filter(setting -> !setting.getSettingSpecName().equals("resize"))
-                        .collect(Collectors.toList());
-                    SettingPolicyInfo updatedSettingPolicyInfo =
-                        settingPolicyInfo.toBuilder().clearSettings().addAllSettings(filteredSettings).build();
+            try (Statement statement = connection.createStatement();
+                 ResultSet rs = statement
+                         .executeQuery("SELECT id, setting_policy_data "
+                                 + "FROM setting_policy WHERE policy_type = 'user' or name = "
+                                 + virtualMachineDefaults)) {
+                while (rs.next()) {
+                    final long oid = rs.getLong("id");
+                    final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
+                    SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.parseFrom(
+                            settingPolicyDataBin);
+                    if (settingPolicyInfo.hasEntityType() && settingPolicyInfo.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        List<Setting> filteredSettings =
+                                settingPolicyInfo.getSettingsList().stream().filter(setting -> !setting.getSettingSpecName()
+                                        .equals("resize")).collect(Collectors.toList());
+                        SettingPolicyInfo updatedSettingPolicyInfo =
+                                settingPolicyInfo.toBuilder().clearSettings().addAllSettings(
+                                        filteredSettings).build();
 
-                    final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
-                    stmt.setBytes(1, updatedSettingPolicyInfo.toByteArray());
-                    stmt.setLong(2, oid);
-                    stmt.addBatch();
-                    stmt.executeBatch();
+                        try (PreparedStatement stmt = connection.prepareStatement(
+                                "UPDATE setting_policy SET setting_policy_data=? WHERE id=?")) {
+                            stmt.setBytes(1, updatedSettingPolicyInfo.toByteArray());
+                            stmt.setLong(2, oid);
+                            stmt.addBatch();
+                            stmt.executeBatch();
+                        }
+                    }
                 }
             }
         } catch (InvalidProtocolBufferException | SQLException e) {

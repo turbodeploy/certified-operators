@@ -6,10 +6,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
+import org.jooq.Record6;
 import org.jooq.Schema;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
@@ -84,13 +86,18 @@ public class MariaMysqlSizeAdapter extends DbSizeAdapter {
      * @return SizeInfo objects organized by table
      */
     private Map<String, List<SizeInfo>> loadPartitionInfo() {
-        return dsl.select(TABLE_NAME_FIELD, PARTITION_NAME_FIELD, DATA_LENGTH_FIELD, INDEX_LENGTH_FIELD, DATA_FREE_FIELD, TABLE_ROWS_FIELD)
+        try (Stream<Record6<String, String, Long, Long, Long, Long>> stream = dsl.select(
+                    TABLE_NAME_FIELD, PARTITION_NAME_FIELD, DATA_LENGTH_FIELD, INDEX_LENGTH_FIELD,
+                    DATA_FREE_FIELD, TABLE_ROWS_FIELD)
                 .from(PARTITIONS_TABLE)
                 .where(TABLE_SCHEMA_FIELD.eq(schema.getName()))
                 .orderBy(TABLE_NAME_FIELD, PARTITION_ORDINAL_POSITION_FIELD)
-                .stream()
-                .map(r -> new SizeInfo(r.value1(), r.value2(), r.value3(), r.value4(), r.value5(), r.value6()))
-                .collect(Collectors.groupingBy(sizeInfo -> sizeInfo.tableName));
+                .stream()) {
+            return stream
+                    .map(r -> new SizeInfo(
+                            r.value1(), r.value2(), r.value3(), r.value4(), r.value5(), r.value6()))
+                    .collect(Collectors.groupingBy(sizeInfo -> sizeInfo.tableName));
+        }
     }
 
     private SizeItem formatSizeItem(final Integer itemNo, final String itemName,

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -35,6 +36,7 @@ import it.unimi.dsi.fastutil.ints.IntSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -224,13 +226,14 @@ public class EntityHashManager {
      */
     private void restoreEntityState() {
         priorHashes.clear();
-        dsl.select(ENTITY.OID)
-                .from(ENTITY)
-                .where(ENTITY.LAST_SEEN.eq(MAX_TIMESTAMP))
-                .stream()
-                .mapToLong(r -> r.getValue(0, Long.class))
-                .forEach(oid -> priorHashes.put(oidPack.toIndex(oid), 0L));
-        logger.info("Retrived oids of {} entities present in the last topology prior to restart",
+        try (Stream<Record1<Long>> stream = dsl.select(ENTITY.OID)
+                     .from(ENTITY)
+                     .where(ENTITY.LAST_SEEN.eq(MAX_TIMESTAMP))
+                     .stream()) {
+            stream.mapToLong(r -> r.getValue(0, Long.class))
+                    .forEach(oid -> priorHashes.put(oidPack.toIndex(oid), 0L));
+        }
+        logger.info("Retrieved oids of {} entities present in the last topology prior to restart",
                 priorHashes.size());
     }
 

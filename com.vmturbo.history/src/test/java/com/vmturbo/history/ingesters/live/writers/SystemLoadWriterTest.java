@@ -587,7 +587,9 @@ public class SystemLoadWriterTest {
                 .findFirst();
         if (transTableName.isPresent()) {
             final Table<Record> transTable = DSL.table(transTableName.get());
-            final List<SystemLoadRecord> recordsStream = dsl.selectFrom(transTable).stream()
+            final List<SystemLoadRecord> recordsStream = dsl.selectFrom(transTable)
+                    .fetch()
+                    .stream()
                     .map(r -> r.into(SystemLoadRecord.class))
                     .filter(r -> r.getSnapshotTime().equals(Timestamp.from(Instant.parse(time))))
                     .filter(r -> r.getSlice().equals(Long.toString(clusterId)))
@@ -710,7 +712,9 @@ public class SystemLoadWriterTest {
      */
     private List<SystemLoadRecord> getUtilizationRecords(String time, long clusterId) {
         Timestamp timestamp = Timestamp.from(Instant.parse(time));
-        return dsl.selectFrom(SYSTEM_LOAD).stream()
+        return dsl.selectFrom(SYSTEM_LOAD)
+                .fetch()
+                .stream()
                 .filter(r -> r.getSnapshotTime().equals(timestamp))
                 .filter(r -> r.getSlice().equals(Long.toString(clusterId)))
                 .filter(r -> r.getPropertyType().equals(StringConstants.SYSTEM_LOAD))

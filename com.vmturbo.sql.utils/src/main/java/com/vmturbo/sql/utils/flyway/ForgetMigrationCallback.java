@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils.flyway;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 /**
  * This class implements a Flyway Callback that removes the record for a given migration version
@@ -30,9 +31,14 @@ public class ForgetMigrationCallback extends PreValidationMigrationCallbackBase 
 
     @Override
     protected void performCallback(final Connection connection) throws SQLException {
-        connection.createStatement().executeUpdate(String.format(
+        // Do not copy this code! It is susceptible to SQL injection. Unfortunately, it cannot
+        // be converted to a PreparedStatement in a straight forward way because PreparedStatements
+        // do not support placeholders for tables or column names.
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate(String.format(
                 "DELETE FROM %s WHERE version='%s'",
                 getMigrationTableName(), migrationVersionToForget));
+        }
     }
 
     /**
@@ -47,9 +53,14 @@ public class ForgetMigrationCallback extends PreValidationMigrationCallbackBase 
      */
     @Override
     protected boolean isCallbackNeeded(final Connection connection) throws SQLException {
+        // Do not copy this code! It is susceptible to SQL injection. Unfortunately, it cannot
+        // be converted to a PreparedStatement in a straight forward way because PreparedStatements
+        // do not support placeholders for tables or column names.
         final String sql = String.format("SELECT 1 FROM %s WHERE version = '%s'",
                 getMigrationTableName(), migrationVersionToForget);
-        return connection.createStatement().executeQuery(sql).next();
+        try (Statement statement = connection.createStatement()) {
+            return statement.executeQuery(sql).next();
+        }
     }
 
     @Override

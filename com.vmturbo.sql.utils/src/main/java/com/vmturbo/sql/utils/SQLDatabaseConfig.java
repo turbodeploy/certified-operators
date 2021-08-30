@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -378,8 +379,10 @@ public abstract class SQLDatabaseConfig {
     protected void createDatabase(
             @Nonnull final Connection connection, @Nonnull final String schemaName) throws SQLException {
         logger.info("Ensuring that database {} exists", schemaName);
-        connection.createStatement()
+        try (Statement statement = connection.createStatement()) {
+            statement
                 .execute(String.format("CREATE DATABASE IF NOT EXISTS `%s`", schemaName));
+        }
     }
 
     protected void grantDbPrivileges(@Nonnull final String schemaName,
@@ -389,12 +392,18 @@ public abstract class SQLDatabaseConfig {
         logger.info("Removing {} db user if it exists.", requestUser);
         dropDbUser(rootConnection, requestUser);
         logger.info("Creating {} db user.", requestUser);
-        rootConnection.createStatement().execute(
+        try (Statement statement = rootConnection.createStatement()) {
+            statement.execute(
                 String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, dbPassword));
+        }
         logger.info("Granting ALL privileges for database {} to user {}.", schemaName, requestUser);
-        rootConnection.createStatement().execute(
-                String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", schemaName, requestUser));
-        rootConnection.createStatement().execute("FLUSH PRIVILEGES");
+        try (Statement statement = rootConnection.createStatement()) {
+            statement.execute(
+                    String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", schemaName, requestUser));
+        }
+        try (Statement statement = rootConnection.createStatement()) {
+            statement.execute("FLUSH PRIVILEGES");
+        }
     }
 
     /**
@@ -414,10 +423,12 @@ public abstract class SQLDatabaseConfig {
 
         try {
             dropDbUser(rootConnection, turboTestUser);
-            rootConnection.createStatement()
+            try (Statement statement = rootConnection.createStatement()) {
+                statement
                     .execute(
                             String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s IDENTIFIED BY '%s'",
                                     schemaName, turboTestUser, rootPass));
+            }
             dropDbUser(rootConnection, turboTestUser);
             return true;
         } catch (SQLException e) {
@@ -428,8 +439,8 @@ public abstract class SQLDatabaseConfig {
     }
 
     private static void dropDbUser(@Nonnull final Connection rootConnection, @Nonnull final String user) {
-        try {
-            rootConnection.createStatement().execute(
+        try (Statement statement = rootConnection.createStatement()) {
+            statement.execute(
                     // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
                     String.format("DROP USER %s", user));
         } catch (SQLException e) {

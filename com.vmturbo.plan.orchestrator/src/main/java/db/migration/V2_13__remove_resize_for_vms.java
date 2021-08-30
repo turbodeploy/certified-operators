@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -58,11 +59,10 @@ public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChe
     @Override
     public void migrate(final Connection connection) throws Exception {
         connection.setAutoCommit(false);
-        ResultSet rs;
         List<Long> failedScenarioIds = new ArrayList<>();
-        try {
-            rs = connection.createStatement()
-                .executeQuery("SELECT id, scenario_info FROM scenario");
+        try (Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery(
+                        "SELECT id, scenario_info FROM scenario")) {
             Map<Long, ScenarioInfo> scenarioIdToInfo = new HashMap<>();
             long scenarioId = 0;
             while (rs.next()) {
@@ -89,12 +89,13 @@ public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChe
                         scenarioInfo =
                             scenarioInfo.toBuilder().clearChanges().addAllChanges(newScenarioChanges).build();
                         scenarioIdToInfo.put(scenarioId, scenarioInfo);
-                        final PreparedStatement stmt = connection.prepareStatement(
-                            "UPDATE scenario SET scenario_info=? WHERE id=?");
-                        stmt.setBytes(1, scenarioInfo.toByteArray());
-                        stmt.setLong(2, scenarioId);
-                        stmt.addBatch();
-                        stmt.executeBatch();
+                        try (final PreparedStatement stmt = connection.prepareStatement(
+                                "UPDATE scenario SET scenario_info=? WHERE id=?")) {
+                            stmt.setBytes(1, scenarioInfo.toByteArray());
+                            stmt.setLong(2, scenarioId);
+                            stmt.addBatch();
+                            stmt.executeBatch();
+                        }
                     }
                     updatePlanInstanceTable(connection, scenarioIdToInfo);
                 } catch (InvalidProtocolBufferException | SQLException e) {
@@ -181,29 +182,32 @@ public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChe
 
     private void updatePlanInstanceTable(final Connection connection, Map<Long, ScenarioInfo> scenarioIdToInfo) throws SQLException,
         InvalidProtocolBufferException {
-        final ResultSet planResults = connection.createStatement()
-            .executeQuery("SELECT id, plan_instance FROM plan_instance");
-        while (planResults.next()) {
-            final long planId = planResults.getLong("id");
-            final byte[] planInstanceBinary = planResults.getBytes("plan_instance");
-            PlanInstance planInstance = PlanInstance.parseFrom(planInstanceBinary);
-            if (planInstance.hasScenario() && scenarioIdToInfo.containsKey(planInstance.getScenario().getId())) {
-                Long oid = planInstance.getScenario().getId();
-                Scenario newScenario =
-                    Scenario.newBuilder()
-                        .setId(planInstance.getScenario().getId())
-                        .setScenarioInfo(scenarioIdToInfo.get(oid))
-                        .build();
-                planInstance = planInstance
-                    .toBuilder()
-                    .clearScenario()
-                    .setScenario(newScenario).build();
-                final PreparedStatement stmt = connection.prepareStatement(
-                    "UPDATE plan_instance SET plan_instance=? WHERE id=?");
-                stmt.setBytes(1, planInstance.toByteArray());
-                stmt.setLong(2, planId);
-                stmt.addBatch();
-                stmt.executeBatch();
+        try (final Statement statement = connection.createStatement();
+             final ResultSet planResults = statement
+                .executeQuery("SELECT id, plan_instance FROM plan_instance")) {
+            while (planResults.next()) {
+                final long planId = planResults.getLong("id");
+                final byte[] planInstanceBinary = planResults.getBytes("plan_instance");
+                PlanInstance planInstance = PlanInstance.parseFrom(planInstanceBinary);
+                if (planInstance.hasScenario() && scenarioIdToInfo.containsKey(planInstance.getScenario().getId())) {
+                    Long oid = planInstance.getScenario().getId();
+                    Scenario newScenario =
+                        Scenario.newBuilder()
+                            .setId(planInstance.getScenario().getId())
+                            .setScenarioInfo(scenarioIdToInfo.get(oid))
+                            .build();
+                    planInstance = planInstance
+                        .toBuilder()
+                        .clearScenario()
+                        .setScenario(newScenario).build();
+                    try (final PreparedStatement stmt = connection.prepareStatement(
+                        "UPDATE plan_instance SET plan_instance=? WHERE id=?")) {
+                        stmt.setBytes(1, planInstance.toByteArray());
+                        stmt.setLong(2, planId);
+                        stmt.addBatch();
+                        stmt.executeBatch();
+                    }
+                }
             }
         }
     }

@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -60,31 +61,26 @@ public class V1_18__MigrateSchedules implements JdbcMigration {
     @Override
     public void migrate(final Connection connection) throws Exception {
         connection.setAutoCommit(false);
-        PreparedStatement schedulePrepStmt = null;
-        PreparedStatement settingPolicySchedMappingStmt = null;
         try {
-            schedulePrepStmt = connection.prepareStatement(INSERT_SCHEDULE_SQL);
-            settingPolicySchedMappingStmt = connection.prepareStatement(INSERT_SETTING_POLICY_SCHEDULE);
-            final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data FROM setting_policy");
-            while (rs.next()) {
-                parseScheduleInfo(schedulePrepStmt, settingPolicySchedMappingStmt,
-                    rs.getLong("id"), rs.getBytes("setting_policy_data"));
+            try (PreparedStatement schedulePrepStmt =
+                        connection.prepareStatement(INSERT_SCHEDULE_SQL);
+                    PreparedStatement settingPolicySchedMappingStmt =
+                            connection.prepareStatement(INSERT_SETTING_POLICY_SCHEDULE);
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement
+                         .executeQuery("SELECT id, setting_policy_data FROM setting_policy")) {
+                while (rs.next()) {
+                    parseScheduleInfo(schedulePrepStmt, settingPolicySchedMappingStmt,
+                            rs.getLong("id"), rs.getBytes("setting_policy_data"));
+                }
+                schedulePrepStmt.executeBatch();
+                settingPolicySchedMappingStmt.executeBatch();
+                connection.commit();
             }
-            schedulePrepStmt.executeBatch();
-            settingPolicySchedMappingStmt.executeBatch();
-            connection.commit();
         } catch (InvalidProtocolBufferException | SQLException e) {
             logger.warn("Failure executing schedule migration", e);
             connection.rollback();
             throw e;
-        } finally {
-            try {
-                schedulePrepStmt.close();
-                settingPolicySchedMappingStmt.close();
-            } catch (SQLException sqle) {
-                logger.warn("Exception caught while trying to close prepared statements", sqle);
-            }
         }
         connection.setAutoCommit(true);
     }

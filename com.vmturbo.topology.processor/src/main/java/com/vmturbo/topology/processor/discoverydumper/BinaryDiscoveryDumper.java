@@ -145,14 +145,14 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
             for (File file : files) {
                 ZipEntry ze = new ZipEntry(diagsDirectoryPath + file.getName());
                 zipStream.putNextEntry(ze);
-                FileInputStream fis = new FileInputStream(file);
-                int length;
-                byte[] buffer = new byte[WRITE_CHUNK_SIZE];
-                while ((length = fis.read(buffer)) > 0) {
-                    zipStream.write(buffer, 0, length);
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    int length;
+                    byte[] buffer = new byte[WRITE_CHUNK_SIZE];
+                    while ((length = fis.read(buffer)) > 0) {
+                        zipStream.write(buffer, 0, length);
+                    }
+                    zipStream.closeEntry();
                 }
-                zipStream.closeEntry();
-                fis.close();
             }
             zipStream.closeEntry();
         } catch (IOException e) {
@@ -171,7 +171,8 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
 
         logger.debug("Absolute path for text dump file: {}", dtoFile::getAbsolutePath);
 
-        try (OutputStream os = new LZ4FrameOutputStream(new FileOutputStream(dtoFile))) {
+        try (FileOutputStream fos = new FileOutputStream(dtoFile);
+                OutputStream os = new LZ4FrameOutputStream(fos)) {
             os.write(discoveryResponse.toByteArray());
             logger.trace("Successfully saved text discovery response");
         } catch (IOException e) {
@@ -267,23 +268,22 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
     }
 
     private byte[] readCompressedFile(File file) throws IOException {
-        LZ4FrameInputStream gis = new LZ4FrameInputStream(new FileInputStream(file));
-        ByteArrayOutputStream fos = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int len;
-        try {
-            while ((len = gis.read(buffer)) != -1) {
-                fos.write(buffer, 0, len);
+        try (FileInputStream fis = new FileInputStream(file);
+                LZ4FrameInputStream gis = new LZ4FrameInputStream(fis);
+                ByteArrayOutputStream fos = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int len;
+            try {
+                while ((len = gis.read(buffer)) != -1) {
+                    fos.write(buffer, 0, len);
+                }
+            } catch (NullPointerException e) {
+                // LZ4FrameInputStream::read seems to throw an NPE if the file is empty
+                throw new IOException("Encountered NullPointerException while reading file "
+                        + file.getName() + ". This can happen if the file is empty.");
             }
-        } catch (NullPointerException e) {
-            // LZ4FrameInputStream::read seems to throw an NPE if the file is empty
-            throw new IOException("Encountered NullPointerException while reading file "
-                    + file.getName());
-        } finally {
-            fos.close();
-            gis.close();
+            return fos.toByteArray();
         }
-        return fos.toByteArray();
     }
 
     private void removeFile(@Nonnull DiscoveryDumpFilename ddf) {

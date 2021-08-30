@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -38,31 +39,34 @@ public class V1_22__ChangeVStorageIncrementDefault implements JdbcMigration, Mig
         boolean autoCommit = connection.getAutoCommit();
         try {
             connection.setAutoCommit(false);
-            final ResultSet rs = connection.createStatement()
-                    .executeQuery("SELECT id, setting_policy_data "
-                            + "FROM setting_policy WHERE policy_type = 'default' and entity_type = "
-                            + EntityType.VIRTUAL_MACHINE_VALUE);
-            while (rs.next()) {
-                final long oid = rs.getLong("id");
-                final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
-                SettingPolicyInfo.Builder settingPolicyInfo =
-                    SettingPolicyInfo.parseFrom(settingPolicyDataBin).toBuilder();
-                if (settingPolicyInfo.hasEntityType() && settingPolicyInfo.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    Optional<Setting.Builder> vStorageIncrement = settingPolicyInfo.getSettingsBuilderList()
-                        .stream()
-                        .filter(setting -> setting.getSettingSpecName().equals(EntitySettingSpecs.VstorageIncrement.getSettingName()))
-                        .findFirst();
-                    if (vStorageIncrement.isPresent()
-                        && vStorageIncrement.get().hasNumericSettingValue()
-                        && Math.abs(vStorageIncrement.get().getNumericSettingValue().getValue() - DEFAULT_VALUE_OLD) < 0.0001) {
-                        vStorageIncrement.get().getNumericSettingValueBuilder().setValue(DEFAULT_VALUE_NEW);
-                        final PreparedStatement stmt = connection.prepareStatement(
-                            "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
-                        stmt.setBytes(1, settingPolicyInfo.build().toByteArray());
-                        stmt.setLong(2, oid);
-                        stmt.addBatch();
-                        stmt.executeBatch();
-                        logger.info("Successfully updated default value of VStorage Increment in Virtual Machine defaults");
+            try (Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT id, setting_policy_data "
+                                + "FROM setting_policy WHERE policy_type = 'default' and entity_type = "
+                                + EntityType.VIRTUAL_MACHINE_VALUE)) {
+                while (rs.next()) {
+                    final long oid = rs.getLong("id");
+                    final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
+                    SettingPolicyInfo.Builder settingPolicyInfo =
+                        SettingPolicyInfo.parseFrom(settingPolicyDataBin).toBuilder();
+                    if (settingPolicyInfo.hasEntityType()
+                            && settingPolicyInfo.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        Optional<Setting.Builder> vStorageIncrement = settingPolicyInfo.getSettingsBuilderList()
+                            .stream()
+                            .filter(setting -> setting.getSettingSpecName().equals(EntitySettingSpecs.VstorageIncrement.getSettingName()))
+                            .findFirst();
+                        if (vStorageIncrement.isPresent()
+                            && vStorageIncrement.get().hasNumericSettingValue()
+                            && Math.abs(vStorageIncrement.get().getNumericSettingValue().getValue() - DEFAULT_VALUE_OLD) < 0.0001) {
+                            vStorageIncrement.get().getNumericSettingValueBuilder().setValue(DEFAULT_VALUE_NEW);
+                            try (PreparedStatement stmt =
+                                    connection.prepareStatement("UPDATE setting_policy SET setting_policy_data=? WHERE id=?")) {
+                                stmt.setBytes(1, settingPolicyInfo.build().toByteArray());
+                                stmt.setLong(2, oid);
+                                stmt.addBatch();
+                                stmt.executeBatch();
+                                logger.info("Successfully updated default value of VStorage Increment in Virtual Machine defaults");
+                            }
+                        }
                     }
                 }
             }

@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Map;
@@ -110,39 +111,43 @@ public class V1_14__MigrateDataToNewGroups extends BaseJdbcMigration
             throws SQLException, InvalidProtocolBufferException {
         connection.setAutoCommit(false);
         try {
-            final ResultSet rs = connection.createStatement()
-                    .executeQuery("SELECT id, group_data, type FROM grouping");
-            while (rs.next()) {
-                final long oid = rs.getLong("id");
-                final byte[] groupData = rs.getBytes("group_data");
-                final int groupType = rs.getInt("type");
-                if (groupType == Type.GROUP.getNumber()) {
-                    parseGroupInfo(connection, oid, groupData);
-                } else if (groupType == Type.CLUSTER.getNumber()) {
-                    parseClusterInfo(connection, oid, groupData);
-                } else if (groupType == Type.NESTED_GROUP.getNumber()) {
-                    parseNestedInfo(connection, oid, groupData);
+            try (Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery(
+                            "SELECT id, group_data, type FROM grouping")) {
+                while (rs.next()) {
+                    final long oid = rs.getLong("id");
+                    final byte[] groupData = rs.getBytes("group_data");
+                    final int groupType = rs.getInt("type");
+                    if (groupType == Type.GROUP.getNumber()) {
+                        parseGroupInfo(connection, oid, groupData);
+                    } else if (groupType == Type.CLUSTER.getNumber()) {
+                        parseClusterInfo(connection, oid, groupData);
+                    } else if (groupType == Type.NESTED_GROUP.getNumber()) {
+                        parseNestedInfo(connection, oid, groupData);
+                    }
                 }
             }
             // Fill in expected group types from static member groups. Expected types are
             // calculated here for user groups with static member groups. We determine expected
             // types based on real types of members.
-            connection.createStatement()
-                    .execute(
+            try (Statement statement = connection.createStatement()) {
+                statement.execute(
                             "INSERT INTO group_expected_members_groups (group_id, group_type, direct_member) "
                                     + "SELECT DISTINCT gsg.parent_group_id, child.group_type, true"
                                     + "   FROM group_static_members_groups gsg"
                                     + "     LEFT JOIN grouping child ON (gsg.child_group_id = child.id)"
                                     + "     LEFT JOIN grouping parent ON (gsg.parent_group_id = parent.id)"
                                     + "   WHERE parent.origin_discovered_src_id IS NULL");
+            }
             // Resolve transitive expected entity member types for nested groups - i.e. groups of groups
-            connection.createStatement()
-                    .execute(
+            try (Statement statement = connection.createStatement()) {
+                statement.execute(
                             "INSERT INTO group_expected_members_entities (group_id, entity_type, direct_member) "
                                     + "SELECT DISTINCT parent.id, sm.entity_type, false"
                                     + "  FROM grouping parent JOIN group_static_members_groups gsg ON (parent.id = gsg.parent_group_id)"
                                     + "    JOIN group_static_members_entities sm ON (sm.group_id = gsg.child_group_id) "
                                     + "  WHERE parent.origin_discovered_src_id IS NULL");
+            }
             connection.commit();
         } catch (InvalidProtocolBufferException | SQLException e) {
             logger.warn("Failed performing migration", e);

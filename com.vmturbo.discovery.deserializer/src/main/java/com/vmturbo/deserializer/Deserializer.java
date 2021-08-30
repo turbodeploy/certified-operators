@@ -72,16 +72,17 @@ public class Deserializer {
     }
 
     private static byte[] readCompressedFile(File file) throws IOException {
-        LZ4FrameInputStream gis = new LZ4FrameInputStream(new FileInputStream(file));
-        ByteArrayOutputStream fos = new ByteArrayOutputStream();
-        byte[] buffer = new byte[1024];
-        int len;
-        while ((len = gis.read(buffer)) != -1) {
-            fos.write(buffer, 0, len);
+        try (FileInputStream fis = new FileInputStream(file);
+             LZ4FrameInputStream gis = new LZ4FrameInputStream(fis);
+             ByteArrayOutputStream fos = new ByteArrayOutputStream()
+        ) {
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = gis.read(buffer)) != -1) {
+                fos.write(buffer, 0, len);
+            }
+            return fos.toByteArray();
         }
-        fos.close();
-        gis.close();
-        return fos.toByteArray();
     }
 
 }

@@ -75,35 +75,39 @@ public class AlertMetricId {
     public static AlertMetricId fromString(@Nonnull final String alertMetricString)
             throws IllegalArgumentException{
         final MetricWithSla metricWithSla = new MetricWithSla(alertMetricString);
-        final Scanner scanner = new Scanner(metricWithSla.getMetricNameAndTags());
-        final ImmutableMap.Builder<String, String> kvBuilder = ImmutableMap.builder();
+        try (final Scanner scanner = new Scanner(metricWithSla.getMetricNameAndTags())) {
+            final ImmutableMap.Builder<String, String> kvBuilder = ImmutableMap.builder();
 
-        // Get the sample name if the sample has a label.
-        String sampleName = scanner.findInLine(METRIC_W_LABEL_PATTERN);
-        if (sampleName == null) {
-            // If the sample does not have a label, then the entire token is the name.
-            sampleName = scanner.next();
-        } else {
-            final String labels = scanner.findInLine(LABELS_PATTERN);
-            if (labels == null) {
-                throw new IllegalArgumentException("Invalid labels string: " + alertMetricString
-                        + ". Format is: metricName{name1='val',name2='val2'...}");
-            }
-            final Scanner labelScanner = new Scanner(labels);
-            while (labelScanner.hasNext()) {
-                final String key = StringUtils.strip(labelScanner.findInLine(LABEL_KEY_PATTERN));
-                final String val = StringUtils.strip(labelScanner.findInLine(LABEL_VALUE_PATTERN));
-                if (key == null || val == null) {
-                    throw new IllegalArgumentException("Badly formatted label " + alertMetricString + ". " +
-                            "Format is: metricName{name1='val',name2='val2'...}");
+            // Get the sample name if the sample has a label.
+            String sampleName = scanner.findInLine(METRIC_W_LABEL_PATTERN);
+            if (sampleName == null) {
+                // If the sample does not have a label, then the entire token is the name.
+                sampleName = scanner.next();
+            } else {
+                final String labels = scanner.findInLine(LABELS_PATTERN);
+                if (labels == null) {
+                    throw new IllegalArgumentException("Invalid labels string: " + alertMetricString
+                            + ". Format is: metricName{name1='val',name2='val2'...}");
                 }
-                kvBuilder.put(key, val);
-                // Move the scanner to the beginning of the next label.
-                labelScanner.findInLine(LABEL_SEP_PATTERN);
+                try (final Scanner labelScanner = new Scanner(labels)) {
+                    while (labelScanner.hasNext()) {
+                        final String key = StringUtils.strip(
+                                labelScanner.findInLine(LABEL_KEY_PATTERN));
+                        final String val = StringUtils.strip(
+                                labelScanner.findInLine(LABEL_VALUE_PATTERN));
+                        if (key == null || val == null) {
+                            throw new IllegalArgumentException(
+                                    "Badly formatted label " + alertMetricString
+                                        + ". Format is: metricName{name1='val',name2='val2'...}");
+                        }
+                        kvBuilder.put(key, val);
+                        // Move the scanner to the beginning of the next label.
+                        labelScanner.findInLine(LABEL_SEP_PATTERN);
+                    }
+                }
             }
+            return new AlertMetricId(sampleName, kvBuilder.build(), metricWithSla.getSlaThreshold());
         }
-
-        return new AlertMetricId(sampleName, kvBuilder.build(), metricWithSla.getSlaThreshold());
     }
 
     public Optional<SlaThreshold> getSlaThreshold() {

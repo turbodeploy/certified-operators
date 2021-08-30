@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -323,23 +324,30 @@ public class PostgresAdapter extends DbAdapter {
             // do it in a transaction
             conn.setAutoCommit(false);
             // first drop previous policy if it exists
-            conn.createStatement().execute(String.format(
+            try (Statement statement = conn.createStatement()) {
+                statement.execute(String.format(
                     "SELECT remove_retention_policy('%s', if_exists => true)", table));
-            // create new retention policy and get its background job id
-            ResultSet resultSet = conn.createStatement().executeQuery(String.format(
-                    "SELECT add_retention_policy('%s', INTERVAL '%d %s')",
-                    table, retentionPeriod, timeUnit));
-            if (!resultSet.next()) {
-                logger.error("Unable to create retention policy for table \"{}\" with period \"{} {}\"",
-                        table, retentionPeriod, timeUnit);
-                return;
             }
+            // create new retention policy and get its background job id
+            final int jobId;
+            try (Statement statement = conn.createStatement();
+                 ResultSet resultSet = statement.executeQuery(String.format(
+                    "SELECT add_retention_policy('%s', INTERVAL '%d %s')",
+                    table, retentionPeriod, timeUnit))) {
+                if (!resultSet.next()) {
+                    logger.error("Unable to create retention policy for table \"{}\" with period \"{} {}\"",
+                            table, retentionPeriod, timeUnit);
+                    return;
+                }
 
-            final int jobId = resultSet.getInt("add_retention_policy");
+                jobId = resultSet.getInt("add_retention_policy");
+            }
             // set the retention job to run every day, starting from next midnight
-            conn.createStatement().execute(String.format("SELECT alter_job(%d, "
+            try (Statement statement = conn.createStatement()) {
+                statement.execute(String.format("SELECT alter_job(%d, "
                     + "schedule_interval => INTERVAL '1 days', "
                     + "next_start => date_trunc('DAY', now()) + INTERVAL '1 day');", jobId));
+            }
             conn.commit();
             logger.info("Created retention policy for table \"{}\" with period \"{} {}\"", table,
                     retentionPeriod, timeUnit);
@@ -358,15 +366,17 @@ public class PostgresAdapter extends DbAdapter {
 
     @Override
     protected Collection<String> getAllTableNames(Connection conn) throws SQLException {
-        ResultSet results = conn.createStatement().executeQuery(String.format(
+        try (Statement statement = conn.createStatement();
+             ResultSet results = statement.executeQuery(String.format(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s' "
                         + "AND table_type = 'BASE TABLE' AND table_name != 'schema_version'",
-                config.getSchemaName()));
-        List<String> tables = new ArrayList<>();
-        while (results.next()) {
-            tables.add(results.getString(1));
+                config.getSchemaName()))) {
+            List<String> tables = new ArrayList<>();
+            while (results.next()) {
+                tables.add(results.getString(1));
+            }
+            return tables;
         }
-        return tables;
     }
 
     @Override

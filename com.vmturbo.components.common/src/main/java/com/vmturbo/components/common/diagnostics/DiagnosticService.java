@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -122,11 +123,12 @@ public class DiagnosticService {
                 return;
             }
             // After we've uploaded the information, delete the temporary files.
-            Files.walk(diagsDir)
-                 .sorted(Comparator.reverseOrder())
-                 .map(Path::toFile)
-                 .peek(s -> logger_.info("File/Directory {} is being deleted", s))
-                 .forEach(File::delete);
+            try (Stream<Path> stream = Files.walk(diagsDir)) {
+                stream.sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .peek(s -> logger_.debug("File/Directory {} is being deleted", s))
+                        .forEach(File::delete);
+            }
         } catch (IOException e) {
             logger_.error("Error zipping temp diag files", e);
             throw new DiagnosticsException(

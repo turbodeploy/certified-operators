@@ -169,18 +169,19 @@ public class TextParser {
             sampleName = scanner.next();
         } else {
             final String labels = scanner.findInLine(LABELS_PATTERN);
-            final Scanner labelScanner = new Scanner(labels);
-            while (labelScanner.hasNext()) {
-                final String key = labelScanner.findInLine(LABEL_KEY_PATTERN);
-                final String value = labelScanner.findInLine(LABEL_VALUE_PATTERN);
-                if (key == null || value == null) {
-                    throw new TextParseException("Badly formatted label for " +
-                            curMetricFamily.getName() + "!");
+            try (final Scanner labelScanner = new Scanner(labels)) {
+                while (labelScanner.hasNext()) {
+                    final String key = labelScanner.findInLine(LABEL_KEY_PATTERN);
+                    final String value = labelScanner.findInLine(LABEL_VALUE_PATTERN);
+                    if (key == null || value == null) {
+                        throw new TextParseException(
+                                "Badly formatted label for " + curMetricFamily.getName());
+                    }
+                    keys.add(key);
+                    vals.add(value);
+                    // Move the scanner to the beginning of the next label.
+                    labelScanner.findInLine(LABEL_SEP_PATTERN);
                 }
-                keys.add(key);
-                vals.add(value);
-                // Move the scanner to the beginning of the next label.
-                labelScanner.findInLine(LABEL_SEP_PATTERN);
             }
             // The labels pattern doesn't capture the trailing "}" (it uses lookahead), so we move
             // the scanner past it.

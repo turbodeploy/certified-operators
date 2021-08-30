@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +70,8 @@ public class V1_57__MigrateDynamicGroupsOfGroups extends BaseJdbcMigration
 
         // Populate corrupted dynamic groups of groups with related group filters
         final Map<Long, Blob> groupFiltersMap = new HashMap<>();
-        try (ResultSet result1 = connection.createStatement().executeQuery(
+        try (Statement statement = connection.createStatement();
+                ResultSet result1 = statement.executeQuery(
                 selectCorruptedDynamicGroupOfGroups)) {
             while (result1.next()) {
                 final Blob groupFiltersBlob = result1.getBlob("group_filters");
@@ -80,33 +82,34 @@ public class V1_57__MigrateDynamicGroupsOfGroups extends BaseJdbcMigration
 
         // Add related entries into "group_expected_members_groups" table for corrupted dynamic groups of groups
         int addedEntriesCount = 0;
-        final PreparedStatement insertGroupExpectedMembersGroupsEntriesStmt =
+        try (PreparedStatement insertGroupExpectedMembersGroupsEntriesStmt =
                 connection.prepareStatement(
-                        "INSERT INTO group_expected_members_groups (group_id, group_type, direct_member) VALUES (?,?,true)");
-        for (Entry<Long, Blob> entry: groupFiltersMap.entrySet()) {
-            final GroupFilters groupFilters = readGroupFilter(entry.getValue());
-            final Optional<GroupFilter> groupFilter =
-                    groupFilters.getGroupFilterList().stream().findFirst();
-            if (groupFilter.isPresent()) {
-                final GroupType groupType = groupFilter.get().getGroupType();
-                addMissedEntry(insertGroupExpectedMembersGroupsEntriesStmt,
-                        entry.getKey(), groupType);
-                addedEntriesCount++;
-            } else {
-                // shouldn't happen
-                logger.error("Failed to get group filter from group_filters blob for {} group",
-                        entry.getKey());
+                        "INSERT INTO group_expected_members_groups (group_id, group_type, direct_member) VALUES (?,?,true)")) {
+            for (Entry<Long, Blob> entry: groupFiltersMap.entrySet()) {
+                final GroupFilters groupFilters = readGroupFilter(entry.getValue());
+                final Optional<GroupFilter> groupFilter =
+                        groupFilters.getGroupFilterList().stream().findFirst();
+                if (groupFilter.isPresent()) {
+                    final GroupType groupType = groupFilter.get().getGroupType();
+                    addMissedEntry(insertGroupExpectedMembersGroupsEntriesStmt,
+                            entry.getKey(), groupType);
+                    addedEntriesCount++;
+                } else {
+                    // shouldn't happen
+                    logger.error("Failed to get group filter from group_filters blob for {} group",
+                            entry.getKey());
+                }
             }
-        }
 
-        // execute insertion of required entries if needed
-        if (addedEntriesCount != 0) {
-            insertGroupExpectedMembersGroupsEntriesStmt.executeBatch();
-            logger.info(
-                    "Successfully added missed entries into 'group_expected_members_groups' table for {} corrupted dynamic groups of groups.",
-                    addedEntriesCount);
-        } else {
-            logger.info("There are no corrupted dynamic groups of groups for migration.");
+            // execute insertion of required entries if needed
+            if (addedEntriesCount != 0) {
+                insertGroupExpectedMembersGroupsEntriesStmt.executeBatch();
+                logger.info(
+                        "Successfully added missed entries into 'group_expected_members_groups' table for {} corrupted dynamic groups of groups.",
+                        addedEntriesCount);
+            } else {
+                logger.info("There are no corrupted dynamic groups of groups for migration.");
+            }
         }
     }
 

@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
+import org.jooq.CreateTableColumnStep;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.InsertValuesStep5;
@@ -53,13 +54,15 @@ public class PersistingReporter extends DbSizeReporter {
     @Override
     public void processStart() {
         this.now = new Timestamp(System.currentTimeMillis());
-        dslSupplier.get().createTableIfNotExists(DB_SIZE_TABLE)
-                .column(TIME_FIELD, SQLDataType.TIMESTAMP(0))
+        try (CreateTableColumnStep tmpTbl = dslSupplier.get().createTableIfNotExists(DB_SIZE_TABLE)) {
+            tmpTbl.column(TIME_FIELD, SQLDataType.TIMESTAMP(0))
                 .column(TABLE_NAME_FIELD, SQLDataType.VARCHAR(50))
                 .column(GRANULARITY_FIELD, SQLDataType.VARCHAR(20))
                 .column(DESCRIPTION_FIELD, SQLDataType.VARCHAR(200))
                 .column(SIZE_FIELD, SQLDataType.BIGINT)
                 .execute();
+
+        }
     }
 
     @Override

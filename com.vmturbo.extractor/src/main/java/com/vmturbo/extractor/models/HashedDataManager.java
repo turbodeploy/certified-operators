@@ -139,7 +139,9 @@ public class HashedDataManager {
     }
 
     private LongSet loadHashesFromDatabase(DSLContext dsl) {
-        return dsl.select(jooqHashField).from(jooqTable)
+        return dsl.select(jooqHashField)
+                .from(jooqTable)
+                .fetch()
                 .stream()
                 .map(org.jooq.Record1::value1)
                 .filter(Objects::nonNull)

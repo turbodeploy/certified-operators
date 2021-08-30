@@ -4,6 +4,7 @@ import static org.jooq.impl.DSL.using;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -190,8 +191,10 @@ public class SchemaUtil {
             final String sql = String.format("SELECT host FROM mysql.user WHERE user='%s'", userName);
             final List<?> hosts = using(conn, SQLDialect.MARIADB).fetchValues(sql);
             for (final Object host : hosts) {
-                conn.createStatement().execute(String.format("DROP USER '%s'@'%s'",
+                try (Statement statement = conn.createStatement()) {
+                    statement.execute(String.format("DROP USER '%s'@'%s'",
                         userName, host));
+                }
                 logger.info("Dropped DB user '{}'@'{}'", userName, host);
             }
         } catch (SQLException e) {

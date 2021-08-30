@@ -3,6 +3,7 @@ package com.vmturbo.sql.utils.flyway;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -92,7 +93,8 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
      */
     protected boolean migrationsTableExists(final Connection connection) {
         String sql = String.format("SELECT 1 FROM %s LIMIT 1", getMigrationTableName());
-        try (ResultSet result = connection.createStatement().executeQuery(sql)) {
+        try (Statement statement = connection.createStatement();
+                ResultSet result = statement.executeQuery(sql)) {
             // if we got a result, the table exists
             return result.next();
         } catch (SQLException e) {
