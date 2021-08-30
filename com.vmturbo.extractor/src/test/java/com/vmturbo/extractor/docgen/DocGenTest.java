@@ -1,11 +1,9 @@
 package com.vmturbo.extractor.docgen;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyVararg;
 import static org.mockito.Mockito.doReturn;
@@ -25,7 +23,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.extractor.docgen.DocGen.CmdLine;
-import com.vmturbo.extractor.docgen.Section.RegisteredSection;
 
 /**
  * Test the {@link DocGen} class and its inner {@link CmdLine} class.
@@ -38,59 +35,28 @@ public class DocGenTest {
     @Test
     public void testCommandLineParser() {
         // -h or --help should activate the help option, takes no arg
-        CmdLine cmd = CmdLine.of(new String[]{"-h"});
+        CmdLine cmd = CmdLine.of("-h");
         assertThat(cmd.has(cmd.helpOption()), is(true));
-        cmd = CmdLine.of(new String[]{"--help"});
+        cmd = CmdLine.of("--help");
         assertThat(cmd.has(cmd.helpOption()), is(true));
+        assertThat(cmd.has(cmd.docTreeOption()), is(false));
+
         // --doc-tree is present in all further cases, since it's required when --help is not used
+        cmd = CmdLine.of("--doc-tree", "foo.yaml");
+        assertThat(cmd.has(cmd.docTreeOption()), is(true));
+        assertThat(cmd.has(cmd.helpOption()), is(false));
 
-        // --section option requires a following RegisteredSection name, nad may be repeated
-        // to specify multiple section, retaining order. If ommitted, default is all
-        // RegisteredSection values in ordinal order.
-        cmd = CmdLine.of(new String[]{"--section", "EntityTypeEnum", "--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.sectionOption()), is(true));
-        assertThat(cmd.hasArgument(cmd.sectionOption()), is(true));
-        assertThat(cmd.valuesOf(cmd.sectionOption()), contains(RegisteredSection.EntityTypeEnum));
-        cmd = CmdLine.of(new String[]{"--section", "EntityTypeEnum", "--section", "EntityTable", "--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.sectionOption()), is(true));
-        assertThat(cmd.hasArgument(cmd.sectionOption()), is(true));
-        assertThat(cmd.valuesOf(cmd.sectionOption()),
-                contains(RegisteredSection.EntityTypeEnum, RegisteredSection.EntityTable));
-        cmd = CmdLine.of(new String[]{"--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.sectionOption()), is(false));
-        assertThat(cmd.hasArgument(cmd.sectionOption()), is(false));
-        assertThat(cmd.valuesOf(cmd.sectionOption()), contains(RegisteredSection.values()));
-        assertThat(catchit(() -> CmdLine.of(new String[]{"--section", "--doc-tree", "foo.yaml"})), isA(OptionException.class));
-        assertThat(catchit(() -> CmdLine.of(new String[]{"--section", "EntityTable", "--section", "--doc-tree", "foo.yaml"})),
+        assertThat(catchit(() -> CmdLine.of("--section", "--doc-tree", "foo.yaml")), isA(OptionException.class));
+        assertThat(catchit(() -> CmdLine.of("--section", "EntityTable", "--section", "--doc-tree", "foo.yaml")),
                 isA(OptionException.class));
-
-        // --write-to option specifies a directory to hold generated files, requires a
-        // an argument specifying the path
-        cmd = CmdLine.of(new String[]{"--write-to", "/tmp/docgen-out", "--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.writeToOption()), is(true));
-        assertThat(cmd.hasArgument(cmd.writeToOption()), is(true));
-        assertThat(cmd.valueOf(cmd.writeToOption()), is(new File("/tmp/docgen-out")));
-        assertThat(catchit(() -> CmdLine.of(new String[]{"--write-to", "--doc-tree", "foo.yaml"})), isA(OptionException.class));
 
         // --doc-tree option specifies a file that holds doc snippets, requires an argument
         // specifying the file path
-        cmd = CmdLine.of(new String[]{"--doc-tree", "/a/b/c.yaml"});
+        cmd = CmdLine.of("--doc-tree", "/a/b/c.yaml");
         assertThat(cmd.has(cmd.docTreeOption()), is(true));
         assertThat((cmd.hasArgument(cmd.docTreeOption())), is(true));
         assertThat(cmd.valueOf(cmd.docTreeOption()), is(new File("/a/b/c.yaml")));
-        assertThat(catchit(() -> CmdLine.of(new String[]{"-doc-tree"})), isA(OptionException.class));
-
-        // --rewrite-tree argument causes an updated doc-tree to be written following generation,
-        // takes an optional arguemnet specifying file path (else overwrites path provided by
-        // --doc-tree)
-        cmd = CmdLine.of(new String[]{"--rewrite-tree", "--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.rewriteTreeOption()), is(true));
-        assertThat((cmd.hasArgument(cmd.rewriteTreeOption())), is(false));
-        assertThat(cmd.valueOf(cmd.rewriteTreeOption()), is(nullValue()));
-        cmd = CmdLine.of(new String[]{"--rewrite-tree", "/a/b/c.yaml", "--doc-tree", "foo.yaml"});
-        assertThat(cmd.has(cmd.rewriteTreeOption()), is(true));
-        assertThat((cmd.hasArgument(cmd.rewriteTreeOption())), is(true));
-        assertThat(cmd.valueOf(cmd.rewriteTreeOption()), is(new File("/a/b/c.yaml")));
+        assertThat(catchit(() -> CmdLine.of("-doc-tree")), isA(OptionException.class));
     }
 
     /**

@@ -8,6 +8,14 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 
+import com.vmturbo.extractor.schema.enums.ActionCategory;
+import com.vmturbo.extractor.schema.enums.ActionMode;
+import com.vmturbo.extractor.schema.enums.ActionState;
+import com.vmturbo.extractor.schema.enums.ActionType;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.Severity;
+import com.vmturbo.extractor.schema.json.common.Constants;
+
 /**
  * Class containing all the fields of an entity or action that need to be exported.
  * Note: Json property order is set to alphabetically to ensure all fields are in same order in
@@ -18,17 +26,24 @@ import com.google.common.base.MoreObjects;
 public class Action extends ExporterActionAttributes {
 
     private Long oid;
+    @ExporterField(format = Constants.TIMESTAMP_PATTERN)
     private String creationTime;
+    @ExporterField(valueEnum = ActionType.class)
     private String type;
+    @ExporterField(valueEnum = ActionState.class)
     private String state;
+    @ExporterField(valueEnum = ActionMode.class)
     private String mode;
+    @ExporterField(valueEnum = ActionCategory.class)
     private String category;
+    @ExporterField(valueEnum = Severity.class)
     private String severity;
     private String description;
     private String explanation;
     private CostAmount savings;
 
     // mapping from related entity type key to list of related entities
+    @ExporterField(mapKeyEnum = EntityType.class)
     private Map<String, List<RelatedEntity>> related;
 
     public Long getOid() {

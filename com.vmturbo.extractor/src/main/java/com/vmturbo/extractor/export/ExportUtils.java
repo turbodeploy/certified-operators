@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.json.common.Constants;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
@@ -40,14 +41,17 @@ public class ExportUtils {
     /**
      * The date format for time field in the exported object.
      */
-    private static final SimpleDateFormat dateFormat;
+    public static final SimpleDateFormat dateFormat;
 
     static {
-        dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        dateFormat = new SimpleDateFormat(Constants.TIMESTAMP_PATTERN);
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
-    private static final ObjectMapper objectMapper;
+    /**
+     * The ObjectMapper used for serialization and deserialization.
+     */
+    public static final ObjectMapper objectMapper;
 
     static {
         objectMapper = new ObjectMapper();

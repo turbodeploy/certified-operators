@@ -432,9 +432,9 @@ public class ActionConverter {
             final Action action = new Action();
             action.setOid(recommendation.getId());
             action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
-            action.setState(actionSpec.getActionState().name());
+            action.setState(extractActionState(actionSpec.getActionState()).getLiteral());
             action.setCategory(extractCategory(actionSpec).getLiteral());
-            action.setMode(actionSpec.getActionMode().name());
+            action.setMode(extractActionMode(actionSpec.getActionMode()).getLiteral());
             action.setDescription(actionSpec.getDescription());
             action.setSeverity(extractSeverity(actionSpec).getLiteral());
 

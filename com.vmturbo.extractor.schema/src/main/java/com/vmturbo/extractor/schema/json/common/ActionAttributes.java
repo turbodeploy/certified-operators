@@ -1,5 +1,7 @@
 package com.vmturbo.extractor.schema.json.common;
 
+import com.vmturbo.extractor.schema.json.export.ExporterField;
+
 /**
  * Common action attributes between reporting and exporter.
  */
@@ -10,11 +12,13 @@ public class ActionAttributes {
      *
      * <p/>For PROVISION, SCALE, and ACTIVATE we populate the before/after metrics on the target entity.
      */
+    @ExporterField(shared = true)
     private ActionImpactedEntity target;
-
     // info for delete action
+    @ExporterField(shared = true)
     private DeleteInfo deleteInfo;
     // info for buyRI action
+    @ExporterField(shared = true)
     private BuyRiInfo buyRiInfo;
 
     public DeleteInfo getDeleteInfo() {

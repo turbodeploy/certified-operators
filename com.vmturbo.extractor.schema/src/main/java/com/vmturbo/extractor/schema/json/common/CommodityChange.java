@@ -4,12 +4,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.json.export.ExporterField;
+
 /**
  * Describing the commodity change in resize action.
  */
 @JsonInclude(Include.NON_EMPTY)
 @JsonPropertyOrder(alphabetic = true)
 public class CommodityChange {
+    @ExporterField(valueEnum = MetricType.class)
     private String commodityType;
     private Float from;
     private Float to;
@@ -17,7 +21,6 @@ public class CommodityChange {
     private String attribute;
     // target is set for nested actions inside atomic resize, since it may be different from main target
     private ActionEntity target;
-
     private CommodityPercentileChange percentileChange;
 
     public Float getFrom() {

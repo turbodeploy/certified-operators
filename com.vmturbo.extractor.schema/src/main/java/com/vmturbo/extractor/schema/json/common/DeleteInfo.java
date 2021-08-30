@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
+import com.vmturbo.extractor.schema.json.export.ExporterField;
+
 /**
  * Describing the details in delete action.
  */
@@ -13,6 +15,7 @@ public class DeleteInfo {
     private Double fileSize;
     private String unit;
     private String filePath;
+    @ExporterField(format = Constants.TIMESTAMP_PATTERN)
     private String lastModifiedTimestamp;
     private Integer unattachedDays;
 
