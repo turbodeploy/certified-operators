@@ -138,7 +138,7 @@ public class AbstractBlobsPersistenceTaskTest {
         final BlobPersister persister = new BlobPersister(streamObserver, new Exception("My Error"), null, statsHistoryServiceStub);
 
         expectedException.expect(HistoryCalculationException.class);
-        expectedException.expectMessage("Failed to persist BlobPersister data for 0 start timestamp");
+        expectedException.expectMessage("Failed in WriterObserver for BlobPersister with start timestamp 0");
         persister.save(MovingStatistics.newBuilder().addStatisticRecords(record).build(),
             0L, config);
     }
@@ -187,7 +187,7 @@ public class AbstractBlobsPersistenceTaskTest {
         /**
          * Construct the configuration for history editors.
          *
-         * @param clock                     provides information about current time
+         * @param clock provides information about current time
          */
         private TestConfig(@Nonnull Clock clock) {
             super(LOADING_CHUNK_SIZE, CALCULATION_CHUNK_SIZE, 777777L, clock,
