@@ -15,6 +15,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.CloudNativeAppCPUFrequencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
+import com.vmturbo.stitching.poststitching.ComputedNumVCoreUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
@@ -128,6 +129,7 @@ public class PostStitchingOperationLibrary {
             new UseHypervisorVmemForResizingPostStitchingOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
+            new ComputedNumVCoreUsedValuePostStitchingOperation(),
             new HostCpuScalingFactorPostStitchingOperation(cpuCapacityStore,
                 enableConsistentScalingOnHeterogeneousProviders),
             new CloudNativeVMCpuScalingFactorPostStitchingOperation(

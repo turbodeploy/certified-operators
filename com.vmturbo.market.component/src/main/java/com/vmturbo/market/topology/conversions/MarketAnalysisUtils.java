@@ -218,7 +218,8 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.POOL_CPU_VALUE,
                     CommodityDTO.CommodityType.POOL_MEM_VALUE,
                     CommodityDTO.CommodityType.RESPONSE_TIME_VALUE,
-                    CommodityDTO.CommodityType.TRANSACTION_VALUE);
+                    CommodityDTO.CommodityType.TRANSACTION_VALUE,
+                    CommodityDTO.CommodityType.NUM_VCORE_VALUE);
 
     /**
      * Map of list of commodities that simulation of resize action based on historical value
