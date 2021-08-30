@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.MoreObjects.ToStringHelper;
 
+import com.vmturbo.extractor.schema.json.common.Constants;
+
 /**
  * The object to be exported to external system. Only one of the fields is set. Currently it either
  * contains entity or action.
@@ -15,6 +17,7 @@ import com.google.common.base.MoreObjects.ToStringHelper;
 public class ExportedObject {
 
     // when the entities are broadcasted or actions are exported
+    @ExporterField(format = Constants.TIMESTAMP_PATTERN)
     private String timestamp;
     private Entity entity;
     private Action action;
@@ -60,9 +63,9 @@ public class ExportedObject {
         if (entity != null) {
             stringHelper.add("entity", entity.toString());
         } else if (action != null) {
-            stringHelper.add("entity", action.toString());
+            stringHelper.add("action", action.toString());
         } else if (group != null) {
-            stringHelper.add("entity", group.toString());
+            stringHelper.add("group", group.toString());
         }
         return stringHelper.toString();
     }

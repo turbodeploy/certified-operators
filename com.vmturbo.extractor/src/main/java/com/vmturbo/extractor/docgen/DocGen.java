@@ -15,8 +15,6 @@ import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
-import com.vmturbo.extractor.docgen.Section.RegisteredSection;
-
 /**
  * Class to dump metadata information.
  *
@@ -68,10 +66,7 @@ public class DocGen {
      */
     static class CmdLine {
         private final OptionParser parser;
-        private final ArgumentAcceptingOptionSpec<RegisteredSection> sectionOption;
-        private final ArgumentAcceptingOptionSpec<File> writeToOption;
         private final ArgumentAcceptingOptionSpec<File> docTreeOption;
-        private final ArgumentAcceptingOptionSpec<File> rewriteTreeOption;
         private final AbstractOptionSpec<Void> helpOption;
         private OptionSet opts;
 
@@ -79,20 +74,9 @@ public class DocGen {
             this.parser = new OptionParser();
             this.helpOption = parser.acceptsAll(asList("h", "help"), "print command line options")
                     .forHelp();
-            this.sectionOption = parser.accepts("section", "sections to generate, in order specified - defaults to all")
-                    .withRequiredArg()
-                    .ofType(RegisteredSection.class)
-                    .defaultsTo(RegisteredSection.values());
-            this.writeToOption = parser.accepts("write-to", "directory to write generated docs")
-                    .withRequiredArg()
-                    .ofType(File.class)
-                    .defaultsTo(new File("."));
             this.docTreeOption = parser.accepts("doc-tree", "YAML file containing per-field documentation")
                     .requiredUnless(helpOption)
                     .withRequiredArg()
-                    .ofType(File.class);
-            this.rewriteTreeOption = parser.accepts("rewrite-tree", "Rewrite doc-tree file with nodes for missing items")
-                    .withOptionalArg()
                     .ofType(File.class);
         }
 
@@ -102,20 +86,8 @@ public class DocGen {
             return cmdLine;
         }
 
-        ArgumentAcceptingOptionSpec<RegisteredSection> sectionOption() {
-            return sectionOption;
-        }
-
-        ArgumentAcceptingOptionSpec<File> writeToOption() {
-            return writeToOption;
-        }
-
         ArgumentAcceptingOptionSpec<File> docTreeOption() {
             return docTreeOption;
-        }
-
-        ArgumentAcceptingOptionSpec<File> rewriteTreeOption() {
-            return rewriteTreeOption;
         }
 
         AbstractOptionSpec<Void> helpOption() {

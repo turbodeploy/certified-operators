@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.schema.json.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -11,6 +12,7 @@ import com.vmturbo.extractor.schema.json.export.Entity;
  * (oid, name, type, attrs.targets) are populated.
  */
 @JsonInclude(Include.NON_EMPTY)
-@JsonPropertyOrder(alphabetic = true)
+@JsonPropertyOrder({ "oid", "name", "type" })
+@JsonIgnoreProperties({ "environment", "state", "attrs", "metric", "related", "accountExpenses", "cost" })
 public class ActionEntity extends Entity {
 }

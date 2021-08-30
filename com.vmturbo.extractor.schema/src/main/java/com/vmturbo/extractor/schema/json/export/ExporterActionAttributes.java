@@ -24,10 +24,13 @@ import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 @JsonPropertyOrder(alphabetic = true)
 public class ExporterActionAttributes extends ActionAttributes {
     // provider change
+    @ExporterField(shared = true)
     private MoveChange moveInfo;
     // commodity change
+    @ExporterField(shared = true)
     private CommodityChange resizeInfo;
     // provider change, same as moveInfo but with different field name to match SCALE action type
+    @ExporterField(shared = true)
     private MoveChange scaleInfo;
 
     public MoveChange getMoveInfo() {

@@ -6,9 +6,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
+import com.vmturbo.extractor.schema.json.export.ExporterField;
 
 /**
  * Action attributes for the ATTRS columns in the pending_action and completed_action tables.
@@ -17,10 +20,13 @@ import com.vmturbo.extractor.schema.json.common.MoveChange;
 @JsonPropertyOrder(alphabetic = true)
 public class ReportingActionAttributes extends ActionAttributes {
     // mapping from entity type to provider change
+    @ExporterField(mapKeyEnum = EntityType.class, shared = true)
     private Map<String, MoveChange> moveInfo;
     // mapping from commodity type to commodity change
+    @ExporterField(mapKeyEnum = MetricType.class, shared = true)
     private Map<String, CommodityChange> resizeInfo;
     // provider change, same as moveInfo but with different field name to match SCALE action type
+    @ExporterField(mapKeyEnum = EntityType.class, shared = true)
     private Map<String, MoveChange> scaleInfo;
 
     public Map<String, MoveChange> getMoveInfo() {

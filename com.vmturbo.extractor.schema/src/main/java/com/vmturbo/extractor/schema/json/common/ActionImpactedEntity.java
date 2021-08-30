@@ -8,6 +8,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
+import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.json.export.ExporterField;
+
 /**
  * An {@link ActionEntity} that also records the impact of all actions on certain commodities
  * inside the entity.
@@ -21,10 +24,13 @@ public class ActionImpactedEntity extends ActionEntity {
      *
      * <p/>Not all {@link ActionImpactedEntity}s are guaranteed to have affected metrics.
      */
+    @ExporterField(mapKeyEnum = MetricType.class)
     private Map<String, ImpactedMetric> affectedMetrics;
 
+    @ExporterField(shared = true)
     private EntitySettings settings;
 
+    @ExporterField(shared = true)
     private ActionImpactedCosts affectedCosts;
 
     @Nullable

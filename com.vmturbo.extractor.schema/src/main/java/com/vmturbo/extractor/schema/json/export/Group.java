@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 
+import com.vmturbo.extractor.schema.enums.EntityType;
+
 /**
  * Class containing all the fields of a group that need to be exported.
  */
@@ -16,8 +18,10 @@ public class Group {
 
     private Long oid;
     private String name;
+    @ExporterField(valueEnum = EntityType.class)
     private String type;
     // mapping from attr key to attr value
+    @ExporterField(basedOnMetadata = true)
     private Map<String, Object> attrs;
 
     public Long getOid() {

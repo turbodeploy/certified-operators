@@ -8,6 +8,11 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.MetricType;
+
 /**
  * Class containing all the fields of an entity that need to be exported.
  * Note: Json property order is set to alphabetically to ensure all fields are in same order in
@@ -20,14 +25,19 @@ public class Entity {
 
     private Long oid;
     private String name;
+    @ExporterField(valueEnum = EntityType.class)
     private String type;
+    @ExporterField(valueEnum = EnvironmentType.class)
     private String environment;
+    @ExporterField(valueEnum = EntityState.class)
     private String state;
-    // mapping from attr key to attr value
+    @ExporterField(basedOnMetadata = true)
     private Map<String, Object> attrs;
     // mapping from commodity type key to commodity value
+    @ExporterField(mapKeyEnum = MetricType.class)
     private Map<String, Commodity> metric;
     // mapping from related entity type key to list of related entities
+    @ExporterField(mapKeyEnum = EntityType.class)
     private Map<String, List<RelatedEntity>> related;
 
     private AccountExpenses accountExpenses;

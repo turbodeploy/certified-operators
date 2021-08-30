@@ -5,6 +5,7 @@ import static com.vmturbo.extractor.export.ExportUtils.TARGETS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,5 +153,9 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
         }
 
         return attrs.isEmpty() ? null : attrs;
+    }
+
+    public static Map<GroupType, List<SearchMetadataMapping>> getJsonbColumnMetadataByGroupType() {
+        return Collections.unmodifiableMap(JSONB_COLUMN_METADATA_BY_GROUP_TYPE);
     }
 }

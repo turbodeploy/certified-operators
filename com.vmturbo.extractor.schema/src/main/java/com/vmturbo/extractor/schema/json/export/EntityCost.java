@@ -7,6 +7,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 
+import com.vmturbo.extractor.schema.enums.CostCategory;
+import com.vmturbo.extractor.schema.enums.CostSource;
+
 /**
  * The cost for an entity with breakdown by category.
  */
@@ -16,6 +19,7 @@ public class EntityCost {
     private Float total;
     private String unit;
     // cost breakdown by category
+    @ExporterField(mapKeyEnum = CostCategory.class)
     private Map<String, CostByCategory> category = new HashMap<>();
 
     public String getUnit() {
@@ -71,6 +75,7 @@ public class EntityCost {
     public static class CostByCategory {
         private Float total;
         // cost breakdown by source
+        @ExporterField(mapKeyEnum = CostSource.class)
         private Map<String, Float> source = new HashMap<>();
 
         public Float getTotal() {
