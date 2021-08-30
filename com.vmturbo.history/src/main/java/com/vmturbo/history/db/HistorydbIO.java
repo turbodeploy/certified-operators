@@ -81,7 +81,6 @@ import org.jooq.Result;
 import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.Select;
-import org.jooq.SelectWhereStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -1105,7 +1104,7 @@ public class HistorydbIO extends BasedbIO {
             final boolean cursorExistsInAggregatedStatsTable,
             final int currentResultsCount ) {
 
-        List<String> allOrderByUuids = using(conn).select(getStringField(aggregatedStats, UUID))
+        List<String> allOrderByUuids = (List<String>)using(conn).select(getStringField(aggregatedStats, UUID))
                 .from(aggregatedStats)
                 .fetch()
                 .getValues(getStringField(aggregatedStats, UUID));
@@ -1961,50 +1960,42 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Return the mapping from EntityIds -> EntityTypes stored in
-     * the entities table, for a set of entities.
+     * the entities table.
      *
-     * @param entityOids List of entity OIDs for which to generate the mapping.
      * @return Map of EntityId -> {@link EntityDTO.EntityType}
      * @throws VmtDbException
      */
-    public Map<Long, EntityDTO.EntityType> getEntityIdToEntityTypeMap(@Nonnull final Set<Long> entityOids)
+    public Map<Long, EntityDTO.EntityType> getEntityIdToEntityTypeMap()
         throws VmtDbException {
 
         // As PM and DC entities are stored in the same stats table, we have to
         // run additional query to distinguish between the PM and DC entities.
         Set<Long> datacenterEntities = getDatacenterEntities();
         Map<Long, EntityDTO.EntityType> entityIdToEntityTypeMap = new HashMap<>();
-        Condition whereCondition = DSL.noCondition();
-        if (!entityOids.isEmpty()) {
-            whereCondition = whereCondition.and(Entities.ENTITIES.ID.in(entityOids));
-        }
+
         try (Connection conn = connection()) {
             final Map<Long, String> entityIdToCreationClass =
                 using(conn)
                     .selectFrom(Entities.ENTITIES)
-                    .where(whereCondition)
                     .fetch()
                     .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
 
             Set<String> unresolvedCreationClasses = new HashSet<>();
-
             entityIdToCreationClass.entrySet()
                 .forEach(entry -> {
-                        EntityDTO.EntityType type;
-                                if (entry.getValue().equals("PhysicalMachine")
-                                    && datacenterEntities.contains(entry.getKey())) {
-                                    type = EntityDTO.EntityType.DATACENTER;
-                                    logger.warn("Entity {} is a DataCenter not PhysicalMachine, "
-                                                    + "hence setting it's type to DATACENTER");
-                                } else {
-                                    type = EntityType.named(entry.getValue())
-                                                    .flatMap(EntityType::getSdkEntityType)
-                                                    .orElse(null);
-                                }
-                        if (type == null) {
+                    EntityDTO.EntityType type;
+                    if (datacenterEntities.contains(entry.getKey())) {
+                        type = EntityDTO.EntityType.DATACENTER;
+                    } else {
+                        Optional<EntityType> entityType =
+                            EntityType.named(entry.getValue());
+                        if (!entityType.isPresent()) {
                             unresolvedCreationClasses.add(entry.getValue());
                         }
-                        entityIdToEntityTypeMap.put(entry.getKey(), type);
+                        type = entityType.get().getSdkEntityType().orElse(null);
+                    }
+
+                    entityIdToEntityTypeMap.put(entry.getKey(), type);
                 });
             if (!unresolvedCreationClasses.isEmpty()) {
                 logger.error("Failed to resolve following class names to entity types: {}",
