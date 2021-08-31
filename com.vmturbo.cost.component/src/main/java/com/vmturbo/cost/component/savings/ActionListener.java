@@ -111,20 +111,26 @@ public class ActionListener implements ActionsListener {
     /**
      * Pending Action Types.
      */
-    private final Set<ActionType> pendingActionTypes;
+    private final Set<ActionType> supportedActionTypes;
 
     /**
      * Pending Action MODES. (Maybe we need to check if executable ? )
      */
-    private final ImmutableSet<ActionMode> pendingActionModes = ImmutableSet.of(ActionMode.MANUAL,
+    private final ImmutableSet<ActionMode> supportedActionModes = ImmutableSet.of(ActionMode.MANUAL,
             ActionMode.RECOMMEND,
             ActionMode.AUTOMATIC,
             ActionMode.EXTERNAL_APPROVAL);
     /**
      * Pending Action Entity Types.
      */
-    private final Set<Integer> pendingWorkloadTypes;
+    private final Set<Integer> supportedWorkloadTypes;
 
+    /**
+     * Executable Action Types supported.
+     */
+    private final Set<ActionEventType> supportedExecutableActionEventTypes = ImmutableSet
+                    .of(ActionEventType.DELETE_EXECUTION_SUCCESS,
+                        ActionEventType.SCALE_EXECUTION_SUCCESS);
     /**
      * The current entity costs store.
      */
@@ -226,10 +232,10 @@ public class ActionListener implements ActionsListener {
         this.currentEntityCostStore = Objects.requireNonNull(costStoreHouse);
         this.projectedEntityCostStore = Objects.requireNonNull(projectedEntityCostStore);
         this.realTimeTopologyContextId = realTimeContextId;
-        this.pendingWorkloadTypes = supportedEntityTypes.stream()
+        this.supportedWorkloadTypes = supportedEntityTypes.stream()
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
-        this.pendingActionTypes = supportedActionTypes;
+        this.supportedActionTypes = supportedActionTypes;
         this.retentionConfig = retentionConfig;
         this.entitySavingsStore = entitySavingsStore;
         this.entityStateStore = entityStateStore;
@@ -255,8 +261,16 @@ public class ActionListener implements ActionsListener {
         final Long actionId = actionSuccess.getActionId();
         logger.debug("Got success notification for action {}", actionId);
         final ActionSpec actionSpec = actionSuccess.getActionSpec();
+
         try {
+            // Filter out on-prem actions.  We only handle savings from cloud actions.
             ActionEntity entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+            if (!entity.hasEnvironmentType()
+                || entity.getEnvironmentType() != EnvironmentType.CLOUD) {
+                logger.debug("Dropping {}  successfully executed action {}", entity.getEnvironmentType(),
+                            actionId);
+                return;
+            }
             createActionSuccessEvent(actionId, actionSpec, entity);
         } catch (UnsupportedActionException e) {
             logger.error("Cannot create action Savings event due to unsupported action type for action {}",
@@ -271,7 +285,8 @@ public class ActionListener implements ActionsListener {
         // However the Savings Calculator will only process the first Savings event
         // related to action execution and drop the rest.
         final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
-        if (pendingWorkloadTypes.contains(entity.getType())) {
+        if (supportedWorkloadTypes.contains(entity.getType())
+            && supportedExecutableActionEventTypes.contains(entityActionInfo.getActionEventType())) {
             final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
             final Long entityId = entity.getId();
             // The Savings Calculator preserves the recommendation prices, hence executions events don't
@@ -358,7 +373,7 @@ public class ActionListener implements ActionsListener {
                                         + " unsupported action type for action {}", actionId, e);
                                     continue;
                                 }
-                                if (!pendingWorkloadTypes.contains(entity.getType())) {
+                                if (!supportedWorkloadTypes.contains(entity.getType())) {
                                     continue;
                                 }
                                 final Long entityId = entity.getId();
@@ -553,8 +568,8 @@ public class ActionListener implements ActionsListener {
         ActionQueryFilter.Builder actionQueryFilter = ActionQueryFilter
                 .newBuilder()
                 .setVisible(true)
-                .addAllTypes(pendingActionTypes)
-                .addAllModes(pendingActionModes)
+                .addAllTypes(supportedActionTypes)
+                .addAllModes(supportedActionModes)
                 .setEnvironmentType(EnvironmentType.CLOUD);
         if (startDate != null && endDate != null) {
             actionQueryFilter.setStartDate(startDate);

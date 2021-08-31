@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -235,10 +236,10 @@ public class ActionListenerTest {
     @Test
     public void testProcessActionSuccess() {
         final ActionEntity actionEntityScale1 =
-                createActionEntity(1L, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(1L, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale1 = createScale(actionEntityScale1);
         final ActionEntity actionEntityScale2 =
-                createActionEntity(3L, EntityType.VIRTUAL_VOLUME_VALUE);
+                createCloudActionEntity(3L, EntityType.VIRTUAL_VOLUME_VALUE);
         final Scale scale2 = createScale(actionEntityScale2);
         final ActionSpec actionSpec1 = ActionDTO.ActionSpec.newBuilder()
                         .setRecommendationId(1234L)
@@ -307,13 +308,13 @@ public class ActionListenerTest {
         // Verify that only actions for entities in TopologyDTOUtil.WORKLOAD_TYPES and
         // VIRTUAL_VOLUME are processed.
         final ActionEntity actionEntityScale3 =
-                        createActionEntity(5L, EntityType.DATABASE_VALUE);
+                        createCloudActionEntity(5L, EntityType.DATABASE_VALUE);
         final Scale scale3 = createScale(actionEntityScale1);
         final ActionEntity actionEntityScale4 =
-                        createActionEntity(7L, EntityType.DATABASE_SERVER_VALUE);
+                        createCloudActionEntity(7L, EntityType.DATABASE_SERVER_VALUE);
         final Scale scale4 = createScale(actionEntityScale4);
         final ActionEntity actionEntityScale5 =
-                        createActionEntity(9L, EntityType.PHYSICAL_MACHINE_VALUE);
+                        createCloudActionEntity(9L, EntityType.PHYSICAL_MACHINE_VALUE);
         final Scale scale5 = createScale(actionEntityScale5);
         final ActionSpec actionSpec3 = ActionDTO.ActionSpec.newBuilder()
                         .setRecommendationId(2222L)
@@ -370,6 +371,39 @@ public class ActionListenerTest {
         assertEquals(2, store.size());
         actionListener.onActionSuccess(actionSuccess5);
         assertEquals(2, store.size());
+
+        // Only actions with EnvironmentType set to Cloud should be processed.
+        store.removeAllEvents();
+        final ActionEntity actionEntityScale6 =
+                                              createOnPremActionEntity(7070L,
+                                                                      EntityType.VIRTUAL_MACHINE_VALUE);
+        final Scale scale6 = createScale(actionEntityScale6);
+        final ActionSpec actionSpec6 = createActionSpec(7070L, 7070L,
+                                                        ActionInfo.newBuilder().setScale(scale6),
+                                                        ActionState.SUCCEEDED);
+        final ActionSuccess actionSuccess6 = ActionSuccess.newBuilder()
+                        .setSuccessDescription(succeededActionMsg)
+                        .setActionId(7070L)
+                        .setActionSpec(actionSpec6)
+                        .build();
+        actionListener.onActionSuccess(actionSuccess6);
+        assertEquals(0, store.size());
+
+        // Only Scale / Delete action executions are supported.
+        final ActionEntity actionEntityScale7 =
+                                              createOnPremActionEntity(0770L,
+                                                                       EntityType.VIRTUAL_MACHINE_VALUE);
+        final Move move = createMove(actionEntityScale7);
+        final ActionSpec actionSpec7 = createActionSpec(0770L, 0770L,
+                                                        ActionInfo.newBuilder().setMove(move),
+                                                        ActionState.SUCCEEDED);
+        final ActionSuccess actionSuccess7 = ActionSuccess.newBuilder()
+                        .setSuccessDescription(succeededActionMsg)
+                        .setActionId(0770L)
+                        .setActionSpec(actionSpec7)
+                        .build();
+        actionListener.onActionSuccess(actionSuccess7);
+        assertEquals(0, store.size());
     }
 
     private void validateActionEvent(String message, SavingsEvent savingsEvent,
@@ -394,20 +428,20 @@ public class ActionListenerTest {
     @Test
     public void testOnActionsUpdated() throws DbException, EntitySavingsException {
         final ActionEntity actionEntityScale1 =
-                createActionEntity(1L, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(1L, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale1 = createScale(actionEntityScale1);
         final ActionEntity actionEntityDelete =
-                createActionEntity(2L, EntityType.VIRTUAL_VOLUME_VALUE);
+                createCloudActionEntity(2L, EntityType.VIRTUAL_VOLUME_VALUE);
         final Delete delete = Delete.newBuilder()
                         .setTarget(actionEntityDelete)
                         .build();
         final ActionEntity actionEntityScale2 =
-                createActionEntity(3L, EntityType.VIRTUAL_VOLUME_VALUE);
+                createCloudActionEntity(3L, EntityType.VIRTUAL_VOLUME_VALUE);
         final Scale scale2 = createScale(actionEntityScale2);
         final ActionEntity actionEntityAllocate =
-                        createActionEntity(4L, EntityType.VIRTUAL_MACHINE_VALUE);
+                        createCloudActionEntity(4L, EntityType.VIRTUAL_MACHINE_VALUE);
         final ActionEntity actionEntityWorkloadTier =
-                                                    createActionEntity(5L,
+                                                    createCloudActionEntity(5L,
                                                        EntityType.COMPUTE_TIER_VALUE);
         // Actions could be in different states related to pre and post execution.
         // We create recommendation events for all states.
@@ -662,18 +696,18 @@ public class ActionListenerTest {
         final long dbsId1 = 401;
 
         final ActionEntity actionEntityVm1 =
-                createActionEntity(101L, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(101L, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scaleVm1 = createScale(actionEntityVm1);
         final ActionEntity actionEntityVm2 =
-                createActionEntity(102L, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(102L, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scaleVm2 = createScale(actionEntityVm2);
-        final ActionEntity actionEntityDb1 = createActionEntity(201L, EntityType.DATABASE_VALUE);
+        final ActionEntity actionEntityDb1 = createCloudActionEntity(201L, EntityType.DATABASE_VALUE);
         final Scale scaleDb1 = createScale(actionEntityDb1);
         final ActionEntity actionEntityVv1 =
-                createActionEntity(301L, EntityType.VIRTUAL_VOLUME_VALUE);
+                createCloudActionEntity(301L, EntityType.VIRTUAL_VOLUME_VALUE);
         final Scale scaleVv1 = createScale(actionEntityVv1);
         final ActionEntity actionEntityDbs1 =
-                createActionEntity(401L, EntityType.DATABASE_SERVER_VALUE);
+                createCloudActionEntity(401L, EntityType.DATABASE_SERVER_VALUE);
         final Scale scaleDbs1 = createScale(actionEntityDbs1);
         ActionSpec actionSpecVm1 =
                 createActionSpec(scaleVm1, 1234L, 1L, System.currentTimeMillis(), null);
@@ -756,25 +790,39 @@ public class ActionListenerTest {
     }
 
     @NotNull
-    private Scale createScale(@Nonnull final ActionEntity actionEntityVm) {
-        return Scale.newBuilder().setTarget(actionEntityVm).build();
+    private Scale createScale(@Nonnull final ActionEntity actionEntity) {
+        return Scale.newBuilder().setTarget(actionEntity).build();
     }
 
     @NotNull
-    private Allocate createAllocate(@Nonnull final ActionEntity actionEntityVm,
+    private Allocate createAllocate(@Nonnull final ActionEntity actionEntity,
                               @Nonnull final ActionEntity actionEntityWorkloadTier) {
         return Allocate.newBuilder()
-                        .setTarget(actionEntityVm)
+                        .setTarget(actionEntity)
                         .setWorkloadTier(actionEntityWorkloadTier)
                         .build();
     }
 
     @NotNull
-    private ActionEntity createActionEntity(long id, int virtualMachineValue) {
+    private Move createMove(@Nonnull final ActionEntity actionEntity) {
+        return Move.newBuilder().setTarget(actionEntity).build();
+    }
+
+    @NotNull
+    private ActionEntity createCloudActionEntity(long id, int entityTypeValue) {
         return ActionEntity.newBuilder()
                 .setId(id)
-                .setType(virtualMachineValue)
+                .setType(entityTypeValue)
                 .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+    }
+
+    @NotNull
+    private ActionEntity createOnPremActionEntity(long id, int entityTypeValue) {
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(entityTypeValue)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build();
     }
 
@@ -787,7 +835,7 @@ public class ActionListenerTest {
         final long sourceTierId = 73705874639937L;
         final long destinationTierId = 73741897536608L;
         final long actionId = 101L;
-        ActionEntity actionEntity = createActionEntity(10001L, entityType);
+        ActionEntity actionEntity = createCloudActionEntity(10001L, entityType);
 
         ActionSpec actionSpec = createActionSpec(Scale.newBuilder()
                 .setTarget(actionEntity)
@@ -898,10 +946,10 @@ public class ActionListenerTest {
         Long entity1Oid = 1L;
         Long entity2Oid = 2L;
         final ActionEntity actionEntityScale1 =
-                createActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale1 = createScale(actionEntityScale1);
         final ActionEntity actionEntityScale2 =
-                createActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale2 = createScale(actionEntityScale2);
         ActionSpec actionSucceeded1 =
                 createActionSpec(scale1, 4321L, 4321L, 1, ActionState.SUCCEEDED);
@@ -937,10 +985,10 @@ public class ActionListenerTest {
         Long entity1Oid = 1L;
         Long entity2Oid = 2L;
         final ActionEntity actionEntityScale1 =
-                createActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(entity1Oid, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale1 = createScale(actionEntityScale1);
         final ActionEntity actionEntityScale2 =
-                createActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
+                createCloudActionEntity(entity2Oid, EntityType.VIRTUAL_MACHINE_VALUE);
         final Scale scale2 = createScale(actionEntityScale2);
         ActionSpec actionSucceeded1 =
                 createActionSpec(scale1, 4321L, 4321L, 1, ActionState.SUCCEEDED);
