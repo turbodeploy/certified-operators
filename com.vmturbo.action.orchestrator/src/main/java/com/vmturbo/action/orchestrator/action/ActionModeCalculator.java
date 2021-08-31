@@ -604,18 +604,23 @@ public class ActionModeCalculator {
             Resize resizeAction = action.getInfo().getResize();
             final Integer commType = resizeAction.getCommodityType().getType();
 
+            boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
+                    .anyMatch(type -> type.equals(commType));
+
             // Check applicable commodities.
             if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
                     && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
-                boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
-                        .anyMatch(type -> type.equals(commType));
-
                 // Check hot replace setting enabled.
                 if (supportsHotReplace) {
                     // Return Automatic for resize up.
                     if (resizeAction.getNewCapacity() >= resizeAction.getOldCapacity()) {
                         return ActionMode.AUTOMATIC;
                     }
+                }
+            } else if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
+                    && resizeAction.getCommodityAttribute() == CommodityAttribute.LIMIT) {
+                if (supportsHotReplace) {
+                    return ActionMode.AUTOMATIC;
                 }
             }
             // Return Recommend and if resize is disabled we will pick the minimum.
