@@ -4,6 +4,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collections;
@@ -15,9 +17,11 @@ import java.util.stream.Stream;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -60,6 +64,7 @@ public class WastedFilesPostStitchingOperationTest {
     private static final String[] vm2Files = {"/etc/foo2.snap", "/usr/lib/foo3"};
     private static final Set<String> wastedFilesNoFiltering = Sets.newHashSet(wastedFile, ignoreFile,
             ignoreDirFile);
+    private static final long[] wastedFileSizes = {500L, 1100L, 1100L};
     private static final Set<String> wastedFilesAfterFiltering = Sets.newHashSet(vm1Files[0],
             vm2Files[0], vm2Files[1], wastedFile);
     private static final Set<String> wastedOtherPathFile = Sets.newHashSet(validPath3);
@@ -102,7 +107,7 @@ public class WastedFilesPostStitchingOperationTest {
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume1, vm1Files);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume2, vm2Files);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted1,
-            new String[] {wastedFile, ignoreFile, ignoreDirFile});
+            new String[] {wastedFile, ignoreFile, ignoreDirFile}, wastedFileSizes);
 
         storageEntity1 = storage1.build();
         virtVol1 = virtualVolume1.build();
@@ -157,6 +162,20 @@ public class WastedFilesPostStitchingOperationTest {
      }
 
     /**
+     * Setup up the minimum file size setting Mock which is run before every test case.
+     */
+    @Before
+    public void setupFileSizeSetting() {
+         final Setting minFileSize =
+                 Setting.newBuilder().setNumericSettingValue(
+                         NumericSettingValue.newBuilder()
+                                 .setValue(1000).build())
+                         .build();
+         Mockito.when(settingsCollection.getEntitySetting(anyLong(),
+                 eq(EntitySettingSpecs.MinWastedFilesSize))).thenReturn(Optional.of(minFileSize));
+     }
+
+    /**
      * Create a topology graph with one storage, two VMs, and the related VirtualVolumes.
      * Assign files to each volume so that there are 3 files that are used by a VM and 1 files
      * that is not used by any VM.  After the operation, the Volume corresponding to the wasted
@@ -166,12 +185,12 @@ public class WastedFilesPostStitchingOperationTest {
     @Test
     public void testWastedFilesPostStitching() {
         initialSetupForMainTest();
-        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+        final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         // setup getEntitySetting to return empty filters
-        StringSettingValue filterNothing = StringSettingValue.newBuilder().setValue("").build();
-        Setting fileFilterNothing =
+        final StringSettingValue filterNothing = StringSettingValue.newBuilder().setValue("").build();
+        final Setting fileFilterNothing =
             Setting.newBuilder().setStringSettingValue(filterNothing).build();
-        Setting directoryFilterNothing =
+        final Setting directoryFilterNothing =
             Setting.newBuilder().setStringSettingValue(filterNothing).build();
         Mockito.when(settingsCollection.getEntitySetting(storage1Oid,
             EntitySettingSpecs.IgnoreDirectories))
@@ -185,10 +204,14 @@ public class WastedFilesPostStitchingOperationTest {
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
         assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(wastedFilesNoFiltering.size(),
+
+        // One of that wasted files was smaller than 1000 KB and should have been filtered out
+        final Set<String> expectedWastedFiles = Sets.newHashSet(wastedFilesNoFiltering);
+        expectedWastedFiles.remove(wastedFile);
+        assertEquals(expectedWastedFiles.size(),
             virtVolWasted1.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
                 .getVirtualVolume().getFilesCount());
-        assertEquals(wastedFilesNoFiltering, virtVolWasted1.getTopologyEntityDtoBuilder()
+        assertEquals(expectedWastedFiles, virtVolWasted1.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
             .map(VirtualVolumeFileDescriptor::getPath)
             .collect(Collectors.toSet()));
@@ -202,7 +225,6 @@ public class WastedFilesPostStitchingOperationTest {
                 .map(VirtualVolumeFileDescriptor::getPath)
                 .collect(Collectors.toSet()),
             containsInAnyOrder(vm2Files));
-
     }
 
     /**

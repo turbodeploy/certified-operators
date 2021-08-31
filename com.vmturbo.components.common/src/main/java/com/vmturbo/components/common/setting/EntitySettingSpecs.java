@@ -868,6 +868,11 @@ public enum EntitySettingSpecs {
         string("config\\.db|stats\\.db.*"),
         true),
 
+    MinWastedFilesSize("minWastedFilesSize", "Minimum Wasted Files Size [KB]",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            numeric(0f, 1000000000f, 1000f), true),
+
     EnforceNonDisruptive("enforceNonDisruptive", "Enforce Non Disruptive Mode",
                     Collections.emptyList(),
                     SettingTiebreaker.SMALLER,

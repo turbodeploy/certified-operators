@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,10 +9,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import org.junit.Assert;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -22,7 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPodInfo;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.stitching.TopologicalChangelog;
@@ -498,6 +499,38 @@ public class PostStitchingTestUtilities {
                 .build();
     }
 
+    private static Collection<VirtualVolumeFileDescriptor> createFiles(
+            @Nonnull String[] pathNames, @Nonnull long[] sizes) {
+        Assert.assertEquals(pathNames.length, sizes.length);
+        final List<VirtualVolumeFileDescriptor> retVal = new ArrayList<>(sizes.length);
+        for (int i = 0; i < sizes.length; i++) {
+            retVal.add(VirtualVolumeFileDescriptor.newBuilder()
+                    .setPath(pathNames[i])
+                    .setSizeKb(sizes[i])
+                    .build());
+        }
+        return retVal;
+    }
+
+    /**
+     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
+     *
+     * @param builder   A builder for the VirtualVolume's TopologyEntity
+     * @param pathNames A String array with the pathnames of the files to add.
+     * @param fileSizes A Long array with the sizes in KB of the files in pathNames.
+     */
+    static void addFilesToVirtualVolume(
+            @Nonnull TopologyEntity.Builder builder,
+            @Nonnull String[] pathNames,
+            @Nonnull long[] fileSizes) {
+        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(
+                builder.getEntityBuilder()
+                    .getTypeSpecificInfo()
+                    .getVirtualVolume()
+                    .toBuilder()
+                    .addAllFiles(createFiles(pathNames, fileSizes))));
+    }
 
     /**
      * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
@@ -505,19 +538,16 @@ public class PostStitchingTestUtilities {
      * @param builder   A builder for the VirtualVolume's TopologyEntity
      * @param pathNames A String array with the pathnames of the files to add.
      */
-    static void addFilesToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
-                                                @Nonnull String[] pathNames) {
-        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualVolume(
-                builder.getEntityBuilder()
-                    .getTypeSpecificInfo()
-                    .getVirtualVolume()
-                    .toBuilder()
-                    .addAllFiles(Stream.of(pathNames).map(pathName ->
-                        VirtualVolumeFileDescriptor.newBuilder().setPath(pathName)
-                            .build())
-                        .collect(Collectors.toList()))));
+    static void addFilesToVirtualVolume(
+            @Nonnull TopologyEntity.Builder builder,
+            @Nonnull String[] pathNames) {
+        long[] fileSizes = new long[pathNames.length];
+        // Default to file sizes bigger than default minimum for wasted files
+        Arrays.fill(fileSizes, (long) EntitySettingSpecs.MinWastedFilesSize.getNumericDefault() + 1);
+        addFilesToVirtualVolume(builder, pathNames, fileSizes);
     }
+
+
 
     /**
      * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
@@ -536,6 +566,8 @@ public class PostStitchingTestUtilities {
                     .toBuilder()
                     .addAllFiles(Collections.singletonList(
                         VirtualVolumeFileDescriptor.newBuilder().setPath(path)
+                            .setSizeKb((long) EntitySettingSpecs.MinWastedFilesSize
+                                    .getNumericDefault() + 1)
                             .addAllLinkedPaths(Arrays.asList(links)).build())
                     )));
     }

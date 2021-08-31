@@ -1,7 +1,10 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.io.File;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -65,17 +68,24 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
             final Optional<Setting> ignoreFilesSetting =
                 settingsCollection.getEntitySetting(storage.getOid(),
                     EntitySettingSpecs.IgnoreFiles);
+            final Optional<Setting> minFilesSizeSetting =
+                    settingsCollection.getEntitySetting(storage.getOid(),
+                            EntitySettingSpecs.MinWastedFilesSize);
 
             final Optional<Pattern> ignoreDirsPattern = ignoreDirectorySetting.isPresent()
                 ? regexCompiler.safePatternCompile(ignoreDirectorySetting.get().getStringSettingValue().getValue()) : Optional.empty();
             final Optional<Pattern> ignoreFilesPattern = ignoreFilesSetting.isPresent()
                 ? regexCompiler.safePatternCompile(ignoreFilesSetting.get().getStringSettingValue().getValue()) : Optional.empty();
+            final double minFileSize = minFilesSizeSetting.isPresent()
+                    ? minFilesSizeSetting.get().getNumericSettingValue().getValue()
+                    : EntitySettingSpecs.MinWastedFilesSize.getNumericDefault();
 
             if (WastedFiles.getWastedFilesVirtualVolume(storage).isPresent()) {
                 final TopologyEntity wastedFilesVolume =
                     WastedFiles.getWastedFilesVirtualVolume(storage).get();
                 final Set<VirtualVolumeFileDescriptor> keepFiles =
-                    getFilesToKeepForVirtualVolume(wastedFilesVolume, ignoreFilesPattern, ignoreDirsPattern);
+                    getFilesToKeepForVirtualVolume(wastedFilesVolume, ignoreFilesPattern,
+                            ignoreDirsPattern, minFileSize);
                 resultBuilder.queueUpdateEntityAlone(wastedFilesVolume,
                     entityToUpdate -> updateFilesForVirtualVolume(entityToUpdate, keepFiles));
             }
@@ -105,15 +115,19 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
      * @param virtualVolume the virtual volume
      * @param ignoreFilesPattern the {@link Pattern} to ignore the files
      * @param ignoreDirsPattern the {@link Pattern} to ignore the directory
+     * @param minFileSize the minimum file size to keep in KB
      * @return the files that should NOT be ignored
      */
-    private Set<VirtualVolumeFileDescriptor> getFilesToKeepForVirtualVolume(@Nonnull final TopologyEntity virtualVolume,
-                                                                            @Nonnull final Optional<Pattern> ignoreFilesPattern,
-                                                                            @Nonnull final Optional<Pattern> ignoreDirsPattern) {
+    private Set<VirtualVolumeFileDescriptor> getFilesToKeepForVirtualVolume(
+            @Nonnull final TopologyEntity virtualVolume,
+            @Nonnull final Optional<Pattern> ignoreFilesPattern,
+            @Nonnull final Optional<Pattern> ignoreDirsPattern,
+            double minFileSize) {
         return virtualVolume.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-            .filter(file -> !shouldFileBeIgnored(file, ignoreFilesPattern, ignoreDirsPattern))
-            .collect(Collectors.toSet());
+                .filter(file -> file.getSizeKb() >= minFileSize)
+                .filter(file -> !shouldFileBeIgnored(file, ignoreFilesPattern, ignoreDirsPattern))
+                .collect(Collectors.toSet());
     }
 
     /**
