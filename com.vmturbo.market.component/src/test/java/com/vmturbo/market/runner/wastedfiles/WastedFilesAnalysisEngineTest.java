@@ -8,6 +8,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -55,6 +56,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Vir
  */
 public class WastedFilesAnalysisEngineTest {
     private static final long STORAGE_AMOUNT_CAPACITY = 20;
+    private static final String[] filePathsWastedOnPrem = {"/foo/bar/file1", "/etc/turbo/file2.iso", "file3"};
+    private static final String[] filePathsUsedOnPrem = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
+    private static final long[] wastedSizesKbOnPrem = {900, 1100, 2400000};
+    private static final long[] usedSizesKbOnPrem = {800, 1200, 2500000};
+    private static final long[] wastedModTimeMsOnPrem = {25000, 35000, 45000};
+    private static final long[] usedModTimeMsOnPrem = {125000, 135000, 145000};
     private final long topologyContextId = 1111;
     private final long topologyId = 2222;
     private final TopologyType topologyType = TopologyType.REALTIME;
@@ -160,18 +167,12 @@ public class WastedFilesAnalysisEngineTest {
         final TopologyEntityDTO.Builder storage2 = createOnPremEntity(stor2Oid, EntityType.STORAGE);
         final TopologyEntityDTO.Builder wastedFileVolume2 = createOnPremEntity(wastedFileVolume2Oid,
             EntityType.VIRTUAL_VOLUME);
-        final String[] filePathsWasted = {"/foo/bar/file1", "/etc/turbo/file2.iso", "file3"};
-        final String[] filePathsUsed = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
-        final long[] wastedSizesKb = {900, 1100, 2400000};
-        final long[] usedSizesKb = {800, 1200, 2500000};
-        final long[] wastedModTimeMs = {25000, 35000, 45000};
-        final long[] usedModTimeMs = {125000, 135000, 145000};
         connectEntities(vm, connectedVolume);
         connectEntities(connectedVolume, storage);
         connectEntities(wastedFileVolume, storage);
         connectEntities(wastedFileVolume2, storage2);
-        addFilesToOnpremVolume(wastedFileVolume, filePathsWasted, wastedSizesKb, wastedModTimeMs);
-        addFilesToOnpremVolume(connectedVolume, filePathsUsed, usedSizesKb, usedModTimeMs);
+        addFilesToOnpremVolume(wastedFileVolume, filePathsWastedOnPrem, wastedSizesKbOnPrem, wastedModTimeMsOnPrem);
+        addFilesToOnpremVolume(connectedVolume, filePathsUsedOnPrem, usedSizesKbOnPrem, usedModTimeMsOnPrem);
         return new ImmutableMap.Builder<Long, TopologyEntityDTO>()
             .put(vm.getOid(), vm.build())
             .put(storage.getOid(), storage.build())
@@ -231,24 +232,24 @@ public class WastedFilesAnalysisEngineTest {
         final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
             createTestOnPremTopology(), cloudCostCalculator, originalCloudTopology);
 
-        // expect 2 actions since one file is too small to get an action
-        assertEquals(2, analysis.getActions().size());
+        // expect 3 actions since we no longer filter files by size here
+        assertEquals(3, analysis.getActions().size());
         // make sure actions have the correct files in them
-        assertEquals(ImmutableSet.of("/etc/turbo/file2.iso", "file3"),
+        assertEquals(ImmutableSet.copyOf(filePathsWastedOnPrem),
             analysis.getActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
                 .map(Delete::getFilePath)
                 .collect(Collectors.toSet()));
         // make sure action explanations have the right values
-        assertEquals(ImmutableSet.of(1100L, 2400000L),
+        assertEquals(Arrays.stream(wastedSizesKbOnPrem).boxed().collect(Collectors.toSet()),
             analysis.getActions().stream()
                 .map(Action::getExplanation)
                 .map(Explanation::getDelete)
                 .map(DeleteExplanation::getSizeKb)
                 .collect(Collectors.toSet()));
         // make sure action explanations have correct modification times
-        assertEquals(ImmutableSet.of(35000L, 45000L),
+        assertEquals(Arrays.stream(wastedModTimeMsOnPrem).boxed().collect(Collectors.toSet()),
             analysis.getActions().stream()
                 .map(Action::getExplanation)
                 .map(Explanation::getDelete)
@@ -264,7 +265,7 @@ public class WastedFilesAnalysisEngineTest {
 
         // Verify total storage amount released for this oid
         assertTrue(analysis.getMbReleasedOnProvider(2L).isPresent());
-        assertEquals((2400000L + 1100L) / Units.NUM_OF_KB_IN_MB,
+        assertEquals(Arrays.stream(wastedSizesKbOnPrem).sum() / Units.NUM_OF_KB_IN_MB,
             analysis.getMbReleasedOnProvider(2L).getAsLong());
     }
 

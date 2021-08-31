@@ -250,7 +250,8 @@
         "diskCapacity15k",
         "diskCapacityVSeries",
         "ignoreDirectories",
-        "ignoreFiles"
+        "ignoreFiles",
+        "minWastedFilesSize"
       ]
     },
     "hcisettingsmanager": {

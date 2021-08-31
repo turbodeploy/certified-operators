@@ -53,6 +53,11 @@
         "value": "config\\.db|stats\\.db.*"
       }
     }, {
+      "settingSpecName": "minWastedFilesSize",
+      "numericSettingValue": {
+        "value": 1000.0
+      }
+    },{
       "settingSpecName": "move",
       "enumSettingValue": {
         "value": "MANUAL"

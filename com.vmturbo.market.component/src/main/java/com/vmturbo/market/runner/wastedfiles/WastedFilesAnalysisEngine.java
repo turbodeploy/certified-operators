@@ -282,9 +282,7 @@ public class WastedFilesAnalysisEngine {
                     .build());
         } else {
             // handle ON_PREM
-            // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
-                    .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
                     .map(vvfd -> {
                         final long curReleased = storageToKbReleased.get(storageOrStorageTierOid);
                         storageToKbReleased.put(storageOrStorageTierOid, curReleased + vvfd.getSizeKb());
