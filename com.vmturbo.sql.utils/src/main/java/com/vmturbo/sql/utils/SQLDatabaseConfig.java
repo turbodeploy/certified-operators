@@ -33,7 +33,6 @@ import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
 import org.mariadb.jdbc.MariaDbDataSource;
-import org.mariadb.jdbc.MariaDbPoolDataSource;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +50,7 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
+import com.zaxxer.hikari.HikariDataSource;
 
 /**
  * Configuration for interaction with database.
@@ -134,6 +134,8 @@ public abstract class SQLDatabaseConfig {
 
     private DBPasswordUtil dbPasswordUtil;
 
+    private static final int LEAK_DETECTION_THRESHOLD_MSEC = 120000;
+
     /**
      * Get the name of the database schema. Each component has its own schema.
      *
@@ -164,15 +166,17 @@ public abstract class SQLDatabaseConfig {
                                     final int maxPoolSize) {
         try {
             if (isConnectionPoolActive) {
-                MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
+                HikariDataSource dataSource = new HikariDataSource();
                 // Should be logged only once, on container startup
                 logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}",
                         minPoolSize, maxPoolSize);
-                dataSource.setUrl(dbUrl);
-                dataSource.setUser(dbUsername);
+                dataSource.setDriverClassName("org.mariadb.jdbc.Driver");
+                dataSource.setJdbcUrl(dbUrl);
+                dataSource.setUsername(dbUsername);
                 dataSource.setPassword(dbPassword);
-                dataSource.setMinPoolSize(minPoolSize);
-                dataSource.setMaxPoolSize(maxPoolSize);
+                dataSource.setMinimumIdle(minPoolSize);
+                dataSource.setMaximumPoolSize(maxPoolSize);
+                dataSource.setLeakDetectionThreshold(LEAK_DETECTION_THRESHOLD_MSEC);
                 return  dataSource;
             } else {
                 MariaDbDataSource dataSource = new MariaDbDataSource();
