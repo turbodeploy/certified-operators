@@ -34,7 +34,6 @@ import com.vmturbo.common.protobuf.cloud.CloudCommitmentServices.GetHistoricalCo
 import com.vmturbo.common.protobuf.cloud.CloudCommitmentStatsServiceGrpc.CloudCommitmentStatsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.AccountFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudCommitmentFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommon.CloudStatGranularity;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.ServiceProviderFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -106,7 +105,6 @@ public class CloudCommitmentStatsSubQuery implements StatsSubQuery {
             reqBuilder.setStartTime(timeWindow.startTime());
             reqBuilder.setEndTime(timeWindow.endTime());
         });
-        reqBuilder.setGranularity(CloudStatGranularity.DAILY);
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
             final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();

@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.GroupField;
+import org.jooq.Record;
 import org.jooq.SelectFieldOrAsterisk;
 import org.jooq.impl.DSL;
 
@@ -106,15 +107,15 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(determineGranularity(filter));
 
+        logger.debug("Querying {} coverage buckets filtered by {}", tableWrapper::granularity, filter::toString);
 
-        try (Stream<AccountCoverageRecord<?>> accountCoverageStream =
-                     dslContext.selectFrom(tableWrapper.coverageTable())
-                             .where(generateConditionsFromFilter(tableWrapper, filter))
-                             .stream()
-                             .map(tableWrapper::createRecordAccessor)) {
+        try (Stream<? extends Record> stream = dslContext.selectFrom(tableWrapper.coverageTable())
+                        .where(generateConditionsFromFilter(tableWrapper, filter))
+                        .stream()) {
 
-            final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
-                    accountCoverageStream.collect(ImmutableListMultimap.toImmutableListMultimap(
+            final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime = stream
+                            .map(tableWrapper::createRecordAccessor)
+                            .collect(ImmutableListMultimap.toImmutableListMultimap(
                             AccountCoverageRecord::sampleTimeInstant,
                             this::convertRecordToDataPoint));
 
@@ -139,16 +140,25 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         logger.debug("Streaming {} coverage stats filtered by {}", tableWrapper::granularity, coverageFilter::toString);
 
-        return dslContext.select(generateSelectFromStatsFilter(tableWrapper, coverageFilter))
-                .from(tableWrapper.coverageTable())
-                .where(generateConditionsFromFilter(tableWrapper, coverageFilter))
-                .groupBy(generateGroupByFields(tableWrapper, coverageFilter))
-                .orderBy(tableWrapper.sampleTimeField(),
-                        tableWrapper.coverageTypeField(),
-                        tableWrapper.coverageSubTypeField())
-                .stream()
-                .map(tableWrapper::createRecordAccessor)
-                .map(this::convertRecordToStat);
+        Stream<CloudCommitmentStatRecord>
+                        statRecordStream =
+                        dslContext.select(
+                                        generateSelectFromStatsFilter(tableWrapper, coverageFilter))
+                                        .from(tableWrapper.coverageTable())
+                                        .where(generateConditionsFromFilter(tableWrapper,
+                                                                            coverageFilter))
+                                        .groupBy(generateGroupByFields(tableWrapper,
+                                                                       coverageFilter))
+                                        .orderBy(tableWrapper.sampleTimeField(),
+                                                 tableWrapper.coverageTypeField(),
+                                                 tableWrapper.coverageSubTypeField())
+                                        .stream()
+                                        .map(tableWrapper::createRecordAccessor)
+                                        .map(this::convertRecordToStat);
+
+        logger.debug("Streaming {} {} coverage stat records", statRecordStream::count, tableWrapper::granularity);
+
+        return statRecordStream;
     }
 
     /**
@@ -254,8 +264,9 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         final RegionFilter regionFilter = filter.regionFilter();
         if (regionFilter.getRegionIdCount() > 0) {
-            conditions.add(
-                    table.regionIdField().in(regionFilter.getRegionIdList()));
+            conditions.add(table
+                    .regionIdField()
+                    .in(regionFilter.getRegionIdList()));
         }
 
         final AccountFilter accountFilter = filter.accountFilter();

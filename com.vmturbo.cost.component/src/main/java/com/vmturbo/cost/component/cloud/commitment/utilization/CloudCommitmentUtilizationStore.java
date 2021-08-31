@@ -78,14 +78,13 @@ public interface CloudCommitmentUtilizationStore {
         Optional<Instant> endTime();
 
         /**
-         * The granularity of data to fetch.
+         * The granularity of data to fetch. If a granularity is not specified, one will be derived
+         * from the {@link #startTime()} and retention periods set for coverage data.
+         *
          * @return The granularity of data to fetch.
          */
-        @Default
         @Nonnull
-        default CloudStatGranularity granularity() {
-            return CloudStatGranularity.HOURLY;
-        }
+        Optional<CloudStatGranularity> granularity();
 
         /**
          * A filter of utilization by regions.
