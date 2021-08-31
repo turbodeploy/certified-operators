@@ -206,9 +206,17 @@ class TopologyCommoditiesSnapshot implements MemReporter {
             @Nonnull final Set<Long> targetEntities,
             @Nonnull final Set<Long> providerOids) {
         if (entityCountInfo.isCountStat(commodityName)) {
-            return entityCountInfo.getCountRecord(commodityName)
-                    .map(Collections::singletonList)
-                    .orElse(Collections.emptyList());
+            // entityCountInfo is a mapping of commodity type to commodity count.
+            // It's not possible to distinguish the count for a specific entity id,
+            // therefore any 'countStat' requests that contains elements in 'targetEntities'
+            // returns in an empty collection.
+            if (targetEntities.isEmpty()) {
+                return entityCountInfo.getCountRecord(commodityName)
+                        .map(Collections::singletonList)
+                        .orElse(Collections.emptyList());
+            } else {
+                return Collections.emptyList();
+            }
         } else if (commodityName.equals("priceIndex")) {
             return projectedPriceIndexSnapshot.getRecord(targetEntities)
                     .map(Collections::singletonList)
