@@ -151,6 +151,7 @@ public class TopologyConverterFromMarketTest {
     private static final Float SCALING_FACTOR = 1.5F;
     private static final Float RAW_PM_USED = 0.5F;
     private static final Float RAW_VM_USED = 0.2177F;
+    private static final Float RAW_VM_RESERVED = 0.25F;
     private static final Float RAW_PM_CAPACITY = 2.0F;
     private static final Float MARKET_PM_USED = RAW_PM_USED * SCALING_FACTOR;
     private static final Float MARKET_VM_USED = RAW_VM_USED * SCALING_FACTOR;
@@ -856,7 +857,7 @@ public class TopologyConverterFromMarketTest {
                 .newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.CPU_VALUE))
-                .setUsed(RAW_VM_USED).setScalingFactor(SCALING_FACTOR).build());
+                .setUsed(RAW_VM_USED).setReservedCapacity(RAW_VM_RESERVED).setScalingFactor(SCALING_FACTOR).build());
         TopologyDTO.TopologyEntityDTO expectedEntity2 = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditySoldList(topologyCPUSold)
@@ -948,7 +949,7 @@ public class TopologyConverterFromMarketTest {
         // Assert three entities returned - they will be in the original order - VM and PM and PMClone
         assertEquals(3L, entity.size());
         // check that the PM expected capacity and used matches the actual converted capacity and used
-        final CommoditySoldDTO actualCpuCommodity =
+        CommoditySoldDTO actualCpuCommodity =
                 entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
         assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodity.getCapacity(), epsilon);
         assertEquals(topologyCPUSold.getUsed(), actualCpuCommodity.getUsed(), epsilon);
@@ -966,6 +967,35 @@ public class TopologyConverterFromMarketTest {
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(), epsilon);
         assertEquals((double)SCALING_FACTOR, actualBoughtCommodityList.iterator().next().getScalingFactor(), TopologyConverter.EPSILON);
+
+        // Assert when reserved capacity is larger than used.
+        converter.setUseVMReservationAsUsed(true);
+
+        Field commoditiesWithReservationGreaterThanUsed = TopologyConverter.class.getDeclaredField("commoditiesWithReservationGreaterThanUsed");
+        commoditiesWithReservationGreaterThanUsed.setAccessible(true);
+        commoditiesWithReservationGreaterThanUsed.set(converter, ImmutableMap.of(VM_OID, ImmutableMap.of(topologyCpuBought.get(0), PM_OID)));
+
+        Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
+        Map<Long, TopologyEntityDTO> map = new HashMap<>();
+        map.put(expectedEntity.getOid(), expectedEntity);
+        map.put(expectedEntity2.getOid(), expectedEntity2);
+        entityOidToDto.setAccessible(true);
+        entityOidToDto.set(converter, map);
+
+        // Act
+        entity = converter.convertFromMarket(
+            // the traders in the market
+            Lists.newArrayList(pmTrader, vmTrader, clonePM),
+            // map back to original TopologyEntityDTOs
+            ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
+                expectedEntity2.getOid(), expectedEntity2),
+            PriceIndexMessage.getDefaultInstance(), reservedCapacityResults,
+            setUpWastedFileAnalysis());
+
+        // check that the PM expected capacity and used matches the actual converted capacity and used
+        actualCpuCommodity = entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
+        assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodity.getCapacity(), epsilon);
+        assertEquals(topologyCPUSold.getUsed() - (RAW_VM_RESERVED - RAW_VM_USED), actualCpuCommodity.getUsed(), epsilon);
     }
 
     /**
