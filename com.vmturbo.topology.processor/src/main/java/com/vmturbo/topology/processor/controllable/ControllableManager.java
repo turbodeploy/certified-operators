@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -233,11 +234,14 @@ public class ControllableManager {
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                // Set flag only for VMs
-                .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
+                // Set flag only for VMs and DBSs
+                .filter(entityBuilder -> {
+                    int entityType = entityBuilder.getEntityType();
+                    return EntityType.VIRTUAL_MACHINE.getValue() == entityType
+                            || EntityType.DATABASE_SERVER.getValue() == entityType;
+                })
                 .forEach(entityBuilder -> {
-                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForScale()
-                            && entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue()) {
+                    if (entityBuilder.getAnalysisSettingsBuilder().getIsEligibleForScale()) {
                         // It's currently eligible for scale, and about to be marked
                         // ineligible.
                         numModified.incrementAndGet();
