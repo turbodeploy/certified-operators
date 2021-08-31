@@ -71,6 +71,9 @@ public interface EntityStateStore<T> {
     /**
      * Get all entity states.
      *
+     * <p>NOTE: This stream must be closed through try-with-resource, as it amy represent underlying
+     * database connections.
+     *
      * @return all entity states
      * @throws EntitySavingsException error durring operation
      */

@@ -24,6 +24,9 @@ public interface CloudScopeStore {
 
     /**
      * Streams all {@link EntityCloudScope} records.
+     *
+     * <p>NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
      * @return A {@link Stream} contain all {@link EntityCloudScope} records that currently exist.
      */
     @Nonnull
@@ -31,6 +34,9 @@ public interface CloudScopeStore {
 
     /**
      * Streams all {@link EntityCloudScope} passing {@code filter}.
+     *
+     * <p>NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
      * @param filter The {@link CloudScopeFilter}.
      * @return A {@link Stream} containing all {@link EntityCloudScope} records that pass the filter.
      */

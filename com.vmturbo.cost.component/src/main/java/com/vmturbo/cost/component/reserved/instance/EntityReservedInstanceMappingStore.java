@@ -334,13 +334,19 @@ public class EntityReservedInstanceMappingStore implements
     @Nonnull
     public Map<Long, Set<Long>> getEntitiesCoveredByReservedInstances(
             @Nonnull final Collection<Long> reservedInstances) {
-        final Condition condition = reservedInstances.isEmpty() ? DSL.noCondition()
-                : Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(
-                        reservedInstances);
-        return dsl.selectDistinct(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID).from(
-                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).where(condition).fetchStream().collect(
-                Collectors.groupingBy(Record2::value1,
+
+        final Condition condition = reservedInstances.isEmpty()
+                ? DSL.noCondition()
+                : Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(reservedInstances);
+
+        return dsl.selectDistinct(
+                    Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                    Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
+                .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                .where(condition)
+                .fetch()
+                .stream()
+                .collect(Collectors.groupingBy(Record2::value1,
                         Collectors.mapping(Record2::value2, Collectors.toSet())));
     }
 

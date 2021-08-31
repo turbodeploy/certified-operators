@@ -1,19 +1,12 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.CREATE_TIME;
-import static com.vmturbo.common.protobuf.utils.StringConstants.DATA;
-import static com.vmturbo.common.protobuf.utils.StringConstants.TEMPLATE_TYPE;
 import static com.vmturbo.cost.component.db.Tables.ACTION_CONTEXT_RI_BUY;
 
-import java.sql.Timestamp;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.List;
@@ -26,17 +19,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 import org.jooq.DSLContext;
-import org.jooq.Record;
 import org.jooq.Record1;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -179,11 +170,13 @@ public class ActionContextRIBuyStore {
      * @return List<ActionContextRiBuyRecord>.
      */
     public List<RIBuyInstanceDemand> getRecordsFromActionContextRiBuy(String actionId) {
-        return dsl.selectFrom(ACTION_CONTEXT_RI_BUY)
-                .where(ACTION_CONTEXT_RI_BUY.ACTION_ID.eq(Long.parseLong(actionId)))
-                .fetchStream()
-                .map(this::convertRecordToInstanceDemand)
-                .collect(ImmutableList.toImmutableList());
+        try (final Stream<ActionContextRiBuyRecord> recordStream =
+                     dsl.selectFrom(ACTION_CONTEXT_RI_BUY)
+                             .where(ACTION_CONTEXT_RI_BUY.ACTION_ID.eq(Long.parseLong(actionId)))
+                             .fetchStream()) {
+            return recordStream.map(this::convertRecordToInstanceDemand)
+                    .collect(ImmutableList.toImmutableList());
+        }
     }
 
     private RIBuyInstanceDemand convertRecordToInstanceDemand(@Nonnull ActionContextRiBuyRecord record) {

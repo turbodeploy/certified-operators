@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -249,20 +250,23 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
         final CloudScopeFilter cloudScopeFilter = CloudScopeFilter.newBuilder()
                 .addAllEntityOid(oidsToFetch)
                 .build();
-        final Map<Long, Instant> fetchedCreationTimeMap = cloudScopeStore.streamByFilter(cloudScopeFilter)
-                .collect(ImmutableMap.toImmutableMap(
-                        EntityCloudScope::entityOid,
-                        EntityCloudScope::creationTime));
 
-        final Set<Long> missingOids = Sets.difference(entityOids, fetchedCreationTimeMap.keySet());
-        if (!missingOids.isEmpty()) {
-            logger.warn("Missing creation time for {} entities", missingOids.size());
-            if (logger.isDebugEnabled()) {
-                missingOids.forEach(missingOid -> logger.debug("Missing creation time for '{}'", missingOid));
+        try (Stream<EntityCloudScope> cloudScopeStream = cloudScopeStore.streamByFilter(cloudScopeFilter)) {
+            final Map<Long, Instant> fetchedCreationTimeMap = cloudScopeStream.collect(
+                    ImmutableMap.toImmutableMap(
+                            EntityCloudScope::entityOid,
+                            EntityCloudScope::creationTime));
+
+            final Set<Long> missingOids = Sets.difference(entityOids, fetchedCreationTimeMap.keySet());
+            if (!missingOids.isEmpty()) {
+                logger.warn("Missing creation time for {} entities", missingOids.size());
+                if (logger.isDebugEnabled()) {
+                    missingOids.forEach(missingOid -> logger.debug("Missing creation time for '{}'", missingOid));
+                }
             }
-        }
 
-        creationTimeCache.putAll(fetchedCreationTimeMap);
+            creationTimeCache.putAll(fetchedCreationTimeMap);
+        }
     }
 
     private EntityEvents addObservedCreationTime(@Nonnull EntityEvents entityEvents,

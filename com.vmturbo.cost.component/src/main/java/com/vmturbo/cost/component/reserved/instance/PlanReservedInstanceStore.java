@@ -115,7 +115,9 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
                 .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                 .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
                 .groupBy(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID)
-                .fetchStream().collect(Collectors.toMap(Record2::value1, Record2::value2));
+                .fetch()
+                .stream()
+                .collect(Collectors.toMap(Record2::value1, Record2::value2));
     }
 
     /**

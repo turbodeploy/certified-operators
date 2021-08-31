@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -88,12 +89,13 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
             // the filter, is dependent on entity uptime being calculated based on CCA data. This guarantees
             // if there is an entity uptime entry for an entity, it must also have an entry in
             // the cloud scope store.
-            return cloudScopeStore.streamByFilter(filter)
-                    .map(EntityCloudScope::entityOid)
-                    .filter(entityUptimeMap::containsKey)
-                    .collect(ImmutableMap.toImmutableMap(
-                            Function.identity(),
-                            entityUptimeMap::get));
+            try (Stream<EntityCloudScope> cloudScopeStream = cloudScopeStore.streamByFilter(filter)) {
+                return cloudScopeStream.map(EntityCloudScope::entityOid)
+                        .filter(entityUptimeMap::containsKey)
+                        .collect(ImmutableMap.toImmutableMap(
+                                Function.identity(),
+                                entityUptimeMap::get));
+            }
         } finally {
             uptimeDataLock.readLock().unlock();
         }

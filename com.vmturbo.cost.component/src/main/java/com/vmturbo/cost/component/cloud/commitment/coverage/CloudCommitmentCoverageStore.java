@@ -43,6 +43,9 @@ public interface CloudCommitmentCoverageStore {
 
     /**
      * Streams the account aggregated coverage stat records, based on the provided {@code coverageFilter}.
+     *
+     * <p>NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
      * @param coverageFilter The {@link AccountCoverageStatsFilter}.
      * @return A stream of stat records for the matching data samples, sorted by earliest sample time first.
      */

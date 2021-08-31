@@ -85,13 +85,17 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
                     .groupByList(request.getGroupByList())
                     .build();
 
-            final Stream<CloudCommitmentStatRecord> statRecordStream = utilizationStore.streamUtilizationStats(statsFilter);
-            Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
-                    .forEachRemaining(statRecordChunk ->
-                            responseObserver.onNext(
-                                    GetHistoricalCloudCommitmentUtilizationResponse.newBuilder()
-                                            .addAllCommitmentStatRecordChunk(statRecordChunk)
-                                            .build()));
+            try (Stream<CloudCommitmentStatRecord> statRecordStream =
+                         utilizationStore.streamUtilizationStats(statsFilter)) {
+
+                Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
+                        .forEachRemaining(statRecordChunk ->
+                                responseObserver.onNext(
+                                        GetHistoricalCloudCommitmentUtilizationResponse.newBuilder()
+                                                .addAllCommitmentStatRecordChunk(statRecordChunk)
+                                                .build()));
+            }
+
 
             responseObserver.onCompleted();
 
@@ -130,13 +134,14 @@ public class CloudCommitmentStatsRpcService extends CloudCommitmentStatsServiceI
                     .groupByList(request.getGroupByList())
                     .build();
 
-            final Stream<CloudCommitmentStatRecord> statRecordStream = coverageStore.streamCoverageStats(statsFilter);
-            Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
-                    .forEachRemaining(statRecordChunk ->
-                            responseObserver.onNext(
-                                    GetHistoricalCommitmentCoverageStatsResponse.newBuilder()
-                                            .addAllCommitmentStatRecordChunk(statRecordChunk)
-                                            .build()));
+            try (Stream<CloudCommitmentStatRecord> statRecordStream = coverageStore.streamCoverageStats(statsFilter)) {
+                Iterators.partition(statRecordStream.iterator(), requestedStatsPerChunk)
+                        .forEachRemaining(statRecordChunk ->
+                                responseObserver.onNext(
+                                        GetHistoricalCommitmentCoverageStatsResponse.newBuilder()
+                                                .addAllCommitmentStatRecordChunk(statRecordChunk)
+                                                .build()));
+            }
 
             responseObserver.onCompleted();
 

@@ -116,14 +116,15 @@ public interface TableDiagsRestorable<T, S extends Record> extends DiagsRestorab
     default void collectDiags(@Nonnull final DiagnosticsAppender appender) {
         getDSLContext().transaction(transactionContext -> {
             final DSLContext transaction = DSL.using(transactionContext);
-            Stream<S> records = transaction.selectFrom(getTable()).stream();
-            records.forEach(s -> {
-                try {
-                    appender.appendString(s.formatJSON());
-                } catch (DiagnosticsException e) {
-                    logger.error("Exception encountered while dumping {}", getTable().getName(), e);
-                }
-            });
+            try (Stream<S> records = transaction.selectFrom(getTable()).stream()) {
+                records.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while dumping {}", getTable().getName(), e);
+                    }
+                });
+            }
         });
     }
 

@@ -122,24 +122,27 @@ class GranularTableStore<
 
         logger.debug("Querying {} utilization buckets filtered by {}", utilizationTable::granularity, filter::toString);
 
-        final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
-                dslContext.selectFrom(utilizationTable.wrappedTable())
-                        .where(generateConditionsFromFilter(filter))
-                        .stream()
-                        .map(utilizationTable::createRecordAccessor)
-                        .collect(ImmutableListMultimap.toImmutableListMultimap(
-                                RecordAccessor::sampleTimeInstant,
-                                this::convertRecordToDataPoint));
+        try (Stream<WrappedTableRecordT> tableRecordStream =
+                     dslContext.selectFrom(utilizationTable.wrappedTable())
+                             .where(generateConditionsFromFilter(filter))
+                             .stream()) {
 
-        return dataPointsByTime.asMap().entrySet()
-                .stream()
-                .map(e -> CloudCommitmentDataBucket.newBuilder()
-                        .setGranularity(utilizationTable.granularity())
-                        .setTimestampMillis(e.getKey().toEpochMilli())
-                        .addAllSample(e.getValue())
-                        .build())
-                .sorted(Comparator.comparing(CloudCommitmentDataBucket::getTimestampMillis))
-                .collect(ImmutableList.toImmutableList());
+            final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
+                    tableRecordStream.map(utilizationTable::createRecordAccessor)
+                            .collect(ImmutableListMultimap.toImmutableListMultimap(
+                                    RecordAccessor::sampleTimeInstant,
+                                    this::convertRecordToDataPoint));
+
+            return dataPointsByTime.asMap().entrySet()
+                    .stream()
+                    .map(e -> CloudCommitmentDataBucket.newBuilder()
+                            .setGranularity(utilizationTable.granularity())
+                            .setTimestampMillis(e.getKey().toEpochMilli())
+                            .addAllSample(e.getValue())
+                            .build())
+                    .sorted(Comparator.comparing(CloudCommitmentDataBucket::getTimestampMillis))
+                    .collect(ImmutableList.toImmutableList());
+        }
     }
 
     /**

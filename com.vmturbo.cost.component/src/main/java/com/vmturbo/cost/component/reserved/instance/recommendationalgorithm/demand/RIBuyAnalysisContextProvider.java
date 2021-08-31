@@ -112,8 +112,8 @@ public class RIBuyAnalysisContextProvider {
         final ReservedInstanceCatalogMatcher reservedInstanceCatalogMatcher = reservedInstanceCatalogMatcherFactory.newMatcher(
                 cloudTopology, purchaseConstraints, SetUtils.emptyIfNull(scope.getAccounts()));
 
-        final List<ComputeTierTypeHourlyByWeekRecord> demandClusters = computeTierDemandStatsStore
-                .getUniqueDemandClusters().collect(Collectors.toList());
+        final List<ComputeTierTypeHourlyByWeekRecord> demandClusters =
+                computeTierDemandStatsStore.getUniqueDemandClusters();
 
         final List<ScopedDemandCluster> translatedClusters = demandClusters.stream()
                 // convert the DB records to a scoped demand cluster instance, checking that the
