@@ -42,7 +42,7 @@ public class CloudCommitmentStatsConfig {
     @Nonnull
     @Bean
     public CloudCommitmentUtilizationStore cloudCommitmentUtilizationStore() {
-        return new SQLCloudCommitmentUtilizationStore(dslContext);
+        return new SQLCloudCommitmentUtilizationStore(dslContext, cloudGranularityCalculator());
     }
 
     /**
