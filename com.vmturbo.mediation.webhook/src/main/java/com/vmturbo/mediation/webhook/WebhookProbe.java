@@ -134,6 +134,11 @@ public class WebhookProbe
             @Nonnull final Collection<ActionEventDTO> actionEvents)
             throws TargetOperationException, InterruptedException {
         for (ActionEventDTO actionEventDTO : actionEvents) {
+            ActionExecutionDTO action = actionEventDTO.getAction();
+            if (actionEventDTO.getNewState() == ActionResponseState.CLEARED) {
+                logger.debug("Skip auditing CLEARED action with OID: " + action.getActionOid());
+                continue;
+            }
             try {
                 prepareAndExecuteWebhookQuery(actionEventDTO.getAction());
             } catch (IOException | WebhookException | ParseException | MethodInvocationException ex) {
