@@ -11,14 +11,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.stereotype.Component;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.ExecutionStatus;
 import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.WorkerLifecycleListener;
 import com.vmturbo.mediation.diagnostic.MediationDiagnosticsConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
@@ -47,8 +45,10 @@ public class WebhookComponent extends MediationComponentMain {
     private void checkTargetRegistration() {
         try {
             new TargetRegistration(topologyProcessor()).checkTargetRegistration();
-        } catch (CommunicationException | TopologyProcessorException e) {
-            LOGGER.error("Webhook Target registration error:", e);
+        } catch (Exception e) {
+            LOGGER.error("Error encontered when registering the Webhook Target."
+                    + " The component will be restarted: ", e);
+            System.exit(1);
         }
     }
 
