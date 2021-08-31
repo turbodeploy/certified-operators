@@ -189,6 +189,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
     public Set<Long> getAllReferencedRISpecIds() {
         return dsl.select(BUY_RESERVED_INSTANCE.RESERVED_INSTANCE_SPEC_ID)
                 .from(BUY_RESERVED_INSTANCE)
+                .fetch()
                 .stream()
                 .map(Record1::value1)
                 .collect(ImmutableSet.toImmutableSet());

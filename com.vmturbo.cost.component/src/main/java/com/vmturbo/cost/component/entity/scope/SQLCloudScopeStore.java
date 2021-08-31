@@ -120,22 +120,20 @@ public class SQLCloudScopeStore implements CloudScopeStore,
                 selectJoinStep = selectJoinStep.leftAntiJoin(foreignKeyTable).using(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID);
             }
 
-            final Iterator<Long> entityOidIterator = selectJoinStep.stream()
-                    .map(Record1::component1)
-                    .iterator();
+            try (final Stream<Long> entityOidStream = selectJoinStep.stream().map(Record1::component1)) {
+                Iterators.partition(entityOidStream.iterator(), batchCleanupSize).forEachRemaining(entityOidsToDelete -> {
+                    try {
+                        final int batchRecordsDelete = dslContext.deleteFrom(Tables.ENTITY_CLOUD_SCOPE)
+                                .where(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(entityOidsToDelete))
+                                .execute();
 
-            Iterators.partition(entityOidIterator, batchCleanupSize).forEachRemaining(entityOidsToDelete -> {
-                try {
-                    final int batchRecordsDelete = dslContext.deleteFrom(Tables.ENTITY_CLOUD_SCOPE)
-                            .where(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(entityOidsToDelete))
-                            .execute();
-
-                    logger.info("Delete batch of {} cloud scope records", batchRecordsDelete);
-                    numRecordsDelete.add(batchRecordsDelete);
-                } catch (Exception e) {
-                    logger.error("Error delete batch of cloud scope records", e);
-                }
-            });
+                        logger.info("Delete batch of {} cloud scope records", batchRecordsDelete);
+                        numRecordsDelete.add(batchRecordsDelete);
+                    } catch (Exception e) {
+                        logger.error("Error delete batch of cloud scope records", e);
+                    }
+                });
+            }
 
             logger.info("Cleaned up {} entity cloud scope records in {}",
                     numRecordsDelete.longValue(),

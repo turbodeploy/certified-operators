@@ -46,6 +46,9 @@ public interface CloudCommitmentUtilizationStore {
     /**
      * Streams the {@link CloudCommitmentStatRecord} matching {@code filter}. Stats will always be grouped
      * by the sample timestamp (each record is analogous to {@link CloudCommitmentDataBucket}).
+     *
+     * <p>NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
      * @param filter The filter for stats data.
      * @return A stream of stats records matching the filter.
      */

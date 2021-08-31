@@ -212,6 +212,9 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
     }
 
     /**
+     * NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
+     *
      * {@inheritDoc}
      *
      * @param filter The filter for returned {@link EntityComputeTierAllocation} records.
@@ -241,8 +244,10 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
             final EntityComputeTierAllocationSet.Builder allocationSet = EntityComputeTierAllocationSet.builder()
                     .latestTopologyInfo(Optional.ofNullable(latestProcessedTopologyInfo));
 
-            streamAllocations(filter).forEach(allocation ->
-                    allocationSet.putAllocation(allocation.entityOid(), allocation));
+            try (Stream<EntityComputeTierAllocation> allocationStream = streamAllocations(filter)) {
+                allocationStream.forEach(allocation ->
+                        allocationSet.putAllocation(allocation.entityOid(), allocation));
+            }
 
             return allocationSet.build();
         } finally {
@@ -342,9 +347,12 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
     }
 
     /**
-     * Stream records that are exactly equal to the target {@code endTime}. This is usefuly in querying
+     * NOTE: This stream should be treated as a closeable resource, as it may represent underlying
+     * database connections.
+     *
+     * <p>Stream records that are exactly equal to the target {@code endTime}. This is usefuly in querying
      * for records from a prior topology, where it is expected the end time of the records will match
-     * the creation time of the prior topology.
+     * the creation time of the prior topology.</p>
      *
      * @param endTime The target end time in UTC.
      * @return A {@link Stream} containing the {@link EntityComputeTierAllocationRecord} instances with
@@ -422,25 +430,29 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 final Instant previousCreationTime = Instant.ofEpochMilli(previousTopologyInfo.get().getCreationTime());
                 final LocalDateTime creationTimestamp = LocalDateTime.ofInstant(topologyCreationTime, UTC_ZONE_ID);
 
-                final Stream<EntityComputeTierAllocationRecord> updatedRecordsStream = streamRecordsByEndTime(previousCreationTime)
-                        .map(entityAllocationRecord -> extendAllocationRecord(
-                                entityAllocationRecord,
-                                allocationsByEntityOid,
-                                creationTimestamp))
-                        .filter(Optional::isPresent)
-                        .map(Optional::get);
 
                 final Set<Long> updatedEntityOids = new HashSet<>();
-                Iterators.partition(updatedRecordsStream.iterator(), batchExtensionSize)
-                        .forEachRemaining(allocationRecordsBatch -> {
-                            try {
-                                dslContext.batchUpdate(allocationRecordsBatch).execute();
-                                allocationRecordsBatch.forEach(r -> updatedEntityOids.add(r.getEntityOid()));
-                            } catch (Exception e) {
-                                logger.error("Error extending entity allocation records", e);
-                            }
+                try (Stream<EntityComputeTierAllocationRecord> recordsStream = streamRecordsByEndTime(previousCreationTime)) {
 
-                        });
+                    final Stream<EntityComputeTierAllocationRecord> updatedRecordsStream = recordsStream
+                            .map(entityAllocationRecord -> extendAllocationRecord(
+                                    entityAllocationRecord,
+                                    allocationsByEntityOid,
+                                    creationTimestamp))
+                            .filter(Optional::isPresent)
+                            .map(Optional::get);
+
+                    Iterators.partition(updatedRecordsStream.iterator(), batchExtensionSize)
+                            .forEachRemaining(allocationRecordsBatch -> {
+                                try {
+                                    dslContext.batchUpdate(allocationRecordsBatch).execute();
+                                    allocationRecordsBatch.forEach(r -> updatedEntityOids.add(r.getEntityOid()));
+                                } catch (Exception e) {
+                                    logger.error("Error extending entity allocation records", e);
+                                }
+
+                            });
+                }
 
                 return Collections.unmodifiableSet(updatedEntityOids);
             } else {

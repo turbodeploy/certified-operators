@@ -185,13 +185,20 @@ public class AccountRIMappingStore implements TableDiagsRestorable {
     @Nonnull
     public Map<Long, Set<Long>> getUndiscoveredAccountsCoveredByReservedInstances(
             @Nonnull final Collection<Long> reservedInstances) {
-        final Condition condition = reservedInstances.isEmpty() ? DSL.noCondition()
-                : Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(
-                        reservedInstances);
-        return dsl.selectDistinct(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID).from(
-                Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING).where(condition).fetchStream().collect(
-                Collectors.groupingBy(Record2::value1,
+
+        final Condition condition = reservedInstances.isEmpty()
+                ? DSL.noCondition()
+                : Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(reservedInstances);
+
+        return dsl.selectDistinct(
+                    ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                    ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID)
+                .from(ACCOUNT_TO_RESERVED_INSTANCE_MAPPING)
+                .where(condition)
+                .fetch()
+                .stream()
+                .collect(Collectors.groupingBy(
+                        Record2::value1,
                         Collectors.mapping(Record2::value2, Collectors.toSet())));
     }
 

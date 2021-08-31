@@ -139,7 +139,7 @@ public class DemandRetrievalStageTest {
         when(demandReader.getAllocationDemand(
                 eq(CloudTierType.COMPUTE_TIER),
                 eq(allocatedSelection.getDemandSelection().getScope()),
-                eq(analysisWindow))).thenReturn(Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
+                eq(analysisWindow))).thenAnswer((invocation) -> Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
 
         // invoke the stage
         final AnalysisStage.StageResult<EntityCloudTierDemandSet> stageResult =

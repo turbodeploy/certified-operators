@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,6 +34,7 @@ import com.google.common.collect.Sets;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Record4;
@@ -252,7 +254,9 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         }
         return query.where(filter.generateConditions())
                 .groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID)
-                .fetchStream().collect(Collectors.toMap(Record2::value1, Record2::value2));
+                .fetch()
+                .stream()
+                .collect(Collectors.toMap(Record2::value1, Record2::value2));
     }
 
     @Override
@@ -607,18 +611,25 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     public Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(
             @Nonnull final DSLContext context,
             @Nonnull final Collection<Long> filterByReservedInstanceIds) {
-        return context.select(RESERVED_INSTANCE_ID_FIELD, sum(USED_COUPONS_FIELD)).from(DSL.select(
-                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
-                .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                .unionAll(
-                        DSL.select(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                                Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
-                                .from(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING))).where(
-                filterByReservedInstanceIds.isEmpty() ? DSL.trueCondition()
-                        : RESERVED_INSTANCE_ID_FIELD.in(filterByReservedInstanceIds)).groupBy(
-                RESERVED_INSTANCE_ID_FIELD).fetchStream().collect(
-                Collectors.toMap(r -> r.getValue(0, Long.class), r -> r.getValue(1, Double.class)));
+        return context.select(RESERVED_INSTANCE_ID_FIELD, sum(USED_COUPONS_FIELD))
+                .from(
+                        DSL.select(
+                                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
+                            .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                            .unionAll(
+                                    DSL.select(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                                            Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
+                                        .from(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING)))
+                .where(filterByReservedInstanceIds.isEmpty()
+                        ? DSL.trueCondition()
+                        : RESERVED_INSTANCE_ID_FIELD.in(filterByReservedInstanceIds))
+                .groupBy(RESERVED_INSTANCE_ID_FIELD)
+                .fetch()
+                .stream()
+                .collect(Collectors.toMap(r ->
+                        r.getValue(0, Long.class),
+                        r -> r.getValue(1, Double.class)));
     }
 
     @Nonnull
@@ -627,10 +638,13 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         final SelectWhereStep<ReservedInstanceBoughtRecord> records
                 = getDsl().selectFrom(RESERVED_INSTANCE_BOUGHT);
         final Set<Long> discoveredAccounts = businessAccountHelper.getDiscoveredBusinessAccounts();
-        return records.stream()
-                .filter(record -> !discoveredAccounts.contains(record.getBusinessAccountId()))
-                .map(this::reservedInstancesToProto)
-                .collect(toList());
+
+        try (Stream<ReservedInstanceBoughtRecord> recordStream =
+                     getDsl().selectFrom(RESERVED_INSTANCE_BOUGHT).stream()) {
+            return recordStream.filter(record -> !discoveredAccounts.contains(record.getBusinessAccountId()))
+                    .map(this::reservedInstancesToProto)
+                    .collect(toList());
+        }
     }
 
 
@@ -642,11 +656,12 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         Optional<Condition> usedCondition = filter.generateUsedByDiscoveredAccountsCondition(getDSLContext());
         final List<Long> usedRIs;
         if (usedCondition.isPresent()) {
-            usedRIs = getDsl()
-                    .selectFrom(RESERVED_INSTANCE_BOUGHT)
+            usedRIs = getDsl().select(RESERVED_INSTANCE_BOUGHT.ID)
+                    .from(RESERVED_INSTANCE_BOUGHT)
                     .where(usedCondition.get())
-                    .fetchStream()
-                    .map(r -> r.getId())
+                    .fetch()
+                    .stream()
+                    .map(Record1::value1)
                     .collect(Collectors.toList());
         } else {
             usedRIs = Collections.emptyList();

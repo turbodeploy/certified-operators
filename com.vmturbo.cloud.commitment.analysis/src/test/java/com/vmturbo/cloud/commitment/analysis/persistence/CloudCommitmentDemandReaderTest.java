@@ -11,10 +11,10 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.List;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import org.junit.Test;
@@ -90,20 +90,17 @@ public class CloudCommitmentDemandReaderTest {
                 .thenAnswer((f) -> Stream.of(allocationA, allocationB));
 
         // Invoke the reader
-        final Stream<EntityCloudTierMapping> actualDemandStream = cloudCommitmentDemandReader.getAllocationDemand(
-                CloudTierType.COMPUTE_TIER,
-                demandScope,
-                selectionWindow);
-
-        final Set<EntityCloudTierMapping> actualDemand = actualDemandStream.collect(Collectors.toSet());
+        final List<EntityCloudTierMapping> actualDemandList =
+                cloudCommitmentDemandReader.getAllocationDemand(CloudTierType.COMPUTE_TIER, demandScope, selectionWindow)
+                        .collect(ImmutableList.toImmutableList());
 
         final ArgumentCaptor<EntityComputeTierAllocationFilter> filterCaptor =
                 ArgumentCaptor.forClass(EntityComputeTierAllocationFilter.class);
         verify(computeTierAllocationStore).streamAllocations(filterCaptor.capture());
         assertThat(filterCaptor.getValue(), equalTo(allocationFilter));
 
-        assertThat(actualDemand, hasSize(2));
-        assertThat(actualDemand, containsInAnyOrder(allocationA, allocationB));
+        assertThat(actualDemandList, hasSize(2));
+        assertThat(actualDemandList, containsInAnyOrder(allocationA, allocationB));
 
     }
 }

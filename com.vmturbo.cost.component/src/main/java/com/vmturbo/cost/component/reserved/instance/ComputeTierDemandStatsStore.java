@@ -13,6 +13,10 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -21,9 +25,6 @@ import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
@@ -179,9 +180,9 @@ public class ComputeTierDemandStatsStore implements
 
     /**
      * Queries for the unique set of demand clusters (account, region, compute tier, platform, tenancy).
-     * @return A {@link Stream} of records representing the unique set of demand clusters.
+     * @return A {@link List} of records representing the unique set of demand clusters.
      */
-    public Stream<ComputeTierTypeHourlyByWeekRecord> getUniqueDemandClusters() {
+    public List<ComputeTierTypeHourlyByWeekRecord> getUniqueDemandClusters() {
         return dslContext
                 .selectDistinct(
                         COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID,
@@ -190,7 +191,8 @@ public class ComputeTierDemandStatsStore implements
                         COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM,
                         COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY)
                 .from(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .fetchStreamInto(ComputeTierTypeHourlyByWeekRecord.class);
+                .fetchStreamInto(ComputeTierTypeHourlyByWeekRecord.class)
+                .collect(ImmutableList.toImmutableList());
 
     }
 

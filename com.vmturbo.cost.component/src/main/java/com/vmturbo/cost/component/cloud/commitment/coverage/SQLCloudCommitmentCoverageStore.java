@@ -106,24 +106,28 @@ public class SQLCloudCommitmentCoverageStore implements CloudCommitmentCoverageS
 
         final AccountCoverageTable<?, ?> tableWrapper = createAccountCoverageTable(determineGranularity(filter));
 
-        final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
-                dslContext.selectFrom(tableWrapper.coverageTable())
-                        .where(generateConditionsFromFilter(tableWrapper, filter))
-                        .stream()
-                        .map(tableWrapper::createRecordAccessor)
-                        .collect(ImmutableListMultimap.toImmutableListMultimap(
-                                AccountCoverageRecord::sampleTimeInstant,
-                                this::convertRecordToDataPoint));
 
-        return dataPointsByTime.asMap().entrySet()
-                .stream()
-                .map(e -> CloudCommitmentDataBucket.newBuilder()
-                        .setGranularity(tableWrapper.granularity())
-                        .setTimestampMillis(e.getKey().toEpochMilli())
-                        .addAllSample(e.getValue())
-                        .build())
-                .sorted(Comparator.comparing(CloudCommitmentDataBucket::getTimestampMillis))
-                .collect(ImmutableList.toImmutableList());
+        try (Stream<AccountCoverageRecord<?>> accountCoverageStream =
+                     dslContext.selectFrom(tableWrapper.coverageTable())
+                             .where(generateConditionsFromFilter(tableWrapper, filter))
+                             .stream()
+                             .map(tableWrapper::createRecordAccessor)) {
+
+            final ListMultimap<Instant, CloudCommitmentDataPoint> dataPointsByTime =
+                    accountCoverageStream.collect(ImmutableListMultimap.toImmutableListMultimap(
+                            AccountCoverageRecord::sampleTimeInstant,
+                            this::convertRecordToDataPoint));
+
+            return dataPointsByTime.asMap().entrySet()
+                    .stream()
+                    .map(e -> CloudCommitmentDataBucket.newBuilder()
+                            .setGranularity(tableWrapper.granularity())
+                            .setTimestampMillis(e.getKey().toEpochMilli())
+                            .addAllSample(e.getValue())
+                            .build())
+                    .sorted(Comparator.comparing(CloudCommitmentDataBucket::getTimestampMillis))
+                    .collect(ImmutableList.toImmutableList());
+        }
     }
 
     @Override
