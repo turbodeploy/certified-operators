@@ -9,16 +9,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -28,7 +31,10 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Auxiliary;
+import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
@@ -101,10 +107,11 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     private final ExecutorService executorService;
 
     private final AtomicReference<Future<Void>> currentRunningRIBuy = new AtomicReference<>();
+
     /**
-     * List of Business Accounts with associated pricing information.
+     * Map of Business Accounts by OID with associated pricing information.
      */
-    private final Set<BizAccPriceRecord> businessAccountsWithCost = new HashSet<>();
+    private final Map<Long, BusinessAccountPriceData> businessAccountsWithCost = new ConcurrentHashMap<>();
 
     private Optional<CloudTopology<TopologyEntityDTO>> cloudTopology = Optional.empty();
 
@@ -498,8 +505,12 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .fetchPriceTableKeyOidsByBusinessAccount(allBusinessAccounts.stream().map(p -> p.left)
                         .collect(Collectors.toSet()));
 
-        Set<BizAccPriceRecord> lastDiscoveredBAs = collectBAsCostRecords(allBusinessAccounts,
-                allBAToPriceTableOid);
+        final Map<Long, BusinessAccountPriceData> lastDiscoveredBAs =
+                collectBAsCostRecords(allBusinessAccounts, allBAToPriceTableOid)
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                BusinessAccountPriceData::businessAccountOid,
+                                Function.identity()));
 
         logger.debug("Business Accounts w/cost: {}", businessAccountsWithCost);
         logger.debug("Last Discovered BAs: {}", lastDiscoveredBAs);
@@ -511,27 +522,20 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         //     If different, update record to reflect new price table oid and checksum
         //     and,
         //     Flag the change in pricing to trigger the Buy RI in the parent.
-        for (BizAccPriceRecord storedBaRec : businessAccountsWithCost) {
-            for (BizAccPriceRecord lastDiscBaRec : lastDiscoveredBAs) {
-                // Same BA? Check if the pricing has changed since last discovery.
-                if (lastDiscBaRec.getBusinessAccountOid().equals(storedBaRec.getBusinessAccountOid())) {
-                    if (!lastDiscBaRec.equals(storedBaRec)) {
-                        logger.info("Pricing changed for BA: {}. BA's old price {}",
-                                lastDiscBaRec, storedBaRec);
-                        priceChanged = true;
-                        // Make the BA pricing record up-to-date in the member "businessAccountsWithCost"
-                        // collection.
-                        storedBaRec.setPrTabChecksum(lastDiscBaRec.getPrTabChecksum());
-                        storedBaRec.setPrTabKeyOid(lastDiscBaRec.getPrTabKeyOid());
-                        // Note that, even if we detected price change in this particular account pricing,
-                        // (i.e enough to know to decide to trigger Buy RI) we still have to run though ALL
-                        // entries in both sets (businessAccountsWithCost, lastDiscoveredBAs) as we also have
-                        // to update all current prices for all accounts in businessAccountsWithCost.
-                        // --------------
-                        // So, do not be tempted to
-                        // break;
-                        // at this moment.
-                    }
+        for (Map.Entry<Long, BusinessAccountPriceData> storedBaRec : businessAccountsWithCost.entrySet()) {
+
+            long storedAccountOid = storedBaRec.getKey();
+            if (lastDiscoveredBAs.containsKey(storedAccountOid)) {
+                final BusinessAccountPriceData storedPriceData = storedBaRec.getValue();
+                final BusinessAccountPriceData lastAccountPriceData = lastDiscoveredBAs.get(storedAccountOid);
+
+                if (!lastAccountPriceData.equals(storedPriceData)) {
+                    logger.info("Pricing changed for BA: {}. BA's old price {}",
+                            lastAccountPriceData, storedPriceData);
+                    priceChanged = true;
+
+                    // update the businessAccountsWithCost map
+                    businessAccountsWithCost.put(storedAccountOid, lastAccountPriceData);
                 }
             }
         }
@@ -539,32 +543,39 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         return priceChanged;
     }
 
-    protected Set<BizAccPriceRecord> collectBAsCostRecords(
+    protected Set<BusinessAccountPriceData> collectBAsCostRecords(
             final Set<ImmutablePair<Long, String>> businessAccounts,
             final Map<Long, Long> baToPriceTableOidMap) {
-        Set<BizAccPriceRecord> lastDiscoveredBAs = new HashSet<>();
+
+        final Set<Long> uniquePriceTableKeyOids = ImmutableSet.copyOf(baToPriceTableOidMap.values());
+        final Map<Long, PriceTableKey> priceTableKeyOidMap = prTabStore.getPriceTableKeys(uniquePriceTableKeyOids);
+        final Set<PriceTableKey> uniquePriceTableKeys = ImmutableSet.copyOf(priceTableKeyOidMap.values());
+        final Map<PriceTableKey, Long> priceTableKeyChecksumMap = prTabStore.getChecksumByPriceTableKeys(uniquePriceTableKeys);
+
+        final ImmutableSet.Builder<BusinessAccountPriceData> lastDiscoveredBAs = ImmutableSet.builder();
         // Find which of the new BAs have cost.
-        for (Long businessAccountId : baToPriceTableOidMap.keySet()) {
-            Long priceTableKeyOid = baToPriceTableOidMap.get(businessAccountId);
-            Map<Long, PriceTableKey> prTabOidToTabKey = prTabStore.getPriceTableKeys(
-                    Collections.singletonList(priceTableKeyOid));
-            PriceTableKey prTabKey = prTabOidToTabKey.get(priceTableKeyOid);
-            if (prTabKey != null) {
-                // Get price table checksum by price table key.
-                Map<PriceTableKey, Long> prTabkeyToChkSum = prTabStore.getChecksumByPriceTableKeys(
-                        Collections.singletonList(prTabKey));
-                // Get checksum of a price table.
-                Long tabChecksum = prTabkeyToChkSum.get(prTabKey);
-                if (tabChecksum != null) {
-                    // Add record of BA with its price table key oid and price table checksum.
-                    lastDiscoveredBAs.add(new BizAccPriceRecord(businessAccountId,
-                            getAccountNameByOid(businessAccounts, businessAccountId),
-                            priceTableKeyOid, tabChecksum));
+        for (long businessAccountId : baToPriceTableOidMap.keySet()) {
+
+            final long  priceTableKeyOid = baToPriceTableOidMap.get(businessAccountId);
+            if (priceTableKeyOidMap.containsKey(priceTableKeyOid)) {
+                final PriceTableKey priceTableKey = priceTableKeyOidMap.get(priceTableKeyOid);
+
+                if (priceTableKey != null && priceTableKeyChecksumMap.containsKey(priceTableKey)) {
+                    final Long priceTableChecksum = priceTableKeyChecksumMap.get(priceTableKey);
+                    if (priceTableChecksum != null) {
+                        lastDiscoveredBAs.add(BusinessAccountPriceData.builder()
+                                .businessAccountOid(businessAccountId)
+                                .accountDisplayName(getAccountNameByOid(businessAccounts, businessAccountId))
+                                .priceTableKeyOid(priceTableKeyOid)
+                                .priceTableChecksum(priceTableChecksum)
+                                .build());
+                    }
+
                 }
             }
         }
 
-        return lastDiscoveredBAs;
+        return lastDiscoveredBAs.build();
     }
 
     /**
@@ -575,11 +586,12 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @return count of new BAs with cost that were discovered since last topology broadcast.
      */
     protected int addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
-        Set<BizAccPriceRecord> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
+        Set<BusinessAccountPriceData> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         if (newBusinessAccountsWithCost.size() > 0) {
-            businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
+            newBusinessAccountsWithCost.forEach(accountPriceData ->
+                    businessAccountsWithCost.put(accountPriceData.businessAccountOid(), accountPriceData));
             logger.info("Detected new Business Account(s): {}", newBusinessAccountsWithCost.stream()
-                    .map(rec -> rec.getBusinessAccountOid()).collect(Collectors.toSet()));
+                    .map(rec -> rec.businessAccountOid()).collect(Collectors.toSet()));
             logger.info("Size of the updated collection 'Business Accounts With Cost' = {}",
                     businessAccountsWithCost.size());
         }
@@ -599,24 +611,18 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
             return true;
         }
 
-        Set<Long> deletedBusinessAccounts = Sets.difference(
-                businessAccountsWithCost.stream()
-                        .map(baRec -> baRec.getBusinessAccountOid()).collect(Collectors.toSet()),
+        final Set<Long> deletedBusinessAccounts = Sets.difference(
+                businessAccountsWithCost.keySet(),
                 allBusinessAccounts.stream().map(p -> p.left).collect(Collectors.toSet()))
                 .immutableCopy();
         if (deletedBusinessAccounts.size() > 0) {
-            Set<BizAccPriceRecord> removeTheseBAs = new HashSet<>();
-            for (Long baOid : deletedBusinessAccounts) {
-                for (BizAccPriceRecord baRec : businessAccountsWithCost) {
-                    if (baRec.getBusinessAccountOid() == baOid) {
-                        removeTheseBAs.add(baRec);
-                    }
-                }
-            }
-            businessAccountsWithCost.removeAll(removeTheseBAs);
+            final Set<BusinessAccountPriceData> removedAccountPriceData = deletedBusinessAccounts.stream()
+                    .map(businessAccountsWithCost::remove)
+                    .filter(Objects::nonNull)
+                    .collect(ImmutableSet.toImmutableSet());
             logger.info("Detected deleted Business Account(s): {}."
                     + " Size of the updated collection 'Business Accounts With Cost' = {}",
-                    removeTheseBAs, businessAccountsWithCost.size());
+                    removedAccountPriceData, businessAccountsWithCost.size());
         }
         return (deletedBusinessAccounts.size() > 0);
     }
@@ -629,12 +635,13 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @return collection of BAs which didn't have cost till last topology broadcast.
      */
     @VisibleForTesting
-    public Set<BizAccPriceRecord> getNewBusinessAccountsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+    public Set<BusinessAccountPriceData> getNewBusinessAccountsWithCost(
+            Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+
         // Get all new discovered BAs since last broadcast.
         final ImmutableSet<Long> newBusinessAccounts = Sets.difference(
                 allBusinessAccounts.stream().map(p -> p.left).collect(Collectors.toSet()),
-                businessAccountsWithCost.stream().map(baRec -> baRec.getBusinessAccountOid())
-                        .collect(Collectors.toSet())).immutableCopy();
+                businessAccountsWithCost.keySet()).immutableCopy();
 
         logger.debug("getNewBusinessAccountsWithCost:\n"
                 + "  - allBusinessAccounts {},\n"
@@ -685,113 +692,23 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         this.runBuyRIOnNextBroadcast = runBuyRIOnNextBroadcast;
     }
 
-    /**
-     * Gets BA price table key store.
-     *
-     * @return BA price table key store.
-     */
-    public BusinessAccountPriceTableKeyStore getPrTabKeyStore() {
-        return prTabKeyStore;
-    }
+    @HiddenImmutableImplementation
+    @Immutable
+    interface BusinessAccountPriceData {
 
-    /**
-     * Gets BA price table store.
-     *
-     * @return BA price table store.
-     */
-    public PriceTableStore getPrTabStore() {
-        return prTabStore;
-    }
+        long businessAccountOid();
 
-    /**
-     * Class representing record of essential information related to pricing for a business account.
-     */
-    protected class BizAccPriceRecord {
-        private Long businessAccountOid;
-        private String baDisplayName;
-        private Long prTabKeyOid;
-        private Long prTabChecksum;
+        @Auxiliary
+        String accountDisplayName();
 
-        BizAccPriceRecord(Long businessAccountOid, String baDisplayName, Long prTabKeyOid, Long prTabChecksum) {
-            super();
-            this.businessAccountOid = businessAccountOid;
-            this.baDisplayName = baDisplayName;
-            this.prTabKeyOid = prTabKeyOid;
-            this.prTabChecksum = prTabChecksum;
+        long priceTableKeyOid();
+
+        long priceTableChecksum();
+
+        static Builder builder() {
+            return new Builder();
         }
 
-        Long getBusinessAccountOid() {
-            return businessAccountOid;
-        }
-
-        Long getPrTabKeyOid() {
-            return prTabKeyOid;
-        }
-
-        void setPrTabKeyOid(Long prTabKeyOid) {
-            this.prTabKeyOid = prTabKeyOid;
-        }
-
-        Long getPrTabChecksum() {
-            return prTabChecksum;
-        }
-
-        void setPrTabChecksum(Long prTabChecksum) {
-            this.prTabChecksum = prTabChecksum;
-        }
-
-        public String getBaDisplayName() {
-            return baDisplayName;
-        }
-
-        private ReservedInstanceAnalysisInvoker getOuterType() {
-            return ReservedInstanceAnalysisInvoker.this;
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + getOuterType().hashCode();
-            result = prime * result + ((businessAccountOid == null) ? 0 : businessAccountOid.hashCode());
-            result = prime * result + ((prTabChecksum == null) ? 0 : prTabChecksum.hashCode());
-            result = prime * result + ((prTabKeyOid == null) ? 0 : prTabKeyOid.hashCode());
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            BizAccPriceRecord other = (BizAccPriceRecord) obj;
-            if (!getOuterType().equals(other.getOuterType()))
-                return false;
-            if (businessAccountOid == null) {
-                if (other.businessAccountOid != null)
-                    return false;
-            } else if (!businessAccountOid.equals(other.businessAccountOid))
-                return false;
-            if (prTabChecksum == null) {
-                if (other.prTabChecksum != null)
-                    return false;
-            } else if (!prTabChecksum.equals(other.prTabChecksum))
-                return false;
-            if (prTabKeyOid == null) {
-                if (other.prTabKeyOid != null)
-                    return false;
-            } else if (!prTabKeyOid.equals(other.prTabKeyOid))
-                return false;
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return "BizAccPriceRecord [baOid=" + businessAccountOid + ", baName=" + baDisplayName
-                    + ", prTabKeyOid=" + prTabKeyOid + ", prTabChecksum=" + prTabChecksum + "]";
-        }
+        class Builder extends ImmutableBusinessAccountPriceData.Builder {}
     }
 }
