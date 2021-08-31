@@ -152,7 +152,13 @@ public class ControllableManagerTest {
         .addCommoditiesBoughtFromProviders(
             TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
-
+    private final TopologyEntityDTO.Builder dbsEntityBuilder = TopologyEntityDTO.newBuilder()
+            .setOid(24)
+            .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setControllable(true)
+                    .setIsEligibleForScale(true)
+                    .setIsEligibleForResizeDown(true));
     private final static TopologyEntityDTO.Builder pmInMaintenance2 = TopologyEntityDTO.newBuilder()
         .setOid(100)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -188,6 +194,7 @@ public class ControllableManagerTest {
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
+        topology.put(dbsEntityBuilder.getOid(), TopologyEntity.newBuilder(dbsEntityBuilder));
         topology.put(pmInMaintenance.getOid(), TopologyEntity.newBuilder(pmInMaintenance)
             .addConsumer(topology.get(vmFooEntityBuilder.getOid()))
             .addConsumer(topology.get(vmBarEntityBuilder.getOid())));
@@ -349,12 +356,13 @@ public class ControllableManagerTest {
     @Test
     public void testApplyScale() {
         when(entityActionDao.ineligibleForScaleEntityIds())
-                .thenReturn(Sets.newHashSet(1L, 2L, 3L));
+                .thenReturn(Sets.newHashSet(1L, 2L, 3L, 24L));
         controllableManager.applyScaleEligibility(topologyGraph);
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
         assertTrue(vmBarEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
         // This is false because on this entity has VM entity type.
         assertFalse(vmBazEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
+        assertFalse(dbsEntityBuilder.getAnalysisSettings().getIsEligibleForScale());
     }
 
     /**

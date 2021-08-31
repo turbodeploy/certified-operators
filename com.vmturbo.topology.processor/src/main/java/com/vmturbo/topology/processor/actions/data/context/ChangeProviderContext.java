@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang.StringUtils;
@@ -51,6 +52,10 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public abstract class ChangeProviderContext extends AbstractActionExecutionContext {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Set<Integer> CONTROLLABLE_SUPPORTED_ENTITIES = ImmutableSet.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, EntityType.VIRTUAL_VOLUME_VALUE,
+            EntityType.DATABASE_SERVER_VALUE);
 
     /**
      * Comparator used to sort the changes list so host change comes first, and then others
@@ -101,12 +106,11 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
             logger.error("Cannot get action primary entity", e);
             return Collections.emptySet();
         }
-        // right now, only support controllable flag for VM Move/Scale actions.
-        if (targetEntity.hasType()
-                && targetEntity.getType() != EntityType.VIRTUAL_MACHINE_VALUE
-                && targetEntity.getType() != EntityType.VIRTUAL_VOLUME_VALUE) {
-            logger.warn("Ignore controllable logic for action with type: " +
-                    targetEntity.getType());
+        // right now, only support controllable flag for VM Move/Scale and DB server/Virtual Volume Scale actions.
+        if (targetEntity.hasType() && !CONTROLLABLE_SUPPORTED_ENTITIES.contains(
+                targetEntity.getType())) {
+            logger.warn(
+                    "Ignore controllable logic for action with type: " + targetEntity.getType());
             return Collections.emptySet();
         }
         final Set<Long> entityIds = new HashSet<>();
