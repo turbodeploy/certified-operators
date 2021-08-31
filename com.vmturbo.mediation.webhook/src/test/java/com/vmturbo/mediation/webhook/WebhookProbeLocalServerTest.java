@@ -554,34 +554,7 @@ public class WebhookProbeLocalServerTest {
         Assert.assertTrue(actionErrorDTOS.isEmpty());
     }
 
-    /**
-     * Test to verify the cleared actions are not audited.
-     *
-     * @throws InterruptedException if an error occurs.
-     * @throws TargetOperationException if the Webhook probe cannot communicate with the target.
-     */
-    @Test
-    public void testClearedActionsAreNotAudited() throws InterruptedException, TargetOperationException {
-        // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION
-                .toBuilder()
-                .setWorkflow(createWorkflow("", "", "PUT",
-                        AuthenticationMethod.NONE, null, null))
-                .build();
-        final ActionEventDTO actionEventDTO = ActionEventDTO.newBuilder()
-                .setAction(actionExecutionDTO)
-                .setOldState(ActionResponseState.PENDING_ACCEPT)
-                .setNewState(ActionResponseState.CLEARED)
-                .setTimestamp(System.currentTimeMillis())
-                .build();
 
-        // ACT
-        final Collection<ActionErrorDTO> actionErrorDTOS = probe.auditActions(account,
-                Collections.singletonList(actionEventDTO));
-
-        // ASSERT
-        Assert.assertTrue(actionErrorDTOS.isEmpty());
-    }
 
     private void verifyResults(ActionResult result, ActionResponseState expectedState, String expectedMethod,
             String expectedAddress, String expectedPayload, final List<RequestHeader> headers) {
