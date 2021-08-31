@@ -911,6 +911,54 @@ public class ActionModeCalculatorTest {
     }
 
     /**
+     * Test: VCPU Limit removal.
+     */
+    @Test
+    public void testLimitResizeWithNonDisrputiveEnabled() {
+        // HotAdd Supported = 'true'
+        // NonDisruptive Mode = 'true'
+        boolean hotAddSupported = true;
+        boolean nonDisruptiveSetting = true;
+        Action resizeUpAction = createVCPULimitResizeUpAction(VM_ID, SupportLevel.SUPPORTED, true);
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+
+        // HotAdd Supported = 'false'
+        // NonDisruptive Mode = 'true'
+        hotAddSupported = false;
+        final Map<String, Setting> settingsForEntityNoHotAdd = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntityNoHotAdd);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
+
+        // HotAdd Supported = 'true'
+        // NonDisruptive Mode = 'false'
+        hotAddSupported = true;
+        nonDisruptiveSetting = false;
+        final Map<String, Setting> settingsForEntityDisruptive = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntityDisruptive);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+
+        // HotAdd Supported = 'false'
+        // NonDisruptive Mode = 'false'
+        hotAddSupported = false;
+        final Map<String, Setting> settingsForEntityNoHotAddNotDisruptive = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.RECOMMEND);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntityNoHotAddNotDisruptive);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
+    }
+
+    /**
      * Test: Memory Resize Up.
      * In range mode: Manual.
      * Hot Add : True.
@@ -1334,6 +1382,33 @@ public class ActionModeCalculatorTest {
                     .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
                     .setOldCapacity(2)
                     .setNewCapacity(4)))
+                .setExecutable(executable)
+                .build();
+        Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        return action;
+    }
+
+    private Action createVCPULimitResizeUpAction(long vmId, SupportLevel supportLevel, boolean executable) {
+        final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
+                .setId(ACTION_OID)
+                .setSupportingLevel(supportLevel)
+                .setExplanation(Explanation.newBuilder()
+                        .setResize(ResizeExplanation.newBuilder()
+                                .setDeprecatedStartUtilization(100)
+                                .setDeprecatedEndUtilization(50)
+                                .build()))
+                .setDeprecatedImportance(0);
+        final ActionDTO.Action recommendation = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setResize(Resize.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(vmId)
+                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .setCommodityAttribute(CommodityAttribute.LIMIT)
+                                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                .setOldCapacity(2)
+                                .setNewCapacity(0)))
                 .setExecutable(executable)
                 .build();
         Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
