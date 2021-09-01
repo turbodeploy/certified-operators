@@ -342,7 +342,7 @@ public class ActionAttributeExtractor {
 
         if (currentCostData == null || projectedCostData == null
                 || currentRiCoverageData == null || projectedRiCoverageData == null) {
-            logger.info("Cost data is not available yet");
+            logger.debug("Cost data is not available yet");
             return null;
         }
 
