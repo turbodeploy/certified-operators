@@ -88,12 +88,37 @@ public class IntersightTargetConverterTest {
      * Retrieve the value of a specified field from the input set of {@link AccountValue}s.
      *
      * @param accountValues the set of {@link AccountValue}s
-     * @param fieldName the input field name
+     * @param fieldName     the input field name
      * @return the found set of {@link String} values matching the field
      */
     private static List<String> getFieldValues(final Set<AccountValue> accountValues,
-            final String fieldName) {
+                                               final String fieldName) {
         return accountValues.stream().filter(av -> fieldName.equals(av.getName()))
                 .map(AccountValue::getStringValue).collect(Collectors.toList());
     }
+
+    /**
+     * Test get converted MO id method for asset targets.
+     */
+    @Test
+    public void testGetConvertedTargetMoId() {
+        // regular conversion for non-newrelic target
+        final String targetMoid = "61250b4a7564612d3315db29";
+        final AssetTarget assetTargetNonNewRelic = MockAssetTarget.withTargetMoidAndType(
+                targetMoid, AssetTarget.TargetTypeEnum.DYNATRACE);
+        Assert.assertEquals(IntersightTargetConverter.getConvertedTargetMoId(assetTargetNonNewRelic),
+                targetMoid);
+
+        // Hex to decimal integer literal conversionfor newrelic target.
+        final AssetTarget assetTargetNewRelic = MockAssetTarget.withTargetMoidAndType(
+                targetMoid, AssetTarget.TargetTypeEnum.NEWRELIC);
+        Assert.assertEquals(IntersightTargetConverter.getConvertedTargetMoId(assetTargetNewRelic),
+                "30064829527545578813239188265");
+
+        // Null is expected for Invalid moid conversion for newrelic target.
+        final AssetTarget assetTargetNewRelic1 = MockAssetTarget.withTargetMoidAndType(
+                "ABCDEFRGSJSJ123", AssetTarget.TargetTypeEnum.NEWRELIC);
+        Assert.assertNull(IntersightTargetConverter.getConvertedTargetMoId(assetTargetNewRelic1));
+    }
+
 }

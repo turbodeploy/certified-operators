@@ -270,9 +270,11 @@ public class IntersightTargetSyncHelper {
                     if (targetInfo == null) {
                         final TargetInputFields targetInputFields =
                                 IntersightTargetConverter.inputFields(assetTarget, assistId, probeInfo);
-                        final long targetId = topologyProcessor.addTarget(probeInfo.getId(), targetInputFields);
-                        logger.info("Added {} target {}", probeType, assetTarget.getMoid());
-                        targetInfo = topologyProcessor.getTarget(targetId);
+                        if (targetInputFields != null) {
+                            final long targetId = topologyProcessor.addTarget(probeInfo.getId(), targetInputFields);
+                            logger.info("Added {} target {}", probeType, assetTarget.getMoid());
+                            targetInfo = topologyProcessor.getTarget(targetId);
+                        }
                     } else {
                         staleTargets.remove(targetInfo);
                         updateAssistIdIfNeeded(assetTarget, targetInfo, probeInfo, assistId);
@@ -342,10 +344,16 @@ public class IntersightTargetSyncHelper {
         if (targets == null) {
             return null;
         }
+        final String moid = IntersightTargetConverter.getConvertedTargetMoId(assetTarget);
+        if (moid == null) {
+            return null;
+        }
+
         for (final TargetInfo target : targets) {
             if (target.getAccountData().stream()
                     .filter(ac -> targetIdFields.contains(ac.getName()))
-                    .anyMatch(ac -> Objects.equals(assetTarget.getMoid(), ac.getStringValue()))) {
+                    .anyMatch(ac -> Objects.equals(moid, ac.getStringValue()))) {
+                logger.debug("Found the target info corresponding to Intersight target moid {}", moid);
                 return target;
             }
         }
@@ -418,9 +426,11 @@ public class IntersightTargetSyncHelper {
             // convert Optional.empty() to Optional.of("") which is the way to wipe it out
             final TargetInputFields targetInputFields = IntersightTargetConverter.inputFields(
                     assetTarget, Optional.of(assistId.orElse("")), probeInfo);
-            topologyProcessor.modifyTarget(targetInfo.getId(), targetInputFields);
-            logger.info("Updated {} target {} with {}", probeInfo.getType(), assetTarget.getMoid(),
-                    assistId.map(id -> "new assist " + id).orElse("no assist"));
+            if (targetInputFields != null) {
+                topologyProcessor.modifyTarget(targetInfo.getId(), targetInputFields);
+                logger.info("Updated {} target {} with {}", probeInfo.getType(), assetTarget.getMoid(),
+                        assistId.map(id -> "new assist " + id).orElse("no assist"));
+            }
         }
     }
 

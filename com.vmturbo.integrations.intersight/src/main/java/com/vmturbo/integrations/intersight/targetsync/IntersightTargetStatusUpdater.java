@@ -164,14 +164,15 @@ public class IntersightTargetStatusUpdater {
             // ManagementLocation to be null for the AssetTarget other properties to be updated.
             editableTarget.setManagementLocation(null);
 
+            final String moid = target.intersight().getMoid();
             try {
-                assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
+                assetApi.updateAssetTarget(moid, editableTarget, null);
             } catch (ApiException e) {
                 logger.error("Attempted to update target {} status to {} but getting an error: {}",
-                        target.intersight().getMoid(), target.tp().getStatus(), e.getResponseBody());
+                        moid, target.tp().getStatus(), e.getResponseBody());
                 throw e;
             }
-            logger.info("Updated target {} status to {}", target.intersight().getMoid(), target.tp().getStatus());
+            logger.info("Updated target {} status to {}", moid, target.tp().getStatus());
         }
     }
 }
