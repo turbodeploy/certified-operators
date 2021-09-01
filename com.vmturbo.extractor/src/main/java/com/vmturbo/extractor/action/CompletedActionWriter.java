@@ -155,14 +155,24 @@ public class CompletedActionWriter implements ActionsListener {
 
             // TODO: This is doubling the "common" work if reporting and extraction are both enabled.
             if (featureFlags.isExtractionEnabled()) {
-                exportActionBatch(completedActionsBatch);
+                try {
+                    exportActionBatch(completedActionsBatch);
+                } catch (RuntimeException e) {
+                    logger.error("Error when exporting completed actions", e);
+                }
             }
             if (featureFlags.isReportingActionIngestionEnabled()) {
-                recordActionBatchForReporting(completedActionsBatch);
+                try {
+                    recordActionBatchForReporting(completedActionsBatch);
+                    throw new NullPointerException("testNPE");
+                } catch (RuntimeException e) {
+                    logger.error("Error when writing completed actions", e);
+                }
             }
         }
 
-        private void recordActionBatchForReporting(List<ExecutedAction> batch)
+        @VisibleForTesting
+        void recordActionBatchForReporting(List<ExecutedAction> batch)
                 throws InterruptedException {
             List<Record> executedRecordsBatch = actionConverter.makeExecutedActionSpec(batch);
             if (executedRecordsBatch.size() != batch.size()) {
@@ -194,7 +204,8 @@ public class CompletedActionWriter implements ActionsListener {
          *
          * @param batch may contain actions that need be sent to Kafka
          */
-        private void exportActionBatch(List<ExecutedAction> batch) {
+        @VisibleForTesting
+        void exportActionBatch(List<ExecutedAction> batch) {
             final Collection<Action> convertedActions = actionConverter.makeExportedActions(batch.stream()
                 .map(ExecutedAction::getActionSpec)
                 .collect(Collectors.toList()));

@@ -4,9 +4,12 @@ import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -106,7 +109,7 @@ public class CompletedActionWriterTest {
                 featureFlags, dsl -> upsertSink, extractorKafkaSender, clock);
         ArgumentCaptor<Runnable> submittedBatchWriter = ArgumentCaptor.forClass(Runnable.class);
         verify(batchExecutor).submit(submittedBatchWriter.capture());
-        recordBatchWriter = (RecordBatchWriter)submittedBatchWriter.getValue();
+        recordBatchWriter = spy((RecordBatchWriter)submittedBatchWriter.getValue());
 
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         when(dataExtractionFactory.newRelatedEntitiesExtractor()).thenReturn(Optional.of(relatedEntitiesExtractor));
@@ -180,6 +183,54 @@ public class CompletedActionWriterTest {
         validateCapturedResults(expectedMappings);
     }
 
+    /**
+     * Test that an RuntimeException for embedded reporting won't affect data exporter.
+     *
+     * @throws Exception any issue happens
+     */
+    @Test
+    public void testExceptionForEmbeddedReporting() throws Exception {
+        ExecutedAction action = fakeAction(1, "SUCCESS");
+        final Pair<Record, Action> expectedResult = setupMockedConversion(action).values().iterator().next();
+
+        writer.onActionSuccess(ActionSuccess.newBuilder()
+                .setActionId(1)
+                .setSuccessDescription("SUCCESS")
+                .setActionSpec(action.getActionSpec())
+                .build());
+
+        // mock runtime exception for embedded reporting
+        doThrow(new NullPointerException("npe")).when(recordBatchWriter).recordActionBatchForReporting(anyList());
+        recordBatchWriter.runIteration();
+
+        assertThat(exportedActionsCapture.size(), is(1));
+        assertThat(executedActionUpsertCapture.size(), is(0));
+        assertThat(exportedActionsCapture.get(0).getAction(), is(expectedResult.getRight()));
+    }
+
+    /**
+     * Test that an RuntimeException for data exporter won't affect embedded reporting.
+     *
+     * @throws Exception any issue happens
+     */
+    @Test
+    public void testExceptionForDataExporter() throws Exception {
+        ExecutedAction action = fakeAction(1, "SUCCESS");
+        final Pair<Record, Action> expectedResult = setupMockedConversion(action).values().iterator().next();
+        writer.onActionSuccess(ActionSuccess.newBuilder()
+                .setActionId(1)
+                .setSuccessDescription("SUCCESS")
+                .setActionSpec(action.getActionSpec())
+                .build());
+
+        // mock runtime exception for data exporter
+        doThrow(new NullPointerException("npe")).when(recordBatchWriter).exportActionBatch(anyList());
+        recordBatchWriter.runIteration();
+        // embedded reporting is not affected
+        assertThat(executedActionUpsertCapture.size(), is(1));
+        assertThat(exportedActionsCapture.size(), is(0));
+        assertThat(executedActionUpsertCapture.get(0).asMap(), is(expectedResult.getLeft().asMap()));
+    }
 
     private void validateCapturedResults(Map<ExecutedAction, Pair<Record, Action>> expectedMappings) {
         final Map<Long, Record> capturedRecords = executedActionUpsertCapture.stream()
