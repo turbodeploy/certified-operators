@@ -310,6 +310,11 @@ public class Voltron extends BaseVmtComponent {
         logger.info("Welcome to Velocity-Oriented Lightweight Turbo Running On Native!\n{}\nVOLTRON came up in {}",
                 image,
                 startupTime.elapsed(TimeUnit.SECONDS));
+
+        if (config.getSwaggerSetup() != null) {
+            config.getSwaggerSetup().copyResourcesIntoDataPath(config.getDataPath());
+        }
+
         return new VoltronsContainer(voltronContext.getValue().get(), config, onExitDemolisher);
     }
 }

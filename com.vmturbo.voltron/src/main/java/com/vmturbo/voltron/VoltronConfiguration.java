@@ -24,6 +24,7 @@ public class VoltronConfiguration {
     private final String dataPath;
     private final String uxPath;
     private final String swaggerPath;
+    private final SwaggerSetup swaggerSetup;
     private final boolean cleanSlate;
     private final boolean useLocalBus;
     private final boolean useInProcessGrpc;
@@ -44,7 +45,8 @@ public class VoltronConfiguration {
             int serverHttpPort,
             int serverGrpcPort,
             Map<String, Object> globalPropertyOverrides,
-            Map<Component, Map<String, Object>> componentPropertyOverrides) {
+            Map<Component, Map<String, Object>> componentPropertyOverrides,
+            SwaggerSetup swaggerSetup) {
         this.components = components;
         this.dataPath = dataPath;
         this.uxPath = uxPath;
@@ -57,6 +59,7 @@ public class VoltronConfiguration {
         this.serverGrpcPort = serverGrpcPort;
         this.globalPropertyOverrides = globalPropertyOverrides;
         this.componentPropertyOverrides = componentPropertyOverrides;
+        this.swaggerSetup = swaggerSetup;
     }
 
     /**
@@ -150,6 +153,11 @@ public class VoltronConfiguration {
         return swaggerPath;
     }
 
+    @Nullable
+    public SwaggerSetup getSwaggerSetup() {
+        return swaggerSetup;
+    }
+
     /**
      * Get the license path in this configuration (should be a path to a license file).
      *
@@ -178,6 +186,8 @@ public class VoltronConfiguration {
         private String uxPath = null;
 
         private String swaggerPath = null;
+
+        private SwaggerSetup swaggerSetup = null;
 
         private String licensePath = null;
 
@@ -256,12 +266,28 @@ public class VoltronConfiguration {
         /**
          * Set the swagger path (this is where the swagger-ui resources are  served from).
          *
+         * @deprecated use {@link #setSwaggerSetup(SwaggerSetup)} instead
          * @param swaggerPath Path to the swagger resources.
          * @return The builder, for method chaining.
          */
+        @Deprecated
         public Builder setExternalSwaggerPath(@Nullable String swaggerPath) {
             if (swaggerPath != null) {
                 this.swaggerPath = swaggerPath;
+            }
+            return this;
+        }
+
+        /**
+         * Voltron will use the provided swagger setup object to figure out where to copy the
+         * swagger files from.
+         *
+         * @param swaggerSetup describes where the swagger files are.
+         * @return The builder, for method chaining.
+         */
+        public Builder setSwaggerSetup(@Nullable SwaggerSetup swaggerSetup) {
+            if (swaggerSetup != null) {
+                this.swaggerSetup = swaggerSetup;
             }
             return this;
         }
@@ -425,7 +451,7 @@ public class VoltronConfiguration {
             return new VoltronConfiguration(components, dataPath, uxPath, swaggerPath,
                     licensePath, cleanOnExit, useLocalBus,
                     useInProcessGrpc, serverHttpPort, serverGrpcPort,
-                    globalPropertyOverrides, componentPropertyOverrides);
+                    globalPropertyOverrides, componentPropertyOverrides, swaggerSetup);
         }
     }
 
