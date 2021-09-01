@@ -1,5 +1,6 @@
 package com.vmturbo.integrations.intersight.targetsync;
 
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
@@ -46,6 +48,7 @@ public class IntersightTargetConverter {
      * @param probeInfo the probe info in topology processor API data structure
      * @return the resulting {@link TargetInputFields}
      */
+    @Nullable
     protected static TargetInputFields inputFields(@Nonnull final AssetTarget assetTarget,
             @Nonnull Optional<String> assistId, @Nonnull final ProbeInfo probeInfo) {
         Objects.requireNonNull(assetTarget);
@@ -60,7 +63,10 @@ public class IntersightTargetConverter {
                     // something legal
                     if (probeInfo.getIdentifyingFields().contains(name)
                             && accountDefEntry.getValueType() == AccountFieldValueType.STRING) {
-                        value = assetTarget.getMoid();
+                        value = getConvertedTargetMoId(assetTarget);
+                        if (value == null) {
+                            return null;
+                        }
                     } else if (accountDefEntry.getDefaultValue() != null) {
                         value = accountDefEntry.getDefaultValue();
                     } else if (accountDefEntry.getAllowedValues() != null
@@ -208,6 +214,32 @@ public class IntersightTargetConverter {
                 logger.debug("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());
                 return Collections.emptySet();
+        }
+    }
+
+    /**
+     * Get the converted MO ID of the given {@link AssetTarget} from Intersight.
+     * For NewRelic target hex target MO id will be converted to the string representation of its
+     * equivalent decimal integer. Null be be returned if Newrelic target MO id conversion fails.
+     *
+     * @param assetTarget the {@link AssetTarget} from Intersight
+     * @return target MO id of the Intersight target.
+     */
+    @Nullable
+    protected static String getConvertedTargetMoId(@Nonnull final AssetTarget assetTarget) {
+        final TargetTypeEnum targetType = assetTarget.getTargetType();
+        String moid = assetTarget.getMoid();
+        if (targetType != TargetTypeEnum.NEWRELIC) {
+            return moid;
+        }
+        // NewRelic target needs the account Id to be integer.
+        // We need to convert hexadecimal target MO id to literal of its equivalent decimal integer.
+        try {
+            final BigInteger valBigInt = new BigInteger(moid, 16);
+            return valBigInt.toString();
+        } catch (NumberFormatException e) {
+            logger.error("Error converting {} MO Id {} to BigInteger.", targetType, moid);
+            return null;
         }
     }
 }

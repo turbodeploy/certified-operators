@@ -21,4 +21,17 @@ public class MockAssetTarget {
         Mockito.when(assetTarget.getMoid()).thenReturn(targetMoid);
         return assetTarget;
     }
+
+    /**
+     * Mock a {@link AssetTarget} instance with the input target MOID and the input target type.
+     * @param targetMoid the target MOID
+     * @param targetType the target type
+     * @return the created {@link AssetTarget} instance
+     */
+    public static AssetTarget withTargetMoidAndType(final String targetMoid, final AssetTarget.TargetTypeEnum targetType) {
+        final AssetTarget assetTarget = Mockito.mock(AssetTarget.class);
+        Mockito.when(assetTarget.getMoid()).thenReturn(targetMoid);
+        Mockito.when(assetTarget.getTargetType()).thenReturn(targetType);
+        return assetTarget;
+    }
 }
