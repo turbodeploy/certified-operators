@@ -149,7 +149,7 @@ public class SwaggerSetup {
         // Ensure the directory exists.
         final File directory = new File(dest.toString());
         if (!directory.exists()) {
-            directory.mkdir();
+            directory.mkdirs();
         }
 
         try (Stream<Path> stream = Files.walk(src)) {
