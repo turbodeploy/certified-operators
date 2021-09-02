@@ -756,6 +756,8 @@ message Action {
         LOCKS = 6;
         // Azure Scale Set preventing execution.
         SCALE_SET = 7;
+        // Failed availability set preventing execution
+        AVAILABILITY_SET = 8;
     }
 
     // Defines if actions is disruptive.

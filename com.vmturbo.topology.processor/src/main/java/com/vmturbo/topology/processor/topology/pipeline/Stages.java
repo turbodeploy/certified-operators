@@ -519,7 +519,7 @@ public class Stages {
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
-            actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext, groupServiceClient);
+            actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
             return Status.success();
         }
     }

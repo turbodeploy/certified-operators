@@ -21,7 +21,10 @@ public class ActionConstraintStoreFactory {
     private static final Map<ActionConstraintType, ActionConstraintStore> constraintStores =
         ImmutableMap.of(
                 ActionConstraintType.CORE_QUOTA, CoreQuotaStore.getCoreQuotaStore(),
-                ActionConstraintType.AZURE_SCALE_SET_INFO, AzureScaleSetInfoStore.getAzureScaleSetInfo());
+                ActionConstraintType.AZURE_SCALE_SET_INFO,
+                        AzureScaleSetInfoStore.getAzureScaleSetInfo(),
+                ActionConstraintType.AZURE_AVAILABILITY_SET_INFO,
+                        AzureAvailabilitySetInfoStore.getAzureAvailabilitySetInfo());
 
     /**
      * Update action constraint stores using action constraint info.
@@ -51,5 +54,14 @@ public class ActionConstraintStoreFactory {
      */
     public AzureScaleSetInfoStore getAzureScaleSetInfoStore() {
         return AzureScaleSetInfoStore.getAzureScaleSetInfo();
+    }
+
+    /**
+     * Get the Azure availability set info store.
+     *
+     * @return the Azure availability set store
+     */
+    public AzureAvailabilitySetInfoStore getAzureAvailabilitySetInfoStore() {
+        return AzureAvailabilitySetInfoStore.getAzureAvailabilitySetInfo();
     }
 }

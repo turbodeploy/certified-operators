@@ -185,7 +185,9 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 settingPolicyInfo.getDisplayName(),
                 settingPolicyInfo.getEnabled(),
                 settingPolicyInfo.hasScheduleId() ? settingPolicyInfo.getScheduleId() : null,
-                hash
+                hash,
+                settingPolicyInfo.hasDeleteAfterScheduleExpiration()
+                        ? settingPolicyInfo.getDeleteAfterScheduleExpiration() : null
         );
     }
 
@@ -684,6 +686,10 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             infoBuilder.setEnabled(policy.getEnabled());
             if (policy.getScheduleId() != null) {
                 infoBuilder.setScheduleId(policy.getScheduleId());
+            }
+            Boolean deleteAfterExpiration = policy.getDeleteAfterExpiration();
+            if (policy.getDeleteAfterExpiration() != null) {
+                infoBuilder.setDeleteAfterScheduleExpiration(policy.getDeleteAfterExpiration());
             }
             infoBuilder.setScope(Scope.newBuilder().addAllGroups(policyGroups.getOrDefault(policy.getId(),
                     Collections.emptySet())));

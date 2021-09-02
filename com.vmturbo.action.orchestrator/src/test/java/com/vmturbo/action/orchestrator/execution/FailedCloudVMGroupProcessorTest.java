@@ -20,6 +20,8 @@ import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableList;
+
 import io.grpc.StatusRuntimeException;
 
 import org.junit.Before;
@@ -55,10 +57,13 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -151,13 +156,17 @@ public class FailedCloudVMGroupProcessorTest {
             .build();
 
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
+    private final SettingPolicyServiceMole testSettingPolicyService =
+            spy(new SettingPolicyServiceMole());
+    private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
 
     private final ArgumentCaptor<Runnable> scheduledRunnableCaptor =
             ArgumentCaptor.forClass(Runnable.class);
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(testGroupService);
+    public GrpcTestServer testServer = GrpcTestServer.newServer(testGroupService,
+            testSettingPolicyService, testScheduleService);
 
     private FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
@@ -171,9 +180,13 @@ public class FailedCloudVMGroupProcessorTest {
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
         SettingPolicyServiceBlockingStub settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(
                 testServer.getChannel());
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(ImmutableList.of());
+        ScheduleServiceBlockingStub scheduleService =
+                com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.newBlockingStub(testServer.getChannel());
         failedCloudVMGroupProcessor = new FailedCloudVMGroupProcessor(groupServiceRpc,
-                repositoryServiceBlockingStub, settingPolicyService,
-                scheduledExecutorService, 10, "");
+                repositoryServiceBlockingStub, settingPolicyService, scheduleService, scheduledExecutorService, null,
+                10, "", 0L);
     }
 
 

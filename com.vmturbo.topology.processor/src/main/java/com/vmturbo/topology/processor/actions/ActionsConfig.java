@@ -25,9 +25,12 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc;
 import com.vmturbo.common.protobuf.action.AtomicActionSpecsUploadServiceGrpc.AtomicActionSpecsUploadServiceStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
@@ -106,6 +109,9 @@ public class ActionsConfig {
 
     @Autowired
     private AuthClientConfig authClientConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -241,12 +247,17 @@ public class ActionsConfig {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
+    @Bean
+    public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
 
     @Bean
     public ActionConstraintsUploader actionConstraintsUploader() {
         return new ActionConstraintsUploader(entityConfig.entityStore(),
                 actionConstraintsServiceStub(),
-                new GroupMemberRetriever(groupConfig.groupServiceBlockingStub()));
+                new GroupMemberRetriever(groupConfig.groupServiceBlockingStub()),
+                settingPolicyServiceBlockingStub());
     }
 
     /**

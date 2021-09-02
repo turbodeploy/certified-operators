@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.actions;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureAvailabilitySetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount;
@@ -32,9 +35,11 @@ import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionCon
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -55,6 +60,7 @@ public class ActionConstraintsUploader {
 
     private final EntityStore entityStore;
     private final GroupMemberRetriever groupMemberRetriever;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     // This is an async stub.
     private final ActionConstraintsServiceStub actionConstraintsServiceClient;
@@ -63,28 +69,27 @@ public class ActionConstraintsUploader {
 
     /**
      * Construct an {@link ActionConstraintsUploader} which is used to upload action constraints.
-     *
      * @param entityStore the {@link EntityStore} in which all entities are stored
      * @param actionConstraintsServiceClient action constraints service for uploading action constraints
      * @param groupMemberRetriever group member retriever gRPC stub for querying Azure scale sets
+     * @param settingPolicyService setting policy gRPC stub for querying Azure availability set policies
      */
-    ActionConstraintsUploader(
-            @Nonnull final EntityStore entityStore,
+    ActionConstraintsUploader(@Nonnull final EntityStore entityStore,
             @Nonnull final ActionConstraintsServiceStub actionConstraintsServiceClient,
-            @Nonnull final GroupMemberRetriever groupMemberRetriever) {
+            @Nonnull final GroupMemberRetriever groupMemberRetriever,
+            SettingPolicyServiceBlockingStub settingPolicyService) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.actionConstraintsServiceClient = Objects.requireNonNull(actionConstraintsServiceClient);
         this.groupMemberRetriever = groupMemberRetriever;
+        this.settingPolicyService = settingPolicyService;
     }
 
     /**
      * This method is used to upload action constraint info to action orchestrator.
      *
      * @param stitchingContext the stitching context that is used to look up action constraint info
-     * @param groupServiceClient group service gRPC client
      */
-    public void uploadActionConstraintInfo(@Nonnull final StitchingContext stitchingContext,
-            GroupServiceBlockingStub groupServiceClient) {
+    public void uploadActionConstraintInfo(@Nonnull final StitchingContext stitchingContext) {
         final StreamObserver<UploadActionConstraintInfoRequest> requestObserver =
             actionConstraintsServiceClient.uploadActionConstraintInfo(new StreamObserver<Empty>() {
             @Override
@@ -99,8 +104,32 @@ public class ActionConstraintsUploader {
 
         buildCoreQuotaInfo(stitchingContext, requestObserver);
         buildAzureScaleSetInfo(requestObserver, groupMemberRetriever);
+        buildAzureAvailabilitySetInfo(requestObserver, settingPolicyService);
 
         requestObserver.onCompleted();
+    }
+
+    @VisibleForTesting
+    void buildAzureAvailabilitySetInfo(StreamObserver<UploadActionConstraintInfoRequest> requestObserver,
+            SettingPolicyServiceBlockingStub settingPolicyService) {
+        List<Long> policyIds = new ArrayList<>();
+        final ListSettingPoliciesRequest.Builder reqBuilder = ListSettingPoliciesRequest.newBuilder();
+        Iterator<SettingPolicy> response = settingPolicyService.listSettingPolicies(reqBuilder.build());
+        response.forEachRemaining(policy -> {
+                    // If the policy name matches the recommend only template, use it.
+                    String internalName = policy.getInfo().getName();
+                    if (internalName.startsWith(
+                            StringConstants.AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX)) {
+                        policyIds.add(policy.getId());
+                    }
+                });
+
+        requestObserver.onNext(UploadActionConstraintInfoRequest.newBuilder()
+                .addActionConstraintInfo(ActionConstraintInfo.newBuilder()
+                        .setActionConstraintType(ActionConstraintType.AZURE_AVAILABILITY_SET_INFO)
+                        .setAzureAvailabilitySetInfo(AzureAvailabilitySetInfo.newBuilder()
+                                .addAllPolicyIds(policyIds)))
+                .build());
     }
 
     /**

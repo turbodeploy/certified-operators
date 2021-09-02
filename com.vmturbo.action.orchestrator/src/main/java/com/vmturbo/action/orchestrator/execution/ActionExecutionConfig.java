@@ -15,7 +15,9 @@ import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -58,6 +60,9 @@ public class ActionExecutionConfig {
     @Value("${failedActionPatterns:The cluster where the VM/Availability Set is allocated is currently out of capacity\ncom\\.microsoft\\.azure\\.CloudException: Async operation failed with provisioning state: Failed: Allocation failed}")
     private String failedActionPatterns;
 
+    @Value("${recommendOnlyPolicyLifetimeHours:730}")
+    private Long recommendOnlyPolicyLifetimeHours;
+
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
         return new ProbeCapabilityCache(tpConfig.topologyProcessor(), actionCapabilitiesService());
@@ -65,11 +70,14 @@ public class ActionExecutionConfig {
 
     @Bean
     public FailedCloudVMGroupProcessor failedCloudVMGroupProcessor() {
-        return new FailedCloudVMGroupProcessor(GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+        return new FailedCloudVMGroupProcessor(GroupServiceGrpc
+                    .newBlockingStub(groupClientConfig.groupChannel()),
                 RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
                 SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+                ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
                 Executors.newSingleThreadScheduledExecutor(),
-                groupUpdateDelaySeconds, failedActionPatterns);
+                DiscoveredGroupServiceGrpc.newBlockingStub(tpConfig.topologyProcessorChannel()),
+                groupUpdateDelaySeconds, failedActionPatterns, recommendOnlyPolicyLifetimeHours);
     }
 
     /**

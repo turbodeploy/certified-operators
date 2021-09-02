@@ -22,6 +22,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableList;
 
 import io.grpc.stub.StreamObserver;
@@ -32,6 +34,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureAvailabilitySetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion;
@@ -44,6 +47,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -73,20 +81,44 @@ public class ActionConstraintsUploaderTest {
 
     private final GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
 
+    private final SettingPolicyServiceMole testSettingPolicyService =
+            spy(new SettingPolicyServiceMole());
+    SettingPolicyServiceBlockingStub settingPolicyService = null;
+
     /**
      * Grpc test server which can be used to mock rpc calls.
      */
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionConstraintsServiceMole);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionConstraintsServiceMole,
+            testSettingPolicyService);
 
     /**
      * Initialization of each test.
      */
     @Before
     public void setup() {
+        settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(ImmutableList.of());
         actionConstraintsUploader = new ActionConstraintsUploader(
             entityStore, ActionConstraintsServiceGrpc.newStub(grpcTestServer.getChannel()),
-                groupMemberRetriever);
+                groupMemberRetriever, settingPolicyService);
+        // Pre-populate a few recommend policies, one of which is a recommend only policy.
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(ImmutableList.of(
+                        createPolicy(StringConstants.AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX
+                                + "A recommend only policy", 2116L),
+                        createPolicy("An unrelated policy", 2114L)
+                ));
+
+    }
+
+    @Nonnull
+    private SettingPolicy createPolicy(String policyName, long policyId) {
+        return SettingPolicy.newBuilder().setId(policyId).setInfo(SettingPolicyInfo.newBuilder()
+                .setName(policyName)
+                .setDisplayName(policyName)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)).build();
     }
 
     /**
@@ -99,7 +131,7 @@ public class ActionConstraintsUploaderTest {
 
         StitchingContext stitchingContext = StitchingContext.newBuilder(0, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class)).build();
-        actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext, null);
+        actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
         // ActionConstraintsServiceStub#uploadActionConstraintInfo is an asynchronous method.
         // Because of asynchronization, we want to make sure that the verification of this method
         // happens after it's actually invoked.
@@ -295,5 +327,45 @@ public class ActionConstraintsUploaderTest {
         AzureScaleSetInfo azureScaleSetInfo = actionConstraintInfo.getAzureScaleSetInfo();
         Assert.assertEquals(1, azureScaleSetInfo.getNamesCount());
         Assert.assertEquals("AzureScaleSet::validScaleSet", azureScaleSetInfo.getNames(0));
+    }
+
+    /**
+     * Test uploading recommend only constraints.
+     */
+    @Test
+    public void testBuildAzureAvailabilitySetInfo() {
+        // Start uploading. Use a variable to store upload requests.
+        List<UploadActionConstraintInfoRequest> requests = new ArrayList<>();
+        final StreamObserver<UploadActionConstraintInfoRequest> requestObserver =
+                spy(new StreamObserver<UploadActionConstraintInfoRequest>() {
+
+                    @Override
+                    public void onNext(final UploadActionConstraintInfoRequest request) {
+                        assertEquals(1, request.getActionConstraintInfoCount());
+                        assertEquals(ActionConstraintType.AZURE_AVAILABILITY_SET_INFO,
+                                request.getActionConstraintInfo(0).getActionConstraintType());
+                        requests.add(request);
+                    }
+
+                    @Override
+                    public void onError(final Throwable throwable) {}
+
+                    @Override
+                    public void onCompleted() {}
+                });
+
+        actionConstraintsUploader.buildAzureAvailabilitySetInfo(requestObserver,
+                settingPolicyService);
+        Assert.assertEquals(1, requests.size());
+        UploadActionConstraintInfoRequest result = requests.get(0);
+        Assert.assertEquals(1, result.getActionConstraintInfoCount());
+        ActionConstraintInfo actionConstraintInfo = result.getActionConstraintInfo(0);
+        ActionConstraintType constraintType = actionConstraintInfo.getActionConstraintType();
+        Assert.assertEquals(ActionConstraintType.AZURE_AVAILABILITY_SET_INFO, constraintType);
+        Assert.assertTrue(actionConstraintInfo.hasAzureAvailabilitySetInfo());
+        AzureAvailabilitySetInfo azureAvailabilitySetInfo =
+                actionConstraintInfo.getAzureAvailabilitySetInfo();
+        Assert.assertEquals(1, azureAvailabilitySetInfo.getPolicyIdsCount());
+        Assert.assertEquals(2116L, azureAvailabilitySetInfo.getPolicyIds(0));
     }
 }

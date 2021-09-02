@@ -527,6 +527,9 @@ public class ScheduleStore implements DiagsRestorable<DSLContext> {
                 .setRecurrenceStartTime(jooqSchedule.getRecurrenceStartTime().getTime())
                 .build());
         }
+        if (jooqSchedule.getDeleteAfterExpiration() != null) {
+            schedule.setDeleteAfterExpiration(jooqSchedule.getDeleteAfterExpiration());
+        }
         return schedule.build();
     }
 
@@ -549,7 +552,8 @@ public class ScheduleStore implements DiagsRestorable<DSLContext> {
                 ? null : scheduleMessage.getRecurRule(),
             scheduleMessage.getTimezoneId(),
             scheduleMessage.hasRecurrenceStart()
-                ? new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
+                ? new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null,
+            scheduleMessage.getDeleteAfterExpiration()
         );
     }
 
