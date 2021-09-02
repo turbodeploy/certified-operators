@@ -62,6 +62,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -69,6 +70,7 @@ import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExe
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -877,6 +879,34 @@ public class GroupsService implements IGroupsService {
                     .filter(listStat -> !CollectionUtils.isEmpty(listStat.getStatistics()))
                     .collect(Collectors.toList());
             }
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                return Collections.emptyList();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getActionStatsResourceImpactByUuid(String uuid, ActionResourceImpactStatApiInputDTO inputDTO) throws Exception {
+        try {
+            if (org.springframework.util.CollectionUtils.isEmpty(inputDTO.getActionResourceImpactStatList())) {
+                throw new InvalidOperationException("Missing list of ActionResourceImpactStat");
+            }
+
+            final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
+            final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
+                    actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
+                            .addScopes(apiScopeId)
+                            .actionInput(ActionInputUtil.toActionApiInputDTO(inputDTO))
+                            .actionResourceImpactIdentifierSet(ActionInputUtil.toActionResourceImpactIdentifierSet(inputDTO))
+                            .build());
+
+            return retStats.values().stream()
+                    .flatMap(listStat -> listStat.stream())
+                    .filter(listStat -> !CollectionUtils.isEmpty(listStat.getStatistics()))
+                    .collect(Collectors.toList());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

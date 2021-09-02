@@ -39,6 +39,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -46,7 +47,9 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionApiDTO;
+import com.vmturbo.api.dto.action.ActionResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
+import com.vmturbo.api.dto.action.ActionScopesResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
@@ -359,6 +362,80 @@ public class ActionsService implements IActionsService {
             }
             final Map<ApiId, List<StatSnapshotApiDTO>> actionStatsByScope =
                 actionStatsQueryExecutor.retrieveActionStats(queryBuilder.build());
+            actionStatsByScope.forEach((scope, actionStats) -> {
+                final EntityStatsApiDTO entityStats = entityStatsByUuid.get(scope.uuid());
+                if (entityStats != null) {
+                    entityStats.setStats(actionStats);
+                }
+            });
+
+            return Lists.newArrayList(entityStatsByUuid.values());
+        }  catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                throw new UnknownObjectException(e.getStatus().getDescription());
+            } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
+                throw new InvalidOperationException(e.getStatus().getDescription());
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public List<EntityStatsApiDTO> getActionResourceImpactStatsByUuidsQuery(ActionScopesResourceImpactStatApiInputDTO inputDTO)
+            throws Exception {
+        if (inputDTO.getScopes() == null) {
+            return Collections.emptyList();
+        }
+
+        String currentTimeStamp = DateTimeUtil.toString(Clock.systemUTC().millis());
+
+        try {
+            Set<ApiId> scopes;
+            if (inputDTO.getScopes() == null ||
+                    !UuidMapper.hasLimitedScope(inputDTO.getScopes())) {
+                scopes = Collections.singleton(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR));
+            } else {
+                scopes = inputDTO.getScopes().stream()
+                        .map(uuid -> {
+                            try {
+                                return uuidMapper.fromUuid(uuid);
+                            } catch (OperationFailedException e) {
+                                logger.error("Failed to map uuid {} to Api ID. Error: {}", uuid,
+                                        e.getLocalizedMessage());
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+            }
+
+            // service providers do not have any stats, expand them to find the regions and get
+            // stats for regions. expandServiceProviders will return a set of all regions and original
+            // non serviceProvider scopes.
+            final Set<Long> expandedScopes = serviceProviderExpander.expand(scopes.stream()
+                    .map(ApiId::oid)
+                    .collect(Collectors.toSet()));
+            scopes = expandedScopes.stream()
+                    .map(uuidMapper::fromOid)
+                    .collect(Collectors.toSet());
+
+            final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
+                    .collect(Collectors.toMap(ApiId::uuid, scope -> {
+                        final EntityStatsApiDTO entityDto = new EntityStatsApiDTO();
+                        StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityDto);
+                        return entityDto;
+                    }));
+
+            final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
+                    .scopes(scopes)
+                    .currentTimeStamp(currentTimeStamp)
+                    .actionInput(ActionInputUtil.toActionApiInputDTO(inputDTO.getActionResourceImpactStatApiInput()))
+                    .actionResourceImpactIdentifierSet(ActionInputUtil.toActionResourceImpactIdentifierSet(inputDTO.getActionResourceImpactStatApiInput()));
+
+            final Map<ApiId, List<StatSnapshotApiDTO>> actionStatsByScope =
+                    actionStatsQueryExecutor.retrieveActionStats(queryBuilder.build());
+
             actionStatsByScope.forEach((scope, actionStats) -> {
                 final EntityStatsApiDTO entityStats = entityStatsByUuid.get(scope.uuid());
                 if (entityStats != null) {

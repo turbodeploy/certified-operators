@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.tools.Longs;
 import org.springframework.hateoas.Link;
 import org.springframework.hateoas.mvc.ControllerLinkBuilder;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
@@ -53,6 +54,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -65,6 +67,7 @@ import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
@@ -84,6 +87,7 @@ import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -925,6 +929,33 @@ public class EntitiesService implements IEntitiesService {
                             .actionInput(inputDto)
                             .build())
                     .get(apiId);
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                return Collections.emptyList();
+            } else {
+                throw ExceptionMapper.translateStatusException(e);
+            }
+        } catch (NumberFormatException e) {
+            // TODO Remove it when default Cloud group is supported
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getActionStatsResourceImpactByUuid(
+            @Nonnull String uuid, @Nonnull ActionResourceImpactStatApiInputDTO inputDTO) throws Exception {
+        try {
+            if (CollectionUtils.isEmpty(inputDTO.getActionResourceImpactStatList())) {
+                throw new InvalidOperationException("Missing list of ActionResourceImpactStat");
+            }
+
+            final ApiId apiId = uuidMapper.fromUuid(uuid);
+            return actionStatsQueryExecutor.retrieveActionStats(
+                        ImmutableActionStatsQuery.builder()
+                                .addScopes(apiId)
+                                .actionInput(ActionInputUtil.toActionApiInputDTO(inputDTO))
+                                .actionResourceImpactIdentifierSet(ActionInputUtil.toActionResourceImpactIdentifierSet(inputDTO))
+                                .build()).get(apiId);
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 return Collections.emptyList();

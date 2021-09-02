@@ -312,6 +312,14 @@ public class ActionStatsQueryExecutor {
         Optional<String> currentTimeStamp();
 
         /**
+         * The set of action resource impact identifiers and corresponding unique identifier to be able to filter
+         * action stats based on the required criteria.
+         *
+         * @return set of identifier computed from action stat, target entity and action type names.
+         */
+        Set<String> actionResourceImpactIdentifierSet();
+
+        /**
          * Return whether or not the query should be considered historical.
          *
          * @param clock The clock to use to determine current time.
@@ -355,5 +363,4 @@ public class ActionStatsQueryExecutor {
             return Optional.ofNullable(actionInput().getCostType());
         }
     }
-
 }
