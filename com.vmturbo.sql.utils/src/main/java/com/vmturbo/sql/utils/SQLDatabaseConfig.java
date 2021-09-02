@@ -6,9 +6,12 @@ import java.sql.Statement;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.sql.DataSource;
 
@@ -50,6 +53,8 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
+import com.vmturbo.sql.utils.poolmonitor.HikariPoolMonitor;
+
 import com.zaxxer.hikari.HikariDataSource;
 
 /**
@@ -91,8 +96,14 @@ public abstract class SQLDatabaseConfig {
     /**
      * If true, use a connection pool for database connections.
      */
-    @Value("${conPoolActive:false}")
+    @Value("${conPoolActive:true}")
     private boolean isConnectionPoolActive;
+
+    /**
+     * Duration between reports logged by Connection pool monitor in seconds. Zero means reporting is not active.
+     */
+    @Value("${poolMonitorIntervalSec:60}")
+    private int poolMonitorIntervalSec;
 
     /**
      * DB connection pool initial and minimum size. Defaults to 5.
@@ -145,6 +156,10 @@ public abstract class SQLDatabaseConfig {
 
     public abstract String getDbUsername();
 
+    private String getPoolName() {
+        return "pool-" + getDbSchemaName();
+    }
+
     @Bean
     @Primary
     public DataSource dataSource() {
@@ -177,6 +192,13 @@ public abstract class SQLDatabaseConfig {
                 dataSource.setMinimumIdle(minPoolSize);
                 dataSource.setMaximumPoolSize(maxPoolSize);
                 dataSource.setLeakDetectionThreshold(LEAK_DETECTION_THRESHOLD_MSEC);
+                dataSource.setPoolName(getPoolName());
+                final HikariPoolMonitor poolMonitor = poolMonitor();
+                if (poolMonitor != null) {
+                    dataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
+                } else {
+                    logger.debug("The pool monitor will be used.");
+                }
                 return  dataSource;
             } else {
                 MariaDbDataSource dataSource = new MariaDbDataSource();
@@ -663,6 +685,25 @@ public abstract class SQLDatabaseConfig {
     public DbMonitor dbMonitorLoop() {
         return new DbMonitor(processListClassifier, dsl(), dbMonitorIntervalSec,
                 longRunningQueryThresholdSecs, getDbSchemaName(), getDbUsername());
+    }
+
+    @Nullable
+    @Bean
+    public HikariPoolMonitor poolMonitor() {
+        if (isConnectionPoolActive && poolMonitorIntervalSec > 0) {
+            return new HikariPoolMonitor(getPoolName(), poolMonitorIntervalSec,
+                    getDbSchemaName(), poolMonitorExecutorService());
+        } else {
+            return null;
+        }
+    }
+
+    @Nonnull
+    @Bean
+    public ScheduledExecutorService poolMonitorExecutorService() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("DbPoolMonitor-" + getPoolName() + "-%d").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
     }
 
     public void startDbMonitor() {
