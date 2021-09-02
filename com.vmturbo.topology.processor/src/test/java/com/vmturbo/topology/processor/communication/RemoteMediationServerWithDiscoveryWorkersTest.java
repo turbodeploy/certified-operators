@@ -20,7 +20,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -163,9 +162,9 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         queue = spy(new AggregatingDiscoveryQueueImpl(probeStore));
-        when(probeStore.getProbeIdForType(VC_PROBE_TYPE)).thenReturn(Optional.of(probeIdVc));
-        when(probeStore.getProbe(probeIdVc)).thenReturn(Optional.of(probeInfoVc1));
-        when(probeStore.isProbeConnected(probeIdVc)).thenReturn(true);
+        doReturn(Optional.of(probeIdVc)).when(probeStore).getProbeIdForType(eq(VC_PROBE_TYPE));
+        doReturn(Optional.of(probeInfoVc1)).when(probeStore).getProbe(eq(probeIdVc));
+        doReturn(true).when(probeStore).isProbeConnected(eq(probeIdVc));
         TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
         when(target1.getProbeId()).thenReturn(probeIdVc);
         when(target1.getSpec()).thenReturn(defaultSpec);
@@ -309,7 +308,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * @throws InterruptedException if Thread.sleep is interrupted.
      * @throws ProbeException if a problem occurs with the probe
      */
-    @Ignore
     @Test
     public void testTransportClosed() throws InterruptedException, ProbeException {
         remoteMediationServer.registerTransport(containerInfo, transport1);
@@ -331,8 +329,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         verify(queue, timeout(verify_timeout_millis)).handleTransportRemoval(transport1,
                 Collections.singleton(probeIdVc));
 
-        // wait for threads to timeout waiting for the queue
-        Thread.sleep(TimeUnit.SECONDS.toMillis(discoveryWorkerPollingTimeoutSecs));
+        // wait for threads to timeout waiting for the queue - add an extra second because on a
+        // slow build machine, we could end up getting here at about same time as worker thread
+        // starts its wait
+        Thread.sleep(TimeUnit.SECONDS.toMillis(discoveryWorkerPollingTimeoutSecs + 1));
 
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         // Verify we didn't try to run the discovery.
@@ -385,8 +385,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     public void testClosingLastTransportFailsDiscoveries() throws ProbeException {
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
-        remoteMediationServer.registerTransport(containerInfo, transport1);
+        // doReturn must come before registerTransport call to avoid a race condition between
+        // discovery worker thread and this thread changing the isProbeConnected behavior
         doReturn(false).when(probeStore).isProbeConnected(eq(probeIdVc));
+        remoteMediationServer.registerTransport(containerInfo, transport1);
         final ProbeException probeException = new ProbeException("Probe type is not connected.");
         when(discoveryBundle2.getException()).thenReturn(probeException);
         remoteMediationServer.processContainerClose(transport1);
