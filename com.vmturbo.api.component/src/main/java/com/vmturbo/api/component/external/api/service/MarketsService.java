@@ -54,6 +54,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionInputUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -65,6 +66,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.ActionResourceImpactStatApiInputDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.entity.BaseCommodityApiDTO;
 import com.vmturbo.api.dto.entity.FailedResourceApiDTO;
@@ -1181,6 +1183,34 @@ public class MarketsService implements IMarketsService {
     private void planAccessAuthorizationEnforcement(@Nonnull final PlanInstance planInstance) {
         if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
             throw new UserAccessException(USER_DOES_NOT_HAVE_ACCESS_TO_PLAN);
+        }
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getActionStatsResourceImpactByUuid(String uuid, ActionResourceImpactStatApiInputDTO inputDTO) throws Exception {
+        final ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
+        try {
+            if (CollectionUtils.isEmpty(inputDTO.getActionResourceImpactStatList())) {
+                throw new InvalidOperationException("Missing list of ActionResourceImpactStat");
+            }
+
+            final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
+                    actionStatsQueryExecutor.retrieveActionStats(
+                            ImmutableActionStatsQuery.builder()
+                                    .scopes(Collections.singleton(apiId))
+                                    .actionInput(ActionInputUtil.toActionApiInputDTO(inputDTO))
+                                    .actionResourceImpactIdentifierSet(ActionInputUtil.toActionResourceImpactIdentifierSet(inputDTO))
+                                    .build());
+            return retStats.getOrDefault(apiId, Collections.emptyList());
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                return Collections.emptyList();
+            } else {
+                throw e;
+            }
         }
     }
 

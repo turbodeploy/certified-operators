@@ -1,10 +1,12 @@
 package com.vmturbo.action.orchestrator.stats.query.live;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,12 +27,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionResourceImpact;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
@@ -342,13 +346,15 @@ class CombinedStatsBuckets {
 
         private final InvolvedEntityCalculation involvedEntityCalculation;
 
-        private int       actionCount = 0;
+        private int actionCount = 0;
 
         private Set<Long> involvedEntities = new HashSet<>();
 
-        private double    savings = 0;
+        private double savings = 0;
 
-        private double    investment = 0;
+        private double investment = 0;
+
+        private Map<String, ResourceImpact> resourceImpact = new HashMap<>();
 
         CombinedStatsBucket(@Nonnull final Predicate<ActionEntity> entityPredicate,
                             @Nonnull final StatGroup statGroup,
@@ -372,17 +378,65 @@ class CombinedStatsBuckets {
                 // Subtracting a negative = addition.
                 this.investment -= savingAmount;
             }
+
+            // only compute resource impacts if action grouping is by actionTypes and targetType
+            if (statGroup.hasActionType() && statGroup.hasTargetEntityType()) {
+                addToResourceImpact(actionInfo);
+            }
         }
 
         @Nonnull
         CurrentActionStat toStat() {
+
+            List<ActionResourceImpact> actionResourceImpactList = this.resourceImpact.values()
+                    .stream()
+                    .map(ResourceImpact::toActionResourceImpact)
+                    .collect(Collectors.toList());
+
             return CurrentActionStat.newBuilder()
                 .setStatGroup(statGroup)
                 .setActionCount(actionCount)
                 .setEntityCount(involvedEntities.size())
                 .setSavings(savings)
                 .setInvestments(investment)
+                .addAllActionResourceImpacts(actionResourceImpactList)
                 .build();
+        }
+
+        private void addToResourceImpact(@Nonnull final SingleActionInfo actionInfo) {
+            Action action = actionInfo.action().getRecommendation();
+
+            // For resize action collect all reason commodities that impact actions.
+            if (action.getInfo().hasResize()) {
+                addToResourceImpactForResize(action);
+            }
+        }
+
+        private void addToResourceImpactForResize(@Nonnull final Action action) {
+            // Since Action only have information about the first reason commodity we can only compute
+            // the resource impact for that reason commodity
+            ReasonCommodity reasonCommodity = ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toList()).get(0);
+            int reasonCommodityType = reasonCommodity.getCommodityType().getType();
+            String key = statGroup.getTargetEntityType() + "_" + statGroup.getActionType() + "_" + reasonCommodityType;
+
+            // the following two lines can be moved to a separate method if we support
+            // different action types in the future
+            Resize resize = action.getInfo().getResize();
+            double newValue = resize.getNewCapacity() - resize.getOldCapacity();
+
+            ResourceImpact impact;
+            if (!this.resourceImpact.containsKey(key)) {
+                impact = new ResourceImpact(
+                        statGroup.getTargetEntityType(),
+                        statGroup.getActionType(),
+                        reasonCommodityType,
+                        newValue
+                );
+            } else {
+                impact = this.resourceImpact.get(key);
+                impact.updateAmount(newValue);
+            }
+            this.resourceImpact.put(key, impact);
         }
     }
 
@@ -397,6 +451,39 @@ class CombinedStatsBuckets {
                 query.query().getGroupByList(),
                 query.entityPredicate(),
                 query.involvedEntityCalculation());
+        }
+    }
+
+    /**
+     * ResourceImpact class for {@link CombinedStatsBuckets}, mainly for aggregating resource impacts
+     * for a unique combination of targetEntity, actionType and reasonCommodity.
+     */
+    static class ResourceImpact {
+
+        private final int targetEntityType;
+        private final ActionType actionType;
+        private final int reasonCommodityType;
+        private double amount;
+
+        public ResourceImpact(int targetEntityType, ActionType actionType, int reasonCommodityType, double amount) {
+            this.targetEntityType = targetEntityType;
+            this.actionType = actionType;
+            this.reasonCommodityType = reasonCommodityType;
+            this.amount = amount;
+        }
+
+        public void updateAmount(double newValue) {
+            this.amount += newValue;
+        }
+
+        @Nonnull
+        public ActionResourceImpact toActionResourceImpact() {
+            return ActionResourceImpact.newBuilder()
+                    .setTargetEntityType(this.targetEntityType)
+                    .setActionType(this.actionType)
+                    .setReasonCommodityBaseType(this.reasonCommodityType)
+                    .setAmount(this.amount)
+                    .build();
         }
     }
 }

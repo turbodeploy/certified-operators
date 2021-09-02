@@ -4,7 +4,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -15,16 +17,18 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.junit.Test;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
-import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.GroupByFilters.GroupByFiltersFactory;
@@ -36,6 +40,7 @@ import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionResourceImpact;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat.Value;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -44,8 +49,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapsh
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
-import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.MutableFixedClock;
 
 public class ActionStatsMapperTest {
 
@@ -67,6 +72,7 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
 
         final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
@@ -130,6 +136,8 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
+
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
         when(query.actionInput()).thenReturn(inputDTO);
@@ -177,6 +185,8 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
+
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
         when(query.actionInput()).thenReturn(inputDTO);
@@ -373,6 +383,7 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.SAVING));
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
@@ -404,6 +415,7 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.INVESTMENT));
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(null);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
@@ -420,5 +432,62 @@ public class ActionStatsMapperTest {
         assertThat(savingsStat.getValues().getAvg(), is(2.0f));
         assertThat(savingsStat.getValues().getMax(), is(2.0f));
         assertThat(savingsStat.getValues().getTotal(), is(2.0f));
+    }
+
+    @Test
+    public void testMapCurrentActionStatResourceImpacts() {
+        final CurrentActionStat stat1 = CurrentActionStat.newBuilder()
+                .setActionCount(3)
+                .setEntityCount(4)
+                .setSavings(2.0)
+                .setStatGroup(StatGroup.newBuilder()
+                        .setTargetEntityType(10)
+                        .setActionType(ActionType.RESIZE)
+                        .build())
+                .addActionResourceImpacts(ActionResourceImpact.newBuilder()
+                        .setTargetEntityType(10)
+                        .setActionType(ActionType.RESIZE)
+                        .setReasonCommodityBaseType(53) // VMem
+                        .setAmount(20.0f)
+                        .build())
+                .build();
+
+        final GroupByFilters groupByFilters = mock(GroupByFilters.class);
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
+        when(groupByFilters.getFilters()).thenReturn(apiFilters);
+
+        final ActionStatsQuery query = mock(ActionStatsQuery.class);
+        when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
+
+        final Set<String> actionResourceImpactIdentifierSet = new HashSet<>();
+        actionResourceImpactIdentifierSet.add("VMem_VirtualMachine_RESIZE");
+        when(query.actionResourceImpactIdentifierSet()).thenReturn(actionResourceImpactIdentifierSet);
+
+        when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
+
+        final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
+                .currentActionStatsToApiSnapshot(Collections.singletonList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
+
+        assertThat(snapshots.getDate(), is(DateTimeUtil.toString(clock.millis())));
+
+        final Map<String, StatApiDTO> statsByName = snapshots.getStatistics().stream()
+                .collect(Collectors.toMap(StatApiDTO::getName, Function.identity()));
+
+        verify(groupByFilters, times(1)).getFilters();
+
+        assertFalse(statsByName.containsKey(StringConstants.NUM_ACTIONS));
+        assertFalse(statsByName.containsKey(StringConstants.NUM_ENTITIES));
+        assertFalse(statsByName.containsKey(StringConstants.COST_PRICE));
+        assertTrue(statsByName.containsKey("VMem"));
+
+        final StatApiDTO resourceImpactStat = statsByName.get("VMem");
+        assertThat(resourceImpactStat.getName(), is("VMem"));
+        assertThat(resourceImpactStat.getFilters(), is(apiFilters));
+        assertThat(resourceImpactStat.getValues().getMin(), is(20.0f));
+        assertThat(resourceImpactStat.getValues().getAvg(), is(20.0f));
+        assertThat(resourceImpactStat.getValues().getMax(), is(20.0f));
+        assertThat(resourceImpactStat.getValues().getTotal(), is(20.0f));
+        assertThat(resourceImpactStat.getUnits(), is("KB"));
     }
 }

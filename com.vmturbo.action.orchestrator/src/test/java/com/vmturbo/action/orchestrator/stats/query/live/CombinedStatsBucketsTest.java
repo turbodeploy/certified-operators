@@ -26,9 +26,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionResourceImpact;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -630,6 +634,147 @@ public class CombinedStatsBucketsTest {
             .setInvestments(0.0)
             .setSavings(0.0)
             .build()));
+    }
+
+    @Test
+    public void testResourceImpact() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+                .addGroupBy(GroupBy.TARGET_ENTITY_TYPE)
+                .addGroupBy(GroupBy.ACTION_TYPE)
+                .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+
+        final ActionEntity vmEntity1 = ActionEntity.newBuilder()
+                .setId(111)
+                .setType(VM)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+
+        final SingleActionInfo vmTarget = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setResize(Resize.newBuilder()
+                                    .setTarget(vmEntity1)
+                                    .setNewCapacity(20.0f)
+                                    .setOldCapacity(10.0f)
+                                    .setCommodityType(CommodityType.newBuilder()
+                                            .setType(53)))); // VMem
+                },
+                view -> {},
+                Sets.newHashSet(vmEntity1));
+
+        final ActionEntity vmEntity2 = ActionEntity.newBuilder()
+                .setId(112)
+                .setType(VM)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+        final SingleActionInfo vmTarget2 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setResize(Resize.newBuilder()
+                                    .setTarget(vmEntity2)
+                                    .setNewCapacity(10.0f)
+                                    .setOldCapacity(22.0f)
+                                    .setCommodityType(CommodityType.newBuilder()
+                                            .setType(53)))); // VMem
+                },
+                view -> {},
+                Sets.newHashSet(vmEntity2));
+
+        final ActionEntity vmEntity3 = ActionEntity.newBuilder()
+                .setId(113)
+                .setType(VM)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        final SingleActionInfo vmTarget3 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setResize(Resize.newBuilder()
+                                    .setTarget(vmEntity3)
+                                    .setNewCapacity(5.0f)
+                                    .setOldCapacity(30.0f)
+                                    .setCommodityType(CommodityType.newBuilder()
+                                            .setType(26)))); // VCPU
+                },
+                view -> {},
+                Sets.newHashSet(vmEntity3));
+
+        final ActionEntity vmEntity4 = ActionEntity.newBuilder()
+                .setId(114)
+                .setType(VM)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        final SingleActionInfo vmTarget4 = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setDeactivate(Deactivate.newBuilder()
+                                    .setTarget(vmEntity4)
+                                    .addTriggeringCommodities(CommodityType.newBuilder()
+                                    .setType(26)))); // VCPU
+                },
+                view -> {},
+                Sets.newHashSet(vmEntity4));
+
+        final SingleActionInfo pmTarget = actionInfo(
+                bldr -> {
+                    bldr.setInfo(ActionInfo.newBuilder()
+                            .setActivate(Activate.newBuilder()
+                                    .setTarget(ON_PREM_PM)));
+                },
+                view -> {},
+                Sets.newHashSet(ON_PREM_PM));
+
+        buckets.addActionInfo(vmTarget);
+        buckets.addActionInfo(vmTarget2);
+        buckets.addActionInfo(vmTarget3);
+        buckets.addActionInfo(vmTarget4);
+        buckets.addActionInfo(pmTarget);
+
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+        assertThat(stats, containsInAnyOrder(
+                CurrentActionStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setTargetEntityType(VM)
+                                .setActionType(ActionType.RESIZE))
+                        .setActionCount(3)
+                        .setEntityCount(3)
+                        .setSavings(0.0)
+                        .setInvestments(0.0)
+                        .addActionResourceImpacts(ActionResourceImpact.newBuilder()
+                                .setTargetEntityType(VM)
+                                .setActionType(ActionType.RESIZE)
+                                .setReasonCommodityBaseType(53)
+                                .setAmount(-2.0f) // total VMem Impact
+                                .build())
+                        .addActionResourceImpacts(ActionResourceImpact.newBuilder()
+                                .setTargetEntityType(VM)
+                                .setActionType(ActionType.RESIZE)
+                                .setReasonCommodityBaseType(26)
+                                .setAmount(-25.0f) // total VCPU Impact
+                                .build())
+                        .build(),
+                CurrentActionStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setTargetEntityType(VM)
+                                .setActionType(ActionType.DEACTIVATE))
+                        .setActionCount(1)
+                        .setEntityCount(1)
+                        .setSavings(0.0)
+                        .setInvestments(0.0)
+                        .build(),
+                CurrentActionStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setTargetEntityType(PM)
+                                .setActionType(ActionType.ACTIVATE))
+                        .setActionCount(1)
+                        .setEntityCount(1)
+                        .setSavings(0.0)
+                        .setInvestments(0.0)
+                        .build()));
     }
 
     @Nonnull

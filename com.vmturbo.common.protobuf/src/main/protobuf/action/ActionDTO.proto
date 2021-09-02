@@ -2004,6 +2004,22 @@ message ActionStats {
     }
 }
 
+// The action resource impact for the given action type.
+// For example: VMem or VCPU impact from a Resize Virtual Machine action
+message ActionResourceImpact {
+    // The target entity type for which resource impact is computed.
+    required int32 target_entity_type = 1;
+
+    // The action type for which resource impact is computed.
+    required ActionType action_type = 2;
+
+    // The base type of the commodity that is "most responsible" for the action.
+    required int32 reason_commodity_base_type = 3;
+
+    // The impact amount of the commodity that is "most responsible" for the action.
+    required double amount = 4;
+}
+
 // Action stats for the most recent set of actions the action orchestrator knows about.
 message CurrentActionStat {
 
@@ -2092,6 +2108,9 @@ message CurrentActionStat {
     // the query.
     // Note - We keep investments separate from savings so that we can see both separately.
     optional double investments = 26;
+
+    // The action resource impact.
+    repeated ActionResourceImpact action_resource_impacts = 27;
 }
 
 // An action stat for a particular management unit at a particular time.
