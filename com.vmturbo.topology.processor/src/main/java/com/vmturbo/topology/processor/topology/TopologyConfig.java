@@ -317,6 +317,7 @@ public class TopologyConfig {
                 ephemeralEntityEditor(),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 cloudMigrationPlanHelper(),
+                controllableConfig.controllableManager(),
                 stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );
     }
