@@ -10,6 +10,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -252,7 +253,8 @@ public class SettingDTOUtilTest {
                 .build();
 
         List<SettingPolicy> userSettings =
-            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(Arrays.asList(policy1, policy2, policy3));
+            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(Arrays.asList(policy1, policy2,
+                    policy3));
 
         assertThat(userSettings.size(), is(2));
         assertThat(userSettings, containsInAnyOrder(policy2, policy3));

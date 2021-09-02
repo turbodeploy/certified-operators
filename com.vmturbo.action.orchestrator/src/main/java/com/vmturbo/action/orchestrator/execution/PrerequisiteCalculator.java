@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.execution;
 
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.IgnoreNvmePreRequisite;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -14,12 +15,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.action.constraint.AzureAvailabilitySetInfoStore;
 import com.vmturbo.action.orchestrator.action.constraint.AzureScaleSetInfoStore;
 import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
@@ -83,20 +85,26 @@ class PrerequisiteCalculator {
         final Set<Prerequisite> azureScaleSetPrerequisites =
                 calculateAzureScaleSetPrerequisite(action,
                         actionConstraintStoreFactory.getAzureScaleSetInfoStore());
+        final Set<Prerequisite> azureAvailabilitySetPrerequisites =
+                calculateAzureAvailabilitySetPrerequisite(target, snapshot,
+                        actionConstraintStoreFactory.getAzureAvailabilitySetInfoStore());
 
         if (generalPrerequisites.isEmpty()
                 && coreQuotaPrerequisites.isEmpty()
-                && azureScaleSetPrerequisites.isEmpty()) {
+                && azureScaleSetPrerequisites.isEmpty()
+                && azureAvailabilitySetPrerequisites.isEmpty()) {
             return Collections.emptySet();
         }
 
         final Set<Prerequisite> prerequisites =
             new HashSet<>(generalPrerequisites.size()
                     + coreQuotaPrerequisites.size()
-                    + azureScaleSetPrerequisites.size());
+                    + azureScaleSetPrerequisites.size()
+                    + azureAvailabilitySetPrerequisites.size());
         prerequisites.addAll(generalPrerequisites);
         prerequisites.addAll(coreQuotaPrerequisites);
         prerequisites.addAll(azureScaleSetPrerequisites);
+        prerequisites.addAll(azureAvailabilitySetPrerequisites);
         return prerequisites;
     }
 
@@ -119,13 +127,14 @@ class PrerequisiteCalculator {
     }
 
     // A list of single calculators for different type of pre-requisite.
-    private static List<GeneralPrerequisiteCalculator> generalPrerequisiteCalculators = ImmutableList.of(
-            PrerequisiteCalculator::calculateEnaPrerequisite,
-            PrerequisiteCalculator::calculateNVMePrerequisite,
-            PrerequisiteCalculator::calculateArchitecturePrerequisite,
-            PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
-            PrerequisiteCalculator::calculateLockPrerequisite
-    );
+    private static final List<GeneralPrerequisiteCalculator> generalPrerequisiteCalculators =
+            ImmutableList.of(
+                    PrerequisiteCalculator::calculateEnaPrerequisite,
+                    PrerequisiteCalculator::calculateNVMePrerequisite,
+                    PrerequisiteCalculator::calculateArchitecturePrerequisite,
+                    PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
+                    PrerequisiteCalculator::calculateLockPrerequisite
+            );
 
     /**
      * Calculate pre-requisites for a given action.
@@ -513,6 +522,40 @@ class PrerequisiteCalculator {
                     .setPrerequisiteType(PrerequisiteType.SCALE_SET)
                     .build());
         }
-        return Sets.newHashSet();
+        return Collections.emptySet();
+    }
+
+    /**
+     * Calculate prereqs caused by failed VMs in availability sets.  If the target entity is
+     * affected by a "cloudComputeScale" policy, then add a prerequisite stating that the
+     * action is disabled due to a recent availability set scaling failure.
+     *
+     * @param target the target of the action
+     * @param snapshot the current settings snapshot
+     * @param azureAvailabilitySetInfoStore failed availability set information
+     * @return set containing the "temporarily recommend only due to previous AS error" prereq,
+     *          or empty if the action isn't related to a failed availability set action.
+     */
+    private static Set<Prerequisite> calculateAzureAvailabilitySetPrerequisite(
+            @Nonnull final ActionPartialEntity target,
+            @Nonnull EntitiesAndSettingsSnapshot snapshot,
+            @Nonnull AzureAvailabilitySetInfoStore azureAvailabilitySetInfoStore) {
+        // If the active cloudComputeScale setting for the target entity matches one of the
+        // currently active recommend only policies, return a prerequisite for it.
+        long targetOid = target.getOid();
+        Map<String, Collection<Long>> settings = snapshot.getSettingPoliciesForEntity(targetOid);
+        Collection<Long> cloudScaleSettings =
+                settings.get(ConfigurableActionSettings.CloudComputeScale.getSettingName());
+        if (cloudScaleSettings != null) {
+            Set<Long> recommendOnlyPolicyIds = azureAvailabilitySetInfoStore
+                    .getRecommendOnlyPolicyIds();
+            if (cloudScaleSettings.stream()
+                    .anyMatch(recommendOnlyPolicyIds::contains)) {
+                return Collections.singleton(Prerequisite.newBuilder()
+                        .setPrerequisiteType(PrerequisiteType.AVAILABILITY_SET)
+                        .build());
+            }
+        }
+        return Collections.emptySet();
     }
 }

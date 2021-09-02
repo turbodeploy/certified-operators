@@ -9,21 +9,21 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.core.ErrorHandler;
 import org.apache.logging.log4j.core.Layout;
@@ -33,6 +33,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.stubbing.Answer;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -46,15 +47,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Origin.System;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -64,6 +63,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.CreateScheduleResponse;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -71,13 +74,17 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroup.GetDiscoveredGroupsResponse;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroup.TargetDiscoveredGroups;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroupMoles.DiscoveredGroupServiceMole;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroupServiceGrpc;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
@@ -89,6 +96,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
@@ -98,10 +106,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 /**
  * Tests for logic that handles failed cloud VM resizes.
  */
-public class FailedCloudResizeTierExcluderTest {
+public class FailedCloudResizePolicyCreatorTest {
     // Constants
     private static final long ACCOUNT_ID = 123456L;
-    private static final long GOOD_VM_ID = 1L;
     private static final long MISSING_ORIGIN_VM_ID = 2L;
     private static final long MISSING_ACCOUNT_VM_ID = 3L;
     private static final long AZ_VM_ID = 4L;
@@ -110,52 +117,66 @@ public class FailedCloudResizeTierExcluderTest {
     private static final long VM_NO_GROUP_1_ID = 7L;
     private static final long VM_NO_GROUP_2_ID = 8L;
     private static final long MISSING_VM_ID = 9L;
-    private static final long AZ_QF_VM_ID = 10L;
+    private static final long AZ_QF_VM_ID = 1L;
+    private static final long GOOD_VM_A_ID = 10L;
     private static final long GOOD_VM_B_ID = 11L;
+    private static final long GOOD_VM_C_ID = 12L;
+    private static final long GOOD_VM_D_ID = 13L;
+    private static final long GOOD_VM_E_ID = 14L;
+    private static final long GOOD_VM_F_ID = 15L;
+    private static final long GOOD_VM_G_ID = 16L;
     private static final long UNKNOWN_REGION_VM_ID = 210L;
     private static final long REGION_A_ID = 401L;
     private static final long REGION_B_ID = 402L;
     private static final long AZ_A_ID = 403L;
     private static final long UNKNOWN_REGION_ID = 499L;
-    private static final long OTHER_TIER_ID = 599L;
-    private static long unknownTierId = 0L; // will be set to an unused OID in createComputeTiers.
 
-    private static final long GOOD_VM_GROUP_ID = 201L;
+    // Single VM AS
+    private static final String AS1_NAME = "AvailabilitySet::as-1";
+
+    // Multi-VM AS
+    private static final String AS2_NAME = "AvailabilitySet::as-2";
+    private static final Long AS2_ID = 202L;
+    private static final String AS3_NAME = "AvailabilitySet::as-3";
+
+    // Cannot create a policy for this AS
+    private static final String AS4_NAME = "AvailabilitySet::as-4";
+
     private static final String GOOD_VM_GROUP_NAME =
-            "good-vm/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)";
-    private static final long GOOD_VM_B_GROUP_ID = 203L;
-    private static final String GOOD_VM_B_GROUP_NAME =
-            "good-vm-region-b/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)";
-    private static final long OTHER_GROUP_ID = 205L;
-    private static final String OTHER_GROUP_NAME = "other-vm/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)";
-    private static final String VM_NO_GROUP_2_NAME =
-            "vm-in-no-group-2/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)";
-    private static final long AZ_VM_GROUP_ID = 202L;
-    private static final String VM_IN_AZ_GROUP_NAME =
-            "vm-in-az/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)";
+            "good-vm/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - TEST (account 123456)";
 
-    private static final String REGION_A_POLICY_NAME =
-            "Region Region-A - Failed execution Tier Family Exclusion Policy (account 123456)";
-    private static final long REGION_A_POLICY_ID = 301L;
-    private static final String REGION_B_POLICY_NAME =
-            "Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)";
+    // Discovered group data
+    private static final Map<String, Set<Long>> DISCOVERED_GROUPS = ImmutableMap.of(
+            AS1_NAME, ImmutableSet.of(GOOD_VM_A_ID),
+            AS2_NAME, ImmutableSet.of(GOOD_VM_B_ID, GOOD_VM_C_ID, MISSING_VM_ID, DUPLICATE_VM_ID,
+                    MISSING_ACCOUNT_VM_ID),
+            AS3_NAME, ImmutableSet.of(GOOD_VM_D_ID, GOOD_VM_E_ID),
+            AS4_NAME, ImmutableSet.of(GOOD_VM_F_ID, GOOD_VM_G_ID),
+            GOOD_VM_GROUP_NAME, ImmutableSet.of(GOOD_VM_D_ID, GOOD_VM_E_ID)
+    );
 
     // Service initialization
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final SettingPolicyServiceMole testSettingPolicyService =
             spy(new SettingPolicyServiceMole());
     private final RepositoryServiceMole testRepositoryService = spy(new RepositoryServiceMole());
+    private final DiscoveredGroupServiceMole testDiscoveredGroupService =
+            spy(new DiscoveredGroupServiceMole());
+    private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
 
     /**
      * gRPC mocking support.
       */
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(testGroupService,
-            testSettingPolicyService, testRepositoryService);
+            testSettingPolicyService, testRepositoryService, testDiscoveredGroupService,
+            testScheduleService);
     private GroupServiceBlockingStub groupServiceRpc;
     private RepositoryServiceBlockingStub repositoryService;
     private SettingPolicyServiceBlockingStub settingPolicyService;
+    private DiscoveredGroupServiceBlockingStub discoveredGroupService;
     private FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
+    private ScheduleServiceBlockingStub scheduleService;
 
         private static final ActionFailure DEFAULT_ACTION_FAILURE = ActionFailure.newBuilder()
                 .setErrorDescription("Failure foobar occurred")
@@ -168,8 +189,13 @@ public class FailedCloudResizeTierExcluderTest {
                         + " http://aka.ms/allocation-guidance")
                 .setActionId(100L).build();
 
-    private static final TopologyEntityDTO GOOD_VM = createVm("good-vm", GOOD_VM_ID, true, REGION_A_ID);
-    private static final TopologyEntityDTO GOOD_VM_B = createVm("good-vm-region-b", GOOD_VM_B_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_A = createVm("good-vm-a", GOOD_VM_A_ID, true, REGION_A_ID);
+    private static final TopologyEntityDTO GOOD_VM_B = createVm("good-vm-b", GOOD_VM_B_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_C = createVm("good-vm-c", GOOD_VM_C_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_D = createVm("good-vm-d", GOOD_VM_D_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_E = createVm("good-vm-e", GOOD_VM_E_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_F = createVm("good-vm-f", GOOD_VM_F_ID, true, REGION_B_ID);
+    private static final TopologyEntityDTO GOOD_VM_G = createVm("good-vm-g", GOOD_VM_G_ID, true, REGION_B_ID);
     private static final TopologyEntityDTO AZ_VM = createVm("vm-in-az", AZ_VM_ID, true, AZ_A_ID);
     private static final TopologyEntityDTO AZ_QF_VM = createVm("vm-in-az", AZ_QF_VM_ID, true, AZ_A_ID);
     private static final TopologyEntityDTO DUPLICATE_VM = createVm("vm-in-az", DUPLICATE_VM_ID, true, AZ_A_ID);
@@ -177,7 +203,7 @@ public class FailedCloudResizeTierExcluderTest {
     // VM in Region-B.  Region-B has no existing policy defined.
     private static final TopologyEntityDTO VM_NO_GROUP_2 = createVm("vm-in-no-group-2", VM_NO_GROUP_2_ID, true, REGION_B_ID);
     private static final TopologyEntityDTO OTHER_VM = createVm("other-vm", OTHER_VM_ID, true, REGION_B_ID);
-    private static final TopologyEntityDTO MISSING_ORIGIN_VM = createVm("no-origin", MISSING_ORIGIN_VM_ID, true);
+    private static final TopologyEntityDTO MISSING_ORIGIN_VM = createVm("no-origin", MISSING_ORIGIN_VM_ID, false);
     private static final TopologyEntityDTO MISSING_ACCOUNT_VM = createVm("no-account", MISSING_ACCOUNT_VM_ID, false);
     private static final TopologyEntityDTO UNKNOWN_REGION_VM = createVm("bad-region", UNKNOWN_REGION_VM_ID,
             true, UNKNOWN_REGION_ID);
@@ -190,7 +216,6 @@ public class FailedCloudResizeTierExcluderTest {
     private static final List<TopologyEntityDTO> COMPUTE_TIERS = createComputeTiers();
     private static final Long TIER_A1_OID = tierNameToOid.get("Tier-A1");
     private static final Long TIER_A2_OID = tierNameToOid.get("Tier-A2");
-    private static final Long TIER_AZ2_OID = tierNameToOid.get("Tier-Azure-2");
 
     TestOutputAppender output = new TestOutputAppender();
 
@@ -200,22 +225,36 @@ public class FailedCloudResizeTierExcluderTest {
     @Before
     public void setUp() {
         // Add a logging appender so that I can capture logging output
-        ((org.apache.logging.log4j.core.Logger)FailedCloudResizeTierExcluder.logger)
+        ((org.apache.logging.log4j.core.Logger)FailedCloudResizePolicyCreator.logger)
                 .addAppender(output);
+        ((org.apache.logging.log4j.core.Logger)FailedCloudResizePolicyCreator.logger).setLevel(
+                org.apache.logging.log4j.Level.DEBUG);
         output.clear();
         groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         repositoryService =
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
         settingPolicyService = SettingPolicyServiceGrpc
                 .newBlockingStub(testServer.getChannel());
+        discoveredGroupService = DiscoveredGroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        scheduleService =
+                com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.newBlockingStub(testServer.getChannel());
+        initializeRepositoryService();
+        initializeGroupService();
+        initializeDiscoveredGroupService();
+        initializeSettingPolicyService();
+        initializeScheduleService();
         String failedActionPatterns = "Action failed\nFailure .* occurred\nThe cluster where the"
                 + " VM/Availability Set is allocated is currently out of capacity\ncom\\.micro"
                 + "soft\\.azure\\.CloudException: Async operation failed with provisioning state:"
                 + " Failed: Allocation failed";
         failedCloudVMGroupProcessor = createFailedCloudVMGroupProcessor(failedActionPatterns);
-        initializeRepositoryService();
-        initializeGroupService();
-        initializeSettingPolicyService();
+    }
+
+    private void initializeScheduleService() {
+        when(testScheduleService.createSchedule(any()))
+                .thenReturn(CreateScheduleResponse.newBuilder()
+                        .setSchedule(Schedule.newBuilder().setId(1L))
+                        .build());
     }
 
     /**
@@ -223,7 +262,7 @@ public class FailedCloudResizeTierExcluderTest {
      */
     @After
     public void tearDown() {
-        ((org.apache.logging.log4j.core.Logger)FailedCloudResizeTierExcluder.logger)
+        ((org.apache.logging.log4j.core.Logger)FailedCloudResizePolicyCreator.logger)
                 .removeAppender(output);
     }
 
@@ -248,13 +287,26 @@ public class FailedCloudResizeTierExcluderTest {
     }
 
     /**
+     * Verify that the test output does not contain a string.
+     *
+     * @param strings patterns to locate in the test output.
+     */
+    private void verifyNoOutput(String... strings) {
+        Set<String> patterns = new HashSet<>(Arrays.asList(strings));
+        output.getMessages().stream()
+                .filter(patterns::contains)
+                .findFirst()
+                .ifPresent(msg -> Assert.fail("Not expecting in output: " + msg));
+        }
+
+    /**
      * Verify that invalid regular expressions are handled properly.
      */
     @Test
     public void testFailedPatternParsing() {
         String badFailedActionPatterns = "Action failed\nFailure (.* occurred";
         FailedCloudVMGroupProcessor gp = createFailedCloudVMGroupProcessor(badFailedActionPatterns);
-        List<Pattern> patterns = gp.getFailedCloudResizeTierExcluder().getFailedActionPatterns();
+        List<Pattern> patterns = gp.getFailedCloudResizePolicyCreator().getFailedActionPatterns();
         Assert.assertEquals(1, patterns.size());
         Assert.assertEquals("Action failed", patterns.get(0).pattern());
     }
@@ -265,7 +317,7 @@ public class FailedCloudResizeTierExcluderTest {
     @Test
     public void testSuccessfulPatternParsing() {
         List<Pattern> patterns = failedCloudVMGroupProcessor
-                .getFailedCloudResizeTierExcluder().getFailedActionPatterns();
+                .getFailedCloudResizePolicyCreator().getFailedActionPatterns();
         Assert.assertEquals(4, patterns.size());
     }
 
@@ -275,9 +327,9 @@ public class FailedCloudResizeTierExcluderTest {
     @Test
     public void invalidActionFormat() {
         // Null action
-        Action action = createAction(101L, GOOD_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        Action action = createAction(101L, GOOD_VM_A_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, null);
-        verifyOutput("Not creating tier exclusion policy for action 1");
+        verifyOutput("Not creating recommend only policy for action 101");
     }
 
     /**
@@ -286,9 +338,9 @@ public class FailedCloudResizeTierExcluderTest {
     @Test
     public void missingMove() {
         // Create an action with no move.
-        Action action = createAction(101L, GOOD_VM_ID, null, null);
+        Action action = createAction(101L, GOOD_VM_A_ID, null, null);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput("Missing move info");
+        verifyOutput("Not creating recommend only policy for action 101: Missing move/scale info");
     }
 
     /**
@@ -296,23 +348,65 @@ public class FailedCloudResizeTierExcluderTest {
      */
     @Test
     public void testSuccessfulAction() {
-        Action action = createAction(101L, GOOD_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        Action action = createAction(101L, GOOD_VM_A_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
         // Action was successful
         ActionFailure actionFailure = ActionFailure.newBuilder()
                 .setErrorDescription("Action succeeded")
                 .setActionId(100L).build();
         failedCloudVMGroupProcessor.handleActionFailure(action, actionFailure);
-        verifyOutput("Not creating tier exclusion policy for action 101: Action is successful");
+        verifyOutput("Not creating recommend only policy for action 101: Action is successful");
     }
 
     /**
      * Verify that failed actions are processed.
      */
     @Test
-    public void failedAction() {
-        Action action = createAction(101L, GOOD_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+    public void failedActionNoAS() {
+        Action action = createAction(101L, GOOD_VM_A_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput("Creating exclusion policy for failed action ID 101");
+        verifyNoOutput("Creating recommend only policy for AvailabilitySet::as-1 due to failed action ID 101");
+    }
+
+    /**
+     * Ensure that we do not create a recommend only policy for single VM availability sets.
+     */
+    @Test
+    public void failedActionSingleVMAS() {
+        Action action = createAction(101L, GOOD_VM_A_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
+        verifyNoOutput("Creating recommend only policy for AvailabilitySet::as-1 due to failed action ID 101");
+    }
+
+    /**
+     * Test the sunny day scenario.
+     */
+    @Test
+    public void failedActionMultiVMAS() {
+        Action action = createAction(101L, GOOD_VM_B_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
+        verifyOutput("Creating recommend only policy for AvailabilitySet::as-2 due to failed action ID 101");
+    }
+
+    /**
+     * Ensure that we handle creating a policy when the policy exists.
+     */
+    @Test
+    public void failedActionMultiVMASUpdateExistingPolicy() {
+        // VM D belongs to AS-3, which already has a policy.
+        Action action = createAction(101L, GOOD_VM_D_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
+        verifyOutput("Policy 'AvailabilitySet::as-3 - Failed execution recommend only Policy (account 123456)' exists - updating expiration time");
+    }
+
+    /**
+     * Ensure that we handle policy creation failures.
+     */
+    @Test
+    public void policyCreationError() {
+        // VM G belongs to AS-4. The test environment will fail policy creation for this.
+        Action action = createAction(101L, GOOD_VM_G_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
+        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
+        verifyOutput("Cannot create/update policy 'AvailabilitySet::as-4 - Failed execution recommend only Policy (account 123456)");
     }
 
     /**
@@ -338,20 +432,6 @@ public class FailedCloudResizeTierExcluderTest {
     }
 
     /**
-     * Missing origin in VM.
-     */
-    @Test
-    public void testMissingOriginVm() {
-        // The VM is malformed, so handleActionFailure will return before accessing any services
-        Action action = createAction(102L, MISSING_ORIGIN_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Cannot determine region for VM no-origin - skipping creating family exclusion policy",
-                "Not creating tier exclusion policy for action 102: Cannot find region"
-        );
-    }
-
-    /**
      * Cannot locate account ID in VM.
      */
     @Test
@@ -359,155 +439,7 @@ public class FailedCloudResizeTierExcluderTest {
         // The VM is malformed, so handleActionFailure will return before accessing any services
         Action action = createAction(102L, MISSING_ACCOUNT_VM_ID, EntityType.COMPUTE_TIER, TIER_A2_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput("Not creating tier exclusion policy for action 102: Cannot find account ID");
-    }
-
-    /**
-     * Missing destination compute tier.
-     */
-    @Test
-    public void testNoPeerSKUs() {
-        Action action = createAction(101L, 1L, EntityType.REGION, 2L);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-
-        verifyOutput(
-                "Cannot create template exclusion: missing destination compute tier in action",
-                "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
-        );
-    }
-
-    /**
-     * Cannot determine VM's region.
-     */
-    @Test
-    public void testCannotFindRegion() {
-        Action action = createAction(101L, UNKNOWN_REGION_VM_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-
-        verifyOutput(
-                "Cannot determine region name for VM bad-region - skipping creating family exclusion policy",
-                "Not creating tier exclusion policy for action 101: Cannot find region"
-        );
-    }
-
-    /**
-     * Cannot find peer SKUs in current family.
-     */
-    @Test
-    public void testPeerSKUs() {
-        Action action = createAction(101L, UNKNOWN_REGION_VM_ID, EntityType.COMPUTE_TIER,
-                unknownTierId);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-
-        verifyOutput(
-                "Cannot find tier family for tier ID 506",
-                "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
-        );
-    }
-
-    /**
-     * Cannot determine region.
-     */
-    @Test
-    public void testCannotDetermineRegion() {
-        Action action = createAction(101L, UNKNOWN_REGION_VM_ID, EntityType.COMPUTE_TIER,
-                unknownTierId);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-
-        verifyOutput(
-                "Cannot find tier family for tier ID 506",
-                "Not creating tier exclusion policy for action 101: Cannot find peer SKUs"
-        );
-    }
-
-    /**
-     * Cannot create group policy.
-     */
-    @Test
-    public void testNewGroupNewPolicyFailed() {
-        // Fail policy creation
-        when(testSettingPolicyService.createSettingPolicy(any()))
-                .thenReturn(CreateSettingPolicyResponse.newBuilder().build());
-
-        Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Created group vm-in-no-group-2",
-                "Creating new family exclusion policy for VM vm-in-no-group-2",
-                "Failed to create tier exclusion policy",
-                "Deleting newly-created group 'vm-in-no-group-2"
-        );
-    }
-
-    /**
-     * Cannot create group.
-     */
-    @Test
-    public void testCannotCreateGroup() {
-        Action action = createAction(101L, VM_NO_GROUP_1_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Could not create tier family exclusion group 'vm-in-no-group-1"
-        );
-    }
-
-    /**
-     * Recovery from group creation due to exception.
-     */
-    @Test
-    public void testCannotCreateGroupDueToException() {
-        Action action = createAction(101L, OTHER_VM_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Could not create tier family exclusion group 'other-vm/a0689cde-09b0-4236-a6bb-da80e6ecf9f7 - Failed execution Tier Family Exclusion Group (account 123456)': UNKNOWN"
-        );
-    }
-
-    /**
-     * Recovery from policy operation due to exception.
-     */
-    @Test
-    public void testPolicyException() {
-        Action action = createAction(101L, GOOD_VM_B_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Creating new family exclusion policy for VM good-vm-region-b with name 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'",
-                "Could not create or update tier exclusion policy 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)': UNKNOWN",
-                "Failed to create tier exclusion policy 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'"
-        );
-    }
-
-    /**
-     * Test finding Azure peer SKUs based on quotaFamily.
-     */
-    @Test
-    public void testQuotaFamilyPeerSKUs() {
-        Action action = createAction(101L, AZ_QF_VM_ID, EntityType.COMPUTE_TIER,
-                TIER_AZ2_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Peer tiers in 505 = [Tier-Azure-1, Tier-Azure-2]"
-        );
-    }
-
-    /**
-     * Successful handling of action failure - VM in region.
-     */
-    @Test
-    public void testRegionNewGroupNewPolicy() {
-        Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
-                TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Created group vm-in-no-group-2",
-                "vm-in-no-group-2 with name 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'",
-                "Create policy response for VM vm-in-no-group-2 = setting_policy"
-        );
+        verifyOutput("Not creating recommend only policy for action 102: Cannot find account ID");
     }
 
     /**
@@ -515,24 +447,10 @@ public class FailedCloudResizeTierExcluderTest {
      */
     @Test
     public void testAzureActionFailure() {
-        Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
+        Action action = createAction(101L, GOOD_VM_B_ID, EntityType.COMPUTE_TIER,
                 TIER_A1_OID);
         failedCloudVMGroupProcessor.handleActionFailure(action, AZURE_ACTION_FAILURE);
-        verifyOutput("Creating exclusion policy for failed action ID 101");
-    }
-
-    /**
-     * Successful handling of action failure - VM in region.
-     */
-    @Test
-    public void testAZNewGroupNewPolicy() {
-        Action action = createAction(101L, AZ_VM_ID, EntityType.COMPUTE_TIER, TIER_A1_OID);
-        failedCloudVMGroupProcessor.handleActionFailure(action, DEFAULT_ACTION_FAILURE);
-        verifyOutput(
-                "Created group vm-in-az",
-                "Creating new family exclusion policy for VM vm-in-az with name 'Availability Zone AvailabilityZone-A",
-                "Create policy response for VM vm-in-az = setting_policy"
-        );
+        verifyOutput("Creating recommend only policy for AvailabilitySet::as-2 due to failed action ID 101");
     }
 
     /**
@@ -541,8 +459,13 @@ public class FailedCloudResizeTierExcluderTest {
     private void initializeRepositoryService() {
         Long[] requests = {
                 AZ_VM_ID,
-                GOOD_VM_ID,
+                GOOD_VM_A_ID,
                 GOOD_VM_B_ID,
+                GOOD_VM_C_ID,
+                GOOD_VM_D_ID,
+                GOOD_VM_E_ID,
+                GOOD_VM_F_ID,
+                GOOD_VM_G_ID,
                 MISSING_ORIGIN_VM_ID,
                 MISSING_ACCOUNT_VM_ID,
                 VM_NO_GROUP_1_ID,
@@ -556,8 +479,13 @@ public class FailedCloudResizeTierExcluderTest {
         };
         TopologyEntityDTO[] responses = {
                 AZ_VM,
-                GOOD_VM,
+                GOOD_VM_A,
                 GOOD_VM_B,
+                GOOD_VM_C,
+                GOOD_VM_D,
+                GOOD_VM_E,
+                GOOD_VM_F,
+                GOOD_VM_G,
                 MISSING_ORIGIN_VM,
                 MISSING_ACCOUNT_VM,
                 VM_NO_GROUP_1,
@@ -598,81 +526,78 @@ public class FailedCloudResizeTierExcluderTest {
      * Initialize Group test data.
      */
     private void initializeGroupService() {
-        when(testGroupService
-                .getGroups(createGroupQuery(GOOD_VM_GROUP_NAME)))
-                .thenReturn(createGroupingResponse(GOOD_VM_GROUP_NAME, GOOD_VM_GROUP_ID,
-                        GOOD_VM_ID));
-        when(testGroupService
-                .getGroups(createGroupQuery(GOOD_VM_B_GROUP_NAME)))
-                .thenReturn(createGroupingResponse(GOOD_VM_B_GROUP_NAME, GOOD_VM_B_GROUP_ID,
-                        GOOD_VM_B_ID));
-        GroupDefinition.Builder builder = GroupDefinition.newBuilder()
-                .setDisplayName(GOOD_VM_GROUP_NAME)
-                .setType(GroupType.REGULAR)
-                .setStaticGroupMembers(StaticMembers.newBuilder()
-                        .addMembersByType(StaticMembersByType.newBuilder()
-                                .addMembers(GOOD_VM_ID)));
-        when(testGroupService
-                .createGroup(createCreateGroupRequest(VM_NO_GROUP_2_NAME, VM_NO_GROUP_2_ID)))
-                .thenReturn(CreateGroupResponse.newBuilder()
-                        .setGroup(Grouping.newBuilder()
-                                .setId(VM_NO_GROUP_2_ID)
-                                .addExpectedTypes(MemberType.newBuilder()
-                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .setDefinition(builder)
-                                .build())
+        // Add discovered groups
+        for (Entry<String, Set<Long>> entry : DISCOVERED_GROUPS.entrySet()) {
+            when(testGroupService
+                    .getGroups(createGroupQuery(entry.getKey())))
+                    .thenReturn(createGroupingResponse(entry.getKey(), AS2_ID, entry.getValue()));
+        }
+    }
+
+    /**
+     * Initialize discovered group test data.
+     */
+    private void initializeDiscoveredGroupService() {
+        TargetDiscoveredGroups.Builder groups = TargetDiscoveredGroups.newBuilder();
+        for (Entry<String, Set<Long>> entry : DISCOVERED_GROUPS.entrySet()) {
+            groups.addGroup(DiscoveredGroupInfo.newBuilder()
+                    .setUploadedGroup(makeUploadedGroup(entry.getKey(), entry.getValue())));
+        }
+        when(testDiscoveredGroupService
+                .getDiscoveredGroups(any()))
+                .thenReturn(GetDiscoveredGroupsResponse.newBuilder()
+                        .putGroupsByTargetId(1L, groups.build())
                         .build());
-        when(testGroupService
-                .createGroup(createCreateGroupRequest(VM_IN_AZ_GROUP_NAME, AZ_VM_ID)))
-                .thenReturn(CreateGroupResponse.newBuilder()
-                        .setGroup(Grouping.newBuilder()
-                                .setId(AZ_VM_GROUP_ID)
-                                .addExpectedTypes(MemberType.newBuilder()
-                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
-                                .setDefinition(builder)
-                                .build())
-                        .build());
-        when(testGroupService
-                .createGroup(createCreateGroupRequest(OTHER_GROUP_NAME, OTHER_VM_ID)))
-                .thenThrow(new StatusRuntimeException(Status.PERMISSION_DENIED));
+    }
+
+    private Builder makeUploadedGroup(String groupName, Set<Long> oidList) {
+        return UploadedGroup.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(groupName)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .addAllMembers(oidList)
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))));
     }
 
     /**
      * Initialize SettingPolicy test data.
      */
     private void initializeSettingPolicyService() {
-        // Region Region-A - Failed execution Tier Family Exclusion Policy (account 123456)
-        when(testSettingPolicyService
-                .getSettingPolicy(createPolicyQuery(REGION_A_POLICY_NAME)))
-                .thenReturn(GetSettingPolicyResponse.newBuilder()
-                        .setSettingPolicy(createSettingPolicy(REGION_A_POLICY_ID,
-                                REGION_A_POLICY_NAME, OTHER_GROUP_ID,
-                                OTHER_TIER_ID))
-                        .build());
-        when(testSettingPolicyService.updateSettingPolicy(any()))
-                .thenReturn(UpdateSettingPolicyResponse.newBuilder()
-                        .setSettingPolicy(createSettingPolicy(REGION_A_POLICY_ID,
-                                REGION_A_POLICY_NAME, OTHER_GROUP_ID,
-                                OTHER_TIER_ID))
-                        .build());
-        SettingPolicyInfo.Builder info = FailedCloudResizeTierExcluder
-                .createSettingPolicyInfo(REGION_B_POLICY_NAME,
-                        ImmutableList.of(GOOD_VM_B_GROUP_ID), ImmutableList.of(501L, 502L));
-        SettingProto.CreateSettingPolicyRequest req = SettingProto.CreateSettingPolicyRequest.newBuilder()
-                .setSettingPolicyInfo(info).build();
+        // Pre-populate a recommend only policy for duplicate policy testing.
+        long expiration = java.lang.System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1L);
+        String policyName = "AvailabilitySet::as-3 - Failed execution recommend only Policy (account 123456)";
+        when(testSettingPolicyService.listSettingPolicies(any()))
+                .thenReturn(ImmutableList.of(
+                        SettingProto.SettingPolicy.newBuilder()
+                                .setInfo(SettingPolicyInfo.newBuilder()
+                                        .setName(StringConstants.AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX
+                                                + expiration + ":" + policyName)
+                                        .setDisplayName(policyName)
+                                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .build()));
+
+        // Add a create request that will fail
         when(testSettingPolicyService.createSettingPolicy(any()))
-                .thenReturn(CreateSettingPolicyResponse.newBuilder()
-                        .setSettingPolicy(createSettingPolicy(301L, REGION_B_POLICY_NAME,
-                                299L, 99L))
-                        .build());
-        when(testSettingPolicyService.createSettingPolicy(eq(req)))
-                .thenThrow(new StatusRuntimeException(Status.PERMISSION_DENIED));
+                .thenAnswer((Answer<CreateSettingPolicyResponse>)invocation -> {
+                    CreateSettingPolicyResponse.Builder builder =
+                            CreateSettingPolicyResponse.newBuilder();
+                    CreateSettingPolicyRequest req =
+                            invocation.getArgumentAt(0, CreateSettingPolicyRequest.class);
+                    String policyName1 = req.getSettingPolicyInfo().getDisplayName();
+                    if (!policyName1.contains("AvailabilitySet::as-4")) {
+                        builder.setSettingPolicy(SettingPolicy.newBuilder().setId(301L));
+                    }
+                    return builder.build();
+                });
     }
 
     private FailedCloudVMGroupProcessor createFailedCloudVMGroupProcessor(String patterns) {
         return new FailedCloudVMGroupProcessor(groupServiceRpc, repositoryService,
-                settingPolicyService,
-                Executors.newSingleThreadScheduledExecutor(), 360, patterns);
+                settingPolicyService, scheduleService,
+                Executors.newSingleThreadScheduledExecutor(), discoveredGroupService,
+                360, patterns, 1L);
     }
 
     private RetrieveTopologyEntitiesRequest createRepositoryQuery(int entityType, Long oid) {
@@ -685,21 +610,6 @@ public class FailedCloudResizeTierExcluderTest {
         return builder.build();
     }
 
-    private CreateGroupRequest createCreateGroupRequest(String groupName, Long memberOid) {
-        return CreateGroupRequest.newBuilder()
-                .setGroupDefinition(GroupDefinition.newBuilder()
-                        .setDisplayName(groupName)
-                        .setStaticGroupMembers(StaticMembers.newBuilder()
-                                .addMembersByType(StaticMembersByType.newBuilder()
-                                        .setType(MemberType.newBuilder()
-                                                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
-                                        .addMembers(memberOid))))
-                .setOrigin(GroupDTO.Origin.newBuilder()
-                        .setSystem(System.newBuilder()
-                                .setDescription(groupName)))
-                .build();
-    }
-
     private GetGroupsRequest createGroupQuery(final String groupName) {
         return GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
@@ -710,10 +620,6 @@ public class FailedCloudResizeTierExcluderTest {
                                         .setStringPropertyRegex(SearchProtoUtil
                                                         .escapeSpecialCharactersInLiteral(groupName)))))
                 .build();
-    }
-
-    private GetSettingPolicyRequest createPolicyQuery(final String policyName) {
-        return GetSettingPolicyRequest.newBuilder().setName(policyName).build();
     }
 
     /**
@@ -737,7 +643,7 @@ public class FailedCloudResizeTierExcluderTest {
      */
     private static List<TopologyEntityDTO> createComputeTiers() {
         AtomicLong tierId = new AtomicLong(501L);
-        List<TopologyEntityDTO> result = Stream.of(
+        return Stream.of(
                 new Pair<>("Family-A", "Tier-A1"),
                 new Pair<>("Family-A", "Tier-A2"),
                 new Pair<>("Family-B", "Tier-B1"),
@@ -759,8 +665,6 @@ public class FailedCloudResizeTierExcluderTest {
                             .build();
                 })
                 .collect(Collectors.toList());
-        unknownTierId = tierId.get();
-        return result;
     }
 
     private ActionEntity.Builder createActionEntity(Long id, EntityType entityType) {
@@ -841,29 +745,20 @@ public class FailedCloudResizeTierExcluderTest {
         return createRepositoryResponse(Arrays.asList(teList));
     }
 
-    private List<Grouping> createGroupingResponse(String groupName, Long groupId, Long memberId) {
+    private List<Grouping> createGroupingResponse(String groupName, Long groupId,
+            Set<Long> memberIds) {
         GroupDefinition.Builder builder = GroupDefinition.newBuilder()
                 .setDisplayName(groupName)
                 .setType(GroupType.REGULAR)
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
-                                .addMembers(memberId)));
+                                .addAllMembers(memberIds)));
         return ImmutableList.of(Grouping.newBuilder()
                 .setId(groupId)
                 .addExpectedTypes(MemberType.newBuilder()
                         .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                 .setDefinition(builder)
                 .build());
-    }
-
-    @Nonnull
-    private SettingPolicy createSettingPolicy(long policyId, String policyName, long scopeGroupId, long initialId) {
-        return SettingPolicy.newBuilder()
-                .setId(policyId)
-                .setInfo(FailedCloudResizeTierExcluder.createSettingPolicyInfo(policyName,
-                        ImmutableList.of(scopeGroupId),
-                        ImmutableList.of(initialId)))
-                .build();
     }
 
     /**

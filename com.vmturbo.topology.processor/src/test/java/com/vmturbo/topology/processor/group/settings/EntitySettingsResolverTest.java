@@ -28,12 +28,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -61,6 +63,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.DeleteScheduleRequest;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.DeleteScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
@@ -71,6 +75,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -106,6 +111,7 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
@@ -201,6 +207,7 @@ public class EntitySettingsResolverTest {
     private static final long SP2_ID = 6003;
     private static final long SP3_ID = 6004;
     private static final long SP4_ID = 6005;
+    private static final long SPD_ID = 6006;
 
     private static final long CSG_ENABLED_SP_ID = 7001L;
     private static final long CSG_DISABLED_SP_ID = 7002L;
@@ -252,6 +259,10 @@ public class EntitySettingsResolverTest {
     private static final SettingPolicy defaultSettingPolicy =
         createSettingPolicy(DEFAULT_POLICY_ID, "sp_def", SettingPolicy.Type.DEFAULT,
                             inputSettings1, Collections.singletonList(groupId));
+    private static final SettingPolicy settingPolicyDelete =
+            createSettingPolicy(SPD_ID, "sp-delete", SettingPolicy.Type.USER, inputSettings1,
+                    Collections.singletonList(groupId), TEST_ENTITY_TYPE.typeNumber(), true);
+
 
     private static final String SPEC_NAME = "settingSpecName";
     private static final SettingSpec SPEC_SMALLER_TIEBREAKER =
@@ -287,13 +298,22 @@ public class EntitySettingsResolverTest {
             .build();
     private static final Long APPLIES_NOW_SCHEDULE_ID = 11L;
 
-    //private static final ScheduleResolver scheduleResolver = mock(ScheduleResolver.class);
     private static final Schedule APPLIES_NOW =
         createOneTimeSchedule(APPLIES_NOW_SCHEDULE_ID, 4815162342L, 4815169500L)
         .toBuilder()
         .setActive(Active.getDefaultInstance())
         .build();
     private static final Schedule NOT_NOW = createOneTimeSchedule(22L, 11235813L,  11242980L);
+    private static final Long EXPIRED_SCHEDULE_ID = 33L;
+    private static Schedule EXPIRED = null;
+    private static final Long EXPIRED_DELETE_SCHEDULE_ID = 34L;
+    private static Schedule EXPIRED_DELETE = null;
+    private static final Long ACTIVE_SCHEDULE_ID = 35L;
+    private static Schedule ACTIVE = null;
+    private static final Long FUTURE_SCHEDULE_ID = 36L;
+    private static Schedule FUTURE = null;
+    Map<Long, Schedule> EXPIRATION_SCHEDULES = null;
+
     private static final int CHUNK_SIZE = 1;
     private static final ConsistentScalingManager consistentScalingManager =
             mock(ConsistentScalingManager.class);
@@ -325,8 +345,20 @@ public class EntitySettingsResolverTest {
         // It just returns settings without overriding.
         Mockito.when(settingOverrides.overrideSettings(any(), any()))
                         .thenAnswer(i -> ((Map<?, ?>)i.getArguments()[1]).values());
-    }
+        // Create some test schedules relative to the current time.
+        long now = System.currentTimeMillis();
+        EXPIRED = createOneTimeSchedule(EXPIRED_SCHEDULE_ID, now, -7, -6, false);
+        EXPIRED_DELETE = createOneTimeSchedule(EXPIRED_DELETE_SCHEDULE_ID, now, -7, -6, true);
+        ACTIVE = createOneTimeSchedule(ACTIVE_SCHEDULE_ID, now, -2, +2, false);
+        FUTURE = createOneTimeSchedule(FUTURE_SCHEDULE_ID, now, +2, +9, false);
+        EXPIRATION_SCHEDULES = ImmutableMap.of(
+                ACTIVE_SCHEDULE_ID, ACTIVE,
+                FUTURE_SCHEDULE_ID, FUTURE,
+                EXPIRED_SCHEDULE_ID, EXPIRED,
+                EXPIRED_DELETE_SCHEDULE_ID, EXPIRED_DELETE
+        );
 
+    }
 
     private ResolvedGroup resolvedGroup(Grouping group, Set<Long> memberIds) {
         return new ResolvedGroup(group, Collections.singletonMap(TEST_ENTITY_TYPE, memberIds));
@@ -1405,15 +1437,22 @@ public class EntitySettingsResolverTest {
         return createSettingPolicy(policyId, name, type, settings, groupIds, TEST_ENTITY_TYPE.typeNumber());
     }
 
+    private static SettingPolicy createSettingPolicy(long policyId, String name,
+            SettingPolicy.Type type, List<Setting> settings, List<Long> groupIds, int entityType) {
+        return createSettingPolicy(policyId, name, type, settings, groupIds, entityType, false);
+    }
+
     private static SettingPolicy createSettingPolicy(
         long policyId, String name, SettingPolicy.Type type,
-        List<Setting> settings, List<Long> groupIds, int entityType) {
+        List<Setting> settings, List<Long> groupIds, int entityType, boolean deleteAfterExpiration) {
         return  SettingPolicy.newBuilder()
             .setId(policyId)
             .setInfo(SettingPolicyInfo.newBuilder()
                 .setName(name)
+                .setDisplayName(name)
                 .addAllSettings(settings)
                 .setEntityType(entityType)
+                .setDeleteAfterScheduleExpiration(deleteAfterExpiration)
                 .setScope(Scope.newBuilder()
                     .addAllGroups(groupIds)
                     .build())
@@ -1457,14 +1496,35 @@ public class EntitySettingsResolverTest {
             .build();
     }
 
-    private static Schedule createOneTimeSchedule(long schduleId, long startTime, long endTime) {
+    private static Schedule.Builder createScheduleBuilder(long scheduleId, long startTime,
+            long endTime) {
         return Schedule.newBuilder()
-                .setId(schduleId)
+                .setId(scheduleId)
                 .setOneTime(OneTime.getDefaultInstance())
                 .setStartTime(startTime)
                 .setEndTime(endTime)
-                .setTimezoneId("timeZoneId")
-                .build();
+                .setTimezoneId("timeZoneId");
+
+    }
+
+    private static Schedule createOneTimeSchedule(long scheduleId, long startTime, long endTime) {
+        return createScheduleBuilder(scheduleId, startTime, endTime).build();
+    }
+
+    private Schedule createOneTimeSchedule(Long scheduleId, long baseTime, int startOffsetDays,
+            int endOffsetDays, boolean deleteAfterExpiration) {
+        String scheduleName = String.format("Schedule %d%s", scheduleId,
+                deleteAfterExpiration ? " (expirable)" : "");
+        long activeTime = TimeUnit.DAYS.toMillis(endOffsetDays);
+        Schedule.Builder builder = createScheduleBuilder(scheduleId,
+                baseTime + TimeUnit.DAYS.toMillis(startOffsetDays),
+                baseTime + TimeUnit.DAYS.toMillis(endOffsetDays))
+                .setDisplayName(scheduleName)
+                .setDeleteAfterExpiration(deleteAfterExpiration);
+        if (startOffsetDays <= 0 && activeTime >= 0) {
+            builder.setActive(Active.newBuilder().setRemainingActiveTimeMs(activeTime));
+        }
+        return builder.build();
     }
 
     private static EntitySettings createEntitySettings(
@@ -1623,6 +1683,127 @@ public class EntitySettingsResolverTest {
         assertNotSame(editor1.incomingList, editor1.returnedList);
         assertSame(editor1.returnedList, editor2.incomingList);
         assertNotSame(editor2.incomingList, editor2.returnedList);
+    }
+
+    /**
+     * Verify that an active expirable schedule works.
+     */
+    @Test
+    public void testActiveSchedule() {
+        final SettingPolicy expiredPolicy = addSchedule(settingPolicy1, ACTIVE);
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
+                new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings =
+                ArrayListMultimap.create();
+        final Map<Long, ResolvedGroup> resolvedGroups =
+                Collections.singletonMap(group.getId(), resolvedGroup(group, entities));
+        entitySettingsResolver.resolveAllEntitySettings(expiredPolicy, settingsInPolicy1,
+                resolvedGroups, entitySettingsBySettingNameMap, SPECS, EXPIRATION_SCHEDULES,
+                entityToPolicySettings, scopeEvaluator);
+        List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
+                entitySettingsBySettingNameMap.get(entityOid1).values());
+        assertFalse(appliedSettings.isEmpty());
+        assertTrue(appliedSettings.stream().allMatch(setting ->
+                setting.getSettingPolicyIdList().equals(Collections.singleton(SP1_ID))));
+    }
+
+    /**
+     * Verify that an expired policy is not applied.
+     */
+    @Test
+    public void testExpiredPolicies() {
+        final SettingPolicy expiredPolicy = addSchedule(settingPolicy1, EXPIRED);
+
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
+                new HashMap<>();
+        final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings =
+                ArrayListMultimap.create();
+        final Map<Long, ResolvedGroup> resolvedGroups =
+                Collections.singletonMap(group.getId(), resolvedGroup(group, entities));
+        entitySettingsResolver.resolveAllEntitySettings(expiredPolicy, settingsInPolicy1,
+                resolvedGroups, entitySettingsBySettingNameMap, SPECS, EXPIRATION_SCHEDULES,
+                entityToPolicySettings, scopeEvaluator);
+        assertTrue(entitySettingsBySettingNameMap.isEmpty());
+    }
+
+    /**
+     * Non-expiring policy, expired deletable schedule. The expected behavior is to not delete
+     * the expired schedule because the attaching policy is not configured to delete upon
+     * expiration.
+     *
+     * @throws GroupResolutionException mock won't throw.
+     */
+    @Test
+    public void testExpiredSchedule() throws GroupResolutionException {
+        final SettingPolicy sp1 = addSchedule(settingPolicy1, EXPIRED_DELETE);
+        final SettingPolicy sp2 = addSchedule(settingPolicyDelete, ACTIVE);
+        scheduleSetup(ImmutableList.of(sp1, sp2));
+        GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+        scheduleVerify(ImmutableList.of(), ImmutableList.of());
+    }
+
+    /**
+     * Delete policy, expired deletable schedule.
+     *
+     * @throws GroupResolutionException mock won't throw.
+     */
+    @Test
+    public void testExpiredScheduleDeletePolicy() throws GroupResolutionException {
+        final SettingPolicy sp1 = addSchedule(settingPolicy1, FUTURE);
+        final SettingPolicy sp2 = addSchedule(settingPolicyDelete, EXPIRED_DELETE);
+        scheduleSetup(ImmutableList.of(sp1, sp2));
+        GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+        scheduleVerify(ImmutableList.of(SPD_ID), ImmutableList.of(EXPIRED_DELETE_SCHEDULE_ID));
+    }
+
+    /**
+     * Delete policy, expired deletable schedule, non-expiring policy also attached to expired
+     * schedule. Expected result is for the expired policy to be deleted, but the expired schedule
+     * will not be deleted because it is still referenced by a non-expiring policy.
+     *
+     * @throws GroupResolutionException mock won't throw.
+     */
+    @Test
+    public void testExpiredScheduleDeletePolicyMulti() throws GroupResolutionException {
+        // Attach an expiring and non-expiring policy to the same expired schedule.
+        final SettingPolicy sp1 = addSchedule(settingPolicy1, EXPIRED_DELETE);
+        final SettingPolicy sp2 = addSchedule(settingPolicyDelete, EXPIRED_DELETE);
+        scheduleSetup(ImmutableList.of(sp1, sp2));
+        GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
+                topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager, null);
+        scheduleVerify(ImmutableList.of(SPD_ID), ImmutableList.of());
+    }
+
+    private void scheduleSetup(List<SettingPolicy> settingPolicies) throws GroupResolutionException {
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group,
+                ImmutableSet.of(entityOid1, entityOid2, entityOid3)));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(testGroupService.getGroups(any())).thenReturn(Collections.singletonList(group));
+        when(testScheduleService.getSchedules(Mockito.any()))
+                .thenReturn(new ArrayList<>(EXPIRATION_SCHEDULES.values()));
+        when(testScheduleService.deleteSchedule(any()))
+                .thenReturn(DeleteScheduleResponse.newBuilder()
+                        .setSchedule(Schedule.getDefaultInstance())
+                        .build());
+        when(testSettingPolicyService.listSettingPolicies(any())).thenReturn(settingPolicies);
+    }
+
+    private void scheduleVerify(List<Long> deletedSettingPolicyIds,
+            List<Long> deletedScheduleIds) {
+        verify(testSettingPolicyService, times(deletedSettingPolicyIds.size()))
+                .deleteSettingPolicy(any());
+        for (Long id : deletedSettingPolicyIds) {
+            verify(testSettingPolicyService, times(1)).deleteSettingPolicy(
+                    DeleteSettingPolicyRequest.newBuilder().setId(id).build());
+        }
+        verify(testScheduleService, times(deletedScheduleIds.size()))
+                .deleteSchedule(any());
+        for (Long id : deletedScheduleIds) {
+            verify(testScheduleService, times(1)).deleteSchedule(
+                    DeleteScheduleRequest.newBuilder().setOid(id).build());
+        }
     }
 
     /**

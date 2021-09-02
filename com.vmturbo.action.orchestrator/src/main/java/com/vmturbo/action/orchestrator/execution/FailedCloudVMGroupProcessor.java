@@ -40,11 +40,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -55,29 +57,45 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 public class FailedCloudVMGroupProcessor {
 
-    private final static Logger logger = LogManager.getLogger(FailedCloudVMGroupProcessor.class);
+    private static final Logger logger = LogManager.getLogger(FailedCloudVMGroupProcessor.class);
     /**
      * Name of the group that we will create and manage in group component.
      */
-    private final static String FAILED_GROUP_CLOUD_VMS = "Cloud VMs with Failed Sizing";
+    private static final String FAILED_GROUP_CLOUD_VMS = "Cloud VMs with Failed Sizing";
     private final GroupServiceBlockingStub groupServiceClient;
     private final Object lock = new Object();
-    private final FailedCloudResizeTierExcluder failedCloudResizeTierExcluder;
+    private final FailedCloudResizePolicyCreator failedCloudResizePolicyCreator;
 
     @GuardedBy("lock")
     private Set<Long> successOidsSet = new HashSet<>();
     @GuardedBy("lock")
     private Set<Long> failedOidsSet = new HashSet<>();
 
+    /**
+     * Handles recording of failed VM scale/move action executions.
+     *
+     * @param groupServiceClient group service client
+     * @param repositoryService repository service
+     * @param settingPolicyService policy service
+     * @param scheduledExecutorService scheduled executor service
+     * @param discoveredGroupService discovered group service
+     * @param groupUpdateDelaySeconds the interval at which the failed group is updated
+     * @param failedActionPatterns action error patterns that will trigger creation of recommend
+     *                              only policies
+     * @param recommendOnlyPolicyLifetimeHours lifetime of created recommend only policies.
+     */
     public FailedCloudVMGroupProcessor(final GroupServiceBlockingStub groupServiceClient,
             final RepositoryServiceBlockingStub repositoryService,
             final SettingPolicyServiceBlockingStub settingPolicyService,
+            final ScheduleServiceBlockingStub scheduleService,
             final ScheduledExecutorService scheduledExecutorService,
-            final int groupUpdateDelaySeconds,
-            final @Nonnull String failedActionPatterns) {
+            final DiscoveredGroupServiceBlockingStub discoveredGroupService,
+            final int groupUpdateDelaySeconds, final @Nonnull String failedActionPatterns,
+            final @Nonnull Long recommendOnlyPolicyLifetimeHours) {
         this.groupServiceClient = groupServiceClient;
-        this.failedCloudResizeTierExcluder = new FailedCloudResizeTierExcluder(
-                groupServiceClient, settingPolicyService, repositoryService, failedActionPatterns);
+        this.failedCloudResizePolicyCreator = new FailedCloudResizePolicyCreator(
+                groupServiceClient, settingPolicyService, scheduleService, repositoryService,
+                discoveredGroupService, failedActionPatterns, recommendOnlyPolicyLifetimeHours);
         scheduledExecutorService.scheduleWithFixedDelay(this::processAndUpdateFailedGroup,
                 0,
                 groupUpdateDelaySeconds,
@@ -155,28 +173,28 @@ public class FailedCloudVMGroupProcessor {
 
 
     /**
-     * method to add back all the vmids back for processing in the next iteration.
-     * this is called if there was an exception from group component service.
+     * Method to add back all the VM IDs for processing in the next iteration.
+     * This is called if there was an exception from the group component service.
      *
-     * @param currSucess
-     * @param currFailed
+     * @param currSucceeded list of successful VM IDs
+     * @param currFailed list of failed VM IDs
      */
-    private void restoreGlobalSets(Set<Long> currSucess, Set<Long> currFailed) {
+    private void restoreGlobalSets(Set<Long> currSucceeded, Set<Long> currFailed) {
         synchronized (lock) {
-            if (!currSucess.isEmpty()) {
-                successOidsSet.forEach(vmId -> recordVmAction(vmId, false, currSucess, currFailed));
-                successOidsSet = currSucess;
+            if (!currSucceeded.isEmpty()) {
+                successOidsSet.forEach(vmId -> recordVmAction(vmId, false, currSucceeded, currFailed));
+                successOidsSet = currSucceeded;
             }
             if (!currFailed.isEmpty()) {
-                failedOidsSet.forEach(vmId -> recordVmAction(vmId, true, currSucess, currFailed));
+                failedOidsSet.forEach(vmId -> recordVmAction(vmId, true, currSucceeded, currFailed));
                 failedOidsSet = currFailed;
             }
         }
     }
 
     /**
-     * This should ideally be called from a synchronous block to avoid concurrent mutation of sets
-     * @param vmId
+     * This should ideally be called from a synchronous block to avoid concurrent mutation of sets.
+     * @param vmId         ID of VM to record
      * @param failed       if the action failed
      * @param successVMSet set of vmIds which had a successful action.
      * @param failedVMSet  set of vmIds which had a failed action.
@@ -192,9 +210,9 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * Handle successful actions
+     * Handle successful actions.
      *
-     * @param actionView
+     * @param actionView action view to handle.
      */
     public void handleActionSuccess(@Nonnull ActionView actionView) {
         handleActionUpdate(actionView, false);
@@ -207,7 +225,7 @@ public class FailedCloudVMGroupProcessor {
      * @param actionFailure The progress notification for an action.
      */
     public void handleActionFailure(@Nonnull ActionView actionView, ActionFailure actionFailure) {
-        failedCloudResizeTierExcluder.updateTierExclusionPolicy(actionView, actionFailure);
+        failedCloudResizePolicyCreator.handleFailedAction(actionView, actionFailure);
         handleActionUpdate(actionView, true);
     }
 
@@ -223,8 +241,8 @@ public class FailedCloudVMGroupProcessor {
             ActionDTO.Action actionDTO = action.getTranslationResultOrOriginal();
             ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(actionDTO);
             if (!isValidAction(actionDTO, actionEntity)) {
-                logger.debug("Only processing action on VMs running Environment type Cloud of " +
-                    "action type Move or Scale");
+                logger.debug("Only processing action on VMs running Environment type Cloud of "
+                        + "action type Move or Scale");
                 return;
             }
             recordVmActionWithLock(actionEntity.getId(), failed);
@@ -234,8 +252,9 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * @param vmId
-     * @param failed
+     * Record an action.
+     * @param vmId ID of target VM.
+     * @param failed true if the action failed, else false.
      */
     @VisibleForTesting
     public void recordVmActionWithLock(final long vmId, final boolean failed) {
@@ -245,16 +264,16 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * checks if action entity is VM and if action is of type MOVE or SCALE and EnvironmentType is
-     * CLOUD right now we are only interested in scale and move actions
+     * Checks if the action entity is a VM, if type MOVE or SCALE, and EnvironmentType is
+     * CLOUD. Right now we are only interested in scale and move actions.
      *
-     * @param action
-     * @param actionEntity
-     * @return
+     * @param action action to check
+     * @param actionEntity target entity
+     * @return true if the action if valid
      */
     private boolean isValidAction(@Nonnull ActionDTO.Action action, final ActionEntity actionEntity) {
-        if (actionEntity.getType() == EntityType.VIRTUAL_MACHINE.getValue() &&
-                actionEntity.getEnvironmentType() == EnvironmentType.CLOUD) {
+        if (actionEntity.getType() == EntityType.VIRTUAL_MACHINE.getValue()
+                && actionEntity.getEnvironmentType() == EnvironmentType.CLOUD) {
             ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
             return actionType == ActionType.MOVE || actionType == ActionType.SCALE;
         }
@@ -286,7 +305,7 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * retrieves FAILED_GROUP_CLOUD_VMS from group service if it exists
+     * retrieves FAILED_GROUP_CLOUD_VMS from group service if it exists.
      *
      * @return existing failed action group.
      */
@@ -326,7 +345,7 @@ public class FailedCloudVMGroupProcessor {
     }
 
     @VisibleForTesting
-    public FailedCloudResizeTierExcluder getFailedCloudResizeTierExcluder() {
-        return failedCloudResizeTierExcluder;
+    public FailedCloudResizePolicyCreator getFailedCloudResizePolicyCreator() {
+        return failedCloudResizePolicyCreator;
     }
 }

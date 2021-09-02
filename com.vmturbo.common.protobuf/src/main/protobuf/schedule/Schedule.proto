@@ -49,6 +49,9 @@ message Schedule {
     // Timezone id
     optional string timezone_id = 15;
 
+    // Whether to delete after the schedule has expired (i.e., can never be active again).
+    optional bool delete_after_expiration = 16 [default = false];
+
     // A policy active only once
     message OneTime {}
 

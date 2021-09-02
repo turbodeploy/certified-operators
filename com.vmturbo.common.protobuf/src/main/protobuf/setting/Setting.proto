@@ -380,6 +380,9 @@ message SettingPolicyInfo {
     // The ID of the target that discovered this setting policy.
     // This field is only present or has meaning on DISCOVERED type setting policies.
     optional int64 target_id = 8;
+
+    // Whether to automatically delete this policy when its associated schedule expires.
+    optional bool delete_after_schedule_expiration = 10;
 }
 
 // The time during which the setting policy may be active.

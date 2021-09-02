@@ -228,10 +228,10 @@ public final class SettingDTOUtil {
      */
     public static List<SettingPolicy> extractUserAndDiscoveredSettingPolicies(Collection<SettingPolicy> settingPolicies) {
         return settingPolicies.stream()
-            .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
-                (settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER ||
-                    settingPolicy.getSettingPolicyType() == SettingPolicy.Type.DISCOVERED))
-            .collect(Collectors.toList());
+                .filter(settingPolicy -> settingPolicy.hasSettingPolicyType()
+                        && (settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER
+                        || settingPolicy.getSettingPolicyType() == SettingPolicy.Type.DISCOVERED))
+                .collect(Collectors.toList());
     }
 
     /**

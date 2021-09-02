@@ -51,6 +51,8 @@ public class PrerequisiteDescriptionComposer {
             "To execute action on {0}, navigate to the Azure portal and adjust the scale set instance size";
     private static final String SCALESET_VOLUME_PREREQUISITE_FORMAT =
             "To execute action on {0}, navigate to the Azure portal and adjust at the scale set";
+    private static final String AVAILABILITY_SET_PREREQUISITE_FORMAT =
+            "Execution temporarily disabled for {0} due to a previous execution error in this availability set";
 
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
@@ -92,10 +94,15 @@ public class PrerequisiteDescriptionComposer {
                                     buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
                                     prerequisite.getLocks());
                         case SCALE_SET:
-                            final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+                            ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                                     actionEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE
                                             ? SCALESET_VOLUME_PREREQUISITE_FORMAT : SCALESET_PREREQUISITE_FORMAT,
+                                    buildEntityNameOrType(actionEntity));
+                        case AVAILABILITY_SET:
+                            actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                                    AVAILABILITY_SET_PREREQUISITE_FORMAT,
                                     buildEntityNameOrType(actionEntity));
                         default:
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(

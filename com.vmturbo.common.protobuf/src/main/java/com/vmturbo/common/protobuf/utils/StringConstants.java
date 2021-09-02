@@ -556,4 +556,8 @@ public class StringConstants {
      */
     public static final String DBS_STORAGE_TIER = "storage_tier";
 
+    /**
+     * Azure availability set recommend only policy prefix.
+     */
+    public static final String AVAILABILITY_SET_RECOMMEND_ONLY_PREFIX = "ASRO:";
 }

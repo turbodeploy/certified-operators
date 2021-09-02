@@ -199,7 +199,7 @@ public class StagesTest {
                 null);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
         stage.passthrough(stitchingContext);
-        verify(uploader).uploadActionConstraintInfo(stitchingContext, null);
+        verify(uploader).uploadActionConstraintInfo(stitchingContext);
     }
 
     @Test

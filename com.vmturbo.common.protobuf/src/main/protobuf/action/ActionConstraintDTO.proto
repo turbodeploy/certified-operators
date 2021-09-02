@@ -14,11 +14,17 @@ message ActionConstraintInfo {
     oneof action_constraint_info {
         CoreQuotaInfo core_quota_info = 2;
         AzureScaleSetInfo azure_scale_set_info = 3;
+        AzureAvailabilitySetInfo azure_availability_set_info = 4;
     }
 
     // Discovered Azure scale set info
     message AzureScaleSetInfo {
         repeated string names = 1;
+    }
+
+    // Failed availability set recommend only policy IDs
+    message AzureAvailabilitySetInfo {
+        repeated int64 policy_ids = 1;
     }
 
     // The core quota info
@@ -70,6 +76,7 @@ enum ActionConstraintType {
     // The action constraint type of CoreQuotaInfo
     CORE_QUOTA = 1;
     AZURE_SCALE_SET_INFO = 2;
+    AZURE_AVAILABILITY_SET_INFO = 3;
 }
 
 // A request to upload ActionConstraintInfo

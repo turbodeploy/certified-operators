@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +35,7 @@ import com.google.common.collect.Multimap;
 import gnu.trove.iterator.TLongIterator;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -42,11 +44,14 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.DeleteScheduleRequest;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.DeleteScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -255,8 +260,93 @@ public class EntitySettingsResolver {
                 defaultSettingPoliciesByEntityType,
                 settingOverrides, entityToPolicySettings))
             .collect(Collectors.toMap(EntitySettings::getEntityOid, Function.identity()));
+        deleteExpiredPoliciesAndSchedules(userAndDiscoveredSettingPolicies, schedules);
         return new GraphWithSettings(topologyGraph, settings, defaultSettingPoliciesById);
     }
+
+    /**
+     * Delete expired policies and schedules.  An expired policy is a policy that has an expired
+     * schedule attached to it.  An expired schedule is a schedule that is not currently active and
+     * has no future occurrences.
+     *  @param userAndDiscoveredSettingPolicies list of setting policies
+     * @param schedules current list of all schedules used by setting policies
+     */
+    private void deleteExpiredPoliciesAndSchedules(
+            List<SettingPolicy> userAndDiscoveredSettingPolicies, Map<Long, Schedule> schedules) {
+        Set<Long> schedulesToDelete = schedules.entrySet().stream()
+                .filter(entry -> entry.getValue().getDeleteAfterExpiration()
+                        && !entry.getValue().hasNextOccurrence() && !entry.getValue().hasActive())
+                .map(Entry::getKey)
+                .collect(Collectors.toSet());
+        // Partition: true = delete policy on expiration, false = do not delete.
+        Map<Boolean, List<SettingPolicy>> scheduledPolicies = userAndDiscoveredSettingPolicies.stream()
+                .filter(settingPolicy -> settingPolicy.hasInfo() && settingPolicy.getInfo().hasScheduleId())
+                .collect(Collectors.partitioningBy(sp -> sp.getInfo().getDeleteAfterScheduleExpiration()
+                        && schedulesToDelete.contains(sp.getInfo().getScheduleId())));
+        // For each policy that is not flagged to be removed when expired, remove its schedule
+        // from the delete list.
+        schedulesToDelete.removeAll(scheduledPolicies.get(false).stream()
+                .map(settingPolicy -> settingPolicy.getInfo().getScheduleId())
+                .collect(Collectors.toSet()));
+
+        // Need to remove the policies first so that the schedules have no referring policies.
+        List<SettingPolicy> policiesToDelete = scheduledPolicies.get(true);
+        policiesToDelete.forEach(this::deleteSettingPolicy);
+        deleteExpiredSchedules(schedules, schedulesToDelete);
+    }
+
+    /**
+     * Delete expired schedules that are configured to do so.  Due to the dependency that policies
+     * have on their attached schedules, a schedule cannot be removed if it is still attached to a
+     * policy.  Therefore, it makes no sense to have non-deletable policy attach to a deletable
+     * schedule.  In order to avoid this dependency, all deletable policies are removed before
+     * Since it is anticipated that having a non-deletable policy attach to a deletable schedule,
+     * we will delete the schedules and handle the error case when trying to delete a schedule that
+     * has an attaching policy.
+     *
+     * @param schedules map of all schedules
+     * @param expiredScheduleIds set of expired schedule IDs to remove
+     */
+    private void deleteExpiredSchedules(Map<Long, Schedule> schedules, Set<Long> expiredScheduleIds) {
+        expiredScheduleIds.stream()
+                .forEach(scheduleId -> {
+                    String errorMsg = null;
+                    try {
+                        DeleteScheduleRequest req = DeleteScheduleRequest.newBuilder()
+                                .setOid(scheduleId)
+                                .build();
+                        DeleteScheduleResponse rsp = scheduleServiceBlockingStub.deleteSchedule(req);
+                        if (rsp == null || !rsp.hasSchedule()) {
+                            errorMsg = "";
+                        } else {
+                            logger.info("Deleted expired schedule '{}'",
+                                    schedules.get(scheduleId).getDisplayName());
+                        }
+                    } catch (Exception e) {
+                        errorMsg = ": " + e;  // Include the exception cause in the error string.
+                    }
+                    if (errorMsg != null) {
+                        logger.error("Could not remove expired policy schedule {}{}",
+                                schedules.get(scheduleId).getDisplayName(), errorMsg);
+                    }
+                });
+    }
+
+    /**
+     * Delete a setting policy.
+     *
+     * @param settingPolicy setting policy to delete.
+     */
+    private void deleteSettingPolicy(@Nonnull SettingPolicy settingPolicy) {
+        logger.info("Deleting expired setting policy {}", settingPolicy.getInfo().getDisplayName());
+        try {
+            settingPolicyServiceClient.deleteSettingPolicy(
+                    DeleteSettingPolicyRequest.newBuilder().setId(settingPolicy.getId()).build());
+        } catch (StatusRuntimeException e)  {
+            logger.error("Could not remove expired policy: {}", e);
+        }
+    }
+
 
     @Nonnull
     private Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> convertSettingsToTopologyProcessorSettings(
@@ -422,8 +512,8 @@ public class EntitySettingsResolver {
         }
         final long scheduleId = sp.getInfo().getScheduleId();
         if (!schedules.containsKey(scheduleId)) {
-            logger.error("Unexpectedly schedule ID {} not found in list if schedules used by " +
-                "setting policy {}", () -> scheduleId, () -> sp.getId());
+            logger.error("Unexpectedly schedule ID {} not found in list of schedules used by "
+                    + "setting policy {}", () -> scheduleId, () -> sp.getId());
         } else {
             return schedules.get(scheduleId).hasActive();
         }
