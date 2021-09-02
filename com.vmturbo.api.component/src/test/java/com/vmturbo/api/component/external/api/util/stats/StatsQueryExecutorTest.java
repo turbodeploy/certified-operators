@@ -116,6 +116,7 @@ public class StatsQueryExecutorTest {
         Set<ApiEntityType> apiEntityTypeSet = new HashSet<>();
         apiEntityTypeSet.add(apiEntityType);
         when(scope.getScopeTypes()).thenReturn(Optional.of(apiEntityTypeSet));
+        when(scope.getDisplayName()).thenReturn("Scope entity");
         vmDto = loadDtoFromJson("VmDTO.json");
     }
 
@@ -230,6 +231,16 @@ public class StatsQueryExecutorTest {
     public void testGoodVStorageKey() throws Exception {
         Assert.assertEquals("/",
                 testVStorageKey("KEY: VirtualMachine::127a3e53fcb3de994c37620f15cc15e00ae950be"));
+    }
+
+    /**
+     * Test the vStorage stat with a converted key.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testConvertedVStorageKey() throws Exception {
+        Assert.assertEquals("/", testVStorageKey("/"));
     }
 
     /**
