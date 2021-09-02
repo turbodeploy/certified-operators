@@ -226,10 +226,9 @@ public class StatsQueryExecutor {
                 statSnapshotApiDTO.setDisplayName(scopeDisplayName);
                 statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey().getTime()));
                 statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
-                    statSnapshotApiDTO
-                            .setStatistics(
-                                    convertVstorageNames(scopeDisplayName, partitions,
-                                            entry.getValue().values()));
+                List<StatApiDTO> statApiDtos = new ArrayList<>(entry.getValue().values());
+                convertVstorageNames(statApiDtos, scopeDisplayName, partitions);
+                statSnapshotApiDTO.setStatistics(statApiDtos);
 
                 return statSnapshotApiDTO;
             })
@@ -266,11 +265,7 @@ public class StatsQueryExecutor {
         Optional<TopologyEntityDTO> entityDTO = repositoryApi.entityRequest(apiId.oid())
                 .getFullEntity();
 
-        if (!entityDTO.isPresent()) {
-            return Collections.emptyMap();
-        }
-
-        if (!entityDTO.get().hasTypeSpecificInfo()) {
+        if (!entityDTO.isPresent() || !entityDTO.get().hasTypeSpecificInfo()) {
             return Collections.emptyMap();
         }
 
@@ -290,52 +285,58 @@ public class StatsQueryExecutor {
     }
 
     /**
-     * Modify stats. Convert vStorage display names from keys to partition
-     * names, e.g. 'KEY:
+     * Modify the vStorage commodity statistics. Convert the vStorage display
+     * names from the keys to the partition names, e.g. 'KEY:
      * VirtualMachine::6d069444e38a64ea3fda384dfc4286cbc25219e6' ->
      * '/var/lib/mysql'.
      *
+     * @param stats commodity statistics
      * @param entityName entity name
      * @param partitions VM partitions
-     * @param stats commodity statistics
-     * @return new stats with converted names
      */
     @Nonnull
-    private static List<StatApiDTO> convertVstorageNames(@Nonnull String entityName,
-            @Nonnull Map<String, String> partitions, @Nonnull Collection<StatApiDTO> stats) {
-        List<StatApiDTO> result = new ArrayList<>();
-
+    private static void convertVstorageNames(@Nonnull Collection<StatApiDTO> stats,
+            @Nonnull String entityName, @Nonnull Map<String, String> partitions) {
         if (partitions.isEmpty()) {
-            result.addAll(stats);
-            return result;
+            return;
         }
 
         for (StatApiDTO stat : stats) {
-            if (UICommodityType.VSTORAGE.apiStr().equals(stat.getName())) {
-                String displayName = stat.getDisplayName();
-
-                if (displayName != null
-                        && displayName.startsWith(StatsMapper.COMMODITY_KEY_PREFIX)) {
-                    String key = displayName.substring(StatsMapper.COMMODITY_KEY_PREFIX.length());
-                    String partitionName = partitions.get(key);
-
-                    if (partitionName != null) {
-                        stat.setDisplayName(partitionName);
-                    } else {
-                        // E.g. 'KEY: MULTIPLE KEYS'
-                        logger.debug("Cannot find the partition for the entity '{}'. Key: '{}'",
-                                entityName, displayName);
-                    }
-                } else {
-                    logger.warn("Entity '{}' has invalid key format: '{}'", entityName,
-                            displayName);
-                }
+            if (!UICommodityType.VSTORAGE.apiStr().equals(stat.getName())) {
+                continue;
             }
 
-            result.add(stat);
-        }
+            String displayName = stat.getDisplayName();
 
-        return result;
+            if (displayName == null ) {
+                logger.error("vStorage stats for the entity '{}' has the empty display name",
+                        entityName);
+                continue;
+            }
+
+            // Check if the display name is already converted
+            if (partitions.containsValue(displayName)) {
+                continue;
+            }
+
+            if (!displayName.startsWith(StatsMapper.COMMODITY_KEY_PREFIX)) {
+                logger.warn("vStorage stats for the entity '{}' has an invalid key format: '{}'",
+                        entityName, displayName);
+                continue;
+            }
+
+            String key = displayName.substring(StatsMapper.COMMODITY_KEY_PREFIX.length());
+            String partitionName = partitions.get(key);
+
+            // E.g. 'KEY: MULTIPLE KEYS'
+            if (partitionName == null) {
+                logger.debug("Cannot find the partition for the entity '{}'. Key: '{}'", entityName,
+                        displayName);
+                continue;
+            }
+
+            stat.setDisplayName(partitionName);
+        }
     }
 
     List<StatSnapshotApiDTO> createRealtimeStatSnapshots(StatPeriodApiInputDTO inputDTO,
