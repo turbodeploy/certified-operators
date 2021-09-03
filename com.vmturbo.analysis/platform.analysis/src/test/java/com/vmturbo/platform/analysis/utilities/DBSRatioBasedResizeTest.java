@@ -73,7 +73,9 @@ public class DBSRatioBasedResizeTest {
      * @param minRatio iops has to be at least minRatio times the storageAmountDemand
      * @param maxRatio iops cannot exceed max ratio times the storageAmountDemand
      * @param stAmtOptions storage amount dependent resource options
+     * @param isStAmtDecisive is storage amount decisive
      * @param iopsOptions iops dependent resource options
+     * @param isIopsDecisive is iops decisive
      * @param expectedTotalPrice expected total price
      * @param expectedStorageAmount expected storage amount
      * @param expectedIops expected iops
@@ -82,7 +84,8 @@ public class DBSRatioBasedResizeTest {
     @Parameters
     @TestCaseName("Test #{index}: testDBSRatioBasedResize({0}, {1}, {2}, {3}, {6}, {7}, {8})")
     public final void testDBSRatioBasedResize(double storageAmountDemand, double iopsDemand, Double minRatio, Double maxRatio,
-                                              List<DependentResourceOption> stAmtOptions, List<DependentResourceOption> iopsOptions,
+                                              List<DependentResourceOption> stAmtOptions, boolean isStAmtDecisive,
+                                              List<DependentResourceOption> iopsOptions, boolean isIopsDecisive,
                                               double expectedTotalPrice, double expectedStorageAmount, double expectedIops) {
         ShoppingList dbsSL = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.IOPS, TestUtils.ST_AMT, dbLicense), TestUtils.createDBS(economy),
@@ -90,7 +93,7 @@ public class DBSRatioBasedResizeTest {
                 new double[]{iopsDemand, storageAmountDemand, 0}, databaseServerTier);
         dbsSL.getBuyer().getSettings().setContext(context);
         DatabaseServerTierCostDTO dbsCostDTO = createDBSCostDTO(
-                Optional.ofNullable(minRatio), Optional.of(maxRatio), stAmtOptions, iopsOptions);
+                Optional.ofNullable(minRatio), Optional.of(maxRatio), stAmtOptions, isStAmtDecisive, iopsOptions, isIopsDecisive);
         CostTable costTable = Mockito.mock(CostTable.class);
         when(costTable.hasAccountId(DB_BUSINESS_ACCOUNT_ID)).thenReturn(true);
         when(costTable.getTuple(DB_REGION_ID, DB_BUSINESS_ACCOUNT_ID,
@@ -117,21 +120,27 @@ public class DBSRatioBasedResizeTest {
      * @param minRatio iops has to be at least minRatio times the storageAmountDemand
      * @param maxRatio iops cannot exceed max ratio times the storageAmountDemand
      * @param stAmtOptions storage amount dependent resource options
+     * @param isStAmtDecisive is storage amount a decisive commodity
      * @param iopsOptions iops dependent resource options
+     * @param isIopsDecisive is iops a decisive commodity
      * @return Created DatabaseServerTierCostDTO
      */
     public static DatabaseServerTierCostDTO createDBSCostDTO(Optional<Double> minRatio, Optional<Double> maxRatio,
                                                              List<DependentResourceOption> stAmtOptions,
-                                                             List<DependentResourceOption> iopsOptions) {
+                                                             boolean isStAmtDecisive,
+                                                             List<DependentResourceOption> iopsOptions,
+                                                             boolean isIopsDecisive) {
         CommodityDTOs.CommoditySpecificationTO stAmtCommSpecTO = AnalysisToProtobuf.commoditySpecificationTO(TestUtils.ST_AMT);
         CommodityDTOs.CommoditySpecificationTO iopsCommSpecTO = AnalysisToProtobuf.commoditySpecificationTO(TestUtils.IOPS);
         CostDTOs.CostDTO.CostTuple.DependentCostTuple dependentCostTuple1 = CostDTOs.CostDTO.CostTuple.DependentCostTuple.newBuilder()
                 .setDependentResourceType(stAmtCommSpecTO)
                 .addAllDependentResourceOptions(stAmtOptions)
+                .setIsDecisive(isStAmtDecisive)
                 .build();
         CostDTOs.CostDTO.CostTuple.DependentCostTuple dependentCostTuple2 = CostDTOs.CostDTO.CostTuple.DependentCostTuple.newBuilder()
                 .setDependentResourceType(iopsCommSpecTO)
                 .addAllDependentResourceOptions(iopsOptions)
+                .setIsDecisive(isIopsDecisive)
                 .build();
 
         CostDTOs.CostDTO.CostTuple.Builder costTuple = CostDTOs.CostDTO.CostTuple.newBuilder()
@@ -202,33 +211,35 @@ public class DBSRatioBasedResizeTest {
                 // GP2 test cases
                 //storageAmountDemand, iopsDemand, minRatio, maxRatio, stAmtOptions, iopsOptions, expectedTotalPrice, expectedStorageAmount, expectedIops
                 // Storage amount resized to meet IOPS demand
-                {1000, 4000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 143.4, 1334d, 4002},
+                {1000, 4000, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, 143.4, 1334d, 4002},
                 // Nothing needs to be resized
-                {1000, 2900, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 110d, 1000d, 3000},
+                {1000, 2900, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, 110d, 1000d, 3000},
                 // Nothing needs to be resized - 2
-                {6000, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 610, 6000, 15000},
+                {6000, 15000, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, 610, 6000, 15000},
                 // IOPS causing storage amount to resize and Infinite quote
-                {1000, 16001, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5334, 100},
+                {1000, 16001, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, Double.POSITIVE_INFINITY, 5334, 100},
                 // IOPS causing Infinite quote
-                {5334, 16001, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5334, 100},
+                {5334, 16001, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, Double.POSITIVE_INFINITY, 5334, 100},
                 // IOPS causing Infinite quote
-                {5334, 16001, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5334, 100},
+                {5334, 16001, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, Double.POSITIVE_INFINITY, 5334, 100},
                 // Storage amount causing infinite quote
-                {65537, 15000, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), Double.POSITIVE_INFINITY, 5, 15000},
+                {65537, 15000, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, Double.POSITIVE_INFINITY, 5, 15000},
                 // Storage amount * maxRatio is less than iopsDemand. Do not resize storageAmount to meet iopsDemand
-                {20, 100, null, 3d, createGP2StorageAmountOptions(), createGP2IOPSOptions(), 12, 20, 100},
+                {20, 100, null, 3d, createGP2StorageAmountOptions(), true, createGP2IOPSOptions(), false, 12, 20, 100},
 
                 // IO1 test cases
                 // No change. Make sure IOPS stays at 2000 and does not go to maxRatio * storage amount
-                {100, 2000, 1d, 50d, createIO1StorageAmountOptions(), createIO1IOPSOptions(), 420, 100, 2000},
+                {100, 2000, 1d, 50d, createIO1StorageAmountOptions(), true, createIO1IOPSOptions(), true, 420, 100, 2000},
                 // IOPS resized up to MinRatio * StorageAmount
-                {1000, 200, 1d, 50d, createIO1StorageAmountOptions(), createIO1IOPSOptions(), 310, 1000, 1000},
+                {1000, 200, 1d, 50d, createIO1StorageAmountOptions(), true, createIO1IOPSOptions(), true, 310, 1000, 1000},
                 // Storage amount resized to meet IOPS demand
-                {20, 2000, 1d, 50d, createIO1StorageAmountOptions(), createIO1IOPSOptions(), 414, 40, 2000},
+                {20, 2000, 1d, 50d, createIO1StorageAmountOptions(), true, createIO1IOPSOptions(), true, 414, 40, 2000},
                 // IOPS causes infinite quote
-                {1000, 65000, 1d, 50d, createIO1StorageAmountOptions(), createIO1IOPSOptions(), Double.POSITIVE_INFINITY, 1300, 1000},
+                {1000, 65000, 1d, 50d, createIO1StorageAmountOptions(), true, createIO1IOPSOptions(), true,
+                        Double.POSITIVE_INFINITY, 1300, 1000},
                 // Storage amount causes infinite quote
-                {17000, 100, 1d, 50d, createIO1StorageAmountOptions(), createIO1IOPSOptions(), Double.POSITIVE_INFINITY, 20, 17000}
+                {17000, 100, 1d, 50d, createIO1StorageAmountOptions(), true, createIO1IOPSOptions(), true,
+                        Double.POSITIVE_INFINITY, 20, 17000}
         };
     }
 }

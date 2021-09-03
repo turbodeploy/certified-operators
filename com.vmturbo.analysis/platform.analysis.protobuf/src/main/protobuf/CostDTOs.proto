@@ -76,6 +76,8 @@ message CostDTO {
             optional CommoditySpecificationTO dependent_resource_type = 1;
             // The resource options of the dependent cost tuple
             repeated DependentResourceOption dependent_resource_options = 2;
+            // Is the commodity decisive (can it be explicitly changed)?
+            optional bool isDecisive = 3;
             message DependentResourceOption {
                 // The increment of the option
                 optional int64 absolute_increment = 4;
