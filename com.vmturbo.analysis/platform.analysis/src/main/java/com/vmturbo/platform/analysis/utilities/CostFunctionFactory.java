@@ -746,7 +746,7 @@ public class CostFunctionFactory {
      */
     private static Set<CommoditySpecification> getDecisiveCommTypes(List<DependentCostTuple> dependentCostTuplesList) {
         return dependentCostTuplesList.stream()
-                .filter(depCostTuple -> depCostTuple.getDependentResourceOptionsList().stream().anyMatch(option -> option.getPrice() > 0))
+                .filter(depCostTuple -> depCostTuple.getIsDecisive())
                 .map(depCostTuple -> ProtobufToAnalysis.commoditySpecification(depCostTuple.getDependentResourceType()))
                 .collect(Collectors.toSet());
     }

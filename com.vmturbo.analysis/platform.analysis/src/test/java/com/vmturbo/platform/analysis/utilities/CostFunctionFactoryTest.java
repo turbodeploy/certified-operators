@@ -940,7 +940,8 @@ public class CostFunctionFactoryTest {
     }
 
     private DatabaseServerTierCostDTO createDBSCostDTO() {
-        return DBSRatioBasedResizeTest.createDBSCostDTO(Optional.empty(), Optional.empty(), createStorageAmountOptions(), createIOPSOptions());
+        return DBSRatioBasedResizeTest.createDBSCostDTO(Optional.empty(), Optional.empty(), createStorageAmountOptions(),
+                true,  createIOPSOptions(), true);
     }
 
     private DatabaseServerTierCostDTO createDBSCostDTOWithNoIncrement() {
