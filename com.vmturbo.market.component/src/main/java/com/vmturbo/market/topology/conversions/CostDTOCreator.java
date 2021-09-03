@@ -298,6 +298,9 @@ public class CostDTOCreator {
                                                 .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
                                                 .build()))
                                 .addAllDependentResourceOptions(dependentResourceOptions)
+                                // For databases, storage amount is the only dependent commodity, and it can be
+                                // explicitly changed. So we mark decisive true here.
+                                .setIsDecisive(true)
                                 .build());
                         CommoditySpecificationTO spec =
                                 commodityConverter.commoditySpecification(licenseCommodity);
@@ -307,7 +310,6 @@ public class CostDTOCreator {
                     } else {
                         logger.debug("Storage Options are empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
                     }
-
                 }
                 // price when license isn't available
                 dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
@@ -390,6 +392,12 @@ public class CostDTOCreator {
                                 DependentCostTuple.newBuilder()
                                         .setDependentResourceType(dependentResourceType)
                                         .addAllDependentResourceOptions(dependentResourceOptions)
+                                        // For GP2 and Standard, storage amount is the only commodity which can be
+                                        // changed explicitly (decisive commodity), but IOPS is not.
+                                        // For IO1, storage amount and IOPS both can be changed explicitly.
+                                        // So whether a dependent commodity is decisive can be tied to whether there
+                                        // are any options with non-zero price.
+                                        .setIsDecisive(dependentResourceOptions.stream().anyMatch(option -> option.getPrice() > 0))
                                         .build());
                     }
                     Set<StorageResourceRatioDependency> storageResourceRatioDeps = new HashSet<>();
