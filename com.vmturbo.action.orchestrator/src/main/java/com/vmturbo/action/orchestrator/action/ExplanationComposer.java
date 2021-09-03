@@ -1183,6 +1183,9 @@ public class ExplanationComposer {
                                                         final boolean keepItShort) {
         String commodityDisplayName = commodityDisplayName(reasonCommodity.getCommodityType(),
             keepItShort);
+        if (reasonCommodity.hasSuffix()) {
+            commodityDisplayName += " " + reasonCommodity.getSuffix().name().toLowerCase();
+        }
         if (keepItShort || !reasonCommodity.hasTimeSlot()) {
             return commodityDisplayName;
         }
