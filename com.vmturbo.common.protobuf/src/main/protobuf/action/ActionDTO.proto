@@ -338,10 +338,6 @@ message Explanation {
             // total number of slots in a day
             required int32 totalSlotNumber = 2;
         }
-        optional Suffix suffix = 3;
-        enum Suffix {
-            RESERVATION = 0;
-        }
     }
 }
 

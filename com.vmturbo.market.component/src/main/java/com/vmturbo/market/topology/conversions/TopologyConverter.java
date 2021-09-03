@@ -523,8 +523,7 @@ public class TopologyConverter {
                 projectedRICoverageCalculator,
                 tierExcluder,
                 commodityIndex,
-                getExplanationOverride(),
-                Collections.unmodifiableMap(commoditiesWithReservationGreaterThanUsed))
+                getExplanationOverride())
         );
         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
         this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
