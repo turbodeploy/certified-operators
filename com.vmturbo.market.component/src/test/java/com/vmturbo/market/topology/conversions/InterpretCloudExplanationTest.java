@@ -146,7 +146,7 @@ public class InterpretCloudExplanationTest {
                 Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(VCPU).setCapacity(100).build()));
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopology, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 4)
@@ -354,7 +354,7 @@ public class InterpretCloudExplanationTest {
         projectedTopologyMap.put(VM1_OID, projectedTopology);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker,
-            riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null));
+            riCoverageCalculator, tierExcluder, Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
         List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
 
@@ -398,7 +398,7 @@ public class InterpretCloudExplanationTest {
         projectedTopologyMap.put(VM1_OID, projectedTopology);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
                 cloudTc, Maps.newHashMap(), oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
 
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
         List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, actionSavingsCalculator);
@@ -443,7 +443,7 @@ public class InterpretCloudExplanationTest {
         originalTopologyMap.put(VM1_OID, topologyEntityDTO);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
             cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
-            Suppliers.memoize(() -> commodityIndex), null));
+            Suppliers.memoize(() -> commodityIndex), null, new HashMap<>()));
 
         MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
 
