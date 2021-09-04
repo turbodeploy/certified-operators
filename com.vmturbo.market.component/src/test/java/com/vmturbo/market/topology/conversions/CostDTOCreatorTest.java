@@ -1,7 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
@@ -33,8 +31,6 @@ import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice.StorageOption;
-import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle;
-import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice.DbsStorageOption;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
@@ -54,7 +50,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.PricingDTO;
 
 
 /**
@@ -62,7 +57,6 @@ import com.vmturbo.platform.sdk.common.PricingDTO;
  */
 public class CostDTOCreatorTest {
 
-    private static final double DELTA = 0.0001;
     private static final long TIER_ID = 111;
     private static final long STORAGE_TIER_ID = 123;
     private static final long REGION_ID = 222;
@@ -299,83 +293,6 @@ public class CostDTOCreatorTest {
         Assert.assertEquals(50, dependentResourceOption2.getAbsoluteIncrement());
         Assert.assertEquals(300, dependentResourceOption2.getEndRange());
         Assert.assertEquals(0.01, dependentResourceOption2.getPrice(), 0.01);
-    }
-
-    /**
-     * Tests creating a DBS tier cost DTO which includes some storage options.
-     */
-    @Test
-    public void createdDatabaseServerTierCostDTOTest() {
-        // ARRANGE phase
-        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
-        List<DbsStorageOption> storageOptions = new ArrayList<>();
-        storageOptions.add(new DbsStorageOption(250, 250, 0.0, CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
-        storageOptions.add(new DbsStorageOption(50, 300, 0.01, CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
-        storageOptions.add(new DbsStorageOption(1, 16000, 0.0, CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
-        PricingDTO.ResourceRatioDependency ratioDependency = PricingDTO.ResourceRatioDependency.newBuilder()
-                .setBaseResourceType(CommodityDTO.CommodityType.STORAGE_AMOUNT)
-                .setDependentResourceType(CommodityDTO.CommodityType.STORAGE_ACCESS)
-                .setMinRatio(0.5)
-                .setMaxRatio(3).build();
-        DatabaseServerPriceBundle dbsPriceBundle = DatabaseServerPriceBundle.newBuilder()
-                .addPrice(0, DatabaseEngine.SQLSERVER, DatabaseEdition.STANDARD,
-                        DeploymentType.MULTI_AZ, LicenseModel.NO_LICENSE_REQUIRED, 0.4,
-                        storageOptions, Collections.singletonList(ratioDependency))
-                .build();
-        when(marketCloudRateExtractor.getDatabaseServerPriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
-                accountPricingData)).thenReturn(dbsPriceBundle);
-        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
-        Set<AccountPricingData<TopologyEntityDTO>> accountPricingDataSet = new HashSet<>();
-        accountPricingDataSet.add(accountPricingData);
-        List<TopologyEntityDTO> regions = new ArrayList<>();
-        final CommodityType licenseType = CommodityType.newBuilder()
-                .setKey(LicenseModel.NO_LICENSE_REQUIRED.name())
-                .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                .build();
-        final TopologyDTO.CommoditySoldDTO license =
-                TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(licenseType).build();
-        regions.add(TopologyEntityDTO.newBuilder()
-                .setOid(DB_TIER_REGION_ID)
-                .setEntityType(EntityType.REGION_VALUE)
-                .addCommoditySoldList(license)
-                .build());
-        TopologyEntityDTO dbTier = createDBTier();
-        when(converter.commoditySpecification(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build()))
-                .thenReturn(CommoditySpecificationTO.newBuilder().setType(3).setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build());
-        when(converter.commoditySpecification(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build()))
-                .thenReturn(CommoditySpecificationTO.newBuilder().setType(4).setBaseType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build());
-
-        // ACT phase
-        CostDTO costDTO = costDTOCreator.createDatabaseServerTierCostDTO(dbTier, regions, accountPricingDataSet);
-
-        // ASSERT phase
-        CostDTO.CostTuple costTuple = costDTO.getDatabaseServerTierCost().getCostTupleListList().get(0);
-        Assert.assertEquals(0.4, costTuple.getPrice(), DELTA);
-        Assert.assertEquals(2, costTuple.getDependentCostTuplesCount());
-        Map<Integer, CostDTO.CostTuple.DependentCostTuple> costTuplesByCommType = costTuple.getDependentCostTuplesList()
-                .stream().collect(Collectors.toMap(t -> t.getDependentResourceType().getBaseType(), Function.identity()));
-        CostDTO.CostTuple.DependentCostTuple stAmtDepCostTuple = costTuplesByCommType.get(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE);
-        CostDTO.CostTuple.DependentCostTuple iopsDepCostTuple = costTuplesByCommType.get(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
-        // Check for decisive commodities - stAmt is decisive, stAccess is not (because all its options had 0 cost)
-        assertTrue(stAmtDepCostTuple.getIsDecisive());
-        assertFalse(iopsDepCostTuple.getIsDecisive());
-        // Check that the st options got created correctly
-        Assert.assertEquals(2, stAmtDepCostTuple.getDependentResourceOptionsCount());
-        DependentResourceOption dependentResourceOption1 = stAmtDepCostTuple.getDependentResourceOptions(0);
-        Assert.assertEquals(250, dependentResourceOption1.getAbsoluteIncrement());
-        Assert.assertEquals(250, dependentResourceOption1.getEndRange());
-        Assert.assertEquals(0.0, dependentResourceOption1.getPrice(), 0.01);
-        DependentResourceOption dependentResourceOption2 = stAmtDepCostTuple.getDependentResourceOptions(1);
-        Assert.assertEquals(50, dependentResourceOption2.getAbsoluteIncrement());
-        Assert.assertEquals(300, dependentResourceOption2.getEndRange());
-        Assert.assertEquals(0.01, dependentResourceOption2.getPrice(), 0.01);
-        // Check that the ratio got created correctly
-        Assert.assertEquals(1, costTuple.getStorageResourceRatioDependencyCount());
-        StorageResourceRatioDependency ratio = costTuple.getStorageResourceRatioDependency(0);
-        assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, ratio.getBaseResourceType().getBaseType());
-        assertEquals(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, ratio.getDependentResourceType().getBaseType());
-        assertEquals(0.5, ratio.getMinRatio(), DELTA);
-        assertEquals(3, ratio.getMaxRatio(), DELTA);
     }
 
     /**
