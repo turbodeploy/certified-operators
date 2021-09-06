@@ -229,12 +229,25 @@ public class TopologyEditor {
                     // in such cases, we need to traverse up/down supply chain to find the real entities they
                     // want to remove
                     if (removal.hasTargetEntityType() && entity.getEntityType() != targetType) {
-                        entitiesToRemove.addAll(getTargetEntities(targetType, entity, topologyGraph)
-                                .stream().map(TopologyEntity.Builder::getOid).collect(Collectors.toSet()));
+                        Set<TopologyEntity.Builder> targetEntities = getTargetEntities(targetType, entity, topologyGraph);
+                        for (TopologyEntity.Builder targetEntity : targetEntities) {
+                            entitiesToRemove.add(targetEntity.getOid());
+                            if (targetEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                                // Remove the daemonset pod consumers of a VM being removed, else
+                                // they will remain unplaced. The daemonset pod on a VM can be placed
+                                // only on that VM.
+                                RemoveDaemonPodConsumersWithAllTheirConsumers(entitiesToRemove, targetEntity);
+                            }
+                        }
                     } else if (removal.hasTargetEntityType() && entity.getEntityType() == targetType) {
                         entitiesToRemove.add(entity.getOid());
+                        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                            // Remove the daemonset pod consumers of a VM being removed, else
+                            // they will remain unplaced. The daemonset pod on a VM can be placed
+                            // only on that VM.
+                            RemoveDaemonPodConsumersWithAllTheirConsumers(entitiesToRemove, entity);
+                        }
                     }
-
                 }
                 if (nonExistentEntitiesCount != 0) {
                     logger.warn("{} entities to be removed no longer exist in topology",
@@ -525,6 +538,46 @@ public class TopologyEditor {
             topologyentities = traverseSupplyChain(targetType, entity, topologyGraph, false);
         }
         return topologyentities;
+    }
+
+    /**
+     * Add the daemon consumer pods and the pods consumers subsequently for a given VM entity
+     * to the set of entities that should be removed from plan.
+     * This is applicable only for VMs.
+     *
+     * @param entitiesToRemove the set to which to add the entities
+     * @param entity the given entity candidate whose consumers to be searched and added to remove list
+     */
+    private void RemoveDaemonPodConsumersWithAllTheirConsumers(final @Nonnull Set<Long> entitiesToRemove,
+                                                             final @Nonnull TopologyEntity.Builder entity) {
+        entity.getConsumers().stream().forEach(e -> {
+            if ((e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                    && (e.getTopologyEntityDtoBuilder().getAnalysisSettings().getDaemon())) {
+                entitiesToRemove.add(e.getOid());
+                RemoveAllConsumersRecursive(entitiesToRemove, e);
+            }
+        });
+    }
+
+    /**
+     * Add the consumers who won't have any other provider apart from the current one
+     * recursively traversing up the supply chain. Skipping those consumers which can
+     * have another provider will ensure not to remove entities which can have multiple
+     * providers, for example a single service over multiple pods.
+     *
+     * @param entitiesToRemove the set to which to add the entities
+     * @param entity the given entity candidate whose consumers to be searched and added to remove list
+     */
+    private void RemoveAllConsumersRecursive(final @Nonnull Set<Long> entitiesToRemove,
+                                          final @Nonnull TopologyEntity entity) {
+        entity.getConsumers().stream().forEach(consumer -> {
+            if (consumer.getProviders().stream().noneMatch(provider -> provider
+                    .getOid() != entity.getOid())) {
+                // Add this consumer if it has no other provider apart from the current one.
+                entitiesToRemove.add(consumer.getOid());
+            }
+            RemoveAllConsumersRecursive(entitiesToRemove, consumer);
+        });
     }
 
     /**
