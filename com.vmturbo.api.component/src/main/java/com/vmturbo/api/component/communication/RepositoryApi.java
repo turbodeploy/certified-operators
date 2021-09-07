@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
@@ -118,7 +119,7 @@ public class RepositoryApi {
                          @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                          @Nonnull final SearchServiceStub searchServiceAsyncStub,
                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
-                         @Nonnull BusinessAccountMapper businessAccountMapper,
+                         @Nonnull final BusinessAccountMapper businessAccountMapper,
                          @Nonnull final PaginationMapper paginationMapper,
                          @Nonnull final EntityDetailsMapper entityDetailsMapper,
                          @Nonnull final PriceIndexPopulator priceIndexPopulator,
@@ -185,8 +186,8 @@ public class RepositoryApi {
     public PaginatedSearchRequest newPaginatedSearch(@Nonnull final SearchQuery searchQuery,
             @Nonnull final Set<Long> scopeOids,
             @Nonnull final SearchPaginationRequest paginationRequest) {
-        return new PaginatedSearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
-                searchQuery, scopeOids, serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper);
+        return new PaginatedSearchRequest(realtimeTopologyContextId, searchServiceBlockingStub, searchQuery, scopeOids,
+                serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper, businessAccountMapper);
     }
 
     /**
@@ -204,7 +205,8 @@ public class RepositoryApi {
             @Nonnull final Set<Long> scopeOids,
             @Nonnull final EntityPaginationRequest paginationRequest) {
         return new PaginatedEntitiesRequest(realtimeTopologyContextId, searchServiceBlockingStub,
-                searchQuery, scopeOids, serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper);
+                searchQuery, scopeOids, serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper,
+                businessAccountMapper);
     }
 
     /**
@@ -520,14 +522,15 @@ public class RepositoryApi {
         private Collection<String> requestedAspects = null;
         private final T paginationRequest;
         private final PaginationMapper paginationMapper;
+        private final BusinessAccountMapper businessAccountMapper;
         private final Function<ServiceEntityApiDTO, E> entityMapper;
 
         private BasePaginatedSearchRequest(long realtimeContextId, SearchServiceBlockingStub searchServiceBlockingStub,
-                SearchQuery searchQuery, Set<Long> startingOids, ServiceEntityMapper serviceEntityMapper,
-                T paginationRequest,
-                SeverityPopulator severityPopulator,
-                PaginationMapper paginationMapper,
-                @Nonnull final Function<ServiceEntityApiDTO, E> entityMapper) {
+                                           SearchQuery searchQuery, Set<Long> startingOids,
+                                           ServiceEntityMapper serviceEntityMapper, T paginationRequest,
+                                           SeverityPopulator severityPopulator, PaginationMapper paginationMapper,
+                                           BusinessAccountMapper businessAccountMapper,
+                                           @Nonnull final Function<ServiceEntityApiDTO, E> entityMapper) {
             this.realtimeContextId = realtimeContextId;
             this.searchServiceBlockingStub = searchServiceBlockingStub;
             this.searchQuery = searchQuery;
@@ -536,6 +539,7 @@ public class RepositoryApi {
             this.severityPopulator = severityPopulator;
             this.paginationRequest = paginationRequest;
             this.paginationMapper = paginationMapper;
+            this.businessAccountMapper = businessAccountMapper;
             this.entityMapper = Objects.requireNonNull(entityMapper);
         }
 
@@ -602,6 +606,39 @@ public class RepositoryApi {
         }
 
         /**
+         * Get the {@link SearchPaginationResponse}. This makes the call to the search service,
+         * and converts the result to {@link BusinessUnitApiDTO).
+         *
+         * @param allAccounts
+         * @return The {@link SearchPaginationResponse}.
+         */
+        @Nonnull
+        public R getBusinessUnitsResponse(boolean allAccounts) {
+            SearchEntitiesResponse response = searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                    .setSearch(searchQuery)
+                    .addAllEntityOid(startingOids)
+                    .setReturnType(Type.FULL)
+                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                    .build());
+            final Map<Long, E> buDTOMap = businessAccountMapper.convert(Lists.transform(response.getEntitiesList(),
+                    PartialEntity::getFullEntity), allAccounts).stream()
+                    .collect(Collectors.toMap(dto -> Long.valueOf(dto.getUuid()),
+                    dto -> (E)dto));
+            final List<E> orderedBuDTOs = response.getEntitiesList().stream()
+                    .map(e -> e.getFullEntity().getOid())
+                    .map(buDTOMap::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                    .map(nextCursor -> paginationRequest.nextPageResponse(
+                            orderedBuDTOs, nextCursor,
+                            response.getPaginationResponse().getTotalRecordCount()))
+                    .orElseGet(() -> paginationRequest.finalPageResponse(
+                            orderedBuDTOs,
+                            response.getPaginationResponse().getTotalRecordCount()));
+        }
+
+        /**
          * Get a reference to {@link this} object.
          *
          * @return a reference to {@link this} object.
@@ -627,9 +664,11 @@ public class RepositoryApi {
                                       ServiceEntityMapper serviceEntityMapper,
                                       SearchPaginationRequest paginationRequest,
                                       SeverityPopulator severityPopulator,
-                                      PaginationMapper paginationMapper) {
+                                      PaginationMapper paginationMapper,
+                                      BusinessAccountMapper businessAccountMapper) {
             super(realtimeContextId, searchServiceBlockingStub, searchQuery, startingOids,
-                serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper, e -> e);
+                    serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper,
+                    businessAccountMapper, e -> e);
         }
 
         @Override
@@ -652,9 +691,11 @@ public class RepositoryApi {
                                         ServiceEntityMapper serviceEntityMapper,
                                         EntityPaginationRequest paginationRequest,
                                         SeverityPopulator severityPopulator,
-                                        PaginationMapper paginationMapper) {
+                                        PaginationMapper paginationMapper,
+                                        BusinessAccountMapper businessAccountMapper) {
             super(realtimeContextId, searchServiceBlockingStub, searchQuery, startingOids,
-                serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper, e -> e);
+                    serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper,
+                    businessAccountMapper, e -> e);
         }
 
         @Override

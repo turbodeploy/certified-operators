@@ -38,6 +38,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -54,6 +55,9 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
@@ -177,9 +181,10 @@ public class BusinessAccountRetrieverTest {
      * {@link BusinessAccountRetriever#getBusinessAccountsInScope(List, List)}.
      *
      * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInScopeNoTargets() throws OperationFailedException {
+    public void testGetBusinessAccountsInScopeNoTargets() throws OperationFailedException, InvalidOperationException {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
         when(repositoryApi.newSearchRequestMulti(any()))
@@ -208,9 +213,10 @@ public class BusinessAccountRetrieverTest {
      * Test getting all business accounts when there are none in the system.
      *
      * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsNone() throws OperationFailedException {
+    public void testGetBusinessAccountsNone() throws OperationFailedException, InvalidOperationException {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.newSearchRequestMulti(any()))
@@ -227,9 +233,10 @@ public class BusinessAccountRetrieverTest {
      * Test getting all business accounts discovered by a particular target.
      *
      * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInTargetScope() throws OperationFailedException {
+    public void testGetBusinessAccountsInTargetScope() throws OperationFailedException, InvalidOperationException {
         // ARRANGE
         final long targetId = 321;
         final long nonTargetId = 4321;
@@ -270,9 +277,10 @@ public class BusinessAccountRetrieverTest {
      * Test getting the business account that belongs to a valid group.
      *
      * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInScopeOfGroup() throws OperationFailedException {
+    public void testGetBusinessAccountsInScopeOfGroup() throws OperationFailedException, InvalidOperationException {
         // ARRANGE
         final String groupId = "123";
         final Set<Long> expandedOids = ImmutableSet.of(ACCOUNT_OID);
@@ -327,10 +335,11 @@ public class BusinessAccountRetrieverTest {
      * accounts which have associated target.
      *
      * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
      */
     @Test
     public void testSearchParametersWhenGetBusinessAccountsInScope()
-            throws OperationFailedException {
+            throws OperationFailedException, InvalidOperationException {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq =
                 ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
@@ -820,6 +829,40 @@ public class BusinessAccountRetrieverTest {
         Assert.assertThat(siblingCollection.size(), is(1));
         Assert.assertThat(siblingCollection.iterator().next().getAccountId(),
             is(CHILD_ACCOUNT_2_ID_STR));
+    }
+
+    /**
+     * Test that get business accounts paginated request contains the right pagination parameters.
+     *
+     * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
+     */
+    @Test
+    public void testGetBusinessAccountsInScopePaginated()
+            throws OperationFailedException, InvalidOperationException {
+        // ARRANGE
+        final String cursor = "5";
+        int limit = 10;
+        boolean ascending = true;
+        final PaginatedSearchRequest mockPaginatedRequest = mock(PaginatedSearchRequest.class);
+        final SearchPaginationResponse paginationResponse = mock(SearchPaginationResponse.class);
+        when(mockPaginatedRequest.getBusinessUnitsResponse(anyBoolean())).thenReturn(paginationResponse);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedRequest);
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest(cursor, limit, ascending,
+                SearchOrderBy.SEVERITY.name());
+
+        // ACT
+        businessAccountRetriever.getBusinessAccountsInScope(null, null, paginationRequest);
+
+        ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestArgCaptor =
+                ArgumentCaptor.forClass(SearchPaginationRequest.class);
+        verify(repositoryApi).newPaginatedSearch(any(), any(), searchPaginationRequestArgCaptor.capture());
+
+        // ASSERT
+        Assert.assertEquals(cursor, searchPaginationRequestArgCaptor.getValue().getCursor().get());
+        Assert.assertEquals(limit, searchPaginationRequestArgCaptor.getValue().getLimit());
+        Assert.assertEquals(ascending, searchPaginationRequestArgCaptor.getValue().isAscending());
+        Assert.assertEquals(SearchOrderBy.NAME, searchPaginationRequestArgCaptor.getValue().getOrderBy());
     }
 
     private static BusinessUnitApiDTO createAccountDto(String stringId, boolean isMaster,

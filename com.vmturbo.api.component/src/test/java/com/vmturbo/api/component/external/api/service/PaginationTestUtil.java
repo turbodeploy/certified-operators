@@ -41,15 +41,16 @@ import com.vmturbo.api.serviceinterfaces.IStatsService;
 public class PaginationTestUtil {
 
     @Nonnull
-    public static Collection<BaseApiDTO> getSearchResults(ISearchService searchService,
-                                                          String query,
-                                                          List<String> types,
-                                                          List<String> scopes,
-                                                          String state,
-                                                          List<String> groupTypes,
-                                                          EnvironmentType envType,
-                                                          List<String> probeTypes,
-                                                          EntityDetailType entityDetailType) throws Exception {
+    public static Collection<BaseApiDTO> getNonPaginatedSearchResults(ISearchService searchService,
+                                                                      String query,
+                                                                      List<String> types,
+                                                                      List<String> scopes,
+                                                                      String state,
+                                                                      List<String> groupTypes,
+                                                                      EnvironmentType envType,
+                                                                      List<String> probeTypes,
+                                                                      EntityDetailType entityDetailType)
+            throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor = ArgumentCaptor.forClass((Class)List.class);
 
         final SearchPaginationRequest paginationRequest = spy(new SearchPaginationRequest(null, null, true, null));
@@ -67,20 +68,6 @@ public class PaginationTestUtil {
                 paginationRequest,
                 null,
                 probeTypes, true, null, null);
-        Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
-        return resultCaptor.getValue();
-    }
-
-    @Nonnull
-    public static List<BaseApiDTO> getMembersBasedOnFilter(ISearchService searchService,
-                                                           String query,
-                                                           GroupApiDTO inputDto) throws Exception {
-        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
-                ArgumentCaptor.forClass((Class)List.class);
-        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
-        Mockito.when(paginationRequest.allResultsResponse(any()))
-                .thenReturn(Mockito.mock(SearchPaginationResponse.class));
-        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest, null, null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

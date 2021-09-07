@@ -2,6 +2,7 @@ package com.vmturbo.api.component.communication;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -43,11 +44,14 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -919,7 +923,7 @@ public class RepositoryApiTest {
      * @throws Exception on exception occurred
      */
     @Test
-    public void testGetBusinessAccountsAndServiecEntities() throws Exception {
+    public void testGetBusinessAccountsAndServiceEntities() throws Exception {
         final TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
                 .setOid(1L)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -1278,5 +1282,55 @@ public class RepositoryApiTest {
 
         //THEN
         verify(serviceEntityMapper, times(1)).toServiceEntityApiDTOMap(any());
+    }
+
+    /**
+     * Tests {@link SearchRequest#getPaginatedSEList}.
+     * @throws InterruptedException if current thread has been interrupted while pupulating
+     *         severity data
+     * @throws InvalidOperationException if error faced during creation of the Pagination Request.
+     */
+    @Test
+    public void testGetBusinessUnitsResponse() throws InvalidOperationException {
+        //GIVEN
+        final SearchQuery searchQuery = SearchQuery.getDefaultInstance();
+        final Set<Long> scopeIds = Collections.EMPTY_SET;
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest(null, null,
+                true, null);
+        final String cursor = "cursor";
+        int totalRecordCount = 100;
+        long businessUnitOid = 123L;
+        PaginationResponse paginationResponse = PaginationResponse.newBuilder().setNextCursor(
+                cursor)
+                .setTotalRecordCount(totalRecordCount)
+                .build();
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(businessUnitOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+        PartialEntity partialEntity = PartialEntity.newBuilder()
+                .setFullEntity(topologyEntityDTO)
+                .build();
+        SearchEntitiesResponse grpcResponse = SearchEntitiesResponse.newBuilder()
+                .setPaginationResponse(paginationResponse)
+                .addEntities(partialEntity)
+                .build();
+        Mockito.doReturn(grpcResponse)
+                .when(searchBackend)
+                .searchEntities(org.mockito.Matchers.any());
+        BusinessUnitApiDTO apiDTO = new BusinessUnitApiDTO();
+        apiDTO.setUuid(String.valueOf(businessUnitOid));
+        List<BusinessUnitApiDTO> businessUnitApiDTOList = Collections.singletonList(apiDTO);
+        doReturn(businessUnitApiDTOList).when(businessAccountMapper).convert(any(), anyBoolean());
+        Mockito.when(paginationMapper.toProtoParams(paginationRequest)).thenCallRealMethod();
+
+        //WHEN
+        PaginatedSearchRequest paginatedRequest = repositoryApi.newPaginatedSearch(searchQuery, scopeIds, paginationRequest);
+        ResponseEntity<List<BaseApiDTO>> response = paginatedRequest.getBusinessUnitsResponse(true).getRestResponse();
+
+        //THEN
+        assertTrue(response.getHeaders().get("X-Next-Cursor").get(0).equals(cursor));
+        assertTrue(response.getHeaders().get("X-Total-Record-Count").get(0).equals(String.valueOf(totalRecordCount)));
+        assertEquals(response.getBody(), businessUnitApiDTOList);
     }
 }
