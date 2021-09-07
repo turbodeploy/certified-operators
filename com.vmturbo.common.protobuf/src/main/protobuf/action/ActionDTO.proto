@@ -338,6 +338,12 @@ message Explanation {
             // total number of slots in a day
             required int32 totalSlotNumber = 2;
         }
+        //The reason may have a compound suffix, eg, if a move action is caused by the reservation
+        //of CPU, not just usage of CPU, we show CPU reservation as action reason in UI.
+        optional Suffix suffix = 3;
+        enum Suffix {
+            RESERVATION = 0;
+        }
     }
 }
 
