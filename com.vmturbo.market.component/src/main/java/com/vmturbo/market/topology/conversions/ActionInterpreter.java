@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.Suffix;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
@@ -130,6 +131,11 @@ public class ActionInterpreter {
 
     private final ResizeInterpreter resizeInterpreter;
 
+    /**
+     * This map stores all the VMs whose CPU/Mem reservation are larger than real usage. We'll add a "reservation" suffix in their action descriptions.
+     */
+    private final Map<Long, Map<CommodityBoughtDTO, Long>> commoditiesWithReservationGreaterThanUsed;
+
         /**
      * Comparator used to sort the resizeInfo list so StorageAmount resizeInfo comes first,
      * and StorageAccess comes second, and then others(IO_Throughput).
@@ -155,7 +161,8 @@ public class ActionInterpreter {
                       @Nonnull final TierExcluder tierExcluder,
                       @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier,
                       @Nullable final BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
-                              Pair<Boolean, ChangeProviderExplanation>> explanationFunction) {
+                              Pair<Boolean, ChangeProviderExplanation>> explanationFunction,
+                      @Nonnull final Map<Long, Map<CommodityBoughtDTO, Long>> commoditiesWithReservationGreaterThanUsed ) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -167,6 +174,7 @@ public class ActionInterpreter {
         this.commodityIndex = commodityIndexSupplier.get();
         this.complianceExplanationOverride = explanationFunction;
         this.resizeInterpreter = new ResizeInterpreter(commodityConverter, commodityIndex, oidToProjectedTraderTOMap, originalTopology);
+        this.commoditiesWithReservationGreaterThanUsed = commoditiesWithReservationGreaterThanUsed;
     }
 
     /**
@@ -1481,6 +1489,14 @@ public class ActionInterpreter {
                 .setSlot(sl)
                 .setTotalSlotNumber(getTotalTimeSlotNumber(commType, buyer, source))
                 .build()));
+            Map<CommodityBoughtDTO, Long> commodityWithReservationGreaterThanUsed = commoditiesWithReservationGreaterThanUsed.get(buyer);
+            if (commodityWithReservationGreaterThanUsed != null) {
+                commodityWithReservationGreaterThanUsed.entrySet().stream().filter(entry ->
+                        entry.getKey().getCommodityType().equals(commType) &&
+                        entry.getValue().equals(source)).findAny().ifPresent(
+                        entry -> builder.setSuffix(Suffix.RESERVATION)
+                );
+            }
             return builder.build();
         };
     }

@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.Suffix;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
@@ -72,13 +73,13 @@ import com.vmturbo.topology.graph.TopologyGraphCreator;
  */
 public class ExplanationComposerTest {
     private static final ReasonCommodity MEM =
-                    createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, null);
+                    createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, "");
     private static final ReasonCommodity CPU =
-                    createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, null);
+                    createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, "");
     private static final ReasonCommodity IOPS =
-                    createReasonCommodity(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, null);
+                    createReasonCommodity(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, "");
     private static final ReasonCommodity SEGMENTATION =
-                    createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, null);
+                    createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, "");
     private static final ReasonCommodity NETWORK =
                     createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE, "testNetwork1");
 
@@ -212,6 +213,14 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(action));
         assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
             ExplanationComposer.composeRelatedRisks(action));
+
+        final ReasonCommodity reasonWithReservationSuffix = createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, Suffix.RESERVATION);
+        explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, reasonWithReservationSuffix));
+        action = createAction(actionInfo, explanation);
+        assertEquals("(^_^)~Mem, CPU reservation Congestion",
+                ExplanationComposer.composeExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU reservation Congestion"),
+                ExplanationComposer.composeRelatedRisks(action));
     }
 
     @Test
@@ -1023,6 +1032,14 @@ public class ExplanationComposerTest {
             }
             reasonCommodity.setTimeSlot(timeSlot.build());
         }
+        return reasonCommodity.build();
+    }
+
+    private static ReasonCommodity createReasonCommodity(int baseType, Suffix suffix) {
+        CommodityType.Builder ct = TopologyDTO.CommodityType.newBuilder()
+                .setType(baseType);
+        final ReasonCommodity.Builder reasonCommodity =
+                ReasonCommodity.newBuilder().setCommodityType(ct.build()).setSuffix(suffix);
         return reasonCommodity.build();
     }
 

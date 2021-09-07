@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.CloudSavingsDetails;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.Suffix;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
@@ -55,6 +56,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -283,6 +285,7 @@ public class InterpretActionTest {
                 consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
                 false);
         converter.setConvertToMarketComplete();
+        converter.setUseVMReservationAsUsed(true);
 
         final Collection<TraderTO> traderTOs =
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
@@ -426,7 +429,7 @@ public class InterpretActionTest {
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
             new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-            CommodityIndex.newFactory()::newIndex, null);
+            CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
 
         final TopologyEntityCloudTopology originalCloudTopology =
             new TopologyEntityCloudTopologyFactory
@@ -469,7 +472,7 @@ public class InterpretActionTest {
      * @throws Exception Any unexpected exception
      */
     @Test
-    public void testInterpretMoveActionWithTimeSlots() throws Exception {
+    public void testInterpretMoveActionWithTimeSlotsAndSuffix() throws Exception {
         final TopologyDTO.TopologyEntityDTO businessUser =
             TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/topology-with-timeslots.json");
 
@@ -491,10 +494,16 @@ public class InterpretActionTest {
             .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
         CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
 
+        //This map is used to generate reservation suffix inside reasonCommodity
+        CommodityBoughtDTO poolCpuCommBought = businessUser.getCommoditiesBoughtFromProviders(0)
+                .getCommodityBoughtList().stream().filter(comm -> comm.getCommodityType().getType() == CommodityDTO.CommodityType.POOL_CPU_VALUE).findFirst().get();
+        Map<Long, Map<CommodityBoughtDTO, Long>> reservationGreaterThanUsedMap = Collections.singletonMap(businessUser.getOid(),
+                Collections.singletonMap(poolCpuCommBought, 73364362512107L));
+
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
             new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-            CommodityIndex.newFactory()::newIndex, null);
+            CommodityIndex.newFactory()::newIndex, null, reservationGreaterThanUsedMap);
 
         final long moveSrcId = businessUser.getCommoditiesBoughtFromProvidersList().get(0)
             .getProviderId();
@@ -538,6 +547,8 @@ public class InterpretActionTest {
         assertTrue(reasonCommodity.hasTimeSlot());
         assertEquals(slot, reasonCommodity.getTimeSlot().getSlot());
         assertEquals(totalSlotNumber, reasonCommodity.getTimeSlot().getTotalSlotNumber());
+        assertTrue(reasonCommodity.hasSuffix());
+        assertEquals(Suffix.RESERVATION, reasonCommodity.getSuffix());
     }
 
     /**
@@ -665,7 +676,7 @@ public class InterpretActionTest {
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory()::newIndex, null);
+                CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
 
         final long moveSrcId = entityDto.getCommoditiesBoughtFromProvidersList().get(0)
                 .getProviderId();
@@ -1111,7 +1122,7 @@ public class InterpretActionTest {
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory()::newIndex, null);
+                CommodityIndex.newFactory()::newIndex, null, new HashMap<>());
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
         ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
@@ -1245,7 +1256,7 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null);
+                null, new HashMap<>());
 
         final ActionTO deactivateActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -1350,7 +1361,7 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null);
+                null, new HashMap<>());
 
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
@@ -1472,7 +1483,7 @@ public class InterpretActionTest {
                 mock(ProjectedRICoverageCalculator.class),
                 mock(TierExcluder.class),
                 CommodityIndex.newFactory()::newIndex,
-                null);
+                null, new HashMap<>());
 
         CommodityDTOs.CommoditySpecificationTO cs = mockedCommodityConverter
                 .commoditySpecification(CommodityType.newBuilder()
