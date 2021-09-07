@@ -45,9 +45,11 @@ public class DbEndpointConfig {
     private Boolean shouldProvisionDatabase;
     private Boolean shouldProvisionUser;
     private boolean isAbstract;
+    private String grantPrivilegeHost;
 
     DbEndpointConfig(@Nonnull final String name) {
         this.name = name;
+        this.grantPrivilegeHost = "%";
     }
 
     /**
@@ -221,6 +223,14 @@ public class DbEndpointConfig {
     /** Mark this endpoint as abstract. */
     public void setAbstract() {
         isAbstract = true;
+    }
+
+    public String getGrantPrivilegeHost() {
+        return grantPrivilegeHost;
+    }
+
+    public void setGrantPrivilegeHost(String grantPrivilegeHost) {
+        this.grantPrivilegeHost = grantPrivilegeHost;
     }
 
     public Boolean getShouldProvisionDatabase() {

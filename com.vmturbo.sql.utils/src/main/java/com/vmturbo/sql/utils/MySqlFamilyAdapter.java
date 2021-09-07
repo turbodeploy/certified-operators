@@ -10,6 +10,7 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
+import org.mariadb.jdbc.MariaDbConnection;
 import org.mariadb.jdbc.MariaDbDataSource;
 import org.mariadb.jdbc.MariaDbPoolDataSource;
 
@@ -22,9 +23,9 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * {@link DbAdapter} implementation for MySql and MariaDB endpoints.
  */
-class MariaDBMySqlAdapter extends DbAdapter {
+class MySqlFamilyAdapter extends DbAdapter {
 
-    MariaDBMySqlAdapter(final DbEndpointConfig config) {
+    MySqlFamilyAdapter(final DbEndpointConfig config) {
         super(config);
     }
 
@@ -47,6 +48,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
             dataSource.setUrl(url);
             dataSource.setUser(user);
             dataSource.setPassword(password);
+            dataSource.setDatabaseName(config.getDatabaseName());
             return dataSource;
         }
     }
@@ -73,9 +75,14 @@ class MariaDBMySqlAdapter extends DbAdapter {
     protected void performNonRootGrants() throws SQLException, UnsupportedDialectException {
         String privileges = getPrivileges(config.getAccess());
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
-                    privileges, config.getDatabaseName(), config.getUserName()));
+            execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%s'", privileges,
+                    config.getDatabaseName(), config.getUserName(), getGrantPrivilegeHost((MariaDbConnection)conn)));
+            execute(conn, "FLUSH PRIVILEGES");
         }
+    }
+
+    private String getGrantPrivilegeHost(MariaDbConnection conn) throws SQLException {
+        return conn.isServerMariaDb() ? "%" : config.getGrantPrivilegeHost();
     }
 
     /**
@@ -98,7 +105,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
             throws UnsupportedDialectException, SQLException {
         try (Connection conn = getRootConnection(null)) {
             try {
-                execute(conn, String.format("CREATE USER `%s`@`%%`", name));
+                execute(conn, String.format("CREATE USER '%s'@'%s'", name, getGrantPrivilegeHost((MariaDbConnection)conn)));
             } catch (SQLException e) {
                 if (e.getSQLState().equals("") || true) {
                     logger.info("Role {} already exists {}", name, e.getSQLState());
@@ -107,8 +114,8 @@ class MariaDBMySqlAdapter extends DbAdapter {
                 }
             }
             if (password != null) {
-                execute(conn, String.format("SET PASSWORD FOR `%s`@`%%` = password('%s')",
-                        name, config.getPassword()));
+                execute(conn, String.format("SET PASSWORD FOR '%s'@'%s' = password('%s')",
+                        name, getGrantPrivilegeHost((MariaDbConnection)conn), config.getPassword()));
             }
         }
     }
@@ -160,8 +167,8 @@ class MariaDBMySqlAdapter extends DbAdapter {
             logger.error("Failed to drop database {}", config.getDatabaseName(), e);
         }
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP USER IF EXISTS `%s`@`%%`",
-                    config.getUserName()));
+            execute(conn, String.format("DROP USER IF EXISTS `%s`@`%s`",
+                    config.getUserName(), getGrantPrivilegeHost((MariaDbConnection)conn)));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop user {}", config.getUserName(), e);
         }

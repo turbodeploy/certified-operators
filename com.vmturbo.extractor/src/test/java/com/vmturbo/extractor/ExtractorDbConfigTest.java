@@ -2,6 +2,7 @@ package com.vmturbo.extractor;
 
 import java.sql.SQLException;
 
+import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Before;
@@ -28,7 +29,8 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
-@TestPropertySource(properties = {"enableReporting=true"})
+// username property configuration is made to work with MySQL which has a username length restriction of 16.
+@TestPropertySource(properties = {"enableReporting=true", "dbs.search.user=s"})
 public class ExtractorDbConfigTest {
 
     @Autowired
@@ -36,6 +38,7 @@ public class ExtractorDbConfigTest {
 
     private DbEndpoint ingesterEndpoint;
     private DbEndpoint queryEndpoint;
+    private DbEndpoint ingesterMySqlEndpoint;
 
     /**
      * Rule to manage configured endpoints for tests.
@@ -55,7 +58,9 @@ public class ExtractorDbConfigTest {
     public void before() throws InterruptedException, SQLException, UnsupportedDialectException {
         this.ingesterEndpoint = dbConfig.ingesterEndpoint();
         this.queryEndpoint = dbConfig.queryEndpoint();
-        endpointRule.addEndpoints(ingesterEndpoint, queryEndpoint);
+        this.ingesterMySqlEndpoint = dbConfig.ingesterMySqlEndpoint();
+        ingesterMySqlEndpoint.getConfig().setGrantPrivilegeHost("localhost");
+        endpointRule.addEndpoints(ingesterEndpoint, queryEndpoint, ingesterMySqlEndpoint);
     }
 
     /**
@@ -84,6 +89,19 @@ public class ExtractorDbConfigTest {
             throws UnsupportedDialectException, SQLException, InterruptedException {
         checkCanReadTables(queryEndpoint);
         checkCannotWriteTables(queryEndpoint);
+    }
+
+    /**
+     * Test that the configuration ingester mysql endpoint.
+     */
+    @Test
+    public void testIngesterMysqlEndpoint() {
+        Assert.assertEquals(SQLDialect.MYSQL, ingesterMySqlEndpoint.getConfig().getDialect());
+        Assert.assertEquals(3306, ingesterMySqlEndpoint.getConfig().getPort().intValue());
+        Assert.assertEquals("db.migration.mysql",
+                ingesterMySqlEndpoint.getConfig().getMigrationLocations());
+        // migrations are not needed, data for new search is created once for 10 minutes
+        Assert.assertEquals(0, ingesterMySqlEndpoint.getConfig().getFlywayCallbacks().length);
     }
 
     private void checkCanReadTables(DbEndpoint endpoint)
