@@ -101,7 +101,7 @@ public abstract class DbAdapter {
         switch (config.getDialect()) {
             case MARIADB:
             case MYSQL:
-                return new MySqlFamilyAdapter(config);
+                return new MariaDBMySqlAdapter(config);
             case POSTGRES:
                 return new PostgresAdapter(config);
             default:
