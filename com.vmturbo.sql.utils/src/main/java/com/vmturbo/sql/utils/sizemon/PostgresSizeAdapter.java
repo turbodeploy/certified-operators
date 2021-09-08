@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
@@ -48,6 +50,16 @@ public class PostgresSizeAdapter extends DbSizeAdapter {
     public List<SizeItem> getSizeItems(Table<?> table) {
         final boolean isHypertable = hypertables.contains(table.getName());
         return new TableInfo(table, isHypertable).getSizeItems();
+    }
+
+    /**
+     * Gets names of all hyper tables.
+     *
+     * @return Hyper table names.
+     */
+    @Nonnull
+    public Set<String> getHypertables() {
+        return hypertables;
     }
 
     /**

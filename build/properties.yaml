@@ -26,6 +26,7 @@ defaultProperties:
         reportingHost: reporting
         repositoryHost: repository
         topologyProcessorHost: topology-processor
+        extractorHost: extractor
         # Auth
         authRetryDelaySecs: 10
         # Consul Key/Value and Service Discovery Utility

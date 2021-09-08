@@ -1,10 +1,14 @@
 package com.vmturbo.extractor;
 
 import java.sql.SQLException;
-import java.time.temporal.ChronoUnit;
+import java.util.Collections;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,11 +17,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
 import com.vmturbo.extractor.action.ActionConfig;
 import com.vmturbo.extractor.diags.ExtractorDiagnosticsConfig;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
+import com.vmturbo.extractor.service.ExtractorRpcConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -28,9 +35,11 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 @Configuration("theComponent")
 @Import({TopologyListenerConfig.class,
         ActionConfig.class,
+        ExtractorRpcConfig.class,
         ExtractorDbConfig.class,
         GrafanaConfig.class,
         ExtractorDiagnosticsConfig.class,
+        SpringSecurityConfig.class,
         ExtractorGlobalConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();
@@ -42,21 +51,19 @@ public class ExtractorComponent extends BaseVmtComponent {
     private TopologyListenerConfig listenerConfig;
 
     @Autowired
+    private ExtractorRpcConfig rpcConfig;
+
+    @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
     @Autowired
     private ExtractorGlobalConfig extractorGlobalConfig;
 
+    @Autowired
+    private SpringSecurityConfig securityConfig;
+
     @Value("${timescaledbHealthCheckIntervalSeconds:60}")
     private int timescaledbHealthCheckIntervalSeconds;
-
-    /**
-     * Retention period for the reporting metric table.
-     *
-     * <p>Todo: remove this once we support changing retention periods through our UI.</p>
-     */
-    @Value("${reportingMetricTableRetentionMonths:#{null}}")
-    private Integer reportingMetricTableRetentionMonths;
 
     private void setupHealthMonitor() throws InterruptedException {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");
@@ -74,6 +81,18 @@ public class ExtractorComponent extends BaseVmtComponent {
         diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
     }
 
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(rpcConfig.extractorSettingService());
+    }
+
+    @Nonnull
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
+    }
+
     /**
      * Starts the component.
      *
@@ -88,21 +107,12 @@ public class ExtractorComponent extends BaseVmtComponent {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
         // only set up postgres health monitor if reporting or searchApi is enabled
         if (extractorGlobalConfig.requireDatabase()) {
-
-
             try {
                 setupHealthMonitor();
-                // change retention policy if custom period is provided
-                if (reportingMetricTableRetentionMonths != null) {
-                    extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
-                            "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
-                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.error("Failed to set up health monitor -"
                         + "interrupted while waiting for endpoint initialization", e);
-            } catch (UnsupportedDialectException | SQLException e) {
-                logger.error("Failed to create retention policy", e);
             }
             if (extractorDbConfig.dbSizeMonitorEnabled) {
                 try {

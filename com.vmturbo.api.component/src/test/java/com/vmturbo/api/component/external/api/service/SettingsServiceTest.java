@@ -41,6 +41,11 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc.ExtractorSettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.extractor.Reporting.UpdateRetentionSettingResponse;
+import com.vmturbo.common.protobuf.extractor.ReportingMoles.ExtractorSettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
@@ -66,6 +71,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
@@ -82,9 +88,13 @@ public class SettingsServiceTest {
 
     private StatsHistoryServiceBlockingStub statsServiceClient;
 
+    private ExtractorSettingServiceBlockingStub extractorServiceClient;
+
     private SettingsService settingsService;
 
     private StatsHistoryServiceMole statsRpcSpy = spy(new StatsHistoryServiceMole());
+
+    private ExtractorSettingServiceMole extractorRpcSpy = spy(new ExtractorSettingServiceMole());
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
@@ -107,16 +117,19 @@ public class SettingsServiceTest {
             .build();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcServiceSpy, statsRpcSpy);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcServiceSpy, statsRpcSpy,
+            extractorRpcSpy);
 
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
         settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        extractorServiceClient = ExtractorSettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         settingsService = spy(new SettingsService(settingServiceStub, statsServiceClient,
-                settingsMapper, settingsManagerMapping, settingsPoliciesService));
+                settingsMapper, settingsManagerMapping, settingsPoliciesService,
+                extractorServiceClient));
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));
@@ -399,38 +412,7 @@ public class SettingsServiceTest {
         final String settingSpecName = "smtpPort";
         final String settingValue = "25";
 
-        final SettingApiDTO<String> settingInput = new SettingApiDTO<>();
-        settingInput.setValue(settingValue);
-
-        final Setting setting = Setting.newBuilder()
-            .setSettingSpecName(settingSpecName)
-            .setStringSettingValue(StringSettingValue.newBuilder()
-                    .setValue(settingValue))
-            .build();
-        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
-        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
-        when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
-        when(settingsMapper.toSettingApiDto(setting)).thenReturn(possibilities);
-
-        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
-            GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
-                .setSettingSpecName(settingSpecName)
-                .setStringSettingValue(StringSettingValue.newBuilder()
-                        .setValue(settingValue)
-                        .build()))
-                .build());
-
-        when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
-                .setSettingSpecName(settingSpecName)
-                .build())).thenReturn(
-                        SettingSpec.newBuilder()
-                                .setNumericSettingValueType(NumericSettingValueType.newBuilder())
-                                .setGlobalSettingSpec(
-                                        GlobalSettingSpec.newBuilder().getDefaultInstanceForType())
-                                .build());
-
-        settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
-
+        updateSettings(managerName, settingSpecName, settingValue);
         verify(settingRpcServiceSpy).getSettingSpec(SingleSettingSpecRequest.newBuilder()
                 .setSettingSpecName(settingSpecName)
                 .build());
@@ -441,12 +423,66 @@ public class SettingsServiceTest {
                 .build());
     }
 
+    /**
+     * Verify exception is thrown on bad retention input.
+     *
+     * @throws Exception Any uncaught exception.
+     */
+    @Test
+    public void extractorRetentionSettingUpdateOperationFailedException() throws Exception {
+        expectedException.expect(OperationFailedException.class);
+        expectedException.expectMessage("Could not update extractor retention to");
+        updateSettings("persistencemanager", "embeddedReportingRetentionDays", "bad_value");
+    }
+
+    /**
+     * Refactored some of the code from test put method.
+     *
+     * @param managerName Name of the manager group.
+     * @param settingSpecName Settings name.
+     * @param settingValue Value of settings.
+     * @throws Exception Thrown in case of error when updating settings.
+     */
+    private void updateSettings(String managerName, String settingSpecName, String settingValue)
+            throws Exception {
+        final SettingApiDTO<String> settingInput = new SettingApiDTO<>();
+        settingInput.setValue(settingValue);
+
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(settingValue))
+                .build();
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
+        when(settingsMapper.toSettingApiDto(setting)).thenReturn(possibilities);
+
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
+                GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
+                        .setSettingSpecName(settingSpecName)
+                        .setStringSettingValue(StringSettingValue.newBuilder()
+                                .setValue(settingValue)
+                                .build()))
+                        .build());
+
+        when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .build())).thenReturn(
+                SettingSpec.newBuilder()
+                        .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+                        .setGlobalSettingSpec(
+                                GlobalSettingSpec.newBuilder().getDefaultInstanceForType())
+                        .build());
+
+        settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
+    }
+
     @Test
     public void testPutSettingByUuidAndNameWithNumericValueException() throws Exception {
         String managerName = "emailmanager";
         String settingSpecName = "smtpPort";
         String settingValue = "abc";
-        boolean exceptionThrown = false;
 
         SettingApiDTO<String> settingInput = new SettingApiDTO<>();
         settingInput.setValue(settingValue);
@@ -468,14 +504,11 @@ public class SettingsServiceTest {
                         .setNumericSettingValueType(NumericSettingValueType.newBuilder())
                         .build());
 
-        try {
-            settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
-        } catch (Exception e) {
-            assertTrue(e instanceof IllegalArgumentException);
-            exceptionThrown = true;
-        }
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("must have a numeric value. The value '"
+                + settingValue + "' is invalid");
 
-        assertEquals(true, exceptionThrown);
+        settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
     }
 
     @Test
@@ -483,7 +516,6 @@ public class SettingsServiceTest {
         String managerName = "emailmanager";
         String settingSpecName = "booleanSetting";
         String settingValue = "abc";
-        boolean exceptionThrown = false;
 
         SettingApiDTO<String> settingInput = new SettingApiDTO<>();
         settingInput.setValue(settingValue);
@@ -505,15 +537,11 @@ public class SettingsServiceTest {
                                 .setBooleanSettingValueType(BooleanSettingValueType.newBuilder())
                                 .build());
 
-        try {
-            settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
-        } catch (Exception e) {
-            assertTrue(e instanceof IllegalArgumentException);
-            e.printStackTrace();
-            exceptionThrown = true;
-        }
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("must have a boolean value. The value '"
+                + settingValue + "' is invalid");
 
-        assertEquals(true, exceptionThrown);
+        settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
     }
 
     /**
