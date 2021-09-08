@@ -273,13 +273,8 @@
       "numRetainedMonths",
       "auditLogRetentionDays",
       "reportRetentionDays",
-      "planRetentionDays"
-      ]
-    },
-    "internalonlymanager": {
-      "displayName": "Internal Only Settings",
-      "settings": [
-        "embeddedReportingRetentionDays"
+      "planRetentionDays",
+      "embeddedReportingRetentionDays"
       ]
     },
     "emailmanager": {

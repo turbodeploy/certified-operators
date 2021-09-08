@@ -34,6 +34,9 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc.ExtractorSettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.extractor.Reporting.UpdateRetentionSettingRequest;
+import com.vmturbo.common.protobuf.extractor.Reporting.UpdateRetentionSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -55,12 +58,12 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRespo
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
  * Service implementation of Settings.
  **/
 public class SettingsService implements ISettingsService {
-
     private final SettingServiceBlockingStub settingServiceBlockingStub;
 
     private final SettingsMapper settingsMapper;
@@ -70,6 +73,8 @@ public class SettingsService implements ISettingsService {
     private final StatsHistoryServiceBlockingStub statsServiceClient;
 
     private final SettingsPoliciesService settingsPoliciesService;
+
+    private final ExtractorSettingServiceBlockingStub extractorSettingServiceBlockingStub;
 
     private static final Set<String> STATS_NON_AUDIT_RETENTION_SETTINGS = ImmutableSet.of(
             GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
@@ -97,21 +102,18 @@ public class SettingsService implements ISettingsService {
      */
     public static final String MARKETSETTINGS_MANAGER = "marketsettingsmanager";
 
-    /**
-     * The name of the manager for health check settings.
-     */
-    public static final String HEALTHCHECK_MANAGER = "healthcheckmanager";
-
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
                     @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                    @Nonnull final SettingsPoliciesService settingsPoliciesService) {
+                    @Nonnull final SettingsPoliciesService settingsPoliciesService,
+                    @Nonnull final ExtractorSettingServiceBlockingStub extractorSettingsService) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;
         this.statsServiceClient = Objects.requireNonNull(statsServiceClient);
         this.settingsMapper = settingsMapper;
         this.settingsManagerMapping = settingsManagerMapping;
         this.settingsPoliciesService = settingsPoliciesService;
+        this.extractorSettingServiceBlockingStub = extractorSettingsService;
     }
 
     @Override
@@ -178,7 +180,8 @@ public class SettingsService implements ISettingsService {
      * @param name    Setting spec name
      * @param setting the setting value
      * @return the setting with the updated value
-     * @throws Exception
+     * @throws OperationFailedException Thrown when settings value could not be set.
+     * @throws IllegalArgumentException Thrown when settings name is invalid.
      */
     @Override
     public <T extends Serializable> SettingApiDTO<T> putSettingByUuidAndName(
@@ -196,15 +199,23 @@ public class SettingsService implements ISettingsService {
             // in addition to updating the settings store. So before sending to
             // the group setting service, we first attempt the DB update, and then
             // if that succeeds, we proceed with normal settings update.
-            Optional<SettingApiDTO<String>> newSetting = null;
+            Optional<SettingApiDTO<String>> newSetting = Optional.empty();
             if (name.equals(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())) {
-                newSetting = setAuditLogSettting(settingValue);
+                newSetting = setAuditLogSetting(settingValue);
             } else if (STATS_NON_AUDIT_RETENTION_SETTINGS.contains(name)) {
                 newSetting = setStatsRetentionSetting(name, settingValue);
+            } else if (GlobalSettingSpecs.EmbeddedReportingRetentionDays.getSettingName().equals(name)) {
+                try {
+                    newSetting = setExtractorRetentionSetting(settingValue);
+                } catch (NumberFormatException nfe) {
+                    throw new OperationFailedException("Could not update extractor retention to "
+                            + settingValue, nfe);
+                }
             }
-            // null means there was no DB settings update required for this setting
-            if (newSetting != null && !newSetting.isPresent()) {
-                throw new Exception("Failed to set the new setting value for " + name);
+            // Empty means there was no DB settings update required for this setting.
+            if (!newSetting.isPresent()) {
+                throw new OperationFailedException("Failed to set the new " + uuid + " setting " + name
+                        + " = " + settingValue);
             }
         }
         SettingSpec spec = settingServiceBlockingStub.getSettingSpec(
@@ -388,6 +399,7 @@ public class SettingsService implements ISettingsService {
         }
     }
 
+    @Nonnull
     private Optional<SettingApiDTO<String>> setStatsRetentionSetting(String name, final String settingValue) {
         final SetStatsDataRetentionSettingResponse response =
             statsServiceClient.setStatsDataRetentionSetting(
@@ -403,7 +415,8 @@ public class SettingsService implements ISettingsService {
                 Optional.empty();
     }
 
-    private Optional<SettingApiDTO<String>> setAuditLogSettting(final String settingValue) {
+    @Nonnull
+    private Optional<SettingApiDTO<String>> setAuditLogSetting(final String settingValue) {
         final SetAuditLogDataRetentionSettingResponse response =
             statsServiceClient.setAuditLogDataRetentionSetting(
                 SetAuditLogDataRetentionSettingRequest.newBuilder()
@@ -413,6 +426,32 @@ public class SettingsService implements ISettingsService {
                 settingsMapper.toSettingApiDto(response.getNewSetting()).getGlobalSetting() :
                 Optional.empty();
     }
+
+    /**
+     * Calls the retention service in extractor to update the retention settings value specified
+     * by user. If successful, returns the SettingApiDTO.
+     *
+     * @param settingValue Numeric value of retention days.
+     * @return SettingApiDTO or empty on update error.
+     * @throws NumberFormatException Thrown when settings value could not be parsed to numeric value.
+     */
+    @Nonnull
+    private Optional<SettingApiDTO<String>> setExtractorRetentionSetting(final String settingValue)
+            throws NumberFormatException {
+        final UpdateRetentionSettingResponse response = extractorSettingServiceBlockingStub
+                .updateRetentionSettings(UpdateRetentionSettingRequest.newBuilder()
+                        .setRetentionDays(new Float(settingValue).intValue()).build());
+        if (response.hasUpdateCount() && response.getUpdateCount() > 0) {
+            final Setting newSetting = Setting.newBuilder()
+                    .setSettingSpecName(GlobalSettingSpecs.EmbeddedReportingRetentionDays.getSettingName())
+                    .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
+                            Float.parseFloat(settingValue)))
+                    .build();
+            return settingsMapper.toSettingApiDto(newSetting).getGlobalSetting();
+        }
+        return Optional.empty();
+    }
+
 
     @Override
     public List<SettingsManagerApiDTO> getSettingsSpecs(final String managerUuid,

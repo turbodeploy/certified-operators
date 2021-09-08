@@ -59,6 +59,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc.ExtractorSettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -118,6 +120,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.extractor.api.ExtractorClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -149,7 +152,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
         CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
-        UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class})
+        UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class,
+        ExtractorClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -178,6 +182,9 @@ public class CommunicationConfig {
     private UserSessionConfig userSessionConfig;
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
+
+    @Autowired
+    private ExtractorClientConfig extractorClientConfig;
 
     /**
      * No explicit import to avoid circular dependency.
@@ -740,4 +747,8 @@ public class CommunicationConfig {
         return new ThinTargetCache(topologyProcessor());
     }
 
+    @Bean
+    public ExtractorSettingServiceBlockingStub extractorSettingService() {
+        return ExtractorSettingServiceGrpc.newBlockingStub(extractorClientConfig.extractorChannel());
+    }
 }

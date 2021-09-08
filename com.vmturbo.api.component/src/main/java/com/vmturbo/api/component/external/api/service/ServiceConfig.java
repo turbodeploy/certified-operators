@@ -606,7 +606,8 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService());
+                settingsPoliciesService(),
+                communicationConfig.extractorSettingService());
     }
 
     @Bean

@@ -30,6 +30,7 @@ import com.vmturbo.api.component.external.api.service.SettingsPoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.extractor.ExtractorSettingServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -108,7 +109,8 @@ public class SettingsMapperIntegrationTest {
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping, settingsPoliciesService);
+                        mapper, settingsManagerMapping, settingsPoliciesService,
+                        ExtractorSettingServiceGrpc.newBlockingStub(channel));
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, null, false);

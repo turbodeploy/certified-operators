@@ -1,0 +1,20 @@
+syntax = "proto2";
+package extractor;
+
+option java_package = "com.vmturbo.common.protobuf.extractor";
+
+message UpdateRetentionSettingRequest {
+    // How long in days to retain hyper table data.
+    optional int32 retention_days = 1;
+}
+
+message UpdateRetentionSettingResponse {
+    // Number of tables for which retention settings were updated.
+    optional int32 update_count = 1;
+}
+
+// Service responsible for extractor related settings.
+service ExtractorSettingService {
+    // Update extractor retention settings.
+    rpc UpdateRetentionSettings(UpdateRetentionSettingRequest) returns (UpdateRetentionSettingResponse);
+}
