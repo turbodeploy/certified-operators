@@ -270,9 +270,24 @@ public enum Component {
     MEDIATION_GCP("gcp", "com.vmturbo.mediation.gcp.component"),
 
     /**
+     * GCP Service Account.
+     */
+    MEDIATION_GCP_SA("gcp-sa", "com.vmturbo.mediation.gcp.sa.component"),
+
+    /**
+     * GCP Project.
+     */
+    MEDIATION_GCP_PROJECT("gcp-project", "com.vmturbo.mediation.gcp.project.component"),
+
+    /**
      * GCP Cost.
      */
     MEDIATION_GCP_COST("gcp-cost", "com.vmturbo.mediation.gcp.cost.component"),
+
+    /**
+     * GCP Billing.
+     */
+    MEDIATION_GCP_BILLING("gcp-billing", "com.vmturbo.mediation.gcp.billing.component"),
 
     /**
      * HDS.
