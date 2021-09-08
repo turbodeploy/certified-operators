@@ -527,11 +527,9 @@ public class SearchService implements ISearchService {
                 final List<FilterApiDTO> cloudfilter = (probeTypes == null || probeTypes.isEmpty()) ?
                     Collections.emptyList() :
                     Collections.singletonList(createCloudProbeMatcher(probeTypes));
-                final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessAccountRetriever.getBusinessAccountsInScope(scopes,
+                return businessAccountRetriever.getBusinessAccountsInScope(scopes,
                             addNameMatcher(query, cloudfilter,
-                                EntityFilterMapper.ACCOUNT_NAME, queryType));
-                return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
+                                EntityFilterMapper.ACCOUNT_NAME, queryType), paginationRequest);
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
                     Lists.newArrayList(businessAccountRetriever.getBillingFamilies()));
@@ -791,10 +789,9 @@ public class SearchService implements ISearchService {
                     inputDTO.getEnvironmentType(), null, inputDTO.getScope(), false,
                     inputDTO.getGroupOrigin());
         } else if (BUSINESS_ACCOUNT.equals(className)) {
-            return paginationRequest.allResultsResponse(Lists.newArrayList(
-                    businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
+            return businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
                             addNameMatcher(nameQueryString, inputDTO.getCriteriaList(),
-                                EntityFilterMapper.ACCOUNT_NAME, queryType))));
+                                EntityFilterMapper.ACCOUNT_NAME, queryType), paginationRequest);
         } else if (WORKLOAD.equals(className)) {
             List<String> scope = inputDTO.getScope();
 

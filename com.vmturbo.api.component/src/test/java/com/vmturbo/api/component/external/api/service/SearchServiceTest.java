@@ -5,8 +5,7 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.C
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.USER_DEFINED_ENTITY;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
-import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
-import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
+import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getNonPaginatedSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -315,16 +314,6 @@ public class SearchServiceTest {
         final SearchPaginationResponse paginationResponse = Mockito.mock(SearchPaginationResponse.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
 
-        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
-        verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
-
-        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
-        verify(targetsService).getTargets();
-
-        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
-
-        //TODO: MOVE TO OWN TEST
         final PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
         when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
         when(mockPaginatedSearchRequest.getResponse()).thenReturn(mock(SearchPaginationResponse.class));
@@ -399,19 +388,16 @@ public class SearchServiceTest {
         final SearchPaginationResponse paginationResponse = Mockito.mock(SearchPaginationResponse.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
 
-        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
+        getNonPaginatedSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
-        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
+        getNonPaginatedSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(targetsService).getTargets();
-
-        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
 
         final SearchRequest mockSearchRequest = mock(SearchRequest.class);
         when(repositoryApi.newSearchRequest(any())).thenReturn(mockSearchRequest);
         when(mockSearchRequest.getSEList()).thenReturn(Collections.emptyList());
-        getSearchResults(searchService, null,
+        getNonPaginatedSearchResults(searchService, null,
                          Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
                          null, EnvironmentType.CLOUD, null, null);
         verify(repositoryApi).newSearchRequest(
@@ -637,15 +623,15 @@ public class SearchServiceTest {
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
 
         // filter by AWS
-        Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
-            types, null, null, null, null,
-            Lists.newArrayList(probeType1), null);
+        Collection<BaseApiDTO> regions_aws = getNonPaginatedSearchResults(searchService, null,
+                types, null, null, null, null,
+                Lists.newArrayList(probeType1), null);
         assertThat(regions_aws.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
 
         // filter by Azure
-        Collection<BaseApiDTO> regions_azure = getSearchResults(searchService, null,
+        Collection<BaseApiDTO> regions_azure = getNonPaginatedSearchResults(searchService, null,
             types, null, null, null, EnvironmentType.CLOUD,
             Lists.newArrayList(probeType2), null);
         assertThat(regions_azure.stream()
@@ -653,22 +639,22 @@ public class SearchServiceTest {
             .collect(Collectors.toList()), containsInAnyOrder(3L));
 
         // filter by both AWS and Azure
-        Collection<BaseApiDTO> regions_all = getSearchResults(searchService, null,
-            types, null, null, null, EnvironmentType.CLOUD,
-            Lists.newArrayList(probeType1, probeType2),  null);
+        Collection<BaseApiDTO> regions_all = getNonPaginatedSearchResults(searchService, null,
+                types, null, null, null, EnvironmentType.CLOUD,
+                Lists.newArrayList(probeType1, probeType2),  null);
         assertThat(regions_all.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
 
         // filter by a vc probe type
-        Collection<BaseApiDTO> regions_vc = getSearchResults(searchService, null,
-            types, null, null, null, EnvironmentType.CLOUD,
-            Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()), null);
+        Collection<BaseApiDTO> regions_vc = getNonPaginatedSearchResults(searchService, null,
+                types, null, null, null, EnvironmentType.CLOUD,
+                Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()), null);
         assertTrue(regions_vc.isEmpty());
 
         // filter by null probeTypes
-        Collection<BaseApiDTO> regions_null_probeType = getSearchResults(searchService, null,
-            types, null, null, null, EnvironmentType.CLOUD, null, null);
+        Collection<BaseApiDTO> regions_null_probeType = getNonPaginatedSearchResults(searchService, null,
+                types, null, null, null, EnvironmentType.CLOUD, null, null);
         assertThat(regions_null_probeType.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
@@ -806,9 +792,9 @@ public class SearchServiceTest {
         ));
 
         // Act
-        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types,
-                                                          scopes, null, null, null, null,
-                                                          null);
+        Collection<BaseApiDTO> results = getNonPaginatedSearchResults(searchService, null, types,
+                scopes, null, null, null, null,
+                null);
 
         // Assert
         assertThat(results.size(), is(4));
@@ -921,7 +907,8 @@ public class SearchServiceTest {
                                                                                         5L));
 
         //WHEN
-        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
+        getNonPaginatedSearchResults(searchService, null, types, scopes,
+                null, null, null, null, entityDetailType);
 
         //THEN
         verify(req).useAspectMapper(entityAspectMapper);
@@ -953,7 +940,8 @@ public class SearchServiceTest {
                                                                                         5L));
 
         //WHEN
-        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
+        getNonPaginatedSearchResults(searchService, null, types, scopes,
+                null, null, null, null, entityDetailType);
 
         //THEN
         verify(req, times(0)).useAspectMapper(entityAspectMapper);
@@ -1013,9 +1001,12 @@ public class SearchServiceTest {
         businessUnitApiDTO.setDisplayName("Test Business Account");
         final List<String> scopes = ImmutableList.of("target1", "target2");
         final List<String> types = ImmutableList.of(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
-        getSearchResults(searchService, null, types, scopes,
-            null, null, null, null, null);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList());
+        final SearchPaginationRequest paginationReq = spy(new SearchPaginationRequest(null, null,
+                true, null));
+        searchService.getSearchResults(null, types, scopes, null, null, null,
+                null, paginationReq, null, null, true, null,
+                null);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList(), paginationReq);
     }
 
     /**
@@ -1029,14 +1020,15 @@ public class SearchServiceTest {
     public void testBusinessAccountFilterByProbeType() throws Exception {
         final String probeType1 = "asdfasdf";
         final String probeType2 = "jkljkl";
-        getSearchResults(searchService, null,
-            Collections.singletonList(ApiEntityType.BUSINESS_ACCOUNT.apiStr()), null, null, null,
-            null, Arrays.asList(probeType1, probeType2), null);
+        final SearchPaginationRequest paginationReq = spy(new SearchPaginationRequest(null, null, true, null));
+        searchService.getSearchResults(null, Collections.singletonList(ApiEntityType.BUSINESS_ACCOUNT.apiStr()),
+                null, null, null, null, null, paginationReq,
+                null, Arrays.asList(probeType1, probeType2), true, null, null);
 
         final ArgumentCaptor<List<FilterApiDTO>> filterListCaptor =
             ArgumentCaptor.forClass((Class<List<FilterApiDTO>>)(Class)List.class);
         verify(businessAccountRetriever).getBusinessAccountsInScope(
-            isNull((Class<List<String>>)(Class)List.class), filterListCaptor.capture());
+            isNull((Class<List<String>>)(Class)List.class), filterListCaptor.capture(), eq(paginationReq));
         final List<FilterApiDTO> actualFilterList = filterListCaptor.getValue();
         assertEquals(1, actualFilterList.size());
         final FilterApiDTO filterDTO = actualFilterList.iterator().next();
@@ -1512,14 +1504,15 @@ public class SearchServiceTest {
         GroupApiDTO inputDto = new GroupApiDTO();
         inputDto.setClassName(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
         String nameQueryString = "test";
-        getMembersBasedOnFilter(searchService, nameQueryString, inputDto);
+        final SearchPaginationRequest paginationReq = Mockito.mock(SearchPaginationRequest.class);
+        searchService.getMembersBasedOnFilter(nameQueryString, inputDto, paginationReq, null, null);
         FilterApiDTO filterApiDTO = new FilterApiDTO();
         filterApiDTO.setExpType(EntityFilterMapper.REGEX_MATCH);
         filterApiDTO.setExpVal(".*test.*");
         filterApiDTO.setFilterType("businessAccountByName");
         final ArgumentCaptor<List<FilterApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(eq(null), resultCaptor.capture());
+        verify(businessAccountRetriever).getBusinessAccountsInScope(eq(null), resultCaptor.capture(), eq(paginationReq));
         FilterApiDTO filterApiDTOCaptured = resultCaptor.getValue().get(0);
         assertEquals(filterApiDTOCaptured.getExpType(), EntityFilterMapper.REGEX_MATCH);
         assertEquals(filterApiDTOCaptured.getExpVal(), ".*" + "test" + ".*" );

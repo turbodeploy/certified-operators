@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -25,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -35,9 +38,13 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -100,8 +107,9 @@ public class BusinessAccountRetriever {
      *
      * @return list of BillingFamilyApiDTOs
      * @throws OperationFailedException If there is an issue mapping input scopes.
+     * @throws InvalidOperationException if there is an error getting the full list.
      */
-    public List<BillingFamilyApiDTO> getBillingFamilies() throws OperationFailedException {
+    public List<BillingFamilyApiDTO> getBillingFamilies() throws OperationFailedException, InvalidOperationException {
         final List<BusinessUnitApiDTO> businessAccounts = getBusinessAccountsInScope(null, null);
         final Map<String, BusinessUnitApiDTO> accountsByUuid = businessAccounts.stream()
             .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, Function.identity()));
@@ -120,9 +128,31 @@ public class BusinessAccountRetriever {
      * @param criterias criteria list the query is requested for
      * @return The set of discovered business units.
      * @throws OperationFailedException If there is an error expanding an OID in the scope.
+     * @throws InvalidOperationException if there is an error getting the full list.
      */
     public List<BusinessUnitApiDTO> getBusinessAccountsInScope(@Nullable List<String> scopeUuids,
-            @Nullable List<FilterApiDTO> criterias) throws OperationFailedException {
+                                                               @Nullable List<FilterApiDTO> criterias)
+            throws OperationFailedException, InvalidOperationException {
+        return getBusinessAccountsInScope(scopeUuids, criterias, null).getRawResults()
+        .stream()
+        .map(BusinessUnitApiDTO.class::cast)
+        .collect(Collectors.toList());
+    }
+
+    /**
+     * Find all discovered business units based on the input scope. If scope is null
+     * or empty, return a {@link SearchPaginationResponse} based on the pagination request.
+     *
+     * @param scopeUuids The list of input IDs.
+     * @param criterias criteria list the query is requested for
+     * @return The set of discovered business units.
+     * @throws OperationFailedException If there is an error expanding an OID in the scope.
+     * @throws InvalidOperationException If there is an error with the pagination request parameters.
+     */
+    public SearchPaginationResponse getBusinessAccountsInScope(@Nullable List<String> scopeUuids,
+                                                               @Nullable List<FilterApiDTO> criterias,
+                                                               @Nullable SearchPaginationRequest paginationReq)
+            throws OperationFailedException, InvalidOperationException {
         boolean allAccounts = true;
         final List<SearchParameters> searchParameters = new ArrayList<>();
 
@@ -188,12 +218,31 @@ public class BusinessAccountRetriever {
         final List<SearchParameters> effectiveParameters = searchParameters.stream()
                 .map(filterResolver::resolveExternalFilters)
                 .collect(Collectors.toList());
+
+        // With Pagination
+        if(paginationReq != null && (paginationReq.hasLimit() || paginationReq.getCursor().isPresent())) {
+            // Use the default Order By method, we don't support other options for now
+            SearchPaginationRequest supportedPaginationReq = new SearchPaginationRequest(
+                    paginationReq.getCursor().isPresent() ? paginationReq.getCursor().get() : null,
+                    paginationReq.getLimit(), true, null);
+            SearchQuery searchQuery = Search.SearchQuery.newBuilder()
+                    .addAllSearchParameters(searchParameters)
+                    .setLogicalOperator(Search.LogicalOperator.AND)
+                    .build();
+            PaginatedSearchRequest paginatedSearchRequest = repositoryApi.newPaginatedSearch(
+                    searchQuery, Sets.newHashSet(), supportedPaginationReq);
+            SearchPaginationResponse response = paginatedSearchRequest
+                    .getBusinessUnitsResponse(allAccounts);
+            return response;
+        }
+
+        // No Pagination
         final List<TopologyEntityDTO> businessAccounts =
                 repositoryApi.newSearchRequestMulti(effectiveParameters)
                         .getFullEntities()
                         .collect(Collectors.toList());
-
-        return businessAccountMapper.convert(businessAccounts, allAccounts);
+        return new SearchPaginationRequest(null, null, true, null)
+                .allResultsResponse(Lists.newArrayList(businessAccountMapper.convert(businessAccounts, allAccounts)));
     }
 
     /**
