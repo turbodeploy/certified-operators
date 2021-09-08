@@ -108,7 +108,9 @@ public class MigrationsLibrary {
             .put("V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag",
                 new V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag(targetStore, probeStore))
             .put("V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag",
-                new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore));
+                new V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag(targetStore, probeStore))
+            .put("V_01_01_12__Instana_Add_Vm_Metrics_Flag",
+                new V_01_01_12__Instana_Add_Vm_Metrics_Flag(targetStore, probeStore));
         return builder.build();
     }
 }
