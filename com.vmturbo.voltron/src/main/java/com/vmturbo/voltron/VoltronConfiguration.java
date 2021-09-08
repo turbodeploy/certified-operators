@@ -660,9 +660,24 @@ public class VoltronConfiguration {
         MEDIATION_GCP(Component.MEDIATION_GCP),
 
         /**
+         * GCP Service Account.
+         */
+        MEDIATION_GCP_SA(Component.MEDIATION_GCP_SA),
+
+        /**
+         * GCP Project.
+         */
+        MEDIATION_GCP_PROJECT(Component.MEDIATION_GCP_PROJECT),
+
+        /**
          * GCP Cost.
          */
         MEDIATION_GCP_COST(Component.MEDIATION_GCP_COST),
+
+        /**
+         * GCP Billing.
+         */
+        MEDIATION_GCP_BILLING(Component.MEDIATION_GCP_BILLING),
 
         /**
          * HDS.
