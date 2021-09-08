@@ -164,7 +164,6 @@ public class CompletedActionWriter implements ActionsListener {
             if (featureFlags.isReportingActionIngestionEnabled()) {
                 try {
                     recordActionBatchForReporting(completedActionsBatch);
-                    throw new NullPointerException("testNPE");
                 } catch (RuntimeException e) {
                     logger.error("Error when writing completed actions", e);
                 }
