@@ -16,7 +16,9 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import junitparams.JUnitParamsRunner;
@@ -74,8 +75,6 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.PlanDesti
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportResponse.PlanExportResponseState;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionListRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionListResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
@@ -113,7 +112,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
-import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.planexport.PlanExport;
@@ -163,8 +161,7 @@ public class OperationManagerTest {
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
             new TargetSpecAttributeExtractor(probeStore));
 
-    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore,
-            Clock.systemUTC());
+    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore);
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
@@ -173,7 +170,7 @@ public class OperationManagerTest {
     private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
     private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
-            targetIdentityStore, Clock.systemUTC());
+            targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
@@ -1029,86 +1026,45 @@ public class OperationManagerTest {
      */
     @Test
     public void testStartAction() throws Exception {
-        ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                ImmutableSet.of(MOVE_SOURCE_ID, MOVE_DESTINATION_ID));
-        final Action moveAction = operationManager.requestActions(request, targetId, null);
+        final Action moveAction = operationManager.requestActions(actionDto(),
+                targetId,
+                null,
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(any(Target.class),
-                any(ActionRequest.class), any(OperationMessageHandler.class));
+            any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
         Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
                         .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                         .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(2, moveEntityIds.size());
+        Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.START)
-                .build(),
-                Collections.singleton(ACTIVATE_VM_ID));
-        final Action activateAction = operationManager.requestActions(request, targetId, null);
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
+               targetId,
+               null,
+               Collections.singleton(ACTIVATE_VM_ID));
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(1, activateEntityIds.size());
+        Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.SUSPEND)
-                .build(),
-                Collections.singleton(DEACTIVATE_VM_ID));
-        final Action deactivateAction = operationManager.requestActions(request, targetId, null);
-        Assert.assertTrue(operationManager.getInProgressAction(deactivateAction.getId()).isPresent());
-        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
+               targetId,
+               null,
+               Collections.singleton(DEACTIVATE_VM_ID));
+               Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+       List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
                .fetch();
-        Assert.assertTrue(deactivateEntityIds.isEmpty());
-    }
-
-    /**
-     * Test starting an action operation using ActionList operation.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testStartActionUsingActionList() throws Exception {
-        ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                ImmutableSet.of(MOVE_SOURCE_ID, MOVE_DESTINATION_ID));
-        final ActionList moveAction = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Mockito.verify(mockRemoteMediationServer).sendActionListRequest(any(Target.class),
-                any(ActionListRequest.class), any(OperationMessageHandler.class));
-        Assert.assertTrue(operationManager.getInProgressActionList(moveAction.getId()).isPresent());
-        Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
-                .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(2, moveEntityIds.size());
-        Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
-
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.START)
-                .build(),
-                Collections.singleton(ACTIVATE_VM_ID));
-        final ActionList activateAction = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(activateAction.getId()).isPresent());
-        Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
-                .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(1, activateEntityIds.size());
-        Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
-
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.SUSPEND)
-                .build(),
-                Collections.singleton(DEACTIVATE_VM_ID));
-        final ActionList deactivateAction = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(deactivateAction.getId()).isPresent());
-        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
-                .fetch();
-        Assert.assertTrue(deactivateEntityIds.isEmpty());
+       Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
     /**
@@ -1118,9 +1074,11 @@ public class OperationManagerTest {
      */
     @Test
     public void testProcessActionSuccess() throws Exception {
-        ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                ImmutableSet.of(MOVE_SOURCE_ID, MOVE_DESTINATION_ID));
-        final Action action = operationManager.requestActions(request, targetId, null);
+        final Action action = operationManager.requestActions(actionDto(),
+                targetId,
+                null,
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
+
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
                         .setActionResponseState(ActionResponseState.SUCCEEDED)
@@ -1134,84 +1092,35 @@ public class OperationManagerTest {
         Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                 .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(2, moveEntityIds.size());
+        Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.START)
-                .build(),
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
+                targetId,
+                null,
                 Collections.singleton(ACTIVATE_VM_ID));
-        final Action activateAction = operationManager.requestActions(request, targetId, null);
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                 .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(1, activateEntityIds.size());
+        Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.SUSPEND)
-                .build(),
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
+                targetId,
+                null,
                 Collections.singleton(DEACTIVATE_VM_ID));
-        final Action deactivateAction = operationManager.requestActions(request, targetId, null);
-        Assert.assertTrue(operationManager.getInProgressAction(deactivateAction.getId()).isPresent());
-        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
+       Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
+       List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                        .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
                        .fetch();
-        Assert.assertTrue(deactivateEntityIds.isEmpty());
-    }
-
-    /**
-     * Tests process action success using ActionList operation.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testProcessActionSuccessUsingActionList() throws Exception {
-        ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                ImmutableSet.of(MOVE_SOURCE_ID, MOVE_DESTINATION_ID));
-        final ActionList actionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        final ActionListResponse response = ActionListResponse.newBuilder()
-                .addResponse(ActionResponse.newBuilder()
-                        .setActionResponseState(ActionResponseState.SUCCEEDED)
-                        .setProgress(100)
-                        .setResponseDescription("Huzzah!"))
-                .build();
-        operationManager.notifyActionListResult(actionList, response);
-
-        OperationTestUtilities.waitForActionList(operationManager, actionList);
-        Assert.assertEquals(Status.SUCCESS, actionList.getStatus());
-        Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
-                .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(2, moveEntityIds.size());
-        Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
-
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.START)
-                .build(),
-                Collections.singleton(ACTIVATE_VM_ID));
-        final ActionList activateActionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(activateActionList.getId()).isPresent());
-        Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
-                .fetchSet(ENTITY_ACTION.ENTITY_ID);
-        Assert.assertEquals(1, activateEntityIds.size());
-        Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
-
-        request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
-                .setActionType(ActionType.SUSPEND)
-                .build(),
-                Collections.singleton(DEACTIVATE_VM_ID));
-        final ActionList deactivateActionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(deactivateActionList.getId()).isPresent());
-        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
-                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
-                .fetch();
-        Assert.assertTrue(deactivateEntityIds.isEmpty());
+       Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
     /**
@@ -1221,9 +1130,13 @@ public class OperationManagerTest {
      */
     @Test
     public void testActionDiscoveryFailure() throws Exception {
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
+        final Action action = operationManager.requestActions(actionDto(),
+                targetId,
+                null,
                 Collections.singleton(targetId));
-        final Action action = operationManager.requestActions(request, targetId, null);
+        // Critical errors applying to the target rather than a specific entity
+        // should prevent any EntityDTOs in the discovery from being added to
+        // the topology snapshot for the target.
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
                         .setActionResponseState(ActionResponseState.FAILED)
@@ -1245,46 +1158,16 @@ public class OperationManagerTest {
     }
 
     /**
-     * Tests action discovery failure using ActionList operation.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testActionDiscoveryFailureUsingActionList() throws Exception {
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                Collections.singleton(targetId));
-        final ActionList actionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        final ActionListResponse response = ActionListResponse.newBuilder()
-                .addResponse(ActionResponse.newBuilder()
-                        .setActionResponseState(ActionResponseState.FAILED)
-                        .setProgress(0)
-                        .setResponseDescription("Boo!"))
-                .build();
-
-        operationManager.notifyActionListResult(actionList, response);
-        OperationTestUtilities.waitForActionList(operationManager, actionList);
-
-        // Wait until we receive notification of the failure
-        OperationTestUtilities.waitForEvent(() ->
-                operationListener.getLastNotifiedStatus()
-                        .map(status -> status == Status.FAILED)
-                        .orElse(false));
-
-        // We should have received two notifications - once for start, once for complete
-        Mockito.verify(operationListener, times(2)).notifyOperationState(actionList);
-    }
-
-    /**
      * Tests process action cancel operation.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
     public void testProcessActionCancelOperation() throws Exception {
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
+        final Action action = operationManager.requestActions(actionDto(),
+                targetId,
+                null,
                 Collections.singleton(targetId));
-        final Action action = operationManager.requestActions(request, targetId, null);
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForEvent(
@@ -1297,31 +1180,7 @@ public class OperationManagerTest {
         final String errorMessage = errors.iterator().next();
         Assert.assertThat(errorMessage,
                 CoreMatchers.containsString("Target " + targetId + " removed"));
-    }
 
-    /**
-     * Tests process action cancel operation using ActionList operation.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testProcessActionCancelOperationUsingActionList() throws Exception {
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                Collections.singleton(targetId));
-        final ActionList actionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(actionList.getId()).isPresent());
-        operationManager.onTargetRemoved(target);
-        OperationTestUtilities.waitForEvent(
-                () -> !operationListener.lastStatusMatches(Status.IN_PROGRESS));
-        OperationTestUtilities.waitForEvent(
-                () -> !operationManager.getInProgressActionList(actionList.getId()).isPresent());
-
-        final List<String> errors = actionList.getErrors();
-        Assert.assertEquals(1, errors.size());
-        final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage,
-                CoreMatchers.containsString("Target " + targetId + " removed"));
     }
 
     /**
@@ -1333,9 +1192,10 @@ public class OperationManagerTest {
     public void testProcessActionTargetRemoval() throws Exception {
         final Target target = targetStore.getTarget(targetId).get();
 
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
+        final Action action = operationManager.requestActions(actionDto(),
+                targetId,
+                null,
                 Collections.singleton(targetId));
-        final Action action = operationManager.requestActions(request, targetId, null);
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForAction(operationManager, action);
@@ -1349,37 +1209,12 @@ public class OperationManagerTest {
     }
 
     /**
-     * Tests processing action when target is removed using ActionList operation.
-     *
-     * @throws Exception on exceptions occurred
-     */
-    @Test
-    public void testProcessActionTargetRemovalUsingActionList() throws Exception {
-        final Target target = targetStore.getTarget(targetId).get();
-
-        final ActionOperationRequest request = new ActionOperationRequest(actionDto(),
-                Collections.singleton(targetId));
-        final ActionList actionList = operationManager.requestActions(
-                Collections.singletonList(request), targetId, null);
-        Assert.assertTrue(operationManager.getInProgressActionList(actionList.getId()).isPresent());
-        operationManager.onTargetRemoved(target);
-        OperationTestUtilities.waitForActionList(operationManager, actionList);
-
-        final List<String> errors = actionList.getErrors();
-        Assert.assertEquals(1, errors.size());
-        final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage,
-                CoreMatchers.containsString("Target " + targetId + " removed"));
-        Assert.assertFalse(operationManager.getInProgressActionList(actionList.getId()).isPresent());
-    }
-
-    /**
      * Tests that expiration is checked.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
-    public void checkForExpiredOperations() {
+    public void checkForExpiredOperations() throws Exception {
         operationManager.checkForExpiredOperations();
 
         Mockito.verify(mockRemoteMediationServer).checkForExpiredHandlers();

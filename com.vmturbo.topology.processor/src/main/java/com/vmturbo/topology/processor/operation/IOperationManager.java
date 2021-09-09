@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.operation;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
@@ -20,7 +21,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.operation.action.Action;
-import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
@@ -213,11 +213,12 @@ public interface IOperationManager {
      * cross-target move (where the destination was not discovered by the same target that
      * discovered the source entity).
      *
-     * @param request Action execution request with action execution DTO and other data used by
-     *                OperationManager.
+     * @param actionExecutionDTO action execution DTO to execute the action. OID must be set
+     *          within this DTO.
      * @param targetId The id of the target containing the entities for the action.
      * @param secondaryTargetId the secondary target involved in this action, or null if no secondary
      *                          target is involved
+     * @param controlAffectedEntities A set of entities directly affected by this action
      * @return The {@link Action} requested for the target.
      * @throws TargetNotFoundException When the requested target is not found.
      * @throws ProbeException When the probe corresponding to the target is not connected.
@@ -225,34 +226,10 @@ public interface IOperationManager {
      * @throws InterruptedException If there is an interrupt while sending the request to the
      * probe.
      */
-    Action requestActions(
-            @Nonnull ActionOperationRequest request,
-            long targetId,
-            @Nullable Long secondaryTargetId)
-            throws ProbeException, TargetNotFoundException, CommunicationException,
-            InterruptedException;
-
-    /**
-     * Request a list of actions on a target. Execution may take a long time and is performed
-     * asynchronously. This method throws exceptions if the actions can't initiate (i.e. in case of
-     * an error sending the action list to the probe).
-     *
-     * @param requestList List of action execution requests with action execution DTO and other
-     *                    data used by OperationManager.
-     * @param targetId The id of the target containing the entities for the actions.
-     * @param secondaryTargetId The secondary target involved in this action, or null if no
-     *                          secondary target is involved.
-     * @return The {@link ActionList} operation requested for the target.
-     * @throws TargetNotFoundException When the requested target is not found.
-     * @throws ProbeException When the probe corresponding to the target is not connected.
-     * @throws CommunicationException If there is an error sending the request to the probe.
-     * @throws InterruptedException If there is an interrupt while sending the request to the
-     * probe.
-     */
-    ActionList requestActions(
-            @Nonnull List<ActionOperationRequest> requestList,
-            long targetId,
-            @Nullable Long secondaryTargetId)
+    Action requestActions(@Nonnull ActionExecutionDTO actionExecutionDTO,
+                          long targetId,
+                          @Nullable Long secondaryTargetId,
+                          @Nonnull Set<Long> controlAffectedEntities)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;
 
@@ -265,16 +242,6 @@ public interface IOperationManager {
      */
     @Nonnull
     Optional<Action> getInProgressAction(long id);
-
-    /**
-     * Returns action list, that is in progress.
-     *
-     * @param id Action listID to retrieve.
-     * @return Action list operation in progress, or empty result, if the action list is finished
-     * or does not exist.
-     */
-    @Nonnull
-    Optional<ActionList> getInProgressActionList(long id);
 
     /**
      * Export a plan to a destination at a target.

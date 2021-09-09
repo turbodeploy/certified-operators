@@ -37,12 +37,6 @@ public class ExtractorDbBaseConfig {
     private String queryUserName;
 
     /**
-     * Default host for postgres database.
-     */
-    @Value("${dbHost:timescaledb}")
-    private String dbHost;
-
-    /**
      * Abstract endpoint to use as base for active endpoints that access the extractor database.
      *
      * @return endpoint bound to extractor database
@@ -52,7 +46,6 @@ public class ExtractorDbBaseConfig {
         return dbConfig.abstractDbEndpoint(null, SQLDialect.POSTGRES)
                 .withDatabaseName(extractorDatabaseName)
                 .withSchemaName(extractorSchemaName)
-                .withHost(dbHost)
                 .build();
     }
 
@@ -67,7 +60,6 @@ public class ExtractorDbBaseConfig {
         return dbConfig.abstractDbEndpoint(null, SQLDialect.POSTGRES)
                 .like(extractorDbEndpointBase())
                 .withUserName(queryUserName)
-                .withHost(dbHost)
                 .withAccess(DbEndpointAccess.READ_ONLY)
                 .build();
     }

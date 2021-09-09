@@ -2,9 +2,11 @@ package com.vmturbo.topology.processor.operation.action;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.Operation;
 
@@ -26,6 +28,22 @@ public class Action extends Operation {
     private String description = "";
     private final ActionType actionType;
 
+    private static final DataMetricSummary ACTION_DURATION_SUMMARY = DataMetricSummary.builder()
+        .withName("tp_action_duration_seconds")
+        .withHelp("Duration of an action in the Topology Processor.")
+        .build()
+        .register();
+
+    /**
+     * Collect data about status of executed actions such as failure and success.
+     */
+    private static final DataMetricCounter ACTION_STATUS_COUNTER = DataMetricCounter.builder()
+        .withName(StringConstants.METRICS_TURBO_PREFIX + "completed_actions_total")
+        .withHelp("Status of all completed actions.")
+        .withLabelNames("type", "status")
+        .build()
+        .register();
+
     /**
      * Constructs action operation.
      *
@@ -40,7 +58,7 @@ public class Action extends Operation {
                   final long targetId,
                   @Nonnull final IdentityProvider identityProvider,
                   @Nonnull ActionType actionType) {
-        super(probeId, targetId, identityProvider, ActionList.ACTION_DURATION_SUMMARY);
+        super(probeId, targetId, identityProvider, ACTION_DURATION_SUMMARY);
         this.actionId = actionId;
         this.actionType = actionType;
     }
@@ -76,7 +94,7 @@ public class Action extends Operation {
     @Nonnull
     @Override
     protected DataMetricCounter getStatusCounter() {
-        return ActionList.ACTION_STATUS_COUNTER;
+        return ACTION_STATUS_COUNTER;
     }
 
     /**

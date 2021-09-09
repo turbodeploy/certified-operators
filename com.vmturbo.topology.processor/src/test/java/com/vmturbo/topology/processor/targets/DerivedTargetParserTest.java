@@ -5,7 +5,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -46,8 +45,7 @@ public class DerivedTargetParserTest {
         ProbeStore probeStore = mock(ProbeStore.class);
         IdentityStore<TargetSpec> identityStore =
             new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
-        targetStore = new CachingTargetStore(targetDao, probeStore, identityStore,
-                Clock.systemUTC());
+        targetStore = new CachingTargetStore(targetDao, probeStore, identityStore);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
         when(probeStore.getProbe(probeID1)).thenReturn(Optional.of(probeInfo1));
         when(probeStore.getProbeIdForType(probeType1)).thenReturn(Optional.of(probeID1));

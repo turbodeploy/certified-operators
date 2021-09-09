@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.topology.processor.migration.V_01_01_05__Target_Common_Proxy_SettingsTest.createAccountDefEntry;
 
-import java.time.Clock;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -94,7 +93,7 @@ public class V_01_01_06__Target_Common_Proxy_Settings_AdditionalTest {
                         .setStringValue(PROXY_PORT)
                         .build())
                 .build();
-        return new Target(0L, probeStore, spec, true, true, Clock.systemUTC());
+        return new Target(0L, probeStore, spec, true, true);
     }
 
     private void testIntersightMigrationCommon(SDKProbeType type) throws Exception {

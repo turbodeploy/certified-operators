@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -857,7 +856,7 @@ public class TargetsRpcServiceTest {
                         AccountValue.newBuilder().setKey(ID).setStringValue("tgt-" + targetId));
         customizer.accept(targetSpec);
         final Target target = spy(
-                new Target(targetId, probeStore, targetSpec.build(), false, true, Clock.systemUTC()));
+                new Target(targetId, probeStore, targetSpec.build(), false, true));
         targets.put(targetId, target);
         return target;
     }

@@ -18,7 +18,6 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.action.Action;
-import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.planexport.PlanExport;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -75,21 +74,6 @@ public class OperationTestUtilities {
                                      @Nonnull final Action action) throws Exception {
         waitForEvent(
             () -> !operationManager.getInProgressAction(action.getId()).isPresent()
-        );
-    }
-
-    /**
-     * Wait for the operation manager to complete an action list.
-     *
-     * @param operationManager The operation manager running the discovery.
-     * @param actionList The action list that should complete.
-     * @throws Exception If anything goes wrong.
-     */
-    public static void waitForActionList(
-            @Nonnull final OperationManager operationManager,
-            @Nonnull final ActionList actionList) throws Exception {
-        waitForEvent(
-                () -> !operationManager.getInProgressActionList(actionList.getId()).isPresent()
         );
     }
 

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -23,10 +24,10 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.kvstore.KeyValueStoreOperationException;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionListRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
@@ -45,7 +46,6 @@ import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.Handl
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
-import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
@@ -409,19 +409,6 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
             .collect(Collectors.toList());
 
         sendChunkedMessageToProbe(target, chunks, planExportMessageHandler);
-    }
-
-    @Override
-    public void sendActionListRequest(
-            @Nonnull final Target target,
-            @Nonnull final ActionListRequest actionListRequest,
-            @Nonnull final IOperationMessageHandler<ActionList> actionMessageHandler)
-            throws InterruptedException, ProbeException, CommunicationException {
-        final MediationServerMessage message = MediationServerMessage.newBuilder()
-                .setMessageID(nextMessageId())
-                .setActionListRequest(actionListRequest).build();
-
-        sendMessageToProbe(target, message, actionMessageHandler);
     }
 
     @Override

@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.rpc;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -79,8 +78,7 @@ public class AbstractTargetsService {
                 .addAccountValue(
                         AccountValue.newBuilder().setKey(ID).setStringValue("tgt-" + targetId))
                 .build();
-        final Target target = new Target(targetId, probeStore, targetSpec, false, true,
-                Clock.systemUTC());
+        final Target target = new Target(targetId, probeStore, targetSpec, false, true);
         targets.put(targetId, target);
         return targetId;
     }

@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.targets.status;
 
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -84,10 +83,8 @@ public class TargetStatusTrackerImplTest {
         Mockito.when(probeStore.getProbe(PROBE_ID_2)).thenReturn(Optional.of(probeInfo2));
         Mockito.when(probeStore.isProbeConnected(PROBE_ID_1)).thenReturn(true);
         Mockito.when(probeStore.isProbeConnected(PROBE_ID_2)).thenReturn(true);
-        final Target target1 = new Target(TARGET_ID_1, probeStore, targetSpec1.build(), false, true,
-                Clock.systemUTC());
-        final Target target2 = new Target(TARGET_ID_2, probeStore, targetSpec2.build(), false, true,
-                Clock.systemUTC());
+        final Target target1 = new Target(TARGET_ID_1, probeStore, targetSpec1.build(), false, true);
+        final Target target2 = new Target(TARGET_ID_2, probeStore, targetSpec2.build(), false, true);
         Mockito.when(targetStore.getTarget(TARGET_ID_1)).thenReturn(Optional.of(target1));
         Mockito.when(targetStore.getTarget(TARGET_ID_2)).thenReturn(Optional.of(target2));
         Mockito.when(probeStore.isAnyTransportConnectedForTarget(target1)).thenReturn(true);
@@ -227,8 +224,7 @@ public class TargetStatusTrackerImplTest {
                 createStageDetails(StageStatus.SUCCESS, "Discovery stage #1"));
         final Discovery discovery = createDiscovery(PROBE_ID_1, TARGET_ID_1,
                 discoveryStages);
-        final Target target = new Target(TARGET_ID_1, probeStore, targetSpec1.build(), false, true,
-                Clock.systemUTC());
+        final Target target = new Target(TARGET_ID_1, probeStore, targetSpec1.build(), false, true);
 
 
         // discovery of the target

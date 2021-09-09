@@ -77,21 +77,17 @@ public class Target implements ProbeStoreListener {
      */
     private boolean hasGroupScope = false;
 
-    private final Clock clock;
-
     /**
      * Create a target from an existing {@link InternalTargetInfo}.
      *
      * @param internalTargetInfo The {@link InternalTargetInfo}.
      * @param probeStore The probe store instance.
-     * @param clock clock to use to track time.
      * @throws InvalidTargetException if probe not found in probe store
      */
     public Target(@Nonnull final InternalTargetInfo internalTargetInfo,
-            @Nonnull final ProbeStore probeStore, @Nonnull final Clock clock) throws InvalidTargetException {
+            @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
         this.id = internalTargetInfo.targetInfo.getId();
         this.probeId = internalTargetInfo.targetInfo.getSpec().getProbeId();
-        this.clock = clock;
 
         ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
             new InvalidTargetException("No probe found in store for probe ID " + probeId));
@@ -124,18 +120,14 @@ public class Target implements ProbeStoreListener {
      * @param inputSpec The target spec which contain information of the target.
      * @param validateAccountValues Boolean to know if we need to validate the account value.
      * @param updateLastEditTime Boolean to know if we need to update last edit time for the target or not.
-     * @param clock clock to use to track time.
      * @throws InvalidTargetException If creating target failed.
      */
     public Target(long targetId, final @Nonnull ProbeStore probeStore,
             final @Nonnull TargetSpec inputSpec, boolean validateAccountValues,
-            final boolean updateLastEditTime, @Nonnull final Clock clock)
+            final boolean updateLastEditTime)
             throws InvalidTargetException {
         Objects.requireNonNull(probeStore);
         Objects.requireNonNull(inputSpec);
-        Objects.requireNonNull(clock);
-
-        this.clock = clock;
 
         // Validate the spec first, before doing more extra work.
         if (validateAccountValues) {
@@ -157,7 +149,7 @@ public class Target implements ProbeStoreListener {
             .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
 
         if (updateLastEditTime) {
-            targetSpec.setLastEditTime(LocalDateTime.now(clock)
+            targetSpec.setLastEditTime(LocalDateTime.now(Clock.systemUTC())
                     .toInstant(ZoneOffset.UTC)
                     .toEpochMilli());
         } else if (inputSpec.hasLastEditTime()) {
@@ -296,8 +288,7 @@ public class Target implements ProbeStoreListener {
         }
         // if we update derive target then we don't need to populate/update last edit time
         final boolean updateLastEditTime = newSpec.hasLastEditTime();
-        return new Target(getId(), probeStore, newSpec.build(), true, updateLastEditTime,
-                clock);
+        return new Target(getId(), probeStore, newSpec.build(), true, updateLastEditTime);
     }
 
     /**
@@ -315,7 +306,7 @@ public class Target implements ProbeStoreListener {
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
                 targetInfo.getSpec().getAccountValueList(), derivedTargetsIds, Optional.empty());
-        return new Target(getId(), probeStore, newSpec.build(), true, false, clock);
+        return new Target(getId(), probeStore, newSpec.build(), true, false);
     }
 
     public com.vmturbo.topology.processor.api.TargetInfo createTargetInfo() {

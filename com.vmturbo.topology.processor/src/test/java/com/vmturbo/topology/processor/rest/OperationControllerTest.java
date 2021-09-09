@@ -145,13 +145,12 @@ public class OperationControllerTest {
 
         @Bean
         TargetDao targetDao() {
-            return new KvTargetDao(new MapKeyValueStore(), probeStore(), Clock.systemUTC());
+            return new KvTargetDao(new MapKeyValueStore(), probeStore());
         }
 
         @Bean
         TargetStore targetStore() {
-            return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore(),
-                    Clock.systemUTC());
+            return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
         }
 
         /**

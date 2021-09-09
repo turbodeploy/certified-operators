@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.mediation.common.features.PlanExport;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
@@ -277,7 +278,7 @@ public class TopologyConfig {
                 ephemeralEntityEditor(),
                 ReservationServiceGrpc.newStub(planClientConfig.planOrchestratorChannel()),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
-                groupConfig.groupScopeResolver(),
+                targetConfig.groupScopeResolver(),
                 supplyChainValidationFrequency,
                 stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );

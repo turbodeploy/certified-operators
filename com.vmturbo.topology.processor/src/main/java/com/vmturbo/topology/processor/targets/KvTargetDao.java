@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,20 +43,16 @@ public class KvTargetDao implements TargetDao {
 
     private final ProbeStore probeStore;
 
-    private final Clock clock;
-
     /**
      * Create a new {@link KvTargetDao}.
      *
      * @param keyValueStore The {@link KeyValueStore} to use for persistence.
      * @param probeStore The {@link ProbeStore} containing probe information.
-     * @param clock clock to track time.
      */
     public KvTargetDao(@Nonnull final KeyValueStore keyValueStore,
-            @Nonnull final ProbeStore probeStore, @Nonnull final Clock clock) {
-        this.keyValueStore = Objects.requireNonNull(keyValueStore);
-        this.probeStore = Objects.requireNonNull(probeStore);
-        this.clock = Objects.requireNonNull(clock);
+                @Nonnull final ProbeStore probeStore) {
+        this.keyValueStore = keyValueStore;
+        this.probeStore = probeStore;
     }
 
     @Override
@@ -68,7 +63,7 @@ public class KvTargetDao implements TargetDao {
             .map(entry -> {
                 try {
                     final InternalTargetInfo internalInfo = GSON.fromJson(entry.getValue(), InternalTargetInfo.class);
-                    final Target newTarget = new Target(internalInfo, probeStore, clock);
+                    final Target newTarget = new Target(internalInfo, probeStore);
                     logger.debug("Retrieved existing target '{}' ({}) for probe {}.", newTarget.getDisplayName(),
                         newTarget.getId(), newTarget.getProbeId());
                     return newTarget;

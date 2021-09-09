@@ -8,7 +8,6 @@ import javax.annotation.Nonnull;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionListRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -20,7 +19,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
-import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
@@ -91,23 +89,6 @@ public interface RemoteMediation {
     void sendActionRequest(@Nonnull Target target,
                            @Nonnull ActionRequest actionRequest,
                            @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
-            throws InterruptedException, ProbeException, CommunicationException;
-
-    /**
-     * Sends action list request. Method returns after request is sent. Result of the request
-     * processing is reported to {@code actionMessageHandler}.
-     *
-     * @param target Target to perform request on.
-     * @param actionListRequest Action list request data.
-     * @param actionListMessageHandler Handler to accept action list responses.
-     * @throws ProbeException If probe requested does not exist.
-     * @throws CommunicationException If some communication error occurred.
-     * @throws InterruptedException If thread is interrupted while sending request.
-     */
-    void sendActionListRequest(
-            @Nonnull Target target,
-            @Nonnull ActionListRequest actionListRequest,
-            @Nonnull IOperationMessageHandler<ActionList> actionListMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**

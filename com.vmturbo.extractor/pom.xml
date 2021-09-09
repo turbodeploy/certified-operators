@@ -23,8 +23,6 @@
         -->
         <postgresUserName>postgres</postgresUserName>
         <postgresPassword>vmturbo</postgresPassword>
-        <mysqlUsername>root</mysqlUsername>
-        <mysqlPassword>vmturbo</mysqlPassword>
         <jackson.dataformat.version>2.10.5</jackson.dataformat.version>
     </properties>
     <build>
@@ -97,8 +95,6 @@
                         <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
                         <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
                         <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
-                        <dbs.mysqlDefault.rootUserName>${mysqlUsername}</dbs.mysqlDefault.rootUserName>
-                        <dbs.mysqlDefault.password>${mysqlPassword}</dbs.mysqlDefault.password>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.actions;
 
-import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -158,8 +157,7 @@ public class ActionApprovalServiceTest {
                 .addTargetIdentifierField("id")
                 .build();
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
-        final Target target = new Target(TGT_ID, probeStore, targetSpec, false, true,
-                Clock.systemUTC());
+        final Target target = new Target(TGT_ID, probeStore, targetSpec, false, true);
         Mockito.when(targetStore.getTarget(TGT_ID)).thenReturn(Optional.of(target));
         Mockito.when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
         identityProvider = Mockito.mock(IdentityProvider.class);

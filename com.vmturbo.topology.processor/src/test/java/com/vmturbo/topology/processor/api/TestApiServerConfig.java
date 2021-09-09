@@ -253,8 +253,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public TargetStore targetStore() {
-        return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore(),
-                Clock.systemUTC());
+        return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
     }
 
     /**
