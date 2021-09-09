@@ -128,11 +128,6 @@ resource "helm_release" "xl" {
   }
 
   set {
-    name  = "gcpsa.enabled"
-    value = "${var.gcpsa ? true : false}"
-  }
-
-  set {
     name  = "mssql.enabled"
     value = "${var.mssql ? true : false}"
   }

@@ -541,6 +541,13 @@ services:
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
 #
+#  mediation-gcp:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-gcp-prod
+#    mem_limit: 2500M
+#    depends_on: *clustermgrdep
+#
 #  mediation-gcpcost:
 #    extends:
 #      file: prod-services.yml
@@ -559,12 +566,5 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-webhook-prod
-#    mem_limit: 2500M
-#    depends_on: *clustermgrdep
-
-#  mediation-gcpsa:
-#    extends:
-#      file: prod-services.yml
-#      service: mediation-gcpsa-prod
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep

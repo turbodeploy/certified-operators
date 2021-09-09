@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -26,7 +27,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -44,8 +44,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     private static final Logger LOGGER = LogManager.getLogger();
     private final Map<Long, DiscoveryFailure> targetToFailedDiscoveries = Collections.synchronizedMap(new HashMap<>());
     private final Map<Long, TargetStatus> targetStatusCache;
-    private final Map<Long, Pair<Long, Long>> lastSuccessfulDiscoveryTimeByTargetId = new HashMap<>();
-    private final Map<Long, Pair<Long, Long>> lastSuccessfulIncrementalDiscoveryTimeByTargetId = new HashMap<>();
+    private final Map<Long, Long> lastSuccessfulDiscoveryTimeByTargetId = new HashMap<>();
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
     private final Clock clock;
@@ -123,40 +122,31 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
 
     @Override
     public void notifyOperationState(@Nonnull final Operation operation) {
-        if (operation.getStatus() == Status.IN_PROGRESS) {
-            return;
-        }
-
-        Long operationStartTime = TimeUtil.localTimeToMillis(operation.getStartTime(), clock);
-        Long operationCompletionTime = TimeUtil.localTimeToMillis(operation.getCompletionTime(), clock);
-
-        if (operation.getClass() == Discovery.class) {
+        final Status operationStatus = operation.getStatus();
+        if (operation.getClass() == Discovery.class && operationStatus != Status.IN_PROGRESS) {
             final Discovery discovery = (Discovery)operation;
             if (discovery.getDiscoveryType() == DiscoveryType.FULL) {
                 setTargetStatusInternal(discovery.getProbeId(), TargetStatus.newBuilder()
                         .setTargetId(discovery.getTargetId())
                         .addAllStageDetails(discovery.getStagesReports())
-                        .setOperationCompletionTime(operationCompletionTime)
+                        .setOperationCompletionTime(TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock))
                         .build());
 
-                if (discovery.getStatus() == Status.FAILED) {
+                if (discovery.getStatus() == Status.FAILED && isOperationActual(discovery.getProbeId(), discovery.getTargetId())) {
                     storeFailedDiscovery(discovery.getTargetId(), discovery);
                 } else if (discovery.getStatus() == Status.SUCCESS) {
                     removeFailedDiscovery(discovery.getTargetId());
                     lastSuccessfulDiscoveryTimeByTargetId.put(discovery.getTargetId(),
-                            new Pair<>(operationStartTime, operationCompletionTime));
+                            TimeUtil.localTimeToMillis(discovery.getCompletionTime(), clock));
                 }
-            } else if (discovery.getDiscoveryType() == DiscoveryType.INCREMENTAL
-                            && discovery.getStatus() == Status.SUCCESS) {
-                lastSuccessfulIncrementalDiscoveryTimeByTargetId.put(discovery.getTargetId(),
-                                new Pair<>(operationStartTime, operationCompletionTime));
             }
-        } else if (operation.getClass() == Validation.class) {
+        } else if (operation.getClass() == Validation.class
+                && operationStatus != Status.IN_PROGRESS) {
             final Validation validation = (Validation)operation;
             setTargetStatusInternal(validation.getProbeId(), TargetStatus.newBuilder()
                     .setTargetId(validation.getTargetId())
                     .addAllStageDetails(validation.getStagesReports())
-                    .setOperationCompletionTime(operationCompletionTime)
+                    .setOperationCompletionTime(TimeUtil.localTimeToMillis(validation.getCompletionTime(), clock))
                     .build());
         }
     }
@@ -171,20 +161,21 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
      *
      * @return Map of target Id to failed discoveries info
      */
-    @Override
     @Nonnull
     public Map<Long, DiscoveryFailure> getFailedDiscoveries() {
         return Collections.unmodifiableMap(targetToFailedDiscoveries);
     }
 
+    /**
+     * Returns last successful discovery time of target.
+     *
+     * @param targetId id of target.
+     * @return time of last successful discovery.
+     */
+    @Nullable
     @Override
-    public Pair<Long, Long> getLastSuccessfulDiscoveryTime(long targetId) {
+    public Long getLastSuccessfulDiscoveryTime(long targetId) {
         return lastSuccessfulDiscoveryTimeByTargetId.get(targetId);
-    }
-
-    @Override
-    public Pair<Long, Long> getLastSuccessfulIncrementalDiscoveryTime(long targetId) {
-        return lastSuccessfulIncrementalDiscoveryTimeByTargetId.get(targetId);
     }
 
     private void setTargetStatusInternal(final long probeId, @Nonnull TargetStatus targetStatus) {

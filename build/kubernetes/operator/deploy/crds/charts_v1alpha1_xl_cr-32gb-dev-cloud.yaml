@@ -231,6 +231,10 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-gcp:
+    resources:
+      limits:
+        memory: 512Mi
   mediation-gcpcost:
     resources:
       limits:

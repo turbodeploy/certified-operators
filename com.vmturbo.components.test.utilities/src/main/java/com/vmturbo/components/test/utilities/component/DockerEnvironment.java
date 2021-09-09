@@ -221,9 +221,7 @@ public class DockerEnvironment {
             .put("MEDIATION_NUTANIX_DEBUG_PORT", "8000")
             .put("MEDIATION_ACTIONSTREAM_KAFKA_PORT", "8080")
             .put("MEDIATION_ACTIONSTREAM_KAFKA_DEBUG_PORT", "8000")
-            .put("MEDIATION_GCPSA_PORT", "8080")
-            .put("MEDIATION_GCPSA_DEBUG_PORT", "8000")
-   
+
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
             .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")
@@ -352,8 +350,6 @@ public class DockerEnvironment {
             .put("MEDIATION_KAFKA_MEM_LIMIT_MB", "512")
             .put("MEDIATION_XEN_DEBUG_PORT", "8000")
             .put("MEDIATION_XEN_PORT", "8080")
-            .put("MEDIATION_GCPSA_XMX_MB", "384")
-            .put("MEDIATION_GCPSA_MEM_LIMIT_MB", "512")
                 // KAFKA PROPERTIES
             .put("KAFKA_LOG_RETENTION_HRS", "24")
             .put("KAFKA_MAX_MESSAGE_BYTES", "67108864")
@@ -435,7 +431,6 @@ public class DockerEnvironment {
             .put("MEDIATION_HORIZON_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_ACTIONSTREAM_KAFKA_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_XEN_SYSTEM_PROPERTIES", "")
-            .put("MEDIATION_GCPSA_SYSTEM_PROPERTIES", "")
             .build();
 
     /**

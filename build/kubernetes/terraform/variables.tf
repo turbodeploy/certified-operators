@@ -220,7 +220,3 @@ variable "xtremio" {
 variable "udt" {
   default = false
 }
-
-variable "gcpsa" {
-  default = false
-}

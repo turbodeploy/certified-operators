@@ -265,6 +265,11 @@ public enum Component {
     MEDIATION_DYNATRACE("dynatrace", "com.vmturbo.mediation.dynatrace.component"),
 
     /**
+     * GCP.
+     */
+    MEDIATION_GCP("gcp", "com.vmturbo.mediation.gcp.component"),
+
+    /**
      * GCP Service Account.
      */
     MEDIATION_GCP_SA("gcp-sa", "com.vmturbo.mediation.gcp.sa.component"),
