@@ -204,9 +204,7 @@ public class TargetStatusTrackerImpl implements TargetStatusTracker, TargetStore
     }
 
     private boolean isOperationActual(final long probeId, final long targetId) {
-        return targetStore.getTarget(targetId)
-                .map(target -> probeStore.isAnyTransportConnectedForTarget(target))
-                .orElse(false);
+        return targetStore.getTarget(targetId).isPresent() && probeStore.isProbeConnected(probeId);
     }
 
     /**

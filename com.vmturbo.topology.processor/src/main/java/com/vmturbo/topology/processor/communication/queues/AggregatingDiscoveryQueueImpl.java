@@ -89,7 +89,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             final IDiscoveryQueueElement element = new DiscoveryQueueElement(target, discoveryType,
                     prepareDiscoveryInformation, errorHandler, runImmediately);
             try {
-                probeStore.getTransportsForTarget(target);
+                validateTransports(target);
             } catch (ProbeException probeException) {
                 // If we have an issue with the probe, go ahead and create a discovery and set the
                 // exception to it so that it is properly logged and so that the UI is properly
@@ -153,6 +153,30 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             return transportToChannel.containsKey(existingTransport);
         } else {
             return !target.getSpec().getCommunicationBindingChannel().equals(transportToChannel.get(existingTransport));
+        }
+    }
+
+    /**
+     * Validate that given a target with a channel, there is at least one transport with that
+     * channel. Otherwise, throw an exception. In addition, checks that there's a connected
+     * probe that can discover the target.
+     *
+     * @param target to check
+     * @throws ProbeException if no transports for the target channel exist
+     */
+    private void validateTransports(Target target) throws ProbeException {
+        if (target.getSpec().hasCommunicationBindingChannel()) {
+            String channel = target.getSpec().getCommunicationBindingChannel();
+            Optional<String> availableTransport =
+                transportToChannel.values().stream().filter(c -> c.equals(channel)).findAny();
+            if (!availableTransport.isPresent()) {
+                throw new ProbeException("There are no transports with the following channel: "
+                    + target.getSpec().getCommunicationBindingChannel());
+            }
+        }
+        long probeId = target.getProbeId();
+        if (!probeStore.isProbeConnected(probeId)) {
+            throw new ProbeException(String.format("Probe %s is not connected", probeId));
         }
     }
 

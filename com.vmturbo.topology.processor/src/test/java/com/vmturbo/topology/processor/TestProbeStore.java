@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -30,7 +28,6 @@ import com.vmturbo.topology.processor.probes.ProbeOrdering;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
-import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * Dead-simple probe store for target tests.
@@ -46,9 +43,6 @@ public class TestProbeStore implements ProbeStore {
 
     private final Multimap<Long, ITransport<MediationServerMessage, MediationClientMessage>> probes =
         HashMultimap.create();
-
-    private final Map<String, Collection<ITransport<MediationServerMessage,
-            MediationClientMessage>>> channelToTransport = new ConcurrentHashMap<>();
 
     public TestProbeStore(@Nonnull IdentityProvider identityProvider) {
         Objects.requireNonNull(identityProvider);
@@ -89,41 +83,9 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransport(long probeId) throws ProbeException {
         if (!probes.containsKey(probeId)) {
-            throw new ProbeException(String.format("Probe %s is not registered", probeId));
+            throw new ProbeException("Probe for requested type is not registered: " + probeId);
         }
         return probes.get(probeId);
-    }
-
-    @Nonnull
-    @Override
-    public Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransportsForTarget(
-            @Nonnull Target target) throws ProbeException {
-        // Same implementation as in RemoteProbeStore
-        final long probeId = target.getProbeId();
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>> transports =
-                getTransport(probeId);
-        if (target.getSpec() == null || !target.getSpec().hasCommunicationBindingChannel()) {
-            return transports;
-        }
-        final String communicationBindingChannel =
-                target.getSpec().getCommunicationBindingChannel();
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                transportsWithAssignedChannel = channelToTransport.getOrDefault(
-                communicationBindingChannel, Collections.emptyList());
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                filteredTransports = transports.stream().filter(
-                transportsWithAssignedChannel::contains).collect(Collectors.toList());
-        if (filteredTransports.size() == 0) {
-            throw new ProbeException(noTransportMessage(probeId, communicationBindingChannel));
-        }
-        return filteredTransports;
-    }
-
-    @Override
-    public void updateTransportByChannel(@Nonnull String communicationBindingChannel,
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        // Same implementation as in RemoteProbeStore
-        channelToTransport.computeIfAbsent(communicationBindingChannel, x -> new ArrayList()).add(transport);
     }
 
     @Override
@@ -188,15 +150,6 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public boolean isProbeConnected(@Nonnull final Long probeId) {
         return probes.containsKey(probeId);
-    }
-
-    @Override
-    public boolean isAnyTransportConnectedForTarget(@Nonnull Target target) {
-        try {
-            return getTransportsForTarget(target).size() > 0;
-        } catch (ProbeException e) {
-            return false;
-        }
     }
 
     @Override

@@ -219,7 +219,7 @@ public class RemoteMediationServerTest {
         Target targetWithBadProbe = mock(Target.class);
         Mockito.when(targetWithBadProbe.getProbeId()).thenReturn(-1L);
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage("Probe -1 is not registered");
+        expectedException.expectMessage("Probe for requested type is not registered: -1");
         remoteMediationServer.sendDiscoveryRequest(targetWithBadProbe, discoveryRequest,
             mockOperationMessageHandler);
     }

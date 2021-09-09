@@ -366,8 +366,6 @@ public class AggregatingDiscoveryQueueTest {
                 .build();
         queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
         queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
-        probeStore.updateTransportByChannel(channel, transportVc1);
-        probeStore.updateTransportByChannel(channel, transportVc2);
 
         TargetSpec specWithLabel =
             TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
@@ -427,8 +425,6 @@ public class AggregatingDiscoveryQueueTest {
 
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build(), transportVc1);
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2).build(), transportVc2);
-        probeStore.updateTransportByChannel(channel1, transportVc1);
-        probeStore.updateTransportByChannel(channel2, transportVc2);
 
         queue.assignTargetToTransport(transportVc1, target1);
 
@@ -554,7 +550,6 @@ public class AggregatingDiscoveryQueueTest {
         when(target1.getSpec()).thenReturn(specWithLabel);
 
         queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc1);
-        probeStore.updateTransportByChannel(channel, transportVc1);
 
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
@@ -612,7 +607,7 @@ public class AggregatingDiscoveryQueueTest {
         probeStore.removeTransport(transportVc1);
         probeStore.removeTransport(transportVc2);
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage(String.format("Probe %s is not registered", probeId1));
+        expectedException.expectMessage(String.format("Probe %s is not connected", probeId1));
         final DiscoveryBundle bundle = mock(DiscoveryBundle.class);
         final Discovery discovery = mock(Discovery.class);
         final ProbeException probeException = new ProbeException("Test exception");
