@@ -115,7 +115,8 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public TargetHealthRetriever targetHealthRetriever() {
         return new TargetHealthRetriever(operationConfig.operationManager(),
-                targetConfig.targetStatusTracker(), targetConfig.targetStore(), clockConfig.clock());
+                targetConfig.targetStatusTracker(), targetConfig.targetStore(),
+                probeConfig.probeStore(), clockConfig.clock());
     }
 
     /**

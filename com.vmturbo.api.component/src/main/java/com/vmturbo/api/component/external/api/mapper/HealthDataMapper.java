@@ -14,6 +14,8 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO;
 import com.vmturbo.api.dto.admin.AggregatedHealthResponseDTO.Recommendation;
+import com.vmturbo.api.dto.target.DelayedDataInfoApiDTO;
+import com.vmturbo.api.dto.target.DiscoveryInfoApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.enums.healthCheck.HealthState;
 import com.vmturbo.api.enums.healthCheck.TargetCheckSubcategory;
@@ -24,6 +26,8 @@ import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+
+import common.HealthCheck;
 
 /**
  * Maps health data from topology-processor to API DTOs.
@@ -46,6 +50,7 @@ public class HealthDataMapper {
         result.put(ErrorType.OTHER, TargetErrorType.INTERNAL_PROBE_ERROR);
         result.put(ErrorType.INTERNAL_PROBE_ERROR, TargetErrorType.INTERNAL_PROBE_ERROR);
         result.put(ErrorType.DUPLICATION, TargetErrorType.DUPLICATION);
+        result.put(ErrorType.DELAYED_DATA, TargetErrorType.DELAYED_DATA);
         return result;
     }
 
@@ -75,6 +80,19 @@ public class HealthDataMapper {
         result.put(TargetHealthSubCategory.DISCOVERY, TargetCheckSubcategory.DISCOVERY);
         result.put(TargetHealthSubCategory.VALIDATION, TargetCheckSubcategory.VALIDATION);
         result.put(TargetHealthSubCategory.DUPLICATION, TargetCheckSubcategory.DUPLICATION);
+        result.put(TargetHealthSubCategory.DELAYED_DATA, TargetCheckSubcategory.DELAYED_DATA);
+        return result;
+    }
+
+    private static final Map<HealthCheck.HealthState, HealthState> HEALTH_STATE_CONVERTER =
+                    initializeHealthStateConverter();
+
+    private static Map<HealthCheck.HealthState, HealthState> initializeHealthStateConverter() {
+        final Map<HealthCheck.HealthState, HealthState> result = new EnumMap<>(HealthCheck.HealthState.class);
+        result.put(HealthCheck.HealthState.CRITICAL, HealthState.CRITICAL);
+        result.put(HealthCheck.HealthState.MAJOR, HealthState.MAJOR);
+        result.put(HealthCheck.HealthState.MINOR, HealthState.MINOR);
+        result.put(HealthCheck.HealthState.NORMAL, HealthState.NORMAL);
         return result;
     }
 
@@ -84,40 +102,49 @@ public class HealthDataMapper {
      * @param healthInfo a container to transmit info internally between the components.
      * @return target health API DTO
      */
-    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(final long targetId, @Nonnull final TargetHealth healthInfo) {
+    public static TargetHealthApiDTO mapTargetHealthInfoToDTO(final long targetId,
+                    @Nonnull final TargetHealth healthInfo) {
         TargetHealthApiDTO result = new TargetHealthApiDTO();
         result.setUuid(Long.toString(targetId));
         result.setTargetName(healthInfo.getTargetName());
-        switch (healthInfo.getSubcategory()) {
-            case DISCOVERY:
-                result.setCheckSubcategory(TargetCheckSubcategory.DISCOVERY);
-                break;
-            case VALIDATION:
-                result.setCheckSubcategory(TargetCheckSubcategory.VALIDATION);
-                break;
-            case DUPLICATION:
-                result.setCheckSubcategory(TargetCheckSubcategory.DUPLICATION);
-                break;
-        }
 
-        String errorText = healthInfo.getErrorText();
-        if (errorText.isEmpty()) {
-            result.setHealthState(HealthState.NORMAL);
-        } else if (!healthInfo.hasErrorType()) {
-            result.setHealthState(HealthState.MINOR);
-            result.setErrorText(errorText);
-        } else {
-            result.setHealthState(HealthState.CRITICAL);
+        result.setCheckSubcategory(TARGET_CHECK_SUBCATEGORIES_CONVERTER.get(healthInfo.getSubcategory()));
+        result.setHealthState(HEALTH_STATE_CONVERTER.get(healthInfo.getHealthState()));
+
+        if (healthInfo.hasMessageText() && !healthInfo.getMessageText().isEmpty()) {
+            result.setErrorText(healthInfo.getMessageText());
+        }
+        if (healthInfo.hasErrorType()) {
             result.setErrorType(ERROR_TYPE_CONVERTER.get(healthInfo.getErrorType()));
-            result.setErrorText(errorText);
-            result.setTimeOfFirstFailure(healthInfo.getTimeOfFirstFailure());
-            result.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
+        }
+        if (healthInfo.hasTimeOfFirstFailure()) {
+            result.setTimeOfFirstFailure(DateTimeUtil.toString(healthInfo.getTimeOfFirstFailure()));
+        }
+        if (healthInfo.hasLastSuccessfulDiscoveryCompletionTime()) {
+            result.setTimeOfLastSuccessfulDiscovery(DateTimeUtil.toString(
+                            healthInfo.getLastSuccessfulDiscoveryCompletionTime()));
         }
 
-        // set the last successful discovery if we have information for it
-        if (healthInfo.hasLastSuccessfulDiscovery()) {
-            result.setLastSuccessfulDiscovery(DateTimeUtil.toString(healthInfo.getLastSuccessfulDiscovery()));
+        if (TargetHealthSubCategory.DISCOVERY.equals(healthInfo.getSubcategory())) {
+            DiscoveryInfoApiDTO additionalDiscoveryInfo = new DiscoveryInfoApiDTO();
+            additionalDiscoveryInfo.setNumberOfConsecutiveFailures(healthInfo.getConsecutiveFailureCount());
+            result.setDiscoveryInfoApiDTO(additionalDiscoveryInfo);
+        } else if (TargetHealthSubCategory.DELAYED_DATA.equals(healthInfo.getSubcategory())) {
+            DelayedDataInfoApiDTO additionalDelayedDataInfo = new DelayedDataInfoApiDTO();
+            additionalDelayedDataInfo.setTimeOfCheck(DateTimeUtil.toString(healthInfo.getTimeOfCheck()));
+            additionalDelayedDataInfo.setTimeOfLastSuccessfulDiscoveryStart(
+                    DateTimeUtil.toString(healthInfo.getLastSuccessfulDiscoveryStartTime()));
+            if (healthInfo.hasLastSuccessfulIncrementalDiscoveryStartTime()) {
+                additionalDelayedDataInfo.setTimeOfLastSuccessfulIncrementalDiscoveryStart(
+                        DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryStartTime()));
+            }
+            if (healthInfo.hasLastSuccessfulIncrementalDiscoveryCompletionTime()) {
+                additionalDelayedDataInfo.setTimeOfLastSuccessfulIncrementalDiscoveryFinish(
+                        DateTimeUtil.toString(healthInfo.getLastSuccessfulIncrementalDiscoveryCompletionTime()));
+            }
+            result.setDelayedDataInfoApiDTO(additionalDelayedDataInfo);
         }
+
         return result;
     }
 
@@ -176,7 +203,7 @@ public class HealthDataMapper {
                     TargetErrorType errorType = ERROR_TYPE_CONVERTER.get(member.getErrorType());
                     recommendations.putIfAbsent(errorType, TARGET_ERROR_TYPE_RECOMMENDATIONS.get(errorType)
                         + (member != targetDetails.getHealthDetails() ? " (Hidden Target)" : ""));
-                } else if (member.getErrorText().contains("Validation pending")) {
+                } else if (member.getMessageText().contains("Validation pending")) {
                     recommendations.putIfAbsent(TargetErrorType.INTERNAL_PROBE_ERROR,
                         TARGET_ERROR_TYPE_RECOMMENDATIONS.get(TargetErrorType.INTERNAL_PROBE_ERROR)
                         + (member != targetDetails.getHealthDetails() ? " (Hidden Target)" : ""));
@@ -207,7 +234,7 @@ public class HealthDataMapper {
     }
 
     private static boolean hasError(@Nonnull TargetHealth healthInfo, int failedDiscoveryCountThreshold) {
-        return !Strings.isNullOrEmpty(healthInfo.getErrorText())
+        return !Strings.isNullOrEmpty(healthInfo.getMessageText())
             && !ignoreFailedDiscovery(healthInfo, failedDiscoveryCountThreshold);
     }
 

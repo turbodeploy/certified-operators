@@ -30,7 +30,7 @@ public class HealthChecksTestBase {
         return TargetHealth.newBuilder()
                         .setSubcategory(category)
                         .setTargetName(targetDisplayName)
-                        .setErrorText(errorText)
+                        .setMessageText(errorText)
                         .setErrorType(errorType)
                         .setTimeOfFirstFailure(failureTime)
                         .setConsecutiveFailureCount(failureTimes)
@@ -42,7 +42,7 @@ public class HealthChecksTestBase {
         return TargetHealth.newBuilder()
                         .setSubcategory(category)
                         .setTargetName(targetDisplayName)
-                        .setErrorText(errorText)
+                        .setMessageText(errorText)
                         .build();
     }
 
