@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -183,7 +184,7 @@ public class TargetControllerTest {
             when(groupScopeResolver.processGroupScope(any(), any(), any()))
                 .then(AdditionalAnswers.returnsSecondArg());
             return new CachingTargetStore(targetDao(), probeStore(),
-                targetIdentityStore());
+                targetIdentityStore(), Clock.systemUTC());
         }
 
         @Override

@@ -2,6 +2,7 @@ package com.vmturbo.mediation.client.it;
 
 import static com.vmturbo.topology.processor.communication.SdkServerConfig.REMOTE_MEDIATION_PATH;
 
+import java.time.Clock;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -96,7 +97,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public TargetDao targetDao() {
-        return new KvTargetDao(keyValueStore(), probeStore());
+        return new KvTargetDao(keyValueStore(), probeStore(), Clock.systemUTC());
     }
 
     /**
@@ -107,7 +108,7 @@ public class TestMediationCommonConfig {
     @Bean
     public TargetStore targetStore() {
         return new CachingTargetStore(targetDao(), probeStore(),
-                Mockito.mock(IdentityStore.class));
+                Mockito.mock(IdentityStore.class), Clock.systemUTC());
     }
 
     @Bean

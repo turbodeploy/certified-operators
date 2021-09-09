@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -101,6 +102,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      */
     private final TargetDao targetDao;
 
+    private final Clock clock;
+
     /**
      * Create a new {@link CachingTargetStore} instance.
      *
@@ -108,9 +111,10 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      * @param probeStore The {@link ProbeStore} containing information about registered
      *         probes.
      * @param identityStore The {@link IdentityStore} used to assign ids to targets.
+     * @param clock clock to use to track time.
      */
     public CachingTargetStore(@Nonnull final TargetDao targetDao, @Nonnull final ProbeStore probeStore,
-            @Nonnull final IdentityStore<TargetSpec> identityStore) {
+            @Nonnull final IdentityStore<TargetSpec> identityStore, @Nonnull final Clock clock) {
         this.targetDao = targetDao;
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);
@@ -119,6 +123,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         this.parentTargetIdsByDerivedTargetId = new ConcurrentHashMap<>();
         this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
         this.targetsById = new ConcurrentHashMap<>();
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @Override
@@ -194,7 +199,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
             if (!newItems.isEmpty()) {
                 final long newTargetId = newItems.values().iterator().next();
-                final Target retTarget = new Target(newTargetId, probeStore, spec, true, true);
+                final Target retTarget = new Target(newTargetId, probeStore, spec, true, true,
+                        clock);
                 registerTarget(retTarget);
                 return retTarget;
             } else if (!oldItems.isEmpty()) {
@@ -209,7 +215,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                     // If the target does not exist, but the ID mapping exists, create a new
                     // target with the same ID.
                     final Target retTarget = new Target(existingTargetId, probeStore, spec, true,
-                            true);
+                            true, clock);
                     registerTarget(retTarget);
                     return retTarget;
                 }
@@ -230,7 +236,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         throws InvalidTargetException {
         synchronized (storeLock) {
             final Target retTarget = new Target(targetId, probeStore, Objects.requireNonNull(spec),
-                    false, false);
+                    false, false, clock);
             registerTarget(retTarget);
             return retTarget;
         }
@@ -293,7 +299,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                 targetsToAdd.forEach((spec, oid) -> {
                     try {
                         final Target retTarget = new Target(oid, probeStore,
-                            Objects.requireNonNull(spec), true, false);
+                            Objects.requireNonNull(spec), true, false, clock);
                         addDerivedTargetParent(parentTargetId, oid, Optional.of(spec));
                         registerTarget(retTarget);
                     } catch (InvalidTargetException e) {

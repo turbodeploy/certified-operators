@@ -25,7 +25,6 @@ import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.planexport.PlanDestinationConfig;
-import com.vmturbo.topology.processor.planexport.PlanExportConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
@@ -188,7 +187,7 @@ public class OperationConfig {
                 templateConfig.discoveredTemplatesUploader(),
                 controllableConfig.entityActionDaoImp(),
                 targetConfig.derivedTargetParser(),
-                targetConfig.groupScopeResolver(),
+                groupConfig.groupScopeResolver(),
                 componentBasedTargetDumpingSettingsConfig.componentBasedTargetDumpingSettings(),
                 systemNotificationProducer(),
                 sdkServerConfig.discoveryQueue(),
@@ -214,7 +213,7 @@ public class OperationConfig {
             templateConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
             targetConfig.derivedTargetParser(),
-            targetConfig.groupScopeResolver(),
+            groupConfig.groupScopeResolver(),
             componentBasedTargetDumpingSettingsConfig.componentBasedTargetDumpingSettings(),
             systemNotificationProducer(),
             discoveryTimeoutSeconds,
