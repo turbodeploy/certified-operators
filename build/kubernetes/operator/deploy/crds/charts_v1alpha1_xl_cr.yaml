@@ -50,6 +50,8 @@ spec:
     enabled: true
   dynatrace:
     enabled: true
+  gcp:
+    enabled: false
   hpe3par:
     enabled: true
   horizon:

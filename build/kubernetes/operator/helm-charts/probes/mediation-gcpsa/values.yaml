@@ -1,4 +1,4 @@
-# Default values for mediation-gcp.
+# Default values for mediation-gcpsa.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -12,12 +12,11 @@ image:
   pullPolicy: IfNotPresent
 
 javaComponentOptions: "-Dorg.eclipse.jetty.websocket.jsr356.ssl-trust-all=true
-    -DLog4jContextSelector=com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
-    -Dhttps.protocols=TLSv1.2"
+    -DLog4jContextSelector=com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector"
 
 env:
   - name: component_type
-    value: mediation-gcp
+    value: mediation-gcpsa
   - name: instance_id
     valueFrom:
       fieldRef:

@@ -2216,6 +2216,28 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSTREAM_KAFKA_MEM_LIMIT_MB}M
 
+    mediation-gcpsa:
+      extends:
+        file: common-services.yml
+        service: dev-mediation-component
+      image: turbonomic/com.vmturbo.mediation.gcp.sa.component:${XL_VERSION}
+      depends_on: *clustermgrdep
+      ports:
+        - "${MEDIATION_GCPSA_PORT}"
+        - "${MEDIATION_GCPSA_DEBUG_PORT}"
+      environment:
+        component_type: mediation-gcpsa
+        instance_id: mediation-gcpsa-1
+        JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_GCPSA_SYSTEM_PROPERTIES}"
+        JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+        JAVA_DEBUG: "${MEDIATION_GCPSA_DEBUG}${DEBUG_ALL}"
+        JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+        JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+        JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+        JAVA_OPTS: "${ALL_JAVA_OPTS}"
+        JVM_TYPE: "${JVM_TYPE}"
+      mem_limit: ${MEDIATION_GCPSA_MEM_LIMIT_MB}M
+
   mediation:
     extends:
       file: common-services.yml
@@ -2259,28 +2281,6 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_XEN_MEM_LIMIT_MB}M
-
-  mediation-gcp:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.gcp.component:${XL_VERSION}
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_GCP_PORT}"
-      - "${MEDIATION_GCP_DEBUG_PORT}"
-    environment:
-      component_type: mediation-gcp
-      instance_id: mediation-gcp-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_GCP_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_GCP_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_GCP_MEM_LIMIT_MB}M
 
   mediation-gcpcost:
     extends:
