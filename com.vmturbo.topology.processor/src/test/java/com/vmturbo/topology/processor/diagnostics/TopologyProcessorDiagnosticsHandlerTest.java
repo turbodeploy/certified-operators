@@ -20,6 +20,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -367,7 +368,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .withTargetId(targetId)
             .withProbeId(probeId).withTime(12345).withProbeInfo(probeInfo)
             .setUpTargetDependentMocks()
-            .withTarget(new Target(targetId, probeStore, targetSpec, true, true));
+            .withTarget(new Target(targetId, probeStore, targetSpec, true, true, Clock.systemUTC()));
 
         targets.add(withSecretFields.target);
 
@@ -613,8 +614,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestore() throws Exception {
-        TargetStore simpleTargetStore = new CachingTargetStore(new KvTargetDao(new MapKeyValueStore(), probeStore), probeStore,
-                new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
+        TargetStore simpleTargetStore = new CachingTargetStore(
+                new KvTargetDao(new MapKeyValueStore(), probeStore, Clock.systemUTC()), probeStore,
+                new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)),
+                Clock.systemUTC());
         TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
             simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
             groupUploader, templateDeploymentProfileUploader, identityProvider,

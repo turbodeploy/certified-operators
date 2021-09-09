@@ -36,7 +36,6 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
-import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSettingsLoader;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
@@ -84,9 +83,6 @@ public class TargetConfig {
     private PublicKeyStoreConfig publicKeyStoreConfig;
 
     @Autowired
-    private EntityConfig entityConfig;
-
-    @Autowired
     private ClockConfig clockConfig;
 
     @Value("${globalProbeSettingsLoadRetryIntervalSec:10}")
@@ -102,8 +98,8 @@ public class TargetConfig {
 
     @Bean
     public TargetStore targetStore() {
-        CachingTargetStore store = new CachingTargetStore(targetDao(), probeConfig.probeStore(),
-                identityStore());
+        final CachingTargetStore store = new CachingTargetStore(targetDao(), probeConfig.probeStore(),
+                identityStore(), clockConfig.clock());
         probeConfig.probeStore().addListener(store);
         return store;
     }
@@ -134,7 +130,7 @@ public class TargetConfig {
      */
     @Bean
     public TargetDao targetDao() {
-        return new KvTargetDao(keyValueStore(), probeConfig.probeStore());
+        return new KvTargetDao(keyValueStore(), probeConfig.probeStore(), clockConfig.clock());
     }
 
     @Bean
@@ -167,15 +163,6 @@ public class TargetConfig {
     @Bean
     public DerivedTargetParser derivedTargetParser() {
         return new DerivedTargetParser(probeConfig.probeStore(), targetStore());
-    }
-
-    @Bean
-    public GroupScopeResolver groupScopeResolver() {
-        return new GroupScopeResolver(
-                groupClientConfig.groupChannel(),
-                repositoryClientConfig.repositoryChannel(),
-                targetStore(),
-                entityConfig.entityStore());
     }
 
     @Bean(destroyMethod = "shutdownNow")

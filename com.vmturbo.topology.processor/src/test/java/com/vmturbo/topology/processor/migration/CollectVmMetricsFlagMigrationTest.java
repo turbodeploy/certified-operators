@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.topology.processor.migration.V_01_01_05__Target_Common_Proxy_SettingsTest.createAccountDefEntry;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -170,7 +171,7 @@ public class CollectVmMetricsFlagMigrationTest {
                                              .setStringValue(PASSWORD)
                                              .build())
                         .build();
-        return new Target(0L, probeStore, spec, true, true);
+        return new Target(0L, probeStore, spec, true, true, Clock.systemUTC());
     }
 
     /**

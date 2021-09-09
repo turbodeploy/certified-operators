@@ -167,7 +167,7 @@ public class ActionsConfig {
     @Bean
     public TopologyToSdkEntityConverter topologyToSdkEntityConverter() {
         return new TopologyToSdkEntityConverter(entityConfig.entityStore(),
-                targetConfig.targetStore(), targetConfig.groupScopeResolver());
+                targetConfig.targetStore(), groupConfig.groupScopeResolver());
     }
 
     @Bean
