@@ -32,6 +32,10 @@ message ExecuteActionRequest {
     optional string explanation = 6;
 }
 
+message ExecuteActionListRequest {
+    repeated ExecuteActionRequest actionRequest = 1;
+}
+
 message ExecuteActionResponse {}
 
 service ActionExecutionService {
@@ -43,4 +47,7 @@ service ActionExecutionService {
     // TODO (roman, Feb 6 2017): Consider returning updates
     // in a stream here, instead of over the message bus.
     rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+
+    // Start executing a list of actions.
+    rpc ExecuteActionList(ExecuteActionListRequest) returns (ExecuteActionResponse);
 }

@@ -55,6 +55,8 @@ import com.vmturbo.topology.processor.entity.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.action.ActionExecutionState;
+import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
 import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
@@ -115,6 +117,7 @@ public class TopologyProcessorNotificationSender
                         operation -> notifyDiscoveryState((Discovery)operation));
         // TODO (roman, Aug 2016): Add notifications for actions.
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
+        operationsListeners.put(ActionList.class, operation -> notifyActionListState((ActionList)operation));
 
         operationsListeners.put(PlanExport.class, operation -> notifyPlanExport((PlanExport)operation));
 
@@ -222,6 +225,36 @@ public class TopologyProcessorNotificationSender
         }
 
         sendMessageSilently(messageBuilder.build());
+    }
+
+    private void notifyActionListState(@Nonnull final ActionList actionList) {
+        for (final ActionExecutionState action : actionList.getActions()) {
+            final TopologyProcessorNotification.Builder messageBuilder = createNewMessage();
+            switch (action.getActionState()) {
+                case IN_PROGRESS:
+                    messageBuilder.setActionProgress(ActionProgress.newBuilder()
+                            .setActionId(action.getActionId())
+                            .setProgressPercentage(action.getProgress())
+                            .setDescription(action.getDescription()));
+                    sendMessageSilently(messageBuilder.build());
+                    break;
+                case SUCCEEDED:
+                    messageBuilder.setActionSuccess(ActionSuccess.newBuilder()
+                            .setActionId(action.getActionId())
+                            .setSuccessDescription(action.getDescription()));
+                    sendMessageSilently(messageBuilder.build());
+                    break;
+                case FAILED:
+                    messageBuilder.setActionFailure(ActionFailure.newBuilder()
+                            .setActionId(action.getActionId())
+                            .setErrorDescription(action.getDescription()));
+                    sendMessageSilently(messageBuilder.build());
+                    break;
+                default:
+                    getLogger().error("Unsupported action status: {}", action.getActionState());
+                    break;
+            }
+        }
     }
 
     private OperationStatus convertOperationToDto(@Nonnull final Operation src) {
