@@ -10,6 +10,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -17,8 +18,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -36,10 +39,12 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -173,6 +178,90 @@ public class RemoteProbeStoreTest {
     }
 
     /**
+     * Tests adding/deleting transports with communication binding channels.
+     *
+     * @throws Exception on exception occur
+     */
+    @Test
+    public void testTransportsWithChannel() throws Exception {
+        // test probe and its probe ID
+        final ProbeInfo probeFoo = Probes.defaultProbe;
+        final long probeFooId = 123L;
+        when(idProvider.getProbeId(probeFoo)).thenReturn(probeFooId);
+        // test target
+        final String channel = "nyc";
+        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeFooId)
+                .setCommunicationBindingChannel(channel).build();
+        final Target target = Mockito.mock(Target.class);
+        when(target.getProbeId()).thenReturn(probeFooId);
+        when(target.getSpec()).thenReturn(targetSpec);
+        // 2nd probe to assist on the testing
+        final ProbeInfo probeBar = Probes.emptyProbe;
+        final long probeBarId = 456;
+        when(idProvider.getProbeId(probeBar)).thenReturn(probeBarId);
+
+        // No probe registered => no transports
+        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+
+        // One registered probe with no channel => still zero transports
+        store.registerNewProbe(probeFoo, transport);
+        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+
+        // Add another transport with the channel this time => 1 transport
+        final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
+        store.registerNewProbe(probeFoo, transport2);
+        store.updateTransportByChannel(channel, transport2);
+        Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportsWithChannel
+                = store.getTransportsForTarget(target);
+        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        Assert.assertEquals(1, transportsWithChannel.size());
+        Assert.assertEquals(transport2, transportsWithChannel.iterator().next());
+
+        // Add the 3rd transport with the channel, so we have two choices ;)
+        final ITransport<MediationServerMessage, MediationClientMessage> transport3 = createTransport();
+        store.registerNewProbe(probeFoo, transport3);
+        store.updateTransportByChannel(channel, transport3);
+        transportsWithChannel = store.getTransportsForTarget(target);
+        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        Assert.assertEquals(2, transportsWithChannel.size());
+        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
+                transportsWithChannel.stream().collect(Collectors.toSet()));
+
+        // Add the 4th transport with a different channel; that wouldn't add to the choices and
+        // there are still only two choices.
+        final ITransport<MediationServerMessage, MediationClientMessage> transport4 = createTransport();
+        store.registerNewProbe(probeFoo, transport4);
+        store.updateTransportByChannel("sfo", transport4);
+        transportsWithChannel = store.getTransportsForTarget(target);
+        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        Assert.assertEquals(2, transportsWithChannel.size());
+        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
+                transportsWithChannel.stream().collect(Collectors.toSet()));
+
+        // Add the 5th transport with the same channel but a different probe; that wouldn't add to
+        // the choices and there are still only the two choices.
+        final ITransport<MediationServerMessage, MediationClientMessage> transport5 = createTransport();
+        store.registerNewProbe(probeBar, transport5);
+        store.updateTransportByChannel(channel, transport5);
+        transportsWithChannel = store.getTransportsForTarget(target);
+        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        Assert.assertEquals(2, transportsWithChannel.size());
+        Assert.assertEquals(ImmutableSet.of(transport2, transport3),
+                transportsWithChannel.stream().collect(Collectors.toSet()));
+
+        // Remove the 2nd transport => only transport3 left for channel nyc
+        store.removeTransport(transport2);
+        transportsWithChannel = store.getTransportsForTarget(target);
+        Assert.assertEquals(true, store.isAnyTransportConnectedForTarget(target));
+        Assert.assertEquals(1, transportsWithChannel.size());
+        Assert.assertEquals(transport3, transportsWithChannel.iterator().next());
+
+        // Remove the 3rd transport => none left for channel nyc
+        store.removeTransport(transport3);
+        Assert.assertEquals(false, store.isAnyTransportConnectedForTarget(target));
+    }
+
+    /**
      * Tests to add transport with the same probe with different order of order-insensitive
      * fields (identifying fields ids). It is expected, that transport is added, but no new probe
      * is registered.
@@ -186,13 +275,13 @@ public class RemoteProbeStoreTest {
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
         final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
-            .addTargetIdentifierField(tgt1)
-            .addTargetIdentifierField(tgt2)
-            .build();
+                .addTargetIdentifierField(tgt1)
+                .addTargetIdentifierField(tgt2)
+                .build();
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
-            .addTargetIdentifierField(tgt2)
-            .addTargetIdentifierField(tgt1)
-            .build();
+                .addTargetIdentifierField(tgt2)
+                .addTargetIdentifierField(tgt1)
+                .build();
         when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(1234L);
 
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();

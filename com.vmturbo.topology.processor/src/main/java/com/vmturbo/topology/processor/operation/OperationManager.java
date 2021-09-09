@@ -1394,6 +1394,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @param targetId id of the target to active pending discovery for
      */
     private void activatePendingDiscovery(long targetId, DiscoveryType discoveryType) {
+        // check if the target has any valid transport connected (with the right communication
+        // binding channel for example).  If not, no need to activate pending discovery.
+        if (!targetStore.getTarget(targetId).map(probeStore::isAnyTransportConnectedForTarget).orElse(false)) {
+            logger.debug("Skipping activation of pending discovery for {} ({}) as no valid"
+                    + " transport for this target is connected", targetId, discoveryType);
+            return;
+        }
         final Optional<TargetOperationContext> targetOperationContext =
             getTargetOperationContextOrLogError(targetId);
         if (!targetOperationContext.isPresent()) {

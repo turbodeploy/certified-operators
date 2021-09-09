@@ -3,7 +3,10 @@ package com.vmturbo.topology.processor.communication;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,6 +15,7 @@ import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -54,12 +58,20 @@ public class ProbeContainerChooserTest {
 
     /**
      * Initialize variables and mocks.
+     *
+     * @throws ProbeException if one encountered.
      */
     @Before
-    public void setup() {
+    public void setup() throws ProbeException {
         probeStore = Mockito.mock(ProbeStore.class);
 
         Mockito.when(probeStore.getProbe(probeId)).thenReturn(Optional.of(Probes.incrementalProbe));
+        Mockito.when(probeStore.getTransportsForTarget(any(Target.class))).thenAnswer(
+                (Answer<Collection<ITransport<MediationServerMessage, MediationClientMessage>>>)invocation -> {
+                    Object[] args = invocation.getArguments();
+                    Target target = (Target)args[0];
+                    return probeStore.getTransport(target.getProbeId());
+                });
         Mockito.when(target1.getSerializedIdentifyingFields()).thenReturn(targetIdentifier1);
         Mockito.when(target1.getProbeId()).thenReturn(probeId);
         Mockito.when(target1.getSpec()).thenReturn(mockSpec);
@@ -215,21 +227,16 @@ public class ProbeContainerChooserTest {
      */
     @Test
     public void testTransportWithChannel() throws ProbeException {
-        final ITransport<MediationServerMessage, MediationClientMessage> transport1 =
-            createTransport();
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
             createTransport();
-        final List<ITransport<MediationServerMessage, MediationClientMessage>>
-            transportList = Lists.newArrayList(transport1, transport2);
         final String channel2 = "channel2";
 
         final TargetSpec specWithChannel2 =
             TargetSpec.newBuilder().setProbeId(probeId).setCommunicationBindingChannel(channel2).build();
-        Mockito.when(probeStore.getTransport(probeId)).thenReturn(transportList);
         Mockito.when(target2.getSpec()).thenReturn(specWithChannel2);
+        Mockito.when(probeStore.getTransportsForTarget(target2)).thenReturn(
+                Collections.singletonList(transport2));
         ProbeContainerChooser chooser = new ProbeContainerChooserImpl(probeStore);
-        chooser.parseContainerInfoWithTransport(ContainerInfo.newBuilder()
-            .setCommunicationBindingChannel(channel2).build(), transport2);
         assertEquals(chooser.choose(target2, discoveryRequest), transport2);
     }
 
@@ -241,27 +248,14 @@ public class ProbeContainerChooserTest {
      */
     @Test(expected = ProbeException .class)
     public void testNoAvailableTransportsWithChannel() throws ProbeException {
-        final ITransport<MediationServerMessage, MediationClientMessage> transport1 =
-            createTransport();
-        final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
-            createTransport();
-        final List<ITransport<MediationServerMessage, MediationClientMessage>>
-            transportList = Lists.newArrayList(transport1);
         final String channel1 = "channel1";
-        final String channel2 = "channel2";
 
         final TargetSpec specWithChannel =
             TargetSpec.newBuilder().setProbeId(probeId).setCommunicationBindingChannel(channel1).build();
-        Mockito.when(probeStore.getTransport(probeId)).thenReturn(transportList);
         Mockito.when(target1.getSpec()).thenReturn(specWithChannel);
+        Mockito.when(probeStore.getTransportsForTarget(target1)).thenReturn(Collections.emptySet());
 
         ProbeContainerChooser chooser = new ProbeContainerChooserImpl(probeStore);
-        final ContainerInfo cInfo =
-            ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2)
-                .putPersistentTargetIdMap(Probes.incrementalProbe.getProbeType(),
-            TargetIdSet.newBuilder().addTargetId(targetIdentifier1).build()).build();
-
-        chooser.parseContainerInfoWithTransport(cInfo, transport1);
         chooser.choose(target1, discoveryRequest);
     }
 

@@ -81,12 +81,12 @@ public class TargetStatusTrackerImplTest {
                 SDKProbeType.VCENTER.getProbeType());
         Mockito.when(probeStore.getProbe(PROBE_ID_1)).thenReturn(Optional.of(probeInfo1));
         Mockito.when(probeStore.getProbe(PROBE_ID_2)).thenReturn(Optional.of(probeInfo2));
-        Mockito.when(probeStore.isProbeConnected(PROBE_ID_1)).thenReturn(true);
-        Mockito.when(probeStore.isProbeConnected(PROBE_ID_2)).thenReturn(true);
         final Target target1 = new Target(TARGET_ID_1, probeStore, targetSpec1.build(), false, true);
         final Target target2 = new Target(TARGET_ID_2, probeStore, targetSpec2.build(), false, true);
         Mockito.when(targetStore.getTarget(TARGET_ID_1)).thenReturn(Optional.of(target1));
         Mockito.when(targetStore.getTarget(TARGET_ID_2)).thenReturn(Optional.of(target2));
+        Mockito.when(probeStore.isAnyTransportConnectedForTarget(target1)).thenReturn(true);
+        Mockito.when(probeStore.isAnyTransportConnectedForTarget(target2)).thenReturn(true);
     }
 
     /**

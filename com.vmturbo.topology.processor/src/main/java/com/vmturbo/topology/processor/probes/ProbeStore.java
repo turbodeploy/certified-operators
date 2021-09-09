@@ -13,6 +13,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * Interface for registering probes and the transports used to talk to them.
@@ -22,6 +23,32 @@ public interface ProbeStore extends RequiresDataInitialization {
      * Key prefix of values stored in the key/value store.
      */
     String PROBE_KV_STORE_PREFIX = "probes/";
+
+    /**
+     * Normalized messages for when no valid transports are available.
+     */
+    String NO_TRANSPORTS_MESSAGE = "Failed to connect to probe. Check if probe is running";
+
+    /**
+     * Return a no transports message containing the probe id.
+     *
+     * @param probeId the id of the probe
+     * @return the constructed message
+     */
+    default String noTransportMessage(final long probeId) {
+        return String.format(NO_TRANSPORTS_MESSAGE + " (probe id %s)", probeId);
+    }
+
+    /**
+     * Return a no transports message containing both the probe id and the communication binding channel.
+     *
+     * @param probeId the id of the probe
+     * @param channel the communication binding channel
+     * @return the constructed message
+     */
+    default String noTransportMessage(final long probeId, final String channel) {
+        return String.format(NO_TRANSPORTS_MESSAGE + " (probe id %s, channel %s)", probeId, channel);
+    }
 
     /**
      * Method registers a new probe with a specified transport.
@@ -47,6 +74,27 @@ public interface ProbeStore extends RequiresDataInitialization {
      */
     Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransport(
             long probeId) throws ProbeException;
+
+    /**
+     * Fetch and return all transports that could be used by the given target, taking into account
+     * of the communication binding channel, if one is present.  If no matched transports exist,
+     * then an empty set is returned.
+     *
+     * @param target the target
+     * @return the set of transports that can be used for the given target
+     */
+    @Nonnull
+    Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransportsForTarget(
+            @Nonnull Target target) throws ProbeException;
+
+    /**
+     * Associate the transport with the given communication binding channel.
+     *
+     * @param communicationBindingChannel the communication binding channel
+     * @param transport the associated transport
+     */
+    void updateTransportByChannel(@Nonnull String communicationBindingChannel,
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport);
 
     /**
      * Remove the transport (i.e. disconnect an instance of the probe). If a probe has no more
@@ -128,12 +176,24 @@ public interface ProbeStore extends RequiresDataInitialization {
     boolean removeListener(@Nonnull ProbeStoreListener listener);
 
     /**
-     * Returns a boolean to indicate whether the probe with the given probe ID is connected.
+     * Returns a boolean to indicate whether any transport with the given probe ID is connected.
+     * Note that this does not take the communication binding channel into consideration.  All
+     * connected transports of the given probe id will be counted as true.
      *
      * @param probeId Probe ID
      * @return true if probe is connected, false otherwise.
      */
     boolean isProbeConnected(@Nonnull Long probeId);
+
+    /**
+     * Returns a boolean to indicate whether the probe for the given target has any transport
+     * connected.  If the target has an associated communication binding channel, then that will be
+     * taken into consideration to match the transports.
+     *
+     * @param target the target
+     * @return true if there is any matched transport is connected, false otherwise.
+     */
+    boolean isAnyTransportConnectedForTarget(@Nonnull Target target);
 
     /**
      * Get the probe ordering needed for stitching
