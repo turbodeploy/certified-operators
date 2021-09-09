@@ -381,7 +381,7 @@ public class TargetController {
                 operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
         final Optional<? extends Operation> latestFinished = getLatestOperationDate(lastValidation, lastDiscovery);
         final LocalDateTime lastValidated = latestFinished.map(Operation::getCompletionTime).orElse(null);
-        boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
+        boolean isProbeConnected = probeStore.isAnyTransportConnectedForTarget(target);
         final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected);
         final String lastEditingUser = target.getNoSecretDto().getSpec().hasLastEditingUser() ? target.getNoSecretDto().getSpec().getLastEditingUser() : null;
         final Long lastEditTime = target.getNoSecretDto().getSpec().hasLastEditTime() ? target.getNoSecretDto().getSpec().getLastEditTime() : null;
@@ -415,10 +415,14 @@ public class TargetController {
             if (latestFinished.get().getStatus() == OperationStatus.Status.SUCCESS) {
                 status = StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS;
             } else {
-                status = latestFinished.get().getErrorString();
+                final String lastError = latestFinished.get().getErrorString();
+                // If this is a no-transports error, strip off the debug logging details.
+                status = lastError.contains(ProbeStore.NO_TRANSPORTS_MESSAGE)
+                        ? lastError.substring(0, lastError.indexOf(ProbeStore.NO_TRANSPORTS_MESSAGE)
+                        + ProbeStore.NO_TRANSPORTS_MESSAGE.length()) : lastError;
             }
         } else if (!isProbeConnected) {
-            status = "Failed to connect to probe. Check if probe is running";
+            status = ProbeStore.NO_TRANSPORTS_MESSAGE;
         } else {
             // If the target status is unknown, show as "Validating"
             status = VALIDATING;

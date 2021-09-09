@@ -90,6 +90,8 @@ public class TargetStatusTrackerImplTest {
                 Clock.systemUTC());
         Mockito.when(targetStore.getTarget(TARGET_ID_1)).thenReturn(Optional.of(target1));
         Mockito.when(targetStore.getTarget(TARGET_ID_2)).thenReturn(Optional.of(target2));
+        Mockito.when(probeStore.isAnyTransportConnectedForTarget(target1)).thenReturn(true);
+        Mockito.when(probeStore.isAnyTransportConnectedForTarget(target2)).thenReturn(true);
     }
 
     /**
