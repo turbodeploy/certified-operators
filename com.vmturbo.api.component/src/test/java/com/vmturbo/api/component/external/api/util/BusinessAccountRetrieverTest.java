@@ -47,6 +47,7 @@ import com.vmturbo.api.component.external.api.util.businessaccount.Supplementary
 import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryDataFactory;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
@@ -75,6 +76,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -863,6 +865,49 @@ public class BusinessAccountRetrieverTest {
         Assert.assertEquals(limit, searchPaginationRequestArgCaptor.getValue().getLimit());
         Assert.assertEquals(ascending, searchPaginationRequestArgCaptor.getValue().isAscending());
         Assert.assertEquals(SearchOrderBy.NAME, searchPaginationRequestArgCaptor.getValue().getOrderBy());
+    }
+
+    /**
+     * Test that get business accounts paginated by Cloud Provider contains the right criteria parameters.
+     *
+     * @throws OperationFailedException To satisfy compiler.
+     * @throws InvalidOperationException To satisfy compiler.
+     */
+    @Test
+    public void testGetBusinessAccountsInScopePaginatedByCloudProvider()
+            throws OperationFailedException, InvalidOperationException {
+        // ARRANGE
+        final PaginatedSearchRequest mockPaginatedRequest = mock(PaginatedSearchRequest.class);
+        final SearchPaginationResponse paginationResponse = mock(SearchPaginationResponse.class);
+        when(mockPaginatedRequest.getBusinessUnitsResponse(anyBoolean())).thenReturn(paginationResponse);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedRequest);
+        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest("5", 3,
+                true, null);
+        final String filterType = "businessAccountCloudProvider";
+        final String expVal = "AWS";
+        final String expType = "EQ";
+        FilterApiDTO filterApiDto = new FilterApiDTO();
+        filterApiDto.setFilterType(filterType);
+        filterApiDto.setExpVal(expVal);
+        filterApiDto.setExpType(expType);
+
+        // ACT
+        businessAccountRetriever.getBusinessAccountsInScope(null, Lists.newArrayList(filterApiDto),
+                paginationRequest);
+
+        ArgumentCaptor<SearchQuery> searchQueryArgCaptor =
+                ArgumentCaptor.forClass(SearchQuery.class);
+        verify(repositoryApi).newPaginatedSearch(searchQueryArgCaptor.capture(), any(), any());
+        SearchParameters.FilterSpecs filterSpecs = searchQueryArgCaptor.getValue().getSearchParametersList().stream()
+                .filter(p -> p.getSourceFilterSpecs() != null
+                        && p.getSourceFilterSpecs().getFilterType().equals(filterType))
+                .map(p -> p.getSourceFilterSpecs())
+                .findFirst().orElse(null);
+
+        // ASSERT
+        Assert.assertNotNull(filterSpecs);
+        Assert.assertEquals(expType, filterSpecs.getExpressionType());
+        Assert.assertEquals(expVal, filterSpecs.getExpressionValue());
     }
 
     private static BusinessUnitApiDTO createAccountDto(String stringId, boolean isMaster,

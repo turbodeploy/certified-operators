@@ -226,7 +226,7 @@ public class BusinessAccountRetriever {
                     paginationReq.getCursor().isPresent() ? paginationReq.getCursor().get() : null,
                     paginationReq.getLimit(), true, null);
             SearchQuery searchQuery = Search.SearchQuery.newBuilder()
-                    .addAllSearchParameters(searchParameters)
+                    .addAllSearchParameters(effectiveParameters)
                     .setLogicalOperator(Search.LogicalOperator.AND)
                     .build();
             PaginatedSearchRequest paginatedSearchRequest = repositoryApi.newPaginatedSearch(
