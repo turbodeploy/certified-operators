@@ -1,12 +1,9 @@
 package com.vmturbo.topology.processor.communication;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -36,17 +33,14 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
     private final Logger logger = LogManager.getLogger();
     private final ProbeStore probeStore;
 
+    private final Map<Pair<String, String>, ITransport<MediationServerMessage,
+            MediationClientMessage>> targetIdToTransport = new ConcurrentHashMap<>();
+
     /**
      * Index of the next ITransport from the collection to use.  We increment by one each time the
      * choose method is called and then mod it by the size of the collection.
      */
     private int index = -1;
-
-    private final Map<Pair<String, String>,
-            ITransport<MediationServerMessage, MediationClientMessage>> targetIdToTransport =
-        new ConcurrentHashMap<>();
-    private final Map<String, Collection<ITransport<MediationServerMessage,
-        MediationClientMessage>>> channelToTransport = new ConcurrentHashMap<>();
 
     /**
      * Initialize a new ProbeContainerChooserImp.
@@ -66,15 +60,16 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
     @Override
     public ITransport<MediationServerMessage, MediationClientMessage> choose( @Nonnull final Target target,
         @Nonnull final MediationServerMessage message) throws ProbeException {
-        final long probeId = target.getProbeId();
-        Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportCollection = getProbeTransports(probeId, target);
+        Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportCollection =
+                probeStore.getTransportsForTarget(target);
+        logger.debug("Choosing transport from {} options for target {}.",
+                transportCollection.size(), target.getDisplayName());
 
         if (!message.hasDiscoveryRequest()) {
             return getTransportUsingRoundRobin(transportCollection);
         }
-        ProbeInfo probeInfo =
-            probeStore.getProbe(probeId).orElseThrow(() -> new ProbeException(String.format(
-                "Probe %s is not registered", probeId)));
+        ProbeInfo probeInfo = probeStore.getProbe(target.getProbeId()).orElseThrow(() -> new ProbeException(
+                String.format(ProbeStore.NO_TRANSPORTS_MESSAGE + " (probe id %s)", target.getProbeId())));
 
         if (!probeSupportsPersistentConnections(probeInfo)) {
             return getTransportUsingRoundRobin(transportCollection);
@@ -106,7 +101,7 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
     public void parseContainerInfoWithTransport(@Nonnull final ContainerInfo containerInfo,
                                                 @Nonnull final ITransport<MediationServerMessage, MediationClientMessage> transport) {
         if (containerInfo.hasCommunicationBindingChannel()) {
-            channelToTransport.computeIfAbsent(containerInfo.getCommunicationBindingChannel(), x -> new ArrayList()).add(transport);
+            probeStore.updateTransportByChannel(containerInfo.getCommunicationBindingChannel(), transport);
         }
         containerInfo.getPersistentTargetIdMapMap()
             .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
@@ -114,19 +109,11 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
                     transport, probeType, targetId)));
     }
 
-    @Nonnull Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransportsWithChannel(
-        @Nonnull Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportCollection,
-        @Nonnull  String communicationBindingChannel) {
-        Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportsWithAssignedChannel =
-            channelToTransport.getOrDefault(communicationBindingChannel, Collections.emptyList());
-        return transportCollection.stream().filter(transportsWithAssignedChannel::contains).collect(Collectors.toList());
-    }
-
     @Nonnull
     private ITransport<MediationServerMessage, MediationClientMessage> getTransportUsingRoundRobin(@Nonnull Collection<ITransport<MediationServerMessage,
         MediationClientMessage>>  transportCollection) throws ProbeException {
         if (transportCollection.size() == 0) {
-            throw new ProbeException("No available transport");
+            throw new ProbeException(ProbeStore.NO_TRANSPORTS_MESSAGE);
         }
         index = (index + 1) % transportCollection.size();
         logger.debug("Choosing container at index {}", index);
@@ -158,21 +145,5 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
 
     private static boolean probeSupportsPersistentConnections(@Nonnull ProbeInfo probeInfo) {
         return probeInfo.hasIncrementalRediscoveryIntervalSeconds();
-    }
-
-    private Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                    getProbeTransports(long probeId, @Nonnull Target target) throws ProbeException {
-        Collection<ITransport<MediationServerMessage, MediationClientMessage>> transportCollection = probeStore.getTransport(probeId);
-        if (target.getSpec() != null && target.getSpec().hasCommunicationBindingChannel()) {
-            transportCollection = getTransportsWithChannel(transportCollection,
-                target.getSpec().getCommunicationBindingChannel());
-            if (transportCollection.size() == 0) {
-                throw new ProbeException("There are no transports with the following channel: "
-                    + target.getSpec().getCommunicationBindingChannel());
-            }
-        }
-        logger.debug("Choosing transport from {} options.",
-            transportCollection.size());
-        return transportCollection;
     }
 }
