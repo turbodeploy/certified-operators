@@ -797,7 +797,6 @@ public class OperationManagerWithQueueTest {
                 .addEntityDTO(entity);
 
         when(probeStore.isProbeConnected(anyLong())).thenReturn(true);
-        when(probeStore.isAnyTransportConnectedForTarget(any())).thenReturn(true);
         OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, originalDiscovery,
                 responseBuilder.build());
         verify(entityStore).entitiesDiscovered(eq(probeIdVc), eq(target1Id), anyInt(),
@@ -834,7 +833,6 @@ public class OperationManagerWithQueueTest {
     @Parameters({"FULL"})
     public void testOnProbeRegisteredActivatesPendingDiscoveries(DiscoveryType discoveryType) throws Exception {
         when(probeStore.getProbe(probeIdVc)).thenReturn(Optional.empty());
-        when(probeStore.isAnyTransportConnectedForTarget(any())).thenReturn(true);
 
         operationManager.addPendingDiscovery(target1Id, discoveryType);
         assertTrue(operationManager.hasPendingDiscovery(target1Id, discoveryType));

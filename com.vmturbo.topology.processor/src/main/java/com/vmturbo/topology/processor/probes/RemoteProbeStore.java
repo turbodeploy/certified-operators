@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.probes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -10,7 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -36,7 +34,6 @@ import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
-import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * Store for remote probe information. It publishes several convenient methods to operate with
@@ -44,6 +41,12 @@ import com.vmturbo.topology.processor.targets.Target;
  */
 @ThreadSafe
 public class RemoteProbeStore implements ProbeStore {
+
+    /**
+     * The prefix used in the error message when we try to get the transport of a probe that has
+     * no registered transports (e.g. at startup, before probes register).
+     */
+    public static final String TRANSPORT_NOT_REGISTERED_PREFIX = "Probe for requested id is not registered: ";
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -79,9 +82,6 @@ public class RemoteProbeStore implements ProbeStore {
     private final StitchingOperationStore stitchingOperationStore;
 
     private final ProbeOrdering probeOrdering;
-
-    private final Map<String, Collection<ITransport<MediationServerMessage,
-            MediationClientMessage>>> channelToTransport = new ConcurrentHashMap<>();
 
     /**
      * The action merge policy/specs conversion repository.
@@ -248,46 +248,10 @@ public class RemoteProbeStore implements ProbeStore {
                     long probeId) throws ProbeException {
         synchronized (dataLock) {
             if (!probes.containsKey(probeId)) {
-                throw new ProbeException(noTransportMessage(probeId));
+                throw new ProbeException(TRANSPORT_NOT_REGISTERED_PREFIX + probeId);
             }
             return probes.get(probeId);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @Nonnull
-    public Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransportsForTarget(
-            @Nonnull Target target) throws ProbeException {
-        final long probeId = target.getProbeId();
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>> transports =
-                getTransport(probeId);
-        if (target.getSpec() == null || !target.getSpec().hasCommunicationBindingChannel()) {
-            return transports;
-        }
-        final String communicationBindingChannel =
-                target.getSpec().getCommunicationBindingChannel();
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                transportsWithAssignedChannel = channelToTransport.getOrDefault(
-                communicationBindingChannel, Collections.emptyList());
-        final Collection<ITransport<MediationServerMessage, MediationClientMessage>>
-                filteredTransports = transports.stream().filter(
-                transportsWithAssignedChannel::contains).collect(Collectors.toList());
-        if (filteredTransports.size() == 0) {
-            throw new ProbeException(noTransportMessage(probeId, communicationBindingChannel));
-        }
-        return filteredTransports;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void updateTransportByChannel(@Nonnull final String communicationBindingChannel,
-            @Nonnull final ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        channelToTransport.computeIfAbsent(communicationBindingChannel, x -> new ArrayList()).add(transport);
     }
 
     /**
@@ -442,18 +406,6 @@ public class RemoteProbeStore implements ProbeStore {
     @Override
     public boolean isProbeConnected(@Nonnull final Long probeId) {
         return probes.containsKey(probeId);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isAnyTransportConnectedForTarget(@Nonnull Target target) {
-        try {
-            return getTransportsForTarget(target).size() > 0;
-        } catch (ProbeException e) {
-            return false;
-        }
     }
 
     @Override

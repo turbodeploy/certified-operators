@@ -30,7 +30,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -366,7 +366,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 changeStatus(TargetWaitingStatus.SUCCESS);
                 status = TargetWaitingStatus.SUCCESS;
             } else if (discovery.getStatus() == Status.FAILED && discovery.getId() != lastDiscoveryId) {
-                if (discovery.getErrorString().contains(ProbeStore.NO_TRANSPORTS_MESSAGE)) {
+                if (discovery.getErrorString().contains(RemoteProbeStore.TRANSPORT_NOT_REGISTERED_PREFIX)) {
                     // This is kind of a corner case, but if the discovery fails because the probe
                     // for this target does not have a registered transport, we should count this
                     // as a "probe not connected" case, and not as a true failed discovery.
