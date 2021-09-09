@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
@@ -31,6 +32,7 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
@@ -40,7 +42,8 @@ import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 @Configuration
 @Import({EntityConfig.class,
     GroupClientConfig.class,
-    TargetConfig.class})
+    TargetConfig.class,
+    RepositoryClientConfig.class})
 public class GroupConfig {
 
     @Autowired
@@ -51,6 +54,9 @@ public class GroupConfig {
 
     @Autowired
     private TargetConfig targetConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Value("${discoveredGroupUploadIntervalSeconds:10}")
     private long discoveredGroupUploadIntervalSeconds;
@@ -63,6 +69,13 @@ public class GroupConfig {
 
     @Value("${considerUtilizationConstraintInClusterHeadroomPlan:false}")
     private boolean considerUtilizationConstraintInClusterHeadroomPlan;
+
+    @Bean
+    public GroupScopeResolver groupScopeResolver() {
+        return new GroupScopeResolver(groupClientConfig.groupChannel(),
+                repositoryClientConfig.repositoryChannel(), targetConfig.targetStore(),
+                entityConfig.entityStore());
+    }
 
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {

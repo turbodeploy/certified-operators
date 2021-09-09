@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -59,6 +60,8 @@ public class KvTargetDaoTest {
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
+    private Clock clock;
+
     /**
      * Common code to run before every test.
      *
@@ -69,6 +72,7 @@ public class KvTargetDaoTest {
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
         probeStore = mock(ProbeStore.class);
         groupScopeResolver = mock(GroupScopeResolver.class);
+        clock = Clock.systemUTC();
     }
 
     /**
@@ -81,7 +85,7 @@ public class KvTargetDaoTest {
         final String lastEditingUser = "admin";
         final Target target = prepareTestTarget(lastEditingUser);
         final KeyValueStore kvStore = new MapKeyValueStore();
-        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
+        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore, clock);
         dao.store(target);
         final Target retrievedTarget = dao.getAll().get(0);
         assertThat(retrievedTarget.getNoSecretDto(), is(target.getNoSecretDto()));
@@ -98,7 +102,7 @@ public class KvTargetDaoTest {
     public void testGetTargetWithoutLastEditInfo() throws Exception {
         final Target target = prepareTestTarget(null);
         final KeyValueStore kvStore = new MapKeyValueStore();
-        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
+        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore, clock);
         dao.store(target);
         final Target retrievedTarget = dao.getAll().get(0);
         assertThat(retrievedTarget.getNoSecretDto(), is(target.getNoSecretDto()));
@@ -114,7 +118,7 @@ public class KvTargetDaoTest {
     public void testRemove() throws Exception {
         final Target target = prepareTestTarget(null);
         final KeyValueStore kvStore = new MapKeyValueStore();
-        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
+        final KvTargetDao dao = new KvTargetDao(kvStore, probeStore, clock);
         dao.store(target);
         assertThat(dao.getAll().size(), is(1));
         dao.remove(target.getId());
@@ -131,7 +135,7 @@ public class KvTargetDaoTest {
     public void testInitializationWithAccountVals() throws Exception {
         final Target target = prepareTestTarget(null);
         final KeyValueStore kvStore = new MapKeyValueStore();
-        final KvTargetDao kvTargetDao = new KvTargetDao(kvStore, probeStore);
+        final KvTargetDao kvTargetDao = new KvTargetDao(kvStore, probeStore, clock);
 
         kvTargetDao.store(target);
 
@@ -189,11 +193,12 @@ public class KvTargetDaoTest {
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
             new InputField(SECRET_FIELD_NAME, "ThePassValue", Optional.empty()),
             new InputField(PLAIN_FIELD_NAME, "theUserName", Optional.empty())), Optional.empty(), "System");
-        final Target target = new Target(0L, probeStore, spec.toDto(), true, true);
+        final Target target = new Target(0L, probeStore, spec.toDto(), true, true,
+                Clock.systemUTC());
 
 
         KeyValueStore kvStore = new MapKeyValueStore();
-        KvTargetDao dao = new KvTargetDao(kvStore, probeStore);
+        KvTargetDao dao = new KvTargetDao(kvStore, probeStore, clock);
         dao.store(target);
 
         // Test to verify that IN THE KvStore the secret fields were encrypted.
@@ -235,7 +240,7 @@ public class KvTargetDaoTest {
                 Optional.of(Collections.singletonList(Collections.singletonList("test")))),
                 new InputField("targetId", "value",
                     Optional.of(Collections.singletonList(Collections.singletonList("test"))))), Optional.empty(), lastEditingUser);
-        return new Target(0L, probeStore, spec.toDto(), true, true);
+        return new Target(0L, probeStore, spec.toDto(), true, true, Clock.systemUTC());
     }
 
     /**
