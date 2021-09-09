@@ -101,7 +101,7 @@ public abstract class DbAdapter {
         switch (config.getDialect()) {
             case MARIADB:
             case MYSQL:
-                return new MariaDBMySqlAdapter(config);
+                return new MySqlFamilyAdapter(config);
             case POSTGRES:
                 return new PostgresAdapter(config);
             default:
@@ -483,7 +483,7 @@ public abstract class DbAdapter {
      * @return protocol string
      * @throws UnsupportedDialectException for unsupported dialect
      */
-     static String getJdbcProtocol(DbEndpointConfig config) throws UnsupportedDialectException {
+     public static String getJdbcProtocol(DbEndpointConfig config) throws UnsupportedDialectException {
         switch (config.getDialect()) {
             case MARIADB:
             case MYSQL:

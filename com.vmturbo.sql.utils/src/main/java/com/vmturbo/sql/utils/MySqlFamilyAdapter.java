@@ -22,9 +22,9 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * {@link DbAdapter} implementation for MySql and MariaDB endpoints.
  */
-class MariaDBMySqlAdapter extends DbAdapter {
+class MySqlFamilyAdapter extends DbAdapter {
 
-    MariaDBMySqlAdapter(final DbEndpointConfig config) {
+    MySqlFamilyAdapter(final DbEndpointConfig config) {
         super(config);
     }
 
@@ -47,6 +47,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
             dataSource.setUrl(url);
             dataSource.setUser(user);
             dataSource.setPassword(password);
+            dataSource.setDatabaseName(config.getDatabaseName());
             return dataSource;
         }
     }
@@ -75,6 +76,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
         try (Connection conn = getRootConnection()) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
                     privileges, config.getDatabaseName(), config.getUserName()));
+            execute(conn, "FLUSH PRIVILEGES");
         }
     }
 
