@@ -163,7 +163,8 @@ public class OperationManagerTest {
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
             new TargetSpecAttributeExtractor(probeStore));
 
-    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore);
+    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore,
+            Clock.systemUTC());
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
@@ -172,7 +173,7 @@ public class OperationManagerTest {
     private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
     private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
-            targetIdentityStore);
+            targetIdentityStore, Clock.systemUTC());
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
