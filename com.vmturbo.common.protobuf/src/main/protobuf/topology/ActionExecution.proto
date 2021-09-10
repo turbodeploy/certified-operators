@@ -38,6 +38,26 @@ message ExecuteActionListRequest {
 
 message ExecuteActionResponse {}
 
+// The request for calling a workflow
+message ExecuteWorkflowRequest {
+    // the information for the workflow
+    optional workflow.Workflow workflow = 1;
+    // The ID of the target on which the action
+    // should be executed.
+    optional int64 target_id = 2;
+    // the message body sent to workflow. For webhook, this is the template after being applied to an action.
+    optional string requestBody = 3;
+}
+
+// The response for calling a workflow
+message ExecuteWorkflowResponse {
+    // the flag indicating if the call was successful
+    optional bool succeeded = 1;
+    // The user-readable result of execution of workflow. For webhook workflows, this includes the response code
+    // from the endpoint and the response body.
+    optional string executionDetails = 2;
+}
+
 service ActionExecutionService {
     // Start executing an action. The call returns
     // once the action is started. Updates about the
@@ -48,6 +68,11 @@ service ActionExecutionService {
     // in a stream here, instead of over the message bus.
     rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
 
+
     // Start executing a list of actions.
     rpc ExecuteActionList(ExecuteActionListRequest) returns (ExecuteActionResponse);
+
+    // Executes a workflow. This does not affect any action lifecycle and is using for testing (trying out) the
+    // workflow.
+    rpc ExecuteWorkflow(ExecuteWorkflowRequest) returns (ExecuteWorkflowResponse);
 }
