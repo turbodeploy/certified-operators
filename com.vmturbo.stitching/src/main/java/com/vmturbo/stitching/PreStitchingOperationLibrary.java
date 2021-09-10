@@ -128,7 +128,8 @@ public class PreStitchingOperationLibrary {
         AZURE_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
                 createCloudEntityPreStitchingOperation(SDKProbeType.AZURE, entityType, mergeProperties)));
         GCP_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
-                createCloudEntityPreStitchingOperation(SDKProbeType.GCP, entityType, mergeProperties)));
+                createCloudEntityPreStitchingOperation(SDKProbeType.GCP_PROJECT, entityType,
+                        mergeProperties)));
         return operations;
     }
 

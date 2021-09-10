@@ -441,7 +441,6 @@
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.sa.component</module>
-                <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
@@ -962,6 +961,9 @@
             <id>mediation-gcp</id>
             <modules>
                 <module>../com.vmturbo.mediation.gcp.sa.component</module>
+                <module>../com.vmturbo.mediation.gcp.cost.component</module>
+                <module>../com.vmturbo.mediation.gcp.project.component</module>
+                <module>../com.vmturbo.mediation.gcp.billing.component</module>
             </modules>
         </profile>
 
@@ -1321,7 +1323,6 @@
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.sa.component</module>
-                <module>../com.vmturbo.mediation.gcp.component</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.gcp.project.component</module>
                 <module>../com.vmturbo.mediation.gcp.billing.component</module>
@@ -2515,37 +2516,6 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.connector.intersight</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.mediation.gcp</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>com.google.protobuf</groupId>
-                        <artifactId>protobuf-java</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.google.protobuf</groupId>
-                        <artifactId>protobuf-java-util</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>io.grpc</groupId>
-                        <artifactId>grpc-netty</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>io.grpc</groupId>
-                        <artifactId>grpc-protobuf</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>io.grpc</groupId>
-                        <artifactId>grpc-stub</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>io.grpc</groupId>
-                        <artifactId>grpc-core</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
