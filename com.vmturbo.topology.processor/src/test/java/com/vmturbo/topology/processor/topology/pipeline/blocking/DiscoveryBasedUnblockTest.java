@@ -52,7 +52,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.RemoteProbeStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
@@ -222,7 +222,7 @@ public class DiscoveryBasedUnblockTest {
         final long probeId = 121;
         final ErrorDTO probeNotRegisteredError = ErrorDTO.newBuilder()
             .setSeverity(ErrorSeverity.CRITICAL)
-            .setDescription(new ProbeException(RemoteProbeStore.TRANSPORT_NOT_REGISTERED_PREFIX + probeId).getLocalizedMessage())
+            .setDescription(new ProbeException(ProbeStore.NO_TRANSPORTS_MESSAGE).getLocalizedMessage())
             .build();
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
         when(t1.getProbeId()).thenReturn(probeId);
