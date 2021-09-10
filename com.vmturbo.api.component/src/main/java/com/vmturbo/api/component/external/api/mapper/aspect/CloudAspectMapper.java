@@ -135,16 +135,23 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                         EntityType.BUSINESS_ACCOUNT).build()).build();
         final Future<GraphResponse> graphResponseF = executorService.submit(
                 () -> repositoryApi.graphSearch(request));
+        final Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(
+                () -> retrieveResourceGroupsForEntities(cloudEntities));
         try {
             final GraphResponse graphResponse = graphResponseF.get();
             final Map<Long, MinimalEntity> accounts = SearchProtoUtil.getMapMinimalWithFirst(
                     graphResponse.getNodesOrThrow("account"));
+            final Map<Long, Grouping> resourceGroupMap = resourceGroupMapF.get();
             cloudEntities.forEach(oid -> {
                 final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
                 retMap.put(oid, aspect);
                 final MinimalEntity account = accounts.get(oid);
                 if (account != null) {
                     aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(account));
+                }
+                final Grouping rg = resourceGroupMap.get(oid);
+                if (rg != null) {
+                    aspect.setResourceGroup(GroupMapper.toBaseApiDTO(rg));
                 }
             });
         } catch (InterruptedException e) {
