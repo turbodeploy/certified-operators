@@ -320,6 +320,145 @@ public class ActionStateUpdaterTest {
     }
 
     /**
+     * Tests persisting failed execution step for completed failed actions.
+     *
+     * <p>Note: short-term fix for OM-73943</p>
+     */
+    @Test
+    public void testPersistingFailedStepForFailedMultipleStepActions() {
+        final ActionFailure failure = ActionFailure.newBuilder()
+                .setActionId(manualWithWorkflowsId)
+                .setErrorDescription("Failed to execute workflow!")
+                .setActionSpec(manualWithWorkflowsSpec)
+                .build();
+
+        final ActionSuccess success = ActionSuccess.newBuilder()
+                .setActionId(manualWithWorkflowsId)
+                .setSuccessDescription("Success!")
+                .setActionSpec(manualWithWorkflowsSpec)
+                .build();
+
+        Assert.assertEquals(ActionState.IN_PROGRESS, manualWithWorkflowsAction.getState());
+        // failed IN_PROGRESS execution step
+        actionStateUpdater.onActionFailure(failure);
+
+        Assert.assertEquals(ActionState.FAILING, manualWithWorkflowsAction.getState());
+
+        // successfully finished POST execution step
+        actionStateUpdater.onActionSuccess(success);
+
+        // latest "After execution" step was successful, but final action state is FAILED,
+        // because main "Action execution" step was failed
+        Assert.assertEquals(Status.SUCCESS,
+                manualWithWorkflowsAction.getCurrentExecutableStep().get().getStatus());
+        Assert.assertEquals(ActionState.FAILED, manualWithWorkflowsAction.getState());
+
+        final SerializationState serializedAction = new SerializationState(
+                manualWithWorkflowsAction);
+
+        // ASSERT
+        // Checks that failed step was persisted for failed action
+        Mockito.verify(actionHistoryDao, times(1)).persistActionHistory(
+                manualWithWorkflowsSpec.getRecommendation().getId(),
+                manualWithWorkflowsSpec.getRecommendation(), realtimeTopologyContextId,
+                serializedAction.getRecommendationTime(), serializedAction.getActionDecision(),
+                manualWithWorkflowsAction.getExecutableSteps()
+                        .get(ActionState.IN_PROGRESS)
+                        .getExecutionStep(), serializedAction.getCurrentState().getNumber(),
+                serializedAction.getActionDetailData(), serializedAction.getAssociatedAccountId(),
+                serializedAction.getAssociatedResourceGroupId(), 2244L);
+    }
+
+    /**
+     * For completed FAILED actions we persist failed execution step.
+     * For the rest actions (completed successfully, in-progress or ready actions) persist the
+     * latest execution step if any.
+     *
+     * <p>Note: short-term fix for OM-73943</p>
+     */
+    @Test
+    public void testPersistingLatestExecutionStepForSucceededActions() {
+        final ActionSuccess success = ActionSuccess.newBuilder()
+                .setActionId(manualWithWorkflowsId)
+                .setSuccessDescription("Success!")
+                .setActionSpec(manualWithWorkflowsSpec)
+                .build();
+
+        Assert.assertEquals(ActionState.IN_PROGRESS, manualWithWorkflowsAction.getState());
+        // successfully finished IN_PROGRESS execution step
+        actionStateUpdater.onActionSuccess(success);
+
+        Assert.assertEquals(ActionState.POST_IN_PROGRESS, manualWithWorkflowsAction.getState());
+        Mockito.verifyZeroInteractions(actionHistoryDao);
+
+        // successfully finished POST execution step
+        actionStateUpdater.onActionSuccess(success);
+
+        Assert.assertEquals(ActionState.SUCCEEDED, manualWithWorkflowsAction.getState());
+        Assert.assertEquals(Status.SUCCESS,
+                manualWithWorkflowsAction.getCurrentExecutableStep().get().getStatus());
+        SerializationState serializedAction = new SerializationState(manualWithWorkflowsAction);
+
+        // Checks that latest execution step was persisted for successfully completed action
+        Mockito.verify(actionHistoryDao, times(1))
+                .persistActionHistory(manualWithWorkflowsSpec.getRecommendation().getId(),
+                        manualWithWorkflowsSpec.getRecommendation(),
+                        realtimeTopologyContextId, serializedAction.getRecommendationTime(),
+                        serializedAction.getActionDecision(),
+                        manualWithWorkflowsAction.getCurrentExecutableStep().get().getExecutionStep(),
+                        serializedAction.getCurrentState().getNumber(),
+                        serializedAction.getActionDetailData(),
+                        serializedAction.getAssociatedAccountId(),
+                        serializedAction.getAssociatedResourceGroupId(), 2244L);
+    }
+
+    /**
+     * Completed action could have more than one failed step only in case
+     * when "Action execution" and "After execution" steps were failed.
+     * For that case we persist failed "Action execution" step as the most important one.
+     * Later it will be improved to persist all execution steps for completed actions.
+     *
+     * <p>Note: short-term fix for OM-73943</p>
+     */
+    @Test
+    public void testPersistingActionExecutionFailedStepForFailedActionsWithMultipleFailedSteps() {
+        final ActionFailure failure = ActionFailure.newBuilder()
+                .setActionId(manualWithWorkflowsId)
+                .setErrorDescription("Failed to execute workflow!")
+                .setActionSpec(manualWithWorkflowsSpec)
+                .build();
+
+        Assert.assertEquals(ActionState.IN_PROGRESS, manualWithWorkflowsAction.getState());
+        // failed "Action execution" step
+        actionStateUpdater.onActionFailure(failure);
+
+        Assert.assertEquals(ActionState.FAILING, manualWithWorkflowsAction.getState());
+
+        // failed "After execution" execution step
+        actionStateUpdater.onActionFailure(failure);
+
+        // latest "After execution" step was failed and final action state is also FAILED
+        Assert.assertEquals(Status.FAILED,
+                manualWithWorkflowsAction.getCurrentExecutableStep().get().getStatus());
+        Assert.assertEquals(ActionState.FAILED, manualWithWorkflowsAction.getState());
+
+        final SerializationState serializedAction = new SerializationState(
+                manualWithWorkflowsAction);
+
+        // ASSERT
+        // Checks that main "Action execution" failed step was persisted for failed action
+        Mockito.verify(actionHistoryDao, times(1)).persistActionHistory(
+                manualWithWorkflowsSpec.getRecommendation().getId(),
+                manualWithWorkflowsSpec.getRecommendation(), realtimeTopologyContextId,
+                serializedAction.getRecommendationTime(), serializedAction.getActionDecision(),
+                manualWithWorkflowsAction.getExecutableSteps()
+                        .get(ActionState.IN_PROGRESS)
+                        .getExecutionStep(), serializedAction.getCurrentState().getNumber(),
+                serializedAction.getActionDetailData(), serializedAction.getAssociatedAccountId(),
+                serializedAction.getAssociatedResourceGroupId(), 2244L);
+    }
+
+    /**
      * Test sending failure action execution notification when action failed main (IN-PROGRESS)
      * step, but successfully passed POST execution step.
      *

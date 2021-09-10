@@ -270,7 +270,7 @@ public class LiveActionPipelineFactory {
             ))
             .addStage(new UpdateAutomationStage(automationManager))
             .addStage(new UpdateSeverityCacheStage())
-            .finalStage(new ActionProcessingInfoStage())
+            .finalStage(new ActionProcessingInfoStage()), clock
         );
     }
 
@@ -290,7 +290,7 @@ public class LiveActionPipelineFactory {
             ))
             .addStage(new UpdateAutomationStage(automationManager))
             .addStage(new UpdateSeverityCacheStage())
-            .finalStage(new ActionProcessingInfoStage())
+            .finalStage(new ActionProcessingInfoStage()), clock
         );
     }
 }

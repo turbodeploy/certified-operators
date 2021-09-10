@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.audit;
 
-import java.time.Clock;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -14,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
+import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.AuditActionsPersistenceManager;
 import com.vmturbo.action.orchestrator.action.AuditActionsStore;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
@@ -33,7 +33,8 @@ import com.vmturbo.components.api.server.IMessageSender;
         BaseKafkaProducerConfig.class,
         WorkflowConfig.class,
         TopologyProcessorConfig.class,
-        ActionTranslationConfig.class
+        ActionTranslationConfig.class,
+        ActionOrchestratorGlobalConfig.class
 })
 public class AuditCommunicationConfig {
     @Autowired
@@ -46,6 +47,8 @@ public class AuditCommunicationConfig {
     private TopologyProcessorConfig tpConfig;
     @Autowired
     private ActionOrchestratorDBConfig databaseConfig;
+    @Autowired
+    private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
 
     /**
      * Criteria for CLEARED audit event for action. If action is not recommended more then
@@ -84,8 +87,9 @@ public class AuditCommunicationConfig {
     @Bean
     public ActionAuditSender actionAuditSender() {
         return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(),
-            tpConfig.thinTargetCache(), actionTranslationConfig.actionTranslator(),
-                auditedActionsManager(), minsClearedActionsCriteria, Clock.systemDefaultZone());
+                tpConfig.thinTargetCache(), actionTranslationConfig.actionTranslator(),
+                auditedActionsManager(), minsClearedActionsCriteria,
+                actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.store;
 
-import java.time.Clock;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -9,7 +8,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.store.atomic.PlanAtomicActionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.atomic.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.store.atomic.PlanAtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
@@ -278,7 +277,7 @@ public class ActionStoreConfig {
         final IdentityServiceImpl<ActionInfo, String, ActionInfoModel> service =
             new IdentityServiceImpl<>(
                 recommendationIdentityStore(), new ActionInfoModelCreator(),
-                ActionInfoModel::getActionHexHash, Clock.systemUTC(),
+                ActionInfoModel::getActionHexHash, actionOrchestratorGlobalConfig.actionOrchestratorClock(),
                 24 * 3600 * 1000);
         cleanupExecutorService().scheduleWithFixedDelay(
                 new RteLoggingRunnable(service::pruneObsoleteCache, "Prune action identity cache"),
@@ -402,7 +401,8 @@ public class ActionStoreConfig {
 
     @Bean
     public ActionHistoryDao actionHistory() {
-        return new ActionHistoryDaoImpl(databaseConfig.dsl(), actionModeCalculator());
+        return new ActionHistoryDaoImpl(databaseConfig.dsl(), actionModeCalculator(),
+                actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 
     /**

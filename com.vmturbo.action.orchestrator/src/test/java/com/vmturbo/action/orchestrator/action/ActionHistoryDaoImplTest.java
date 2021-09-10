@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.action.orchestrator.db.tables.ActionHistory.ACTION_HISTORY;
 
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,6 +47,7 @@ public class ActionHistoryDaoImplTest {
      */
     private static final long UNSTALBE_ACTION_ID = 143877300103332L;
     private static final long REALTIME_CONTEXT_ID = 77777L;
+    private static final Clock CLOCK = Clock.systemUTC();
 
     @Mock
     private ActionModeCalculator actionModeCalculator;
@@ -72,8 +74,8 @@ public class ActionHistoryDaoImplTest {
         // Pass the mock connection to a jOOQ DSLContext:
         DSLContext dslContext = DSL.using(connection, SQLDialect.MARIADB);
 
-        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator);
-        List<ActionView> actuals = dao.getActionHistoryByDate(LocalDateTime.now(), LocalDateTime.now());
+        ActionHistoryDaoImpl dao = new ActionHistoryDaoImpl(dslContext, actionModeCalculator, CLOCK);
+        List<ActionView> actuals = dao.getActionHistoryByDate(LocalDateTime.now(CLOCK), LocalDateTime.now(CLOCK));
 
         Assert.assertEquals(1, actuals.size());
         Assert.assertEquals(UNSTALBE_ACTION_ID, actuals.get(0).getId());

@@ -51,9 +51,10 @@ public class ActionPipeline<I, O> extends Pipeline<I, O, ActionPipelineContext, 
      * Create a new {@link ActionPipeline}.
      *
      * @param stages The stages to be used in the pipeline.
+     * @param clock Clock to track the time.
      */
-    protected ActionPipeline(@Nonnull final PipelineDefinition<I, O, ActionPipelineContext> stages) {
-        super(stages, new ActionPipelineSummary(Clock.systemUTC(), stages.getContext(), stages.getStages()));
+    protected ActionPipeline(@Nonnull final PipelineDefinition<I, O, ActionPipelineContext> stages, @Nonnull Clock clock) {
+        super(stages, new ActionPipelineSummary(clock, stages.getContext(), stages.getStages()));
     }
 
     /**

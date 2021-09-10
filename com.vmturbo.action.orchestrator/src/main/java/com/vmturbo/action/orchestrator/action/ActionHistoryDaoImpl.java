@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.action.orchestrator.db.tables.ActionHistory.ACTION_HISTORY;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -48,19 +49,21 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
      * Database access context.
      */
     private final DSLContext dsl;
-
     private final ActionModeCalculator actionModeCalculator;
+    private final Clock clock;
 
     /**
      * Constructs action history DAO.
      *
      * @param dsl database access context
      * @param actionModeCalculator calculates action mode
+     * @param clock clock to track the time
      */
     public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl,
-            @Nonnull ActionModeCalculator actionModeCalculator) {
+            @Nonnull ActionModeCalculator actionModeCalculator, @Nonnull Clock clock) {
         this.dsl = Objects.requireNonNull(dsl);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -83,7 +86,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             @Nullable final Long associatedAccountId,
             @Nullable final Long associatedResourceGroupId,
             long recommendationOid) {
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
             userName = "SYSTEM";

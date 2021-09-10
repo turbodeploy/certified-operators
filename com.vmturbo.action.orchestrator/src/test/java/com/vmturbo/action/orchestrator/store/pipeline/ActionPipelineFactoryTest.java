@@ -107,7 +107,8 @@ public class ActionPipelineFactoryTest {
      */
     @Test
     public void testPlanActionsPipeline() {
-        final PlanActionPipelineFactory factory = new PlanActionPipelineFactory(storehouse, atomicActionFactory);
+        final PlanActionPipelineFactory factory = new PlanActionPipelineFactory(storehouse, atomicActionFactory,
+                Clock.systemUTC());
 
         // If there is an issue with pipeline context members, attempting to create a pipeline
         // will result in an exception and fail the test.
