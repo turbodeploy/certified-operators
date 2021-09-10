@@ -91,6 +91,7 @@ public class CloudRateExtractor {
             .put("Linux", OSType.LINUX)
             .put("RHEL", OSType.RHEL)
             .put("SUSE", OSType.SUSE)
+            .put("Ubuntu_Pro", OSType.UBUNTU_PRO)
             .put("UNKNOWN", OSType.UNKNOWN_OS)
             .put("Windows", OSType.WINDOWS)
             .put("Windows_SQL_Standard", OSType.WINDOWS_WITH_SQL_STANDARD)
