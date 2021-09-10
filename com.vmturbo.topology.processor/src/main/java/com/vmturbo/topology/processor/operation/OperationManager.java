@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.operation;
 
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,6 +63,8 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionListRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionListResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest.Builder;
@@ -99,6 +102,10 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.action.ActionExecutionState;
+import com.vmturbo.topology.processor.operation.action.ActionList;
+import com.vmturbo.topology.processor.operation.action.ActionListMessageHandler;
+import com.vmturbo.topology.processor.operation.action.ActionListMessageHandler.ActionListOperationCallback;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler.ActionOperationCallback;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
@@ -126,9 +133,9 @@ import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
-import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
@@ -355,19 +362,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.operationListeners.add(targetStatusTracker);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public synchronized Action requestActions(@Nonnull ActionExecutionDTO actionDto,
-                                              final long targetId,
-                                              @Nullable Long secondaryTargetId,
-                                              @Nonnull Set<Long> controlAffectedEntities)
+    public synchronized Action requestActions(
+            @Nonnull final ActionOperationRequest request,
+            final long targetId,
+            @Nullable Long secondaryTargetId)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
         final String probeType = getProbeTypeWithCheck(target);
 
+        final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
         final Action action = new Action(actionDto.getActionOid(), target.getProbeId(),
                 targetId, identityProvider,
                 actionDto.getActionType());
@@ -405,7 +410,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             actionRequestBuilder.addAllSecondaryAccountValue(
                     secondaryTarget.getMediationAccountVals(groupScopeResolver));
         }
-        final ActionRequest request = actionRequestBuilder.build();
+        final ActionRequest sdkRequest = actionRequestBuilder.build();
         final ActionMessageHandler messageHandler = new ActionMessageHandler(
                 action,
                 remoteMediationServer.getMessageHandlerExpirationClock(),
@@ -413,16 +418,101 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         // Update the ENTITY_ACTION table in preparation for executing the action
         insertControllableAndSuspendableState(actionDto.getActionOid(), actionDto.getActionType(),
-                controlAffectedEntities);
+                request.getControlAffectedEntities());
 
         logger.info("Sending action {} execution request to probe", actionDto.getActionOid());
-        remoteMediationServer.sendActionRequest(target,
-                request, messageHandler);
+        remoteMediationServer.sendActionRequest(target, sdkRequest, messageHandler);
 
         logger.info("Beginning {}", action);
-        logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO().toString());
+        logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO());
         operationStart(messageHandler);
         return action;
+    }
+
+    @Override
+    public synchronized ActionList requestActions(
+            @Nonnull List<ActionOperationRequest> requestList,
+            long targetId,
+            @Nullable Long secondaryTargetId)
+            throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
+        // Add primary and secondary target account values.
+        final Target target = getTarget(targetId);
+        final String probeType = getProbeTypeWithCheck(target);
+        final ActionListRequest.Builder actionListRequestBuilder = ActionListRequest.newBuilder()
+                .setProbeType(probeType)
+                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver));
+        // If a secondary target is defined, add it to the ActionListRequest
+        if (secondaryTargetId != null) {
+            // These actions requires interaction with a second target.
+            // Secondary account values must be set.
+            final Target secondaryTarget = getTarget(secondaryTargetId);
+            actionListRequestBuilder.addAllSecondaryAccountValue(
+                    secondaryTarget.getMediationAccountVals(groupScopeResolver));
+        }
+
+        final List<ActionExecutionState> actions = new ArrayList<>(requestList.size());
+        for (final ActionOperationRequest request : requestList) {
+            final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
+            actions.add(new ActionExecutionState(actionDto.getActionOid(), actionDto.getActionType()));
+
+            // Update the ENTITY_ACTION table in preparation for executing the action
+            insertControllableAndSuspendableState(actionDto.getActionOid(),
+                    actionDto.getActionType(), request.getControlAffectedEntities());
+        }
+
+        final ActionList actionList = new ActionList(actions, target.getProbeId(),
+                targetId, identityProvider);
+
+        final ActionListOperationCallback callback = new ActionListOperationCallback() {
+            @Override
+            public void onActionProgress(@Nonnull ActionProgress actionProgress) {
+                notifyActionListProgress(actionList, actionProgress);
+            }
+
+            @Override
+            public void onSuccess(@Nonnull ActionListResponse response) {
+                notifyActionListResult(actionList, response);
+            }
+
+            @Override
+            public void onFailure(@Nonnull String error) {
+                final ActionListResponse result = ActionListResponse.newBuilder()
+                        .addAllResponse(Collections.nCopies(requestList.size(),
+                                ActionResponse.newBuilder()
+                                        .setActionResponseState(ActionResponseState.FAILED)
+                                        .setProgress(0)
+                                        .setResponseDescription(error)
+                                        .build()))
+                        .build();
+                notifyActionListResult(actionList, result);
+            }
+        };
+        final ActionListMessageHandler messageHandler = new ActionListMessageHandler(
+                actionList,
+                remoteMediationServer.getMessageHandlerExpirationClock(),
+                actionTimeoutMs, callback);
+
+        logger.info("Sending action list execution request to probe: {}",
+                actionList.getActionIdsString());
+
+        final ActionListRequest sdkRequest = actionListRequestBuilder.build();
+        remoteMediationServer.sendActionListRequest(target, sdkRequest, messageHandler);
+
+        logger.info("Beginning {}", actionList);
+        if (logger.isDebugEnabled()) {
+            for (final ActionOperationRequest request : requestList) {
+                logger.debug("Action execution DTO:\n" + request.getActionExecutionDTO());
+            }
+        }
+
+        operationStart(messageHandler);
+
+        return actionList;
+    }
+
+    private Target getTarget(long targetId) throws TargetNotFoundException {
+        return targetStore.getTarget(targetId)
+                .orElseThrow(() -> new TargetNotFoundException(targetId));
     }
 
     /**
@@ -866,6 +956,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     @Override
     @Nonnull
+    public Optional<ActionList> getInProgressActionList(final long id) {
+        return getInProgress(id, ActionList.class);
+    }
+
+    @Override
+    @Nonnull
     public Optional<PlanExport> getInProgressPlanExport(final long id) {
         return getInProgress(id, PlanExport.class);
     }
@@ -946,6 +1042,28 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
+     * Notify the {@link OperationManager} that a {@link Operation} completed
+     * with a response returned by the probe.
+     *
+     * @param operation The {@link Operation} that completed.
+     * @param message The message from the probe containing the response.
+     */
+    public void notifyActionListResult(
+            @Nonnull final ActionList operation,
+            @Nonnull final ActionListResponse message) {
+        resultExecutor.execute(() -> {
+            processActionListResponse(operation, message);
+            for (final ActionExecutionState action : operation.getActions()) {
+                final Status status = action.getStatus();
+                if (shouldUpdateEntityActionTable(action.getActionId(), action.getActionType())
+                        && status != null) {
+                    updateControllableAndSuspendableState(action.getActionId(), status);
+                }
+            }
+        });
+    }
+
+    /**
      * Notifies action execution progress.
      *
      * @param action operation
@@ -958,6 +1076,29 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             operationListeners.forEach(operationListener -> operationListener.notifyOperationState(action));
             if (shouldUpdateEntityActionTable(action)) {
                 updateControllableAndSuspendableState(action);
+            }
+        });
+    }
+
+    /**
+     * Notifies action list execution progress.
+     *
+     * @param actionList operation
+     * @param progress action progress message
+     */
+    public void notifyActionListProgress(
+            @Nonnull final ActionList actionList,
+            @Nonnull ActionProgress progress) {
+        resultExecutor.execute(() -> {
+            actionList.updateProgress(progress);
+            operationListeners.forEach(operationListener ->
+                    operationListener.notifyOperationState(actionList));
+            for (final ActionExecutionState action : actionList.getActions()) {
+                final Status status = action.getStatus();
+                if (shouldUpdateEntityActionTable(action.getActionId(), action.getActionType())
+                        && status != null) {
+                    updateControllableAndSuspendableState(action.getActionId(), status);
+                }
             }
         });
     }
@@ -1375,6 +1516,29 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         operationComplete(action, success, errors);
     }
 
+    private void processActionListResponse(
+            @Nonnull final ActionList actionList,
+            @Nonnull final ActionListResponse response) {
+        final List<ActionResponse> responseList = response.getResponseList();
+        boolean success = false;
+        final List<ErrorDTO> errors = new ArrayList<>();
+        for (int actionIndex = 0; actionIndex < responseList.size(); actionIndex++) {
+            final ActionResponse actionResponse = responseList.get(actionIndex);
+            actionList.updateProgress(actionResponse, actionIndex);
+            if (actionResponse.getActionResponseState() == ActionResponseState.SUCCEEDED) {
+                // If at least one action succeeded consider this operation as successful
+                success = true;
+            } else {
+                errors.add(SDKUtil.createCriticalError(actionResponse.getResponseDescription()));
+            }
+        }
+
+        logger.trace("Received action list response from target {}: {}",
+                actionList::getTargetId, () -> response);
+
+        operationComplete(actionList, success, errors);
+    }
+
     private void processPlanExportResponse(@Nonnull final PlanExport export,
                                            @Nonnull final PlanExportResult result) {
         final PlanExportResponse response = result.getResponse();
@@ -1526,8 +1690,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @return if the action should be updated.
      */
     private boolean shouldUpdateEntityActionTable(Action action) {
-        return ACTION_TYPES_AFFECTING_ENTITIES.contains(action.getActionType())
-            && this.actionToAffectedEntities.containsKey(action.getActionId());
+        return shouldUpdateEntityActionTable(action.getActionId(), action.getActionType());
+    }
+
+    private boolean shouldUpdateEntityActionTable(
+            final long actionId,
+            final ActionType actionType) {
+        return ACTION_TYPES_AFFECTING_ENTITIES.contains(actionType)
+                && this.actionToAffectedEntities.containsKey(actionId);
     }
 
     /**
@@ -1536,20 +1706,32 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      */
     private void updateControllableAndSuspendableState(@Nonnull final Action action) {
-        try {
-            final Optional<ActionState> actionState = getActionState(action.getStatus());
-            if (actionState.isPresent()) {
-                long actionId = action.getActionId();
-                ActionState state = actionState.get();
+        updateControllableAndSuspendableState(action.getActionId(), action.getStatus());
+    }
 
+    /**
+     * Update action status for records in ENTITY_ACTION table in topology processor component.
+     *
+     * @param actionId ID of the action that is going to be updated.
+     * @param status Action status.
+     * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
+     */
+    private void updateControllableAndSuspendableState(
+            final long actionId,
+            @Nonnull final Status status) {
+        try {
+            final Optional<ActionState> actionState = getActionState(status);
+            if (actionState.isPresent()) {
+                final ActionState state = actionState.get();
                 entityActionDao.updateActionState(actionId, state);
-                logger.trace("Sucessfully set the state of action with {} ID to {}", actionId, state);
+                logger.trace("Successfully set the state of action with {} ID to {}", actionId, state);
             }
         } catch (DataAccessException e) {
             logger.error("Failed to update controllable table for action {}: {}",
-                    action.getActionId(), e.getMessage());
+                    actionId, e.getMessage());
         } catch (ActionRecordNotFoundException e) {
-            logger.error("Action with id {} does not exist. Failed to update controllable table.", action.getActionId());
+            logger.error("Action with id {} does not exist. Failed to update controllable table.",
+                    actionId);
         }
     }
 
