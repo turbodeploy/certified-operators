@@ -180,7 +180,6 @@ public class DataRetentionProcessorTest {
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
         final Set<Long> entityOids = ImmutableSet.of(vmOid1, vmOid2);
         return statsSavingsStore.getHourlyStats(statsTypes, startTime, endTime,
-                entityOids, Collections.emptyList(), Collections.emptyList(),
-                Collections.emptyList());
+                entityOids, Collections.emptyList(), Collections.emptyList());
     }
 }

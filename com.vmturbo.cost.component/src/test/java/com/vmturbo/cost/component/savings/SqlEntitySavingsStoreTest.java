@@ -170,34 +170,33 @@ public class SqlEntitySavingsStoreTest {
         // Read back and verify.
         Collection<Long> entityOids = ImmutableSet.of(vm1Id, vm2Id);
         Collection<Integer> entityTypes = Collections.singleton(EntityType.VIRTUAL_MACHINE_VALUE);
-        Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
 
         List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         // 0 stats sets, for 12-1 PM range, because end time (1 PM) is exclusive.
         assertEquals(0, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, for 2-3 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, vm2Id);
@@ -207,7 +206,7 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         // 1 stats sets of 4 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
@@ -288,7 +287,7 @@ public class SqlEntitySavingsStoreTest {
         Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
         final List<AggregatedSavingsStats> statsByHour = store.getHourlyStats(statsTypes,
-                firstHourExpected, (lastHourExpected + 1), entityOids, entityTypes, billingFamilies,
+                firstHourExpected, (lastHourExpected + 1), entityOids, entityTypes,
                 resourceGroups);
         assertNotNull(statsByHour);
         int sizeHourly = statsByHour.size();
@@ -297,7 +296,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(lastHourExpected, statsByHour.get(sizeHourly - 1).getTimestamp());
 
         final List<AggregatedSavingsStats> statsByDay = store.getDailyStats(statsTypes,
-                dayRangeStart, dayRangeEnd, entityOids, entityTypes, billingFamilies, resourceGroups);
+                dayRangeStart, dayRangeEnd, entityOids, entityTypes, resourceGroups);
         assertNotNull(statsByDay);
         assertEquals(3, statsByDay.size());
         // 23 hours Jan-13, $100/hr
@@ -308,7 +307,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(0.03, statsByDay.get(2).getValue(), EPSILON_PRECISION);
 
         final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
-                monthRangeStart, monthRangeEnd, entityOids, entityTypes, billingFamilies, resourceGroups);
+                monthRangeStart, monthRangeEnd, entityOids, entityTypes, resourceGroups);
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
         assertEquals(0.47, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
@@ -364,19 +363,19 @@ public class SqlEntitySavingsStoreTest {
         final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
                 statsTypes,
                 startTimeMillis - TimeUnit.HOURS.toMillis(1), endTimeMillis + TimeUnit.HOURS.toMillis(1),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         assertNotNull(hourlyResult);
 
         final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
                 statsTypes,
                 startTimeMillis - TimeUnit.DAYS.toMillis(1), endTimeMillis + TimeUnit.DAYS.toMillis(1),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         assertNotNull(dailyResult);
 
         final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
                 statsTypes,
                 startTimeMillis - TimeUnit.DAYS.toMillis(31), endTimeMillis + TimeUnit.DAYS.toMillis(31),
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
         assertNotNull(monthlyResult);
 
         logger.info("Hourly result count: {}, Daily count: {}, Monthly count: {}",
@@ -546,15 +545,13 @@ public class SqlEntitySavingsStoreTest {
         long zoneOid1 = 10L;
         long zoneOid2 = 20L;
         long serviceProviderOid = 10000L;
-        long billingFamilyOid1 = 300000L;
-        long billingFamilyOid2 = 400000L;
         long resourceGroupOid1 = 100000L;
         long resourceGroupOid2 = 200000L;
         EntityCloudScopeRecord r1 = createEntityCloudScopeRecord(entityOid1, accountId, regionOid1,
-                zoneOid1, serviceProviderOid, billingFamilyOid1, resourceGroupOid1);
+                zoneOid1, serviceProviderOid, resourceGroupOid1);
 
         EntityCloudScopeRecord r2 = createEntityCloudScopeRecord(entityOid2, accountId, regionOid2,
-                zoneOid2, serviceProviderOid, billingFamilyOid2, resourceGroupOid2);
+                zoneOid2, serviceProviderOid, resourceGroupOid2);
 
         // Insert 2 records into the scope table. Both are VMs in the same account.
         dsl.insertInto(Tables.ENTITY_CLOUD_SCOPE).set(r1).execute();
@@ -573,13 +570,12 @@ public class SqlEntitySavingsStoreTest {
         Collection<Integer> entityTypes = Collections.singleton(EntityType.BUSINESS_ACCOUNT_VALUE);
         final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
                 .values()).collect(Collectors.toSet());
-        Collection<Long> billingFamilies = new HashSet<>();
         Collection<Long> resourceGroups = new HashSet<>();
 
         List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                ImmutableSet.of(accountId), entityTypes, billingFamilies, resourceGroups);
+                ImmutableSet.of(accountId), entityTypes, resourceGroups);
         assertEquals(1, statsReadBack.size());
         assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
 
@@ -590,7 +586,7 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                ImmutableSet.of(regionOid1), entityTypes, billingFamilies, resourceGroups);
+                ImmutableSet.of(regionOid1), entityTypes, resourceGroups);
         assertEquals(1, statsReadBack.size());
         assertEquals(Double.valueOf(10), statsReadBack.get(0).getValue());
 
@@ -601,7 +597,7 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                ImmutableSet.of(zoneOid2), entityTypes, billingFamilies, resourceGroups);
+                ImmutableSet.of(zoneOid2), entityTypes, resourceGroups);
         assertEquals(1, statsReadBack.size());
         assertEquals(Double.valueOf(20), statsReadBack.get(0).getValue());
 
@@ -611,7 +607,7 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                ImmutableSet.of(serviceProviderOid), entityTypes, billingFamilies, resourceGroups);
+                ImmutableSet.of(serviceProviderOid), entityTypes, resourceGroups);
         assertEquals(1, statsReadBack.size());
         assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
 
@@ -621,32 +617,13 @@ public class SqlEntitySavingsStoreTest {
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                Collections.emptySet(), Collections.emptySet(), billingFamilies, resourceGroups);
+                Collections.<Long>emptySet(), Collections.<Integer>emptySet(), resourceGroups);
         assertEquals(1, statsReadBack.size());
         assertEquals(Double.valueOf(20), statsReadBack.get(0).getValue());
-
-        // 6a. Query by billing family
-        // Query for billing Family OID 1. VM1 stats should be returned.
-        billingFamilies.add(billingFamilyOid1);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
-                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                Collections.emptySet(), Collections.emptySet(), billingFamilies, new HashSet<>());
-        assertEquals(1, statsReadBack.size());
-        assertEquals(Double.valueOf(10), statsReadBack.get(0).getValue());
-
-        // 6b. Now query for both billing families. Stats for VM1 and VM2 are both returned.
-        billingFamilies.add(billingFamilyOid2);
-        statsReadBack = store.getHourlyStats(allStatsTypes,
-                TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                Collections.emptySet(), Collections.emptySet(), billingFamilies, new HashSet<>());
-        assertEquals(1, statsReadBack.size());
-        assertEquals(Double.valueOf(30), statsReadBack.get(0).getValue());
     }
 
     private EntityCloudScopeRecord createEntityCloudScopeRecord(Long entityOid, Long accountOid,
-            Long regionOid, Long availabilityZoneOid, Long serviceProviderOid, Long billingFamilyOid,
+            Long regionOid, Long availabilityZoneOid, Long serviceProviderOid,
             Long resourceGroupOid) {
         EntityCloudScopeRecord record = new EntityCloudScopeRecord();
         record.setAccountOid(accountOid);
@@ -655,7 +632,6 @@ public class SqlEntitySavingsStoreTest {
         record.setRegionOid(regionOid);
         record.setAvailabilityZoneOid(availabilityZoneOid);
         record.setServiceProviderOid(serviceProviderOid);
-        record.setBillingFamilyOid(billingFamilyOid);
         record.setResourceGroupOid(resourceGroupOid);
         record.setCreationTime(LocalDateTime.now());
         return record;
