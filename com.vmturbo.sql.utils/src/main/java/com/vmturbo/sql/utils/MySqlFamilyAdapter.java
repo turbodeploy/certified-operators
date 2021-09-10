@@ -22,9 +22,9 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * {@link DbAdapter} implementation for MySql and MariaDB endpoints.
  */
-class MariaDBMySqlAdapter extends DbAdapter {
+class MySqlFamilyAdapter extends DbAdapter {
 
-    MariaDBMySqlAdapter(final DbEndpointConfig config) {
+    MySqlFamilyAdapter(final DbEndpointConfig config) {
         super(config);
     }
 
@@ -47,6 +47,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
             dataSource.setUrl(url);
             dataSource.setUser(user);
             dataSource.setPassword(password);
+            dataSource.setDatabaseName(config.getDatabaseName());
             return dataSource;
         }
     }
@@ -75,6 +76,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
         try (Connection conn = getRootConnection()) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
                     privileges, config.getDatabaseName(), config.getUserName()));
+            execute(conn, "FLUSH PRIVILEGES");
         }
     }
 
@@ -154,14 +156,12 @@ class MariaDBMySqlAdapter extends DbAdapter {
     @Override
     protected void tearDown() {
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP DATABASE IF EXISTS `%s`",
-                    config.getDatabaseName()));
+            execute(conn, String.format("DROP DATABASE `%s`", config.getDatabaseName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop database {}", config.getDatabaseName(), e);
         }
         try (Connection conn = getRootConnection()) {
-            execute(conn, String.format("DROP USER IF EXISTS `%s`@`%%`",
-                    config.getUserName()));
+            execute(conn, String.format("DROP USER `%s`@`%%`", config.getUserName()));
         } catch (UnsupportedDialectException | SQLException e) {
             logger.error("Failed to drop user {}", config.getUserName(), e);
         }
