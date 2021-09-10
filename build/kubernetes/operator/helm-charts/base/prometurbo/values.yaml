@@ -395,7 +395,7 @@ businessApplications:
       - mediation-azureea
       - mediation-azuresp
       - mediation-azurevolumes
-      - mediation-gcp
+      - mediation-gcpsa
       - mediation-gcpcost
       - mediation-vcenter
       - mediation-vcenterbrowsing
