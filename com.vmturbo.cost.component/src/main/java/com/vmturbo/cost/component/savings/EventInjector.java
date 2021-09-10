@@ -141,8 +141,8 @@ public class EventInjector implements Runnable {
                         if (changed.equals(availablePath)) {
                             injectEvents();
                         }
+                        wk.reset();
                     }
-                    wk.reset();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
