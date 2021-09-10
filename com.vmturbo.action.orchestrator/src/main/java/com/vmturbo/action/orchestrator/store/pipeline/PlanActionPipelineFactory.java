@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store.pipeline;
 
+import java.time.Clock;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -30,17 +31,20 @@ public class PlanActionPipelineFactory {
 
     private long actionPlanCount = 0;
     private final AtomicActionFactory atomicActionFactory;
+    private final Clock clock;
 
     /**
      * Create a new {@link PlanActionPipelineFactory}.
      *
      * @param actionStorehouse The {@link ActionStorehouse}.
      * @param atomicActionFactory The {@link AtomicActionFactory}
+     * @param clock The {@link Clock} to track the time
      */
     public PlanActionPipelineFactory(@Nonnull final ActionStorehouse actionStorehouse,
-                                     @Nonnull final AtomicActionFactory atomicActionFactory) {
+            @Nonnull final AtomicActionFactory atomicActionFactory, final Clock clock) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -75,7 +79,7 @@ public class PlanActionPipelineFactory {
                     .addStage(new GetOrCreatePlanActionStoreStage(actionStorehouse))
                     .addStage(new ActionPipelineStages.PopulatePlanActionsStage())
                     .addStage(new UpdateSeverityCacheStage())
-                    .finalStage(new ActionProcessingInfoStage())
+                    .finalStage(new ActionProcessingInfoStage()), clock
                 );
 
     }

@@ -80,8 +80,8 @@ public class MarketConfig {
 
     @Bean
     public ActionPlanAssessor actionPlanAssessor() {
-        return new ActionPlanAssessor(Clock.systemUTC(),
-            maxLiveActionPlanAgeSeconds);
+        return new ActionPlanAssessor(actionOrchestratorGlobalConfig.actionOrchestratorClock(),
+                maxLiveActionPlanAgeSeconds);
     }
 
     @Bean
@@ -105,7 +105,8 @@ public class MarketConfig {
     @Bean
     public PlanActionPipelineFactory planActionPipelineFactory() {
         return new PlanActionPipelineFactory(actionStoreConfig.actionStorehouse(),
-                                             actionStoreConfig.planAtomicActionFactory());
+                actionStoreConfig.planAtomicActionFactory(),
+                actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 
     /**

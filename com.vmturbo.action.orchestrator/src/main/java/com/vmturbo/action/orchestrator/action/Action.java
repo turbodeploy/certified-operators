@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -996,6 +997,8 @@ public class Action implements ActionView {
      * @param event The event that caused the execution.
      */
     void onPreExecuted(@Nonnull final SuccessEvent event) {
+        // update the status of completed PRE step
+        updateExecutionStatus(ExecutableStep::success, event.getEventName());
         // A PRE workflow was run, and we need to replace the executionStep with a fresh one for
         // tracking the primary action execution
         replaceExecutionStep(event.getEventName());
@@ -1353,7 +1356,7 @@ public class Action implements ActionView {
             this.recommendation = action.getTranslationResultOrOriginal();
             this.recommendationTime = action.recommendationTime;
             this.actionDecision = action.decision.getDecision().orElse(null);
-            this.executionStep = action.currentExecutableStep.map(ExecutableStep::getExecutionStep).orElse(null);
+            this.executionStep = getExecutionStep(action);
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();
@@ -1402,6 +1405,57 @@ public class Action implements ActionView {
         @Nullable
         public Long getRecommendationOid() {
             return recommendationOid;
+        }
+
+        /**
+         * For the completed FAILED actions return the failed execution step.
+         * Fot the other actions it will be returned the latest execution step if any.
+         * Short-term fix for OM-73943.
+         *
+         * @param action the action
+         * @return execution step
+         */
+        @Nullable
+        private ExecutionStep getExecutionStep(final @Nonnull Action action) {
+            if (action.currentExecutableStep.isPresent()) {
+                final Map<ActionState, ExecutableStep> executableSteps =
+                        action.getExecutableSteps();
+                if (action.getState() == ActionState.FAILED) {
+                    return getFailedExecutionStep(executableSteps);
+                } else {
+                    return action.currentExecutableStep.get().getExecutionStep();
+                }
+            } else {
+                return null;
+            }
+        }
+
+        /**
+         * Return failed state for completed FAILED actions.
+         * Most part of the multiple-step actions (different combinations of possible execution
+         * steps) may have only ONE failed step immediately leads to failing the action.
+         * And only actions with failed REPLACE and POST steps may have TWO failed steps
+         * and in this case REPLACE step will be returned as more important one.
+         *
+         * <p>Examples:</p>
+         * <p>1- If PRE fails, return the error for PRE</p>
+         * <p>2- If REPLACE fails, we show the error for REPLACE regardless of POST failing or not</p>
+         * <p>3- If POST fails, we show the error for POST</p>
+         *
+         * @param executableSteps all executed steps for the action
+         * @return the failed step
+         */
+        @Nullable
+        private ExecutionStep getFailedExecutionStep(
+                @Nonnull final Map<ActionState, ExecutableStep> executableSteps) {
+            return Stream.of(ActionState.PRE_IN_PROGRESS, ActionState.IN_PROGRESS,
+                            ActionState.POST_IN_PROGRESS)
+                    .map(executableSteps::get)
+                    .filter(Objects::nonNull)
+                    .filter(executableStep -> executableStep.getStatus() == Status.FAILED)
+                    .findFirst()
+                    .map(ExecutableStep::getExecutionStep)
+                    .orElse(null);
         }
     }
 

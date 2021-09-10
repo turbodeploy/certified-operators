@@ -1,7 +1,5 @@
 package com.vmturbo.action.orchestrator.workflow.config;
 
-import java.time.Clock;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
+import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.workflow.WorkflowDiagnostics;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
@@ -26,11 +25,14 @@ import com.vmturbo.identity.store.PersistentIdentityStore;
  * Spring configuration for Workflow processing - rpc, store.
  **/
 @Configuration
-@Import(ActionOrchestratorDBConfig.class)
+@Import({ActionOrchestratorDBConfig.class, ActionOrchestratorGlobalConfig.class})
 public class WorkflowConfig {
 
     @Autowired
     private TopologyProcessorConfig tpConfig;
+
+    @Autowired
+    private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
@@ -61,15 +63,12 @@ public class WorkflowConfig {
     @Bean
     public WorkflowStore workflowStore() {
         if (useInMemoryWorkflowCache) {
-            return new InMemoryWorkflowStore(databaseConfig.dsl(), identityStore(), clock());
+            return new InMemoryWorkflowStore(databaseConfig.dsl(), identityStore(),
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
         } else {
-            return new PersistentWorkflowStore(databaseConfig.dsl(), identityStore(), clock());
+            return new PersistentWorkflowStore(databaseConfig.dsl(), identityStore(),
+                    actionOrchestratorGlobalConfig.actionOrchestratorClock());
         }
-    }
-
-    @Bean
-    public Clock clock() {
-        return Clock.systemUTC();
     }
 
     @Bean
