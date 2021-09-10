@@ -89,14 +89,18 @@ public class EntitySettingsApplicator {
     );
 
     private final boolean considerUtilizationConstraintInClusterHeadroomPlan;
+    private final boolean addAccessCommoditiesForVsan;
 
     /**
      * Constructor.
      *
      * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
+     * @param addAccessCommoditiesForVsan add access commodities between vsan hosts and storages when true.
      */
-    public EntitySettingsApplicator(final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
+    public EntitySettingsApplicator(final boolean considerUtilizationConstraintInClusterHeadroomPlan,
+                                    final boolean addAccessCommoditiesForVsan) {
         this.considerUtilizationConstraintInClusterHeadroomPlan = considerUtilizationConstraintInClusterHeadroomPlan;
+        this.addAccessCommoditiesForVsan = addAccessCommoditiesForVsan;
     }
 
     /**
@@ -109,7 +113,8 @@ public class EntitySettingsApplicator {
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
         final List<SettingApplicator> applicators =
-            buildApplicators(topologyInfo, graphWithSettings, considerUtilizationConstraintInClusterHeadroomPlan);
+            buildApplicators(topologyInfo, graphWithSettings,
+                    considerUtilizationConstraintInClusterHeadroomPlan, addAccessCommoditiesForVsan);
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
@@ -147,11 +152,13 @@ public class EntitySettingsApplicator {
      * @param topologyInfo The {@link TopologyInfo} of an in-progress topology broadcast.
      * @param graphWithSettings {@link GraphWithSettings} of the in-progress topology
      * @param considerUtilizationConstraintInClusterHeadroomPlan consider utilization constraint in cluster headroom plan or not
+     * @param addAccessCommoditiesForVsan add access commodities between vsan hosts and storages when true.
      * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
                                                             @Nonnull final GraphWithSettings graphWithSettings,
-                                                            final boolean considerUtilizationConstraintInClusterHeadroomPlan) {
+                                                            final boolean considerUtilizationConstraintInClusterHeadroomPlan,
+                                                            final boolean addAccessCommoditiesForVsan) {
         return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
                 new ReconfigureApplicator(),
@@ -328,7 +335,7 @@ public class EntitySettingsApplicator {
                                                CommodityType.STORAGE_LATENCY, graphWithSettings),
                 new OverrideCapacityByUserApplicator(EntitySettingSpecs.IOPSCapacity,
                         CommodityType.STORAGE_ACCESS, graphWithSettings),
-                new VsanStorageApplicator(graphWithSettings),
+                new VsanStorageApplicator(graphWithSettings, addAccessCommoditiesForVsan),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),

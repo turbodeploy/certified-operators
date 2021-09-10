@@ -587,7 +587,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Before
     public void init() {
-        applicator = new EntitySettingsApplicator(false);
+        applicator = new EntitySettingsApplicator(false, false);
         cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
@@ -1895,7 +1895,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testHeadroomCpuUtilizationFeatureFlagEnabled() {
-        applicator = new EntitySettingsApplicator(true);
+        applicator = new EntitySettingsApplicator(true, false);
         final TopologyEntityDTO.Builder builder =
             createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
         // Suppose the effective capacity is 80 - i.e. 20% is reserved for HA
