@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -319,6 +320,10 @@ public class CloudAspectMapperTest {
         final BaseApiDTO account = aspect.getBusinessAccount();
         Assert.assertEquals(ApiEntityType.BUSINESS_ACCOUNT.apiStr(), account.getClassName());
         Assert.assertEquals(String.valueOf(BUSINESS_ACCOUNT_OID), account.getUuid());
+        final BaseApiDTO resourceGroup = aspect.getResourceGroup();
+        Assert.assertEquals(StringConstants.RESOURCE_GROUP, resourceGroup.getClassName());
+        Assert.assertEquals(String.valueOf(RESOURCE_GROUP_ID), resourceGroup.getUuid());
+        Assert.assertEquals(RESOURCE_GROUP_DISPLAYNAME, resourceGroup.getDisplayName());
     }
 
     /**

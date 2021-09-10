@@ -828,12 +828,17 @@ public class ActionSpecMapper {
         // add volume aspects if delete volume action
         if (newEntity == null && targetEntity.getClassName().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())
                 && actionApiDTO.getActionType().equals(ActionType.DELETE)) {
+            final Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
             List<VirtualDiskApiDTO> volumeAspectsList = context.getVolumeAspects(targetEntityId);
             if (!volumeAspectsList.isEmpty()) {
-                Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
                 VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
                 virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
                 aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
+            }
+            // add cloud aspect for delete volume action
+            context.getCloudAspect(targetEntityId).ifPresent(cloudAspect ->
+                    aspectMap.put(AspectName.CLOUD, cloudAspect));
+            if (!aspectMap.isEmpty()) {
                 actionApiDTO.getTarget().setAspectsByName(aspectMap);
             }
         }
