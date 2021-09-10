@@ -125,7 +125,7 @@ message TargetHealth {
 
   // The health state of a target.
   optional common.HealthState health_state = 8;
-  
+
   // A message (error text or comment). May be unset.
   optional string message_text = 9;
 
