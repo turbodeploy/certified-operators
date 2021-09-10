@@ -10,20 +10,25 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl.DiscoveryFailure;
+
+import common.HealthCheck.HealthState;
 
 /**
  * Retrieves any relevant information to determine the health of a target, and returns the
@@ -33,17 +38,24 @@ import com.vmturbo.topology.processor.targets.status.TargetStatusTrackerImpl.Dis
  * all the special cases for the interplay between latest validations and discoveries.
  */
 public class TargetHealthRetriever {
+    private static final long DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER = 3;
+
+    private static final int TEMP_COUNTER_THRESHOLD = 3; // !! replace with a proper setting value
+
     private final IOperationManager operationManager;
     private final TargetStatusTracker targetStatusTracker;
     private final TargetStore targetStore;
+    private final ProbeStore probeStore;
     private final Clock clock;
 
     TargetHealthRetriever(@Nonnull final IOperationManager operationManager,
             @Nonnull final TargetStatusTracker targetStatusTracker,
-            @Nonnull final TargetStore targetStore, @Nonnull final Clock clock) {
+            @Nonnull final TargetStore targetStore, @Nonnull final ProbeStore probeStore,
+            @Nonnull final Clock clock) {
         this.operationManager = operationManager;
         this.targetStatusTracker = targetStatusTracker;
         this.targetStore = targetStore;
+        this.probeStore = probeStore;
         this.clock = clock;
     }
 
@@ -68,36 +80,32 @@ public class TargetHealthRetriever {
         }
 
         return matchingTargets.stream()
-            .collect(Collectors.toMap(Target::getId, this::targetToTargetHealthInfo));
+            .collect(Collectors.toMap(Target::getId, this::targetToTargetHealth));
     }
 
     @Nonnull
-    private TargetHealth targetToTargetHealthInfo(@Nonnull final Target target) {
+    private TargetHealth targetToTargetHealth(@Nonnull final Target target) {
+        TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
+        targetHealthBuilder.setTargetName(target.getDisplayName());
+
         long targetId = target.getId();
-        String targetName = target.getDisplayName();
+        //Set lastSuccessfulDiscoveryTime if time is present/known.
+        Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId);
+        if (lastSuccessfulDiscoveryTime != null) {
+            targetHealthBuilder.setLastSuccessfulDiscoveryCompletionTime(
+                            lastSuccessfulDiscoveryTime.getSecond());
+        }
 
         Optional<Validation> lastValidation = operationManager.getLastValidationForTarget(targetId);
         Optional<Discovery> lastDiscovery = operationManager.getLastDiscoveryForTarget(targetId,
                 DiscoveryType.FULL);
 
-        TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
-
-        // set lastSuccessfulDiscoveryTime if time is present/known
-        Long lastSuccessfulDiscoveryTime = targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId);
-        if (lastSuccessfulDiscoveryTime != null) {
-            targetHealthBuilder.setLastSuccessfulDiscovery(lastSuccessfulDiscoveryTime);
-        }
-
         //Check if we have info about validation.
         if (!lastValidation.isPresent()) {
             if (!lastDiscovery.isPresent()) {
-                return targetHealthBuilder
-                        .setSubcategory(TargetHealthSubCategory.VALIDATION)
-                        .setTargetName(targetName)
-                        .setErrorText("Validation pending.")
-                        .build();
+                return reportNoDiscoveryData(targetHealthBuilder, target, false);
             } else {
-                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
+                return verifyDiscovery(targetHealthBuilder, target, lastDiscovery.get());
             }
         }
 
@@ -105,119 +113,235 @@ public class TargetHealthRetriever {
         //Check if the validation has passed fine.
         if (validation.getStatus() == Status.SUCCESS) {
             if (!lastDiscovery.isPresent()) {
-                return targetHealthBuilder
-                        .setSubcategory(TargetHealthSubCategory.VALIDATION)
-                        .setTargetName(targetName)
-                        .build();
+                return reportNoDiscoveryData(targetHealthBuilder, target, true);
             } else {
-                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
+                return verifyDiscovery(targetHealthBuilder, target, lastDiscovery.get());
             }
         }
 
         //Validation was not Ok, but check the last discovery.
         if (lastDiscovery.isPresent()) {
-            LocalDateTime validationCompletionTime = validation.getCompletionTime();
-            LocalDateTime discoveryCompletionTime = lastDiscovery.get().getCompletionTime();
-
             //Check if there's a discovery that has happened later and passed fine.
-            if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0
-                    && lastDiscovery.get().getStatus() == Status.SUCCESS) {
-                //All is good!
-                return targetHealthBuilder
-                        .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                        .setTargetName(targetName)
-                        .build();
+            LocalDateTime validationFinishTime = validation.getCompletionTime();
+            if (lastSuccessfulDiscoveryTime != null && lastSuccessfulDiscoveryTime.getSecond()
+                            .compareTo(TimeUtil.localTimeToMillis(validationFinishTime, clock)) >= 0) {
+                //There has been a successful discovery after the last validation which means
+                //that validation problem probably got fixed and now discovery problems should
+                //be reported if any. (Or discovery success.)
+                return verifyDiscovery(targetHealthBuilder, target, lastDiscovery.get());
             }
 
-            if (checkTargetDuplication(lastDiscovery.get())) {
-                //We have the case of duplicate targets.
-                return targetHealthBuilder
-                        .setSubcategory(TargetHealthSubCategory.DUPLICATION)
-                        .setErrorType(ErrorType.DUPLICATION)
-                        .setErrorText("Duplicate targets.")
-                        .setConsecutiveFailureCount(1)
-                        .setTimeOfFirstFailure(
-                                TimeUtil.localTimeToMillis(discoveryCompletionTime, clock))
-                        .setTargetName(targetName)
-                        .build();
+            TargetHealth duplicateTargetHealth = reportTargetDuplication(targetHealthBuilder,
+                            lastDiscovery.get());
+            if (duplicateTargetHealth != null) {
+                //We have a duplicate target.
+                return duplicateTargetHealth;
             }
         }
 
         //Report the failed validation.
-        return targetHealthBuilder
+        return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                 .setSubcategory(TargetHealthSubCategory.VALIDATION)
-                .setTargetName(targetName)
                 .setErrorType(validation.getErrorTypes().get(0))
-                .setErrorText(validation.getErrors().get(0))
-                .setConsecutiveFailureCount(1)
+                .setMessageText(validation.getErrors().get(0))
                 .setTimeOfFirstFailure(
                         TimeUtil.localTimeToMillis(validation.getCompletionTime(), clock))
                 .build();
     }
 
-    private boolean checkTargetDuplication(Discovery lastDiscovery) {
-        for (ErrorType errorType : lastDiscovery.getErrorTypes()) {
-            if (errorType == ErrorType.DUPLICATION) {
-                return true;
-            }
+    /**
+     * Prepare the TargetHealth report for the case when discovery data is not available.
+     * @param targetHealthBuilder TargetHealth builder
+     * @param target the checked target
+     * @param successfulValidation whether we have info about a successful validation
+     * @return TargetHealth object
+     */
+    private TargetHealth reportNoDiscoveryData(TargetHealth.Builder targetHealthBuilder,
+                    Target target, boolean successfulValidation) {
+        //Check if the probe has lost connection.
+        if (!probeStore.isProbeConnected(target.getProbeId())) {
+            return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
+                    .setSubcategory(successfulValidation ? TargetHealthSubCategory.DISCOVERY
+                                            : TargetHealthSubCategory.VALIDATION)
+                    .setErrorType(ErrorType.OTHER)
+                    .setMessageText("The probe for '" + target.getDisplayName() + "' is not connected.")
+                    .build();
         }
-        return false;
+
+        //Check whether there's some persisting discovered data in the system that is too old.
+        if (checkForDelayedData(target)) {
+            return reportDelayedData(targetHealthBuilder, target.getId());
+        }
+
+        targetHealthBuilder.setSubcategory(TargetHealthSubCategory.VALIDATION);
+        if (successfulValidation) {
+            targetHealthBuilder.setHealthState(HealthState.NORMAL)
+                .setMessageText("Validation passed. Waiting for discovery.");
+        } else {
+            targetHealthBuilder.setHealthState(HealthState.MINOR)
+                .setMessageText("Validation pending.");
+        }
+        return targetHealthBuilder.build();
     }
 
-    private TargetHealth verifyDiscovery(long targetId, String targetName,
-            Discovery lastDiscovery) {
-        TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
-
-        // set lastSuccessfulDiscoveryTime if time is present/known
-        Long lastSuccessfulDiscoveryTime = targetStatusTracker.getLastSuccessfulDiscoveryTime(targetId);
-        if (lastSuccessfulDiscoveryTime != null) {
-            targetHealthBuilder.setLastSuccessfulDiscovery(lastSuccessfulDiscoveryTime);
+    /**
+     * Checks if the DISCOVERY subcategory is considered to be in NORMAL health state.
+     * If it is then also checks for whether the discovered data is too old.
+     * @param targetHealthBuilder TargetHealth builder
+     * @param target the checked target
+     * @param lastDiscovery the discovery info for the checked target
+     * @return TargetHealth if everything is fine or if the data is too old; null if the discovery failed
+     */
+    @Nullable
+    private TargetHealth reportWhenSuccessfulDiscovery(TargetHealth.Builder targetHealthBuilder,
+                    Target target, Discovery lastDiscovery) {
+        Map<Long, DiscoveryFailure> targetToFailedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(target.getId());
+        if (lastDiscovery.getStatus() != Status.SUCCESS && discoveryFailure != null
+                        && discoveryFailure.getFailsCount() >= TEMP_COUNTER_THRESHOLD) {
+            return null;
         }
 
-        if (lastDiscovery.getStatus() == Status.SUCCESS) {
-            //The discovery was ok.
-            return targetHealthBuilder
-                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                    .setTargetName(targetName)
-                    .build();
+        //The discovery was ok or the number of consecutive failures is below the threshold.
+        if (checkForDelayedData(target)) {
+            //The data is too old.
+            return reportDelayedData(targetHealthBuilder, target.getId());
+        }
+        return targetHealthBuilder.setHealthState(HealthState.NORMAL)
+                .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                .setConsecutiveFailureCount(discoveryFailure == null ? 0 : discoveryFailure.getFailsCount())
+                .build();
+    }
+
+    /**
+     * Check if the target was discovered to be a duplicate one and report a problem if it was.
+     * @param targetHealthBuilder TargetHealth builder
+     * @param lastDiscovery info about the last discovery of the checked target
+     * @return a report on CRITICAL target health if it is a duplication or null otherwise.
+     */
+    @Nullable
+    private TargetHealth reportTargetDuplication(TargetHealth.Builder targetHealthBuilder,
+                    Discovery lastDiscovery) {
+        for (ErrorType errorType : lastDiscovery.getErrorTypes()) {
+            if (errorType == ErrorType.DUPLICATION) {
+                //We have the case of duplicate targets.
+                return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
+                        .setSubcategory(TargetHealthSubCategory.DUPLICATION)
+                        .setErrorType(ErrorType.DUPLICATION)
+                        .setMessageText("Duplicate targets.")
+                        .setTimeOfFirstFailure(
+                                TimeUtil.localTimeToMillis(lastDiscovery.getCompletionTime(), clock))
+                        .build();
+            }
         }
 
-        if (checkTargetDuplication(lastDiscovery)) {
-            //We have the case of duplicate targets.
-            return targetHealthBuilder
-                    .setSubcategory(TargetHealthSubCategory.DUPLICATION)
-                    .setErrorType(ErrorType.DUPLICATION)
-                    .setErrorText("Duplicate targets.")
-                    .setConsecutiveFailureCount(1)
-                    .setTimeOfFirstFailure(
-                            TimeUtil.localTimeToMillis(lastDiscovery.getCompletionTime(), clock))
-                    .setTargetName(targetName)
-                    .build();
+        //No targets duplication detected.
+        return null;
+    }
+
+    private TargetHealth verifyDiscovery(TargetHealth.Builder targetHealthBuilder,
+                    Target target, Discovery lastDiscovery) {
+        TargetHealth targetHealth = reportWhenSuccessfulDiscovery(targetHealthBuilder,
+                        target, lastDiscovery);
+        if (targetHealth != null) {
+            return targetHealth;
         }
 
-        Map<Long, DiscoveryFailure> targetToFailedDiscoveries =
-                targetStatusTracker.getFailedDiscoveries();
-        DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
+        targetHealth = reportTargetDuplication(targetHealthBuilder, lastDiscovery);
+        if (targetHealth != null) {
+            return targetHealth;
+        }
+
+        Map<Long, DiscoveryFailure> targetToFailedDiscoveries = targetStatusTracker.getFailedDiscoveries();
+        DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(target.getId());
         if (discoveryFailure != null) {
             //There was a discovery failure.
-            return targetHealthBuilder
+            return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                    .setTargetName(targetName)
                     .setErrorType(discoveryFailure.getErrorType())
-                    .setErrorText(discoveryFailure.getErrorText())
+                    .setMessageText(discoveryFailure.getErrorText())
                     .setConsecutiveFailureCount(discoveryFailure.getFailsCount())
                     .setTimeOfFirstFailure(
                             TimeUtil.localTimeToMillis(discoveryFailure.getFailTime(), clock))
                     .build();
-        } else {
-            //The last discovery was probably attempted while there was no probe registered for it
-            //(e.g. after the topology-processor restart).
-            return targetHealthBuilder
+        } else if (!probeStore.isProbeConnected(target.getProbeId())) {
+            //The probe got disconnected. Report it.
+            return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
                     .setSubcategory(TargetHealthSubCategory.DISCOVERY)
-                    .setTargetName(targetName)
-                    .setErrorText(
-                            "No finished discovery. May be because of an unregistered probe during the last attempt.")
+                    .setErrorType(ErrorType.OTHER)
+                    .setMessageText("The probe for '" + target.getDisplayName() + "' is not connected.")
+                    .build();
+        } else if (checkForDelayedData(target)) {
+            //The discovered data is too old, report it.
+            return reportDelayedData(targetHealthBuilder, target.getId());
+        } else {
+            return targetHealthBuilder.setHealthState(HealthState.MINOR)
+                    .setSubcategory(TargetHealthSubCategory.DISCOVERY)
+                    .setMessageText("Discovery pending.")
                     .build();
         }
+    }
+
+    private TargetHealth reportDelayedData(TargetHealth.Builder targetHealthBuilder, long targetId) {
+        Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
+                        .getLastSuccessfulDiscoveryTime(targetId);
+        if (lastSuccessfulDiscoveryTime != null) {
+            targetHealthBuilder.setLastSuccessfulDiscoveryStartTime(lastSuccessfulDiscoveryTime.getFirst());
+        }
+        Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
+                        .getLastSuccessfulIncrementalDiscoveryTime(targetId);
+        if (lastSuccessfulIncrementalDiscoveryTime != null) {
+            targetHealthBuilder.setLastSuccessfulIncrementalDiscoveryStartTime(
+                            lastSuccessfulIncrementalDiscoveryTime.getFirst())
+                    .setLastSuccessfulIncrementalDiscoveryCompletionTime(
+                            lastSuccessfulIncrementalDiscoveryTime.getSecond());
+        }
+        return targetHealthBuilder.setHealthState(HealthState.CRITICAL)
+                .setSubcategory(TargetHealthSubCategory.DELAYED_DATA)
+                .setErrorType(ErrorType.DELAYED_DATA)
+                .setMessageText("The data is too old.")
+                .setTimeOfCheck(System.currentTimeMillis())
+                .build();
+    }
+
+    /**
+     * Check if the data for the target is delayed (too old, the discovery happened too long ago
+     * or ran too long itself).
+     * @param target is the target whose data is checked.
+     * @return true if the data is too old based on the info about discoveries.
+     */
+    private boolean checkForDelayedData(Target target) {
+        long fullRediscoveryThreshold = DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER
+                        * target.getProbeInfo().getFullRediscoveryIntervalSeconds() * 1000;
+        long incrementalRediscoveryThreshold = DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER
+                        * target.getProbeInfo().getIncrementalRediscoveryIntervalSeconds() * 1000;
+        long currentInstant = System.currentTimeMillis();
+
+        Pair<Long, Long> lastSuccessfulDiscoveryTime = targetStatusTracker
+                        .getLastSuccessfulDiscoveryTime(target.getId());
+        Pair<Long, Long> lastSuccessfulIncrementalDiscoveryTime = targetStatusTracker
+                        .getLastSuccessfulIncrementalDiscoveryTime(target.getId());
+
+        return checkLastRediscoveryTime(lastSuccessfulDiscoveryTime, currentInstant, fullRediscoveryThreshold)
+                        || checkLastRediscoveryTime(lastSuccessfulIncrementalDiscoveryTime,
+                                        currentInstant, incrementalRediscoveryThreshold);
+    }
+
+    /**
+     * Check if the last discovery was too long ago or took too long.
+     * @param lastSuccessfulDiscoveryTime the start and end time of the checked discovery.
+     * @param currentInstant the current check time.
+     * @param rediscoveryPeriodThreshold the threshold to check against.
+     * @return true if the discovery was too long ago or took too long;
+     *      false otherwise or if there was no successful last discovery time record.
+     */
+    private boolean checkLastRediscoveryTime(Pair<Long, Long> lastSuccessfulDiscoveryTime,
+                    long currentInstant, long rediscoveryPeriodThreshold) {
+        if (lastSuccessfulDiscoveryTime == null) {
+            return false;
+        }
+        long lengthOfLastRediscovery = lastSuccessfulDiscoveryTime.getSecond() - lastSuccessfulDiscoveryTime.getFirst();
+        return currentInstant - lastSuccessfulDiscoveryTime.getSecond() > rediscoveryPeriodThreshold
+                        || lengthOfLastRediscovery > rediscoveryPeriodThreshold;
     }
 }

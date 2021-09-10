@@ -3,6 +3,7 @@ package target;
 
 option java_package = "com.vmturbo.common.protobuf.target";
 
+import "common/HealthCheck.proto";
 import "common/Pagination.proto";
 import "search/Search.proto";
 
@@ -92,6 +93,9 @@ enum TargetHealthSubCategory {
 
   // A special category used if duplicate target definitions are detected.
   DUPLICATION = 3;
+
+  // A subcategory to report the presence of too old data (caused by problems with discvery).
+  DELAYED_DATA = 4;
 }
 
 // Health information about a single target.
@@ -106,8 +110,8 @@ message TargetHealth {
   // The type of error that happened. May be unset if there is no error.
   optional common_dto.ErrorDTO.ErrorType error_type = 3;
 
-  // The error text. May be unset if there is nothing to report.
-  optional string error_text = 4;
+  // Deprecated - use message_text.
+  optional string error_text = 4 [deprecated = true];
 
   // Number of consecutive failures, if the target is currently failing to discover/validate.
   // Unset if the target is NOT failing.
@@ -116,8 +120,29 @@ message TargetHealth {
   // Time of the first failure, if the target is currently not healthy.
   optional int64 time_of_first_failure = 6;
 
-  // Time of last successful discovery.
-  optional int64 last_successful_discovery = 7;
+  // Deprecated - use last_successful_discovery_completion_time.
+  optional int64 last_successful_discovery = 7 [deprecated = true];
+
+  // The health state of a target.
+  optional common.HealthState health_state = 8;
+  
+  // A message (error text or comment). May be unset.
+  optional string message_text = 9;
+
+  // Time of the last successful full discovery start.
+  optional int64 last_successful_discovery_start_time = 10;
+
+  // Time of the last successful full discovery completion.
+  optional int64 last_successful_discovery_completion_time = 11;
+
+  // Time of the last successful incremental discovery start.
+  optional int64 last_successful_incremental_discovery_start_time = 12;
+
+  // Time of the last successful incremental discovery completion.
+  optional int64 last_successful_incremental_discovery_completion_time = 13;
+
+  // A timestamp for the moment the check is done.
+  optional int64 time_of_check = 14;
 }
 
 // Determines the amount of detail that will be returned in the TargetDetails protobuf

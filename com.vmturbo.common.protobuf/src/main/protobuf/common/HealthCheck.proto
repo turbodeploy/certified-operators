@@ -1,0 +1,10 @@
+syntax = "proto2";
+package common;
+
+// The severity of the health state of a checked entity.
+enum HealthState {
+    CRITICAL = 0;
+    MAJOR = 1;
+    MINOR = 2;
+    NORMAL = 3;
+};
