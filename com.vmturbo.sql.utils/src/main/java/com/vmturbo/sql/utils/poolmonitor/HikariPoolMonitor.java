@@ -1,4 +1,4 @@
-package com.vmturbo.sql.utils.pool;
+package com.vmturbo.sql.utils.poolmonitor;
 
 import java.util.Objects;
 import java.util.concurrent.ScheduledExecutorService;
@@ -289,12 +289,12 @@ public class HikariPoolMonitor {
 
         @Override
         public String toString() {
-            return "Mean wait time for pool(ms): " + waitTimeInMillis + ", "
+            return "Mean wait time for pool(ms): " + waitTimeInMillis + " "
                 + "Mean time for a connection to be outside pool(ms): "
-                    + outsidePoolTimeInMillis + ", "
-                + "Total connections: " + totalConnections + ", "
-                + "Active connections: " + activeConnections + ", "
-                + "Idle connections: " + idleConnections + ", "
+                    + outsidePoolTimeInMillis + " "
+                + "Total connections: " + totalConnections + " "
+                + "Active connections: " + activeConnections + " "
+                + "Idle connections: " + idleConnections + " "
                 + "Pending connection requests: " + pendingConnections + " ";
         }
     }
