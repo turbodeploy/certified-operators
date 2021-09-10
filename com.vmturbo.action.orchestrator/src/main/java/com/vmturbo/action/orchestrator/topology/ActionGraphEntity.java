@@ -11,8 +11,8 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
 
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -39,17 +39,17 @@ public class ActionGraphEntity extends BaseGraphEntity<ActionGraphEntity> {
         this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src)
                 .map(ActionEntityTypeSpecificInfo.Builder::build)
                 .orElse(null);
-        final List<CommoditySoldDTO> commsToPersist = src.getCommoditySoldListList().stream()
-                .filter(commSold -> {
-                    final int commType = commSold.getCommodityType().getType();
-                    return ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType);
-                })
+
+        final List<Integer> hotReplaceCommodityTypeValues = src.getCommoditySoldListList().stream()
+                .filter(CommoditySoldDTO::hasHotResizeInfo)
+                .filter(soldCommodity -> soldCommodity.getHotResizeInfo().getHotReplaceSupported())
+                .map(CommoditySoldDTO::getCommodityType)
+                .map(CommodityType::getType)
                 .collect(Collectors.toList());
-        if (commsToPersist.isEmpty()) {
+        if (hotReplaceCommodityTypeValues.isEmpty()) {
             commsWithHotReplace = IntLists.EMPTY_LIST;
         } else {
-            commsWithHotReplace = new IntArrayList(commsToPersist.size());
-            commsToPersist.forEach(c -> commsWithHotReplace.add(c.getCommodityType().getType()));
+            commsWithHotReplace = new IntArrayList(hotReplaceCommodityTypeValues);
         }
     }
 
