@@ -22,8 +22,6 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Stopwatch;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -35,8 +33,6 @@ import org.jooq.UpdateConditionStep;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.topology.processor.db.tables.records.AssignedIdentityRecord;
 
 /**
@@ -54,8 +50,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
      */
     public static final String EXPIRATION_TASK_NAME = "OID_EXPIRATION_TASK";
     private static final Logger logger = LogManager.getLogger();
-    private static final String UPDATE_TIMESTAMPS = "update_timestamps";
-    private static final String EXPIRE_RECORDS = "expire_records";
 
     private final long entityExpirationTimeMs;
     private final long validationFrequencyMs;
@@ -68,27 +62,6 @@ public class StaleOidManagerImpl implements StaleOidManager {
     private Consumer<Set<Long>> listener;
     private Supplier<Set<Long>> getCurrentOids;
 
-    /**
-     * Track the time taken to perform and oid expiration task. This will be broken into two steps:
-     *   "update_timestamps" -- the amount of time it takes to update the last seen timestamps of the oids
-     *   "expire_records" -- the amount of time it takes to expire the oids.
-     */
-    private static final DataMetricHistogram OID_EXPIRATION_EXECUTION_TIME = DataMetricHistogram.builder()
-            .withName("turbo_oid_expiration_execution_seconds")
-            .withHelp("Time (in seconds) spent to perform an oid expiration task.")
-            .withLabelNames("step")
-            .withBuckets(1, 10, 100)
-            .build()
-            .register();
-
-    /**
-     * A counter metric that represents the total number of expired oids.
-     */
-    private static final DataMetricCounter EXPIRED_ENTITIES_COUNT = DataMetricCounter.builder()
-            .withName("turbo_expired_entities_total")
-            .withHelp("Total number of entity OIDs expired by an oid expiration task since topology processor started.")
-            .build()
-            .register();
 
     /**
      * Creates an instance of a {@link StaleOidManagerImpl}.
@@ -239,27 +212,18 @@ public class StaleOidManagerImpl implements StaleOidManager {
             try {
                 this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(clock.millis()));
                 this.currentTimeMs = clock.millis();
-                final Stopwatch stopwatch = Stopwatch.createStarted();
                 final int updatedRecords = setLastSeenTimeStamps(getCurrentOids.get());
                 oidExpirationResultRecord.setUpdatedRecords(updatedRecords);
-                OID_EXPIRATION_EXECUTION_TIME.labels(UPDATE_TIMESTAMPS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
-                stopwatch.reset();
                 if (shouldExpireOids()) {
-                    stopwatch.start();
                     Set<Long> expiredOids = getExpiredRecords(entityExpirationTimeMs, expirationDaysPerEntity);
-                    int expiredRecord = setExpiredRecords(expirationDaysPerEntity);
+                    setExpiredRecords(expirationDaysPerEntity);
                     oidExpirationResultRecord.setExpiredRecords(expiredOids.size());
-                    if (expiredRecord > 0) {
-                        EXPIRED_ENTITIES_COUNT.increment((double)expiredRecord);
-                    }
                     notifyExpiredOids.accept(expiredOids);
-                    OID_EXPIRATION_EXECUTION_TIME.labels(EXPIRE_RECORDS).observe((double)stopwatch.elapsed(TimeUnit.SECONDS));
                     numberOfExpiredOids = expiredOids.size();
                     logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
                             TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
                             numberOfExpiredOids);
                 }
-                stopwatch.stop();
             // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
             // if one task fails
             } catch (Exception e) {

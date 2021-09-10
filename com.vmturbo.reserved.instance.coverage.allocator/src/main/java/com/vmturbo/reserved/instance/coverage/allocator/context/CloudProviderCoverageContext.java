@@ -54,10 +54,7 @@ public class CloudProviderCoverageContext {
                     .put(SDKProbeType.AZURE_STORAGE_BROWSE, CloudServiceProvider.AZURE)
                     .put(SDKProbeType.AZURE_COST, CloudServiceProvider.AZURE)
                     .put(SDKProbeType.APPINSIGHTS, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.GCP_SERVICE_ACCOUNT, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_PROJECT, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_COST, CloudServiceProvider.GCP)
-                    .put(SDKProbeType.GCP_BILLING, CloudServiceProvider.GCP)
+                    .put(SDKProbeType.GCP, CloudServiceProvider.GCP)
                     .build();
 
     private final CloudServiceProvider cloudServiceProvider;

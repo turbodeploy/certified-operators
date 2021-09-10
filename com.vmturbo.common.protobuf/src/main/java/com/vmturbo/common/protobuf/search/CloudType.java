@@ -37,6 +37,7 @@ public enum CloudType {
                     .put("azure service principal", AZURE)
                     .put("azure cost", AZURE)
                     .put("azure wasted volumes", AZURE)
+                    .put("gcp", GCP)
                     .put("gcp cost", GCP)
                     .put("gcp project", GCP)
                     .put("gcp service account", GCP)

@@ -123,7 +123,8 @@ public class GroupMapper {
     public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
             SDKProbeType.AWS.getProbeType(), SDKProbeType.AWS_BILLING.getProbeType(),
             SDKProbeType.GCP_SERVICE_ACCOUNT.getProbeType(),
-            SDKProbeType.GCP_PROJECT.getProbeType(), SDKProbeType.GCP_BILLING.getProbeType(),
+            SDKProbeType.GCP.getProbeType(), SDKProbeType.GCP_PROJECT.getProbeType(),
+            SDKProbeType.GCP.getProbeType(), SDKProbeType.GCP_BILLING.getProbeType(),
             SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
             SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
 

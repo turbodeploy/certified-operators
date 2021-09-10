@@ -63,6 +63,8 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
                 ProbeLicense.PUBLIC_CLOUD.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType(), Pair.of(ProbeCategory.PUBLIC_CLOUD.getCategory(),
                 ProbeLicense.CLOUD_TARGETS.getKey()));
+        probeCategoryAndLicense.put(SDKProbeType.GCP.getProbeType(), Pair.of(ProbeCategory.PUBLIC_CLOUD.getCategory(),
+                ProbeLicense.PUBLIC_CLOUD.getKey()));
         probeCategoryAndLicense.put(SDKProbeType.POWERVM.getProbeType(), Pair.of(ProbeCategory.HYPERVISOR.getCategory(),
                 null));
         probeCategoryAndLicense.put(SDKProbeType.APIC.getProbeType(), Pair.of(ProbeCategory.STORAGE.getCategory(),
@@ -142,6 +144,8 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
         probeCategoryAndLicense.put(SDKProbeType.AWS_COST.getProbeType(), Pair.of(ProbeCategory.COST.getCategory(),
                 null));
         probeCategoryAndLicense.put(SDKProbeType.AZURE_COST.getProbeType(), Pair.of(ProbeCategory.COST.getCategory(),
+                null));
+        probeCategoryAndLicense.put(SDKProbeType.GCP_COST.getProbeType(), Pair.of(ProbeCategory.COST.getCategory(),
                 null));
         probeCategoryAndLicense.put(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType(), Pair.of(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE.getCategory(),
                 null));

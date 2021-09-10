@@ -178,6 +178,8 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
      * Azure Cost               com.vmturbo.mediation.azure.cost.AzureCostAccount         proxy,port,proxyUser
      * Azure EA                 com.vmturbo.mediation.azure.ea.AzureEAAccount             proxyUser                  proxyHost,proxyPort
      * Azure Service Principal  com.vmturbo.mediation.azure.sp.AzureSPAccount             proxyUser                  proxyHost,proxyPort
+     * GCP                      com.vmturbo.mediation.gcp.client.GcpAccount               proxy,port,proxyUser
+     * GCP Cost                 com.vmturbo.mediation.gcp.cost.GcpCostAccount             proxy,port,proxyUser
      * Pivotal Ops Manager      com.vmturbo.mediation.pivotal.opsman.PivotalOpsmanAccount proxy                      proxyPort
      * ServiceNow               com.vmturbo.mediation.servicenow.ServiceNowAccount        proxyUser                  proxyHost,proxyPort
      * AppInsights              com.vmturbo.mediation.appinsights.AppInsightsAccount      proxy,port,proxyUser
@@ -203,6 +205,10 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
                 Arrays.asList(USER_RENAME));
         map.put(SDKProbeType.AZURE_SERVICE_PRINCIPAL,
                 Arrays.asList(USER_RENAME));
+        map.put(SDKProbeType.GCP,
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
+        map.put(SDKProbeType.GCP_COST,
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.PIVOTAL_OPSMAN,
                 Arrays.asList(HOST_RENAME));
         map.put(SDKProbeType.SERVICENOW,

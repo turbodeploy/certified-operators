@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -64,6 +63,7 @@ import com.vmturbo.repository.api.RepositoryClient;
  */
 public class EntitySavingsSubQueryTest {
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
+
     /**
      * Test server.
      */
@@ -288,107 +288,6 @@ public class EntitySavingsSubQueryTest {
         assertTrue(requestArgumentCaptor.getValue().getResourceGroupFilter().getResourceGroupOidList().containsAll(rgIds));
     }
 
-    /**
-     * Test calling aggregate stats for single billing family.
-     *
-     * @throws Exception any exception
-     */
-    @Test
-    public void testGetAggregateStatsBillingFamily() throws Exception {
-        long bfId = 10000L;
-        long startTime = 1609527257000L;
-        long endTime = 1610996057000L;
-
-        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
-                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
-
-        StatsQueryContext context = createBillingFamilyStatsQueryContextMock(bfId, null, timeWindow);
-
-        List<EntityStatsResponseValues> responseValues = Arrays.asList(
-                new EntityStatsResponseValues(1610960400000L, 10.0f, 1.0f),
-                new EntityStatsResponseValues(1610964000000L, 20.0f, 2.0f),
-                new EntityStatsResponseValues(1610967600000L, 30.0f, 3.0f));
-
-        when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
-                .thenReturn(createEntityStatsResponse(responseValues));
-
-        Set<Long> bfMemberIds = ImmutableSet.of(1L, 2L);
-        GroupAndMembers bfMembers = ImmutableGroupAndMembers.builder()
-                .group(Grouping.newBuilder().setId(bfId).build())
-                .members(bfMemberIds)
-                .entities(bfMemberIds)
-                .build();
-        when(groupExpander.getGroupWithMembersAndEntities(Long.toString(bfId))).thenReturn(Optional.of(bfMembers));
-
-        List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
-
-        ArgumentCaptor<GetEntitySavingsStatsRequest> requestArgumentCaptor
-                = ArgumentCaptor.forClass(GetEntitySavingsStatsRequest.class);
-        verify(costServiceMole).getEntitySavingsStats(requestArgumentCaptor.capture());
-
-        // Verify the request for the cost protobuf api for getting entity savings stats.
-        assertEquals(startTime, requestArgumentCaptor.getValue().getStartDate());
-        assertEquals(endTime, requestArgumentCaptor.getValue().getEndDate());
-
-        assertEquals(2, requestArgumentCaptor.getValue().getStatsTypesCount());
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_SAVINGS));
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
-
-        assertEquals(2, requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().size());
-        assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().contains(EntityType.BUSINESS_ACCOUNT_VALUE));
-    }
-
-    /**
-     * Test calling aggregate stats for Group of single billing family.
-     *
-     * @throws Exception any exception
-     */
-    @Test
-    public void testGetAggregateStatsGroupOfBillingFamily() throws Exception {
-        long groupId = 10000L;
-        long startTime = 1609527257000L;
-        long endTime = 1610996057000L;
-
-        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
-                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
-
-        StatsQueryContext context = createBillingFamilyStatsQueryContextMock(groupId, GroupType.REGULAR, timeWindow);
-
-        List<EntityStatsResponseValues> responseValues = Arrays.asList(
-                new EntityStatsResponseValues(1610960400000L, 10.0f, 1.0f),
-                new EntityStatsResponseValues(1610964000000L, 20.0f, 2.0f),
-                new EntityStatsResponseValues(1610967600000L, 30.0f, 3.0f));
-
-        when(costServiceMole.getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class)))
-                .thenReturn(createEntityStatsResponse(responseValues));
-
-        Set<Long> bfGroupMemberIds = ImmutableSet.of(1L, 2L, 3L, 4L, 5L, 6L);
-        GroupAndMembers bfsMembers = ImmutableGroupAndMembers.builder()
-                .group(Grouping.newBuilder().setId(groupId).build())
-                .members(bfGroupMemberIds)
-                .entities(bfGroupMemberIds)
-                .build();
-        when(groupExpander.getGroupWithMembersAndEntities(Long.toString(groupId))).thenReturn(Optional.of(bfsMembers));
-
-        List<StatSnapshotApiDTO> response = query.getAggregateStats(createStatApiInputDTOs(), context);
-
-        ArgumentCaptor<GetEntitySavingsStatsRequest> requestArgumentCaptor
-                = ArgumentCaptor.forClass(GetEntitySavingsStatsRequest.class);
-        verify(costServiceMole).getEntitySavingsStats(requestArgumentCaptor.capture());
-
-        // Verify the request for the cost protobuf api for getting entity savings stats.
-        assertEquals(startTime, requestArgumentCaptor.getValue().getStartDate());
-        assertEquals(endTime, requestArgumentCaptor.getValue().getEndDate());
-
-        assertEquals(2, requestArgumentCaptor.getValue().getStatsTypesCount());
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_SAVINGS));
-        assertTrue(requestArgumentCaptor.getValue().getStatsTypesList().contains(EntitySavingsStatsType.REALIZED_INVESTMENTS));
-
-        // 3 BF groups of 2 members each.
-        assertEquals(6, requestArgumentCaptor.getValue().getEntityFilter().getEntityIdList().size());
-        assertTrue(requestArgumentCaptor.getValue().getEntityTypeFilter().getEntityTypeIdList().contains(EntityType.BUSINESS_ACCOUNT_VALUE));
-    }
-
     private Set<StatApiInputDTO> createStatApiInputDTOs() {
         StatApiInputDTO realizedSavingsStat = new StatApiInputDTO();
         realizedSavingsStat.setName(EntitySavingsStatsType.REALIZED_SAVINGS.name());
@@ -435,26 +334,6 @@ public class EntitySavingsSubQueryTest {
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
         when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
         when(context.getInputScope().uuid()).thenReturn("1");
-        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
-        when(context.getQueryScope()).thenReturn(queryScope);
-        when(context.getPlanInstance()).thenReturn(Optional.empty());
-        return context;
-    }
-
-    private StatsQueryContext createBillingFamilyStatsQueryContextMock(Long bfId, GroupType groupType, TimeWindow timeWindow) {
-        final StatsQueryContext context = mock(StatsQueryContext.class);
-        final ApiId scope = mock(ApiId.class);
-        when(scope.getGroupType()).thenReturn(Optional.ofNullable(groupType));
-        when(scope.isBillingFamilyOrGroupOfBillingFamilies()).thenReturn(true);
-        when(scope.oid()).thenReturn(bfId);
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
-        when(context.getInputScope()).thenReturn(scope);
-        when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
-        when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
-        when(context.getInputScope().uuid()).thenReturn("1");
-        when(repositoryClient
-             .getAllRelatedBusinessAccountOids(anyLong())).thenReturn(ImmutableSet.of(1L, 2L, 3L));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
         when(context.getQueryScope()).thenReturn(queryScope);

@@ -381,6 +381,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                         allocation.regionOid(),
                         allocation.availabilityZoneOid(),
                         allocation.serviceProviderOid(),
+                        allocation.billingFamilyId(),
                         allocation.resourceGroupOid(),
                         recordTimestamp))
                 .collect(ImmutableSet.toImmutableSet());

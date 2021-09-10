@@ -154,7 +154,7 @@ public class EntityStore {
             SDKProbeType.AZURE,
             SDKProbeType.AZURE_EA,
             SDKProbeType.AZURE_STORAGE_BROWSE,
-            SDKProbeType.GCP_SERVICE_ACCOUNT,
+            SDKProbeType.GCP,
             SDKProbeType.GCP_PROJECT,
             SDKProbeType.VCENTER,
             SDKProbeType.VC_STORAGE_BROWSE,
