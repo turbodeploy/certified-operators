@@ -341,7 +341,7 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUseConnectionPool);
         config.setUseConnectionPool(Boolean.parseBoolean(firstNonNull(
                 configuredPropValue(USE_CONNECTION_POOL),
-                currentValue, fromTemplate, Boolean.toString(false))));
+                currentValue, fromTemplate, Boolean.toString(DEFAULT_USE_CONNECTION_POOL))));
     }
 
     /**
