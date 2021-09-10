@@ -15,6 +15,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -25,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Storage
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
@@ -44,12 +47,16 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
 
     private final TopologyGraph<TopologyEntity> graph;
 
+    private final boolean addAccessCommoditiesForVsan;
+
     /**
      * Constructor for the applicator.
      * @param graphWithSettings - topology graph with settings.
      */
-    public VsanStorageApplicator(@Nonnull final GraphWithSettings graphWithSettings)  {
+    public VsanStorageApplicator(@Nonnull final GraphWithSettings graphWithSettings,
+                                final boolean addAccessCommoditiesForVsan)  {
         this.graph = graphWithSettings.getTopologyGraph();
+        this.addAccessCommoditiesForVsan = addAccessCommoditiesForVsan;
     }
 
     @Override
@@ -61,6 +68,18 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         }
 
         List<TopologyEntityDTO.Builder> hosts = getHosts(storage);
+
+        if (addAccessCommoditiesForVsan) {
+            TopologyDTO.CommodityType commodityType = TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.ACCESS_VALUE)
+                    .setKey(Long.toString(storage.getOid()))
+                    .build();
+
+            boolean addedToConsumer = applyConstraintForConsumer(storage, EntityType.PHYSICAL_MACHINE_VALUE, commodityType);
+            if (addedToConsumer) {
+                addCommoditySold(hosts, commodityType);
+            }
+        }
 
         final double slackSpaceRatio = getSlackSpaceRatio(settings);
         final double iopsCapacityPerHost = getNumericSetting(settings,
@@ -383,4 +402,73 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
                             == CommodityType.STORAGE_AMOUNT_VALUE)
             .forEach(soldBuilder -> soldBuilder.setEffectiveCapacityPercentage(value));
     }
+
+    /**
+     * Constraint providers from the rest of the topology by having each of them sell an access
+     * commodity.
+     *
+     * @param providers The providers that need to sell the constraint.
+     * @param constraint The commodity for use in constraining the providers.
+     */
+    protected void addCommoditySold(@Nonnull final List<TopologyEntityDTO.Builder> providers,
+            @Nonnull final TopologyDTO.CommodityType constraint) {
+
+        CommoditySoldDTO commSold = CommoditySoldDTO.newBuilder()
+                .setCommodityType(constraint)
+                .setUsed(1d)
+                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
+                .build();
+
+        providers.forEach(provider -> {
+                    provider.addCommoditySoldList(commSold);
+                    // add constraint comm on replaced entity
+                    if (provider.hasEdit() && provider.getEdit().hasReplaced()) {
+                        addCommoditySold(provider.getEdit().getReplaced().getReplacementId(),
+                                commSold);
+                    }
+                });
+    }
+
+    /**
+     * Force the provider to sell the commodity passed.
+     *
+     * @param providerId The provider that needs to sell the commodity.
+     * @param commodity The commodity to be sold.
+     */
+    protected void addCommoditySold(@Nonnull final long providerId,
+            @Nonnull final CommoditySoldDTO commodity) {
+        graph.getEntity(providerId)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .ifPresent(provider -> {
+                    provider.addCommoditySoldList(commodity);
+                });
+    }
+
+    /**
+     * Add constraint commodity to consumer.
+     *
+     * @param consumer to add constraint on.
+     * @param providerEntityType provider entity type.
+     * @param constraint cluster Commodity type.
+     */
+    private boolean applyConstraintForConsumer(
+            @Nonnull final Builder consumer,
+            final int providerEntityType,
+            @Nonnull final TopologyDTO.CommodityType constraint) {
+        boolean completed = false;
+        List<CommoditiesBoughtFromProvider.Builder> commBoughtGrouping =
+                consumer.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                    .filter(commodityBoughtGroup ->
+                            commodityBoughtGroup.getProviderEntityType() == providerEntityType)
+                    .collect(Collectors.toList());
+
+        for(CommoditiesBoughtFromProvider.Builder commodityBoughtBuilder : commBoughtGrouping) {
+            commodityBoughtBuilder.addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(constraint)
+                    .setUsed(1.0d));
+            completed = true;
+        };
+        return completed;
+    }
+
 }

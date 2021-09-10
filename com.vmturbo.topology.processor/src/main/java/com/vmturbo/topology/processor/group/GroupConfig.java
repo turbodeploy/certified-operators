@@ -64,6 +64,9 @@ public class GroupConfig {
     @Value("${considerUtilizationConstraintInClusterHeadroomPlan:false}")
     private boolean considerUtilizationConstraintInClusterHeadroomPlan;
 
+    @Value("${addAccessCommoditiesForVsan:false}")
+    private boolean addAccessCommoditiesForVsan;
+
     @Bean
     public PolicyServiceBlockingStub policyRpcService() {
         return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -144,7 +147,8 @@ public class GroupConfig {
 
     @Bean
     public EntitySettingsApplicator entitySettingsApplicator() {
-        return new EntitySettingsApplicator(considerUtilizationConstraintInClusterHeadroomPlan);
+        return new EntitySettingsApplicator(considerUtilizationConstraintInClusterHeadroomPlan,
+                                            addAccessCommoditiesForVsan);
     }
 
     @Bean

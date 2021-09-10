@@ -77,7 +77,8 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.VDC_VALUE,
                     CommodityDTO.CommodityType.VMPM_ACCESS_VALUE,
                     CommodityDTO.CommodityType.EXTENT_VALUE,
-                    CommodityDTO.CommodityType.ACTIVE_SESSIONS_VALUE);
+                    CommodityDTO.CommodityType.ACTIVE_SESSIONS_VALUE,
+                    CommodityDTO.CommodityType.ACCESS_VALUE);
 
     /**
      * Constant price function used for segmentation commodities.

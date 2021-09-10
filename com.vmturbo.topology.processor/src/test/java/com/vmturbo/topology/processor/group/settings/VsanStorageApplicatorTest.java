@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.validation.constraints.AssertTrue;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.util.JsonFormat;
@@ -62,6 +63,14 @@ public class VsanStorageApplicatorTest {
         allOff.checkIOPS(HCI_HOST_CAPACITY_RESERVATION_OFF);
         allOff.checkUtilizationThreshold(100);
 
+        Assert.assertTrue(allOff.storage.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .filter(grouping -> grouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .allMatch(grouping -> grouping.getCommodityBoughtList().stream()
+                    .anyMatch(c -> c.getCommodityType().getType() == CommodityType.ACCESS_VALUE)));
+
+        Assert.assertTrue(allOff.graph.getTopologyGraph().entities().findFirst().get()
+                .soldCommoditiesByType().containsKey(CommodityType.ACCESS_VALUE));
+
         // Compression is on
         ApplicatorResult comprsession = runApplicator(RAID0, true, 1.5f, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
         comprsession.checkStorageAmount(48.69, 59.98);
@@ -87,6 +96,15 @@ public class VsanStorageApplicatorTest {
         ApplicatorResult raid1AllOff = runApplicator(RAID1, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
         raid1AllOff.checkStorageAmount(8.125, 10);
         raid1AllOff.checkUtilizationThreshold(50);
+
+        // storage has valid commBoughtGrouping and hence will have new commodity added.
+        Assert.assertTrue(raid1AllOff.storage.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .filter(grouping -> grouping.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .allMatch(grouping -> grouping.getCommodityBoughtList().stream()
+                        .anyMatch(c -> c.getCommodityType().getType() == CommodityType.ACCESS_VALUE)));
+
+        Assert.assertTrue(raid1AllOff.graph.getTopologyGraph().entities().findFirst().get()
+                .soldCommoditiesByType().containsKey(CommodityType.ACCESS_VALUE));
 
         // RAID1; Compression is on
         ApplicatorResult raid1Comprsession = runApplicator(RAID1, true, 1.5f, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
@@ -162,7 +180,7 @@ public class VsanStorageApplicatorTest {
                         getNumericSettingValue(STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT));
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
-        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings, Collections.emptyMap());
+        new VsanStorageApplicator(graphNHostsCnt.getFirst(), true).apply(storage, settings, Collections.emptyMap());
 
         return new ApplicatorResult(storage, graphNHostsCnt);
     }
@@ -178,7 +196,7 @@ public class VsanStorageApplicatorTest {
         Map<EntitySettingSpecs, Setting> settings = new HashMap<>();
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
-        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings, Collections.emptyMap());
+        new VsanStorageApplicator(graphNHostsCnt.getFirst(), true).apply(storage, settings, Collections.emptyMap());
 
         return new ApplicatorResult(storage, graphNHostsCnt);
     }
