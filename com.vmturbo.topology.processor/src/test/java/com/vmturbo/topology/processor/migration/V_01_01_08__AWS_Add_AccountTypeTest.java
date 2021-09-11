@@ -17,7 +17,9 @@ import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 
@@ -281,7 +283,15 @@ public class V_01_01_08__AWS_Add_AccountTypeTest {
         }
 
         @Override
-        public void removeKeysWithPrefix(final String prefix) {}
+        public void removeKeysWithPrefix(final String prefix) {
+            Iterator<Entry<String, String>> iter = map.entrySet().iterator();
+            while (iter.hasNext()) {
+                Map.Entry<String, String> entry = iter.next();
+                if (entry.getKey().startsWith(prefix)) {
+                    iter.remove();
+                }
+            }
+        }
 
         @Override
         public void removeKey(final String key) {}
