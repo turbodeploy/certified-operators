@@ -83,6 +83,7 @@ public class AccountPricingData<T> {
             .put(OSType.WINDOWS_BYOL, Optional.empty())
             .put(OSType.SUSE, Optional.of(OSType.LINUX))
             .put(OSType.RHEL, Optional.of(OSType.LINUX))
+            .put(OSType.UBUNTU_PRO, Optional.of(OSType.LINUX))
             .put(OSType.LINUX_WITH_SQL_ENTERPRISE, Optional.of(OSType.LINUX))
             .put(OSType.LINUX_WITH_SQL_STANDARD, Optional.of(OSType.LINUX))
             .put(OSType.LINUX_WITH_SQL_WEB, Optional.of(OSType.LINUX))
