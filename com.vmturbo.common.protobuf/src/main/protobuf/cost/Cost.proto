@@ -1564,11 +1564,19 @@ message GetEntitySavingsStatsRequest {
 
     // Resource group list
     optional ResourceGroupFilter resource_group_filter = 6;
+
+    // Billing family list
+    optional BillingFamilyFilter billing_family_filter = 7;
 }
 
 message ResourceGroupFilter {
     // A list of reource group OIDs
     repeated int64 resource_group_oid = 1;
+}
+
+message BillingFamilyFilter {
+    // A list of billing family OIDs
+    repeated int64 billing_family_oid = 1;
 }
 
 // Types of entity savings stats

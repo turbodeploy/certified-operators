@@ -31,6 +31,7 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.BillingFamilyFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
@@ -48,6 +49,7 @@ import com.vmturbo.repository.api.RepositoryClient;
  * Sub-query for handling requests for entity savings/investments.
  */
 public class EntitySavingsSubQuery implements StatsSubQuery {
+
     private final CostServiceBlockingStub costServiceRpc;
 
     private final GroupExpander groupExpander;
@@ -141,21 +143,19 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
             }
             request.setResourceGroupFilter(resourceGroupFilterBuilder);
         } else if (context.getInputScope().isBillingFamilyOrGroupOfBillingFamilies()) {
-            // Add all related accounts to the filter builder.
-            EntityFilter.Builder entityFilterBuilder = EntityFilter.newBuilder();
+            BillingFamilyFilter.Builder billingFamilyFilterBuilder = BillingFamilyFilter.newBuilder();
             long scopeOid = context.getInputScope().oid();
             Optional<GroupType> groupType = context.getInputScope().getGroupType();
-            Optional<GroupAndMembers> groupAndMembers = groupExpander
-                            .getGroupWithMembersAndEntities(Long
-                                            .toString(scopeOid));
-            if (groupAndMembers.isPresent()) {
-                entityFilterBuilder.addAllEntityId(groupAndMembers.get().entities());
+            if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
+                // Scope is a group of billing families.
+                Optional<GroupAndMembers> groupAndMembers =
+                        groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
+                groupAndMembers.ifPresent(g -> billingFamilyFilterBuilder.addAllBillingFamilyOid(g.members()));
+            } else {
+                // Scope is a single billing family.
+                billingFamilyFilterBuilder.addBillingFamilyOid(scopeOid);
             }
-            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
-                            .addEntityTypeId(EntityType.BUSINESS_ACCOUNT_VALUE)
-                            .build();
-            request.setEntityFilter(entityFilterBuilder);
-            request.setEntityTypeFilter(entityTypeFilter);
+            request.setBillingFamilyFilter(billingFamilyFilterBuilder);
         } else if (context.getInputScope().isRealtimeMarket()) {
             // If the scope is "Market", use all cloud service providers and use them as the scope.
             // This way, savings for all cloud entities will be considered.
