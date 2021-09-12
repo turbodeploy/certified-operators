@@ -185,7 +185,6 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
         RollupDurationType durationType = RollupDurationType.HOURLY;
@@ -199,7 +198,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                 break;
         }
         return querySavingsStats(durationType, statsTypes, startTime, endTime, entityOids,
-                entityTypes, billingFamilies, resourceGroups);
+                entityTypes, resourceGroups);
     }
 
     @Nonnull
@@ -208,11 +207,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.HOURLY, statsTypes, startTime, endTime,
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
     }
 
     @Nonnull
@@ -221,11 +219,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.DAILY, statsTypes, startTime, endTime,
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
     }
 
     @Nonnull
@@ -234,11 +231,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.MONTHLY, statsTypes, startTime, endTime,
-                entityOids, entityTypes, billingFamilies, resourceGroups);
+                entityOids, entityTypes, resourceGroups);
     }
 
     @Override
@@ -413,15 +409,12 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids, @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException {
-        if (statsTypes.isEmpty() || (entityOids.isEmpty() && resourceGroups.isEmpty()
-                && billingFamilies.isEmpty())) {
+        if (statsTypes.isEmpty() || (entityOids.isEmpty() && resourceGroups.isEmpty())) {
             throw new EntitySavingsException("Cannot get " + durationType.name()
                     + " entity savings stats: Type count: " + statsTypes.size()
                     + ", Entity OID count: " + entityOids.size()
-                    + ", Billing Family OID count: " + billingFamilies.size()
                     + ", Resource Group OID count: " + resourceGroups.size());
         }
         if (startTime > endTime) {
@@ -440,7 +433,6 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
             // we expect all entities in the list have the same type. e.g. we cannot have VMs and accounts
             // in the list.
             boolean isCloudScopeEntity = entityTypes.size() == 1 && CLOUD_GROUP_SCOPES.containsAll(entityTypes);
-            boolean isBillingFamilies = !billingFamilies.isEmpty();
             boolean isResourceGroups = !resourceGroups.isEmpty();
             SelectJoinStep<Record3<LocalDateTime, Integer, BigDecimal>> selectStatsStatement =
                     dsl.select(fieldInfo.timeField,
@@ -448,14 +440,14 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
                                     DSL.sum(fieldInfo.valueField).as(fieldInfo.valueField))
                     .from(fieldInfo.table);
 
-            if (isCloudScopeEntity || isBillingFamilies || isResourceGroups) {
+            if (isCloudScopeEntity || isResourceGroups) {
                 selectStatsStatement = selectStatsStatement.join(ENTITY_CLOUD_SCOPE)
                         .on(fieldInfo.oidField.eq(ENTITY_CLOUD_SCOPE.ENTITY_OID));
             }
 
             final Result<Record3<LocalDateTime, Integer, BigDecimal>> records = selectStatsStatement
-                    .where(generateEntityOidCondition(fieldInfo, entityOids, entityTypes, billingFamilies,
-                            resourceGroups, isCloudScopeEntity, isResourceGroups, isBillingFamilies))
+                    .where(generateEntityOidCondition(fieldInfo, entityOids, entityTypes,
+                            resourceGroups, isCloudScopeEntity, isResourceGroups))
                     .and(fieldInfo.typeField.in(statsTypeCodes))
                     .and(fieldInfo.timeField
                             .ge(SavingsUtil.getLocalDateTime(startTime, clock))
@@ -479,20 +471,15 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
     private Condition generateEntityOidCondition(@Nonnull StatsTypeFields fieldInfo,
                                                  @Nonnull Collection<Long> entityOids,
                                                  @Nonnull Collection<Integer> entityTypes,
-                                                 @Nonnull Collection<Long> billingFamilies,
                                                  @Nonnull Collection<Long> resourceGroups,
                                                  boolean isCloudScopeEntity,
-                                                 boolean isResourceGroups,
-                                                 boolean isBillingFamilies) {
+                                                 boolean isResourceGroups) {
         if (isCloudScopeEntity) {
             Integer entityType = entityTypes.iterator().next();
             TableField<?, Long> scopeColumn = SCOPE_TYPE_TO_TABLE_FIELD_MAP.get(entityType);
             if (scopeColumn != null) {
                 return scopeColumn.in(entityOids);
             }
-        }
-        if (isBillingFamilies) {
-            return ENTITY_CLOUD_SCOPE.BILLING_FAMILY_OID.in(billingFamilies);
         }
         if (isResourceGroups) {
             return ENTITY_CLOUD_SCOPE.RESOURCE_GROUP_OID.in(resourceGroups);

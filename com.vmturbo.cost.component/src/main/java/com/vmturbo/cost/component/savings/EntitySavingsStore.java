@@ -37,7 +37,6 @@ public interface EntitySavingsStore<T> {
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
      * @param entityTypes entity types
-     * @param billingFamilies billing families
      * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
@@ -48,7 +47,6 @@ public interface EntitySavingsStore<T> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
@@ -60,7 +58,6 @@ public interface EntitySavingsStore<T> {
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
      * @param entityTypes entity types
-     * @param billingFamilies billing family OIDs
      * @param resourceGroups resource group OIDs
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
@@ -70,7 +67,6 @@ public interface EntitySavingsStore<T> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
@@ -82,7 +78,6 @@ public interface EntitySavingsStore<T> {
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
      * @param entityTypes entity types
-     * @param billingFamilies billing family OIDs
      * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
@@ -92,7 +87,6 @@ public interface EntitySavingsStore<T> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
@@ -104,7 +98,6 @@ public interface EntitySavingsStore<T> {
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
      * @param entityOids OIDs of entities to fetch the stats for.
      * @param entityTypes entity types
-     * @param billingFamilies billing family OIDs
      * @param resourceGroups resource groups
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
@@ -114,7 +107,6 @@ public interface EntitySavingsStore<T> {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
-            @Nonnull Collection<Long> billingFamilies,
             @Nonnull Collection<Long> resourceGroups)
             throws EntitySavingsException;
 
