@@ -244,17 +244,13 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
         final Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
 
-        // Get the billing family OID.
-        Optional<GroupAndMembers> billingFamily = cloudTopology.getBillingFamilyForEntity(entityOid);
-        final Optional<Long> billingFamilyOid = billingFamily.map(groupAndMembers -> groupAndMembers.group().getId());
-
         // Get the resource group OID.
         Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
         final Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
 
         if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {
             return createCloudScopeRecord(entityOid, entityType, accountOid, regionOid,
-                    availabilityZoneOid, serviceProviderOid, billingFamilyOid, resourceGroupOid, LocalDateTime.now());
+                    availabilityZoneOid, serviceProviderOid, resourceGroupOid, LocalDateTime.now());
         }
 
         logger.error("Cannot create entity cloud scope record because required information is missing."

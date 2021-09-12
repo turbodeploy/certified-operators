@@ -357,7 +357,7 @@ public class EntitySavingsTrackerTest {
         List<AggregatedSavingsStats> statsReadBack = entitySavingsStore.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(time0900am, clock),
                 TimeUtil.localDateTimeToMilli(time1000am, clock),
-                ImmutableSet.of(vm1Id, vm2Id, vm3Id, vm4Id), entityTypes, new HashSet<>(), new HashSet<>());
+                ImmutableSet.of(vm1Id, vm2Id, vm3Id, vm4Id), entityTypes, new HashSet<>());
         return statsReadBack;
     }
 
