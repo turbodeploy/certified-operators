@@ -20,7 +20,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -72,6 +71,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.Ta
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManager;
 import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -116,6 +116,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
     private final BinaryDiscoveryDumper binaryDiscoveryDumper;
     private final TargetStatusTracker targetStatusTracker;
+    private final StaleOidManager staleOidManager;
 
     TopologyProcessorDiagnosticsHandler(@Nonnull final TargetStore targetStore,
             @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
@@ -129,7 +130,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
             @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
             final BinaryDiscoveryDumper binaryDiscoveryDumper,
-            final TargetStatusTracker targetStatusTracker) {
+            final TargetStatusTracker targetStatusTracker,
+            @Nonnull final StaleOidManager staleOidManager) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -144,6 +146,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
         this.binaryDiscoveryDumper = binaryDiscoveryDumper;
         this.targetStatusTracker = targetStatusTracker;
+        this.staleOidManager = staleOidManager;
     }
 
     /**
@@ -298,6 +301,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
 
         // target status details (contains details information about last validation/discovery and info about failed discoveries)
         diagsWriter.dumpDiagnosable(targetStatusTracker);
+
+        diagsWriter.dumpDiagnosable(staleOidManager);
     }
 
     /**

@@ -135,7 +135,9 @@ public class TopologyProcessorDiagnosticsConfig {
             cloudCostConfig.priceTableUploader(),
             topologyConfig.pipelineExecutorService(),
             fixedFilenameBinaryDiagnosticParts,
-            operationConfig.binaryDiscoveryDumper(), targetConfig.targetStatusTracker());
+            operationConfig.binaryDiscoveryDumper(),
+            targetConfig.targetStatusTracker(),
+            identityProviderConfig.staleOidManager());
     }
 
     @Bean
