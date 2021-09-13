@@ -83,7 +83,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
-        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMinPoolSize(), is(1));
         assertThat(config.getMaxPoolSize(), is(10));
     }
 
@@ -118,7 +118,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
-        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMinPoolSize(), is(1));
         assertThat(config.getMaxPoolSize(), is(10));
     }
 
@@ -153,7 +153,7 @@ public class DbEndpointResolverTest {
         assertThat(config.getShouldProvisionUser(), is(false));
         assertThat(config.getTemplate(), is(nullValue()));
         assertThat(config.getUserName(), is("xyzzy"));
-        assertThat(config.getMinPoolSize(), is(5));
+        assertThat(config.getMinPoolSize(), is(1));
         assertThat(config.getMaxPoolSize(), is(10));
     }
 
