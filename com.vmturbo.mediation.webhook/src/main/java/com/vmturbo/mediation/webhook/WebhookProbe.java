@@ -6,7 +6,6 @@ import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
-import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
 import java.io.IOException;
@@ -174,7 +173,6 @@ public class WebhookProbe
      * Returns the body of the request or null if the webhook call has no body.
      *
      * @param actionExecutionDto the action execution request.
-     * @param actionApiDTO the API object representation of the action.
      * @return the {@link WebhookBody} used in request or null.
      * @throws WebhookException if there are more than one body template property.
      * @throws ParseException is thrown when parse errors are encountered when applying template to body template.
@@ -183,19 +181,41 @@ public class WebhookProbe
      * @throws IOException when failed to write the templated string.
      */
     @Nullable
-    private WebhookBody getWebhookBody(@Nonnull final ActionExecutionDTO actionExecutionDto,
-                                       @Nonnull ActionApiDTO actionApiDTO) throws WebhookException,
-            ParseException, IOException, MethodInvocationException {
+    private WebhookBody getWebhookBody(@Nonnull final ActionExecutionDTO actionExecutionDto)
+            throws WebhookException, ParseException, IOException, MethodInvocationException {
+        final List<Property> webhookProperties = actionExecutionDto.getWorkflow().getPropertyList();
         final Optional<String> template = getWebhookPropertyValue(TEMPLATED_ACTION_BODY,
-                actionExecutionDto.getWorkflow().getPropertyList());
+                webhookProperties);
 
         if (template.isPresent()) {
-            // apply the template to call body
-            return new WebhookBody(applyTemplate(template.get(), actionApiDTO));
+            return isTemplatingApplied(webhookProperties) ? new WebhookBody(template.get())
+                    : new WebhookBody(applyTemplate(template.get(),
+                            convertFromActionExecutionToActionApi(actionExecutionDto)));
         } else {
-            logger.debug("The body will be not set for action with Id {}.", actionExecutionDto.getActionOid());
+            logger.debug("The body will be not set for action with Id {}.",
+                    actionExecutionDto.getActionOid());
             return null;
         }
+    }
+
+    /**
+     * Returns the templated url of the webhook request.
+     *
+     * @param actionExecutionDTO the action execution request.
+     * @return the templated url.
+     * @throws WebhookException is thrown if there are zero or multiple url properties.
+     * @throws ParseException is thrown when parse errors are encountered when applying template to url.
+     * @throws IOException is thrown when failed to write the templated string.
+     */
+    @Nonnull
+    private String getWebhookUrl(@Nonnull final ActionExecutionDTO actionExecutionDTO)
+            throws WebhookException, ParseException, IOException {
+        final List<Property> webhookProperties = actionExecutionDTO.getWorkflow().getPropertyList();
+        final String webhookUrl = getWebhookPropertyValue(WebhookConstants.URL,
+                webhookProperties).orElseThrow(() -> (new WebhookException(
+                "Webhook url was not provided in the list of workflow properties.")));
+        return isTemplatingApplied(webhookProperties) ? webhookUrl : applyTemplate(webhookUrl,
+                convertFromActionExecutionToActionApi(actionExecutionDTO));
     }
 
     /**
@@ -257,8 +277,7 @@ public class WebhookProbe
     /**
      * Creates webhook credentials used for sending request to webhook server.
      *
-     * @param webhookProperties the list of webhook properties
-     * @param actionApiDTO the {@link ActionApiDTO} object
+     * @param actionExecutionDTO the action execution request
      * @return the webhook credentials
      * @throws WebhookException if all data required for sending request to webhook server weren't provided
      * @throws ParseException is thrown when parse errors are encountered when applying template to url.
@@ -267,19 +286,18 @@ public class WebhookProbe
      * @throws IOException when failed to write a response.
      */
     @Nonnull
-    private WebhookCredentials createWebhookCredentials(final List<Property> webhookProperties, ActionApiDTO actionApiDTO)
+    private WebhookCredentials createWebhookCredentials(final ActionExecutionDTO actionExecutionDTO)
             throws WebhookException, ParseException, IOException {
-        final String webhookURL = getWebhookPropertyValue(URL,
-                webhookProperties).orElseThrow(() -> new WebhookException(
-                "Webhook url was not provided in the list of workflow properties."));
-
-        final String templatedUrl = applyTemplate(webhookURL, actionApiDTO);
+        final List<Property> webhookProperties = actionExecutionDTO.getWorkflow().getPropertyList();
 
         final Optional<String> webhookHttpMethodType = getWebhookPropertyValue(HTTP_METHOD, webhookProperties);
         if (!webhookHttpMethodType.isPresent()) {
             throw new WebhookException(
                     "Webhook http method type was not provided in the list of workflow properties");
         }
+
+        // get url
+        final String templatedUrl = getWebhookUrl(actionExecutionDTO);
 
         // get authentication info
         final AuthenticationMethod authenticationMethod = getWebhookPropertyValue(AUTHENTICATION_METHOD, webhookProperties)
@@ -330,18 +348,11 @@ public class WebhookProbe
 
     private void prepareAndExecuteWebhookQuery(final ActionExecutionDTO actionExecutionDto)
             throws WebhookException, IOException, InterruptedException, ParseException, MethodInvocationException {
-        // get the ActionApiDTO
-        final ActionApiDTO actionApiDTO = CONVERTER.convert(
-                new SdkActionInformationProvider(actionExecutionDto),
-                true,
-                0L,
-                false);
-
         try (WebhookConnector webhookConnector = new WebhookConnector(
-                createWebhookCredentials(actionExecutionDto.getWorkflow().getPropertyList(), actionApiDTO),
+                createWebhookCredentials(actionExecutionDto),
                 probeConfiguration)) {
 
-            final WebhookBody body = getWebhookBody(actionExecutionDto, actionApiDTO);
+            final WebhookBody body = getWebhookBody(actionExecutionDto);
             final List<Property> webhookProperties =
                     actionExecutionDto.getWorkflow().getPropertyList();
             final WebhookQuery webhookQuery = new WebhookQuery(
@@ -394,5 +405,25 @@ public class WebhookProbe
                 actionExecutionDto.getActionOid(), ex);
         // the message includes information information about what is the issue so return it
         return "Exception while applying template: " + ex.getMessage();
+    }
+
+    private ActionApiDTO convertFromActionExecutionToActionApi(ActionExecutionDTO actionExecutionDTO) {
+        return CONVERTER.convert(
+                new SdkActionInformationProvider(actionExecutionDTO),
+                true,
+                0L,
+                false);
+    }
+
+    /**
+     * Checks to see if webhook properties have templating already applied.
+     * @param webhookProperties the webhook properties.
+     * @return if the webhook properties have already been templated.
+     * @throws WebhookException if there are multiple occurrences of 'HAS_TEMPLATE_APPLIED' property.
+     */
+    private boolean isTemplatingApplied(List<Property> webhookProperties) throws WebhookException {
+        Optional<String> templatingApplied = getWebhookPropertyValue(
+                WebhookConstants.HAS_TEMPLATE_APPLIED, webhookProperties);
+        return templatingApplied.isPresent() && Boolean.parseBoolean(templatingApplied.get());
     }
 }
