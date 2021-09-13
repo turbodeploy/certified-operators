@@ -53,7 +53,8 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitor;
 import com.vmturbo.sql.utils.dbmonitor.DbMonitorConfig;
 import com.vmturbo.sql.utils.dbmonitor.ProcessListClassifier;
-import com.vmturbo.sql.utils.poolmonitor.HikariPoolMonitor;
+import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
+import com.vmturbo.sql.utils.pool.HikariPoolMonitor;
 
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -96,19 +97,19 @@ public abstract class SQLDatabaseConfig {
     /**
      * If true, use a connection pool for database connections.
      */
-    @Value("${conPoolActive:true}")
+    @Value("${conPoolActive:false}")
     private boolean isConnectionPoolActive;
 
     /**
      * Duration between reports logged by Connection pool monitor in seconds. Zero means reporting is not active.
      */
-    @Value("${poolMonitorIntervalSec:60}")
+    @Value("${conPoolMonitorIntervalSec:60}")
     private int poolMonitorIntervalSec;
 
     /**
-     * DB connection pool initial and minimum size. Defaults to 5.
+     * DB connection pool initial and minimum size. Defaults to 1.
      */
-    @Value("${conPoolInitialSize:5}")
+    @Value("${conPoolInitialSize:1}")
     private int dbMinPoolSize;
 
     /**
@@ -116,6 +117,12 @@ public abstract class SQLDatabaseConfig {
      */
     @Value("${conPoolMaxActive:10}")
     private int dbMaxPoolSize;
+
+    /**
+     * DB connection pool frequency to send keep alive messages on idle connections. Defaults to 5.
+     */
+    @Value("${conPoolKeepAliveIntervalMinutes:" + DbConnectionPoolConfig.DEFAULT_KEEPALIVE_TIME_MINUTES + "}")
+    private int dbPoolKeepAliveIntervalMinutes;
 
     @Value("${sqlDialect}")
     private String sqlDialectName;
@@ -145,8 +152,6 @@ public abstract class SQLDatabaseConfig {
 
     private DBPasswordUtil dbPasswordUtil;
 
-    private static final int LEAK_DETECTION_THRESHOLD_MSEC = 120000;
-
     /**
      * Get the name of the database schema. Each component has its own schema.
      *
@@ -155,10 +160,6 @@ public abstract class SQLDatabaseConfig {
     public abstract String getDbSchemaName();
 
     public abstract String getDbUsername();
-
-    private String getPoolName() {
-        return "pool-" + getDbSchemaName();
-    }
 
     @Bean
     @Primary
@@ -181,23 +182,15 @@ public abstract class SQLDatabaseConfig {
                                     final int maxPoolSize) {
         try {
             if (isConnectionPoolActive) {
-                HikariDataSource dataSource = new HikariDataSource();
                 // Should be logged only once, on container startup
-                logger.info("Initializing database connection pool: minPoolSize={}, maxPoolSize={}",
-                        minPoolSize, maxPoolSize);
-                dataSource.setDriverClassName("org.mariadb.jdbc.Driver");
-                dataSource.setJdbcUrl(dbUrl);
-                dataSource.setUsername(dbUsername);
-                dataSource.setPassword(dbPassword);
-                dataSource.setMinimumIdle(minPoolSize);
-                dataSource.setMaximumPoolSize(maxPoolSize);
-                dataSource.setLeakDetectionThreshold(LEAK_DETECTION_THRESHOLD_MSEC);
-                dataSource.setPoolName(getPoolName());
+                logger.info("Initializing pooled database connection source.");
+                HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(getDbSchemaName(),
+                        dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize, dbPoolKeepAliveIntervalMinutes);
                 final HikariPoolMonitor poolMonitor = poolMonitor();
                 if (poolMonitor != null) {
                     dataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
                 } else {
-                    logger.debug("The pool monitor will be used.");
+                    logger.debug("The pool monitor will not be used.");
                 }
                 return  dataSource;
             } else {
@@ -691,7 +684,8 @@ public abstract class SQLDatabaseConfig {
     @Bean
     public HikariPoolMonitor poolMonitor() {
         if (isConnectionPoolActive && poolMonitorIntervalSec > 0) {
-            return new HikariPoolMonitor(getPoolName(), poolMonitorIntervalSec,
+            return new HikariPoolMonitor(DbConnectionPoolConfig.getPoolName(getDbSchemaName()),
+                    poolMonitorIntervalSec,
                     getDbSchemaName(), poolMonitorExecutorService());
         } else {
             return null;
@@ -701,8 +695,9 @@ public abstract class SQLDatabaseConfig {
     @Nonnull
     @Bean
     public ScheduledExecutorService poolMonitorExecutorService() {
+        final String poolName = DbConnectionPoolConfig.getPoolName(getDbSchemaName());
         final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("DbPoolMonitor-" + getPoolName() + "-%d").build();
+                new ThreadFactoryBuilder().setNameFormat("DbPoolMonitor-" + poolName + "-%d").build();
         return Executors.newScheduledThreadPool(1, threadFactory);
     }
 

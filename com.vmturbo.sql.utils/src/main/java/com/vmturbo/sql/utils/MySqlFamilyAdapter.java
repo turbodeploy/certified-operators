@@ -10,11 +10,13 @@ import java.util.List;
 
 import javax.sql.DataSource;
 
+import com.zaxxer.hikari.HikariDataSource;
+
 import org.mariadb.jdbc.MariaDbDataSource;
-import org.mariadb.jdbc.MariaDbPoolDataSource;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 
 // TODO This adapter implementation - and the whole DbEndpoint approach in general - has not yet
 // been fully ported to work in MySQL/MariaDB. Initial focus on needs for XLR floodgate
@@ -32,15 +34,19 @@ class MySqlFamilyAdapter extends DbAdapter {
     DataSource getDataSource(String url, String user, String password, boolean pooled)
             throws SQLException {
         if (pooled) {
-            logger.debug("Creating a pooled datasource for user: %s", user);
-            final MariaDbPoolDataSource dataSource = new MariaDbPoolDataSource();
-            dataSource.setUrl(url);
-            dataSource.setUser(user);
-            dataSource.setPassword(password);
-            dataSource.setDatabaseName(config.getDatabaseName());
-            dataSource.setMinPoolSize(config.getMinPoolSize());
-            dataSource.setMaxPoolSize(config.getMaxPoolSize());
-            return dataSource;
+            final int minPoolSize = config.getMinPoolSize();
+            final int maxPoolSize = config.getMaxPoolSize();
+            final int keepAliveIntervalMinutes = config.getKeepAliveIntervalMinutes();
+            logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
+                    user, minPoolSize, maxPoolSize);
+            HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
+                    config.getSchemaName(), url, user, password, minPoolSize, maxPoolSize,
+                    keepAliveIntervalMinutes);
+            // In the SQLDatabaseConfig version of this initialization, we would create a
+            // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way
+            // for components to initialize their database connections, then we need to
+            // TODO: Create a pool monitor here
+            return  dataSource;
         } else {
             logger.debug("Creating a non-pooled datasource for user: %s", user);
             final MariaDbDataSource dataSource = new MariaDbDataSource();
