@@ -1,0 +1,115 @@
+package com.vmturbo.group.service;
+
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.Collections;
+
+import io.grpc.stub.StreamObserver;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Matchers;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.runners.MockitoJUnitRunner;
+
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.group.entitytags.EntityCustomTagsStore;
+
+/**
+ * This class tests {@link EntityCustomTagsRpcService}.
+ */
+@RunWith(MockitoJUnitRunner.class)
+public class EntityCustomTagsRpcServiceTest {
+
+    @Mock
+    private EntityCustomTagsStore entityCustomTagsStore;
+
+    private static final long ENTITY_ID = 107L;
+    private static final String tagName1 = "tag1";
+    private static final String tagValue1 = "value1";
+    private static final String tagName2 = "tag2";
+    private static final String tagValue2 = "value2";
+
+    private static final Tags tags = Tags.newBuilder().putTags(tagName1, TagValuesDTO.newBuilder()
+            .addAllValues(Arrays.asList(tagValue1, tagValue2))
+            .build()).putTags(tagName2, TagValuesDTO.newBuilder()
+            .addAllValues(Collections.singletonList(tagValue1))
+            .build()).build();
+
+    private static final EntityCustomTagsOuterClass.EntityCustomTags entityCustomTags =
+            EntityCustomTagsOuterClass.EntityCustomTags.newBuilder().setEntityId(ENTITY_ID).setTags(
+                    tags).build();
+
+    private EntityCustomTagsRpcService entityCustomTagsService;
+
+    /**
+     * Initializes the user defined tags rpc service.
+     */
+    @Before
+    public void setup() {
+        entityCustomTagsService = new EntityCustomTagsRpcService(entityCustomTagsStore);
+    }
+
+    /**
+     * Tests the creation of tags using the gRPC service.
+     */
+    @Test
+    public void testCreate() {
+
+        final EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest request =
+                EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest.newBuilder().setEntityId(
+                        ENTITY_ID).setTags(tags).build();
+        final StreamObserver<EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        when(entityCustomTagsStore.insertTags(ENTITY_ID, tags)).thenReturn(new int[]{1, 1, 1});
+
+        entityCustomTagsService.createTags(request, mockObserver);
+
+        verify(mockObserver).onNext(EntityCustomTagsCreateResponse.newBuilder()
+                .setEntityCustomTags(entityCustomTags)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the creation of tags request without entity id. It should return an error matching
+     * IllegalArgumentException.
+     */
+    @Test
+    public void testCreateNoEntityId() {
+        final EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest request =
+                EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest.newBuilder().setTags(tags).build();
+
+        final StreamObserver<EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        entityCustomTagsService.createTags(request, mockObserver);
+
+        Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
+    }
+
+    /**
+     * Tests the creation of tags request without tags. It should return an error matching
+     * IllegalArgumentException.
+     */
+    @Test
+    public void testCreateNoTags() {
+
+        final EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest request =
+                EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest.newBuilder().setEntityId(ENTITY_ID).build();
+        final StreamObserver<EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse> mockObserver =
+                Mockito.mock(StreamObserver.class);
+
+        entityCustomTagsService.createTags(request, mockObserver);
+
+        Mockito.verify(mockObserver).onError(Matchers.any(IllegalArgumentException.class));
+    }
+}
