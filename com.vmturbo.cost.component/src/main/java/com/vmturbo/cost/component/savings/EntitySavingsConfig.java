@@ -34,6 +34,7 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -52,7 +53,8 @@ import com.vmturbo.topology.event.library.TopologyEventProvider;
         RepositoryClientConfig.class,
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
-        EntityCostConfig.class})
+        EntityCostConfig.class,
+        CostNotificationConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -77,6 +79,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private EntityCostConfig entityCostConfig;
+
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
 
     /**
      * Chunk size configuration.
@@ -243,7 +248,7 @@ public class EntitySavingsConfig {
         EntitySavingsProcessor entitySavingsProcessor =
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
                         rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock(),
-                        dataRetentionProcessor());
+                        dataRetentionProcessor(), costNotificationConfig.costNotificationSender());
 
         if (isEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();

@@ -18,8 +18,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -41,9 +43,12 @@ import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.db.tables.EntitySavingsByHour;
 import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -199,6 +204,24 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         }
         return querySavingsStats(durationType, statsTypes, startTime, endTime, entityOids,
                 entityTypes, resourceGroups);
+    }
+
+    @Override
+    @Nonnull
+    public Stream<EntitySavingsStatsRecord> getSavingsStats(long startTime, long endTime)
+            throws EntitySavingsException {
+        final LocalDateTime startDate = SavingsUtil.getLocalDateTime(startTime, clock);
+        final LocalDateTime endDate = SavingsUtil.getLocalDateTime(endTime, clock);
+        if (startTime > endTime) {
+            throw new EntitySavingsException("Cannot get raw entity savings stats: "
+                    + "Start time: " + startDate + " > End time: " + endDate);
+        }
+        return dsl.selectFrom(EntitySavingsByHour.ENTITY_SAVINGS_BY_HOUR)
+                .where(ENTITY_SAVINGS_BY_HOUR.STATS_TIME.ge(startDate)
+                        .and(ENTITY_SAVINGS_BY_HOUR.STATS_TIME.lt(endDate)))
+                .stream()
+                .map(this::convertStatsDbRecord)
+                .filter(Objects::nonNull);
     }
 
     @Nonnull
@@ -499,5 +522,27 @@ public class SqlEntitySavingsStore implements EntitySavingsStore<DSLContext> {
         return new AggregatedSavingsStats(TimeUtil.localDateTimeToMilli(rec.value1(), clock),
                 EntitySavingsStatsType.forNumber(rec.value2()),
                 rec.value3().doubleValue());
+    }
+
+    /**
+     * Converts DB record to protobuf savings stats record.
+     *
+     * @param dbRecord DB record read from savings hourly table.
+     * @return Stats record or null if there is a mapping issue.
+     */
+    @Nullable
+    private EntitySavingsStatsRecord convertStatsDbRecord(@Nonnull final EntitySavingsByHourRecord dbRecord) {
+        final EntitySavingsStatsRecord.Builder builder = EntitySavingsStatsRecord.newBuilder()
+                .setEntityOid(dbRecord.getEntityOid())
+                .setSnapshotDate(TimeUtil.localDateTimeToMilli(dbRecord.getStatsTime(), clock));
+        final EntitySavingsStatsType statsType = EntitySavingsStatsType.forNumber(
+                dbRecord.getStatsType());
+        if (statsType == null) {
+            return null;
+        }
+        builder.addStatRecords(SavingsRecord.newBuilder()
+                .setName(statsType.name())
+                .setValue(dbRecord.getStatsValue().floatValue()));
+        return builder.build();
     }
 }

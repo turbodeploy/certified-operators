@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -877,17 +878,24 @@ public class CostRpcService extends CostServiceImplBase {
     public void getEntitySavingsStats(@Nonnull final GetEntitySavingsStatsRequest request,
             @Nonnull final StreamObserver<EntitySavingsStatsRecord> responseObserver) {
         try {
-            final Set<EntitySavingsStatsType> statsTypes = new HashSet<>(request.getStatsTypesList());
+            if (request.hasAggregateRecords() && !request.getAggregateRecords()) {
+                // Request for non-aggregated raw stats (with entity ids).
+                Stream<EntitySavingsStatsRecord> records =  entitySavingsStore.getSavingsStats(
+                        request.getStartDate(), request.getEndDate());
+                records.forEach(responseObserver::onNext);
+            } else {
+                final Set<EntitySavingsStatsType> statsTypes = new HashSet<>(request.getStatsTypesList());
 
-            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
-            final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
-                    timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
-                    request.getEntityFilter().getEntityIdList(),
-                    request.getEntityTypeFilter().getEntityTypeIdList(),
-                    request.getResourceGroupFilter().getResourceGroupOidList());
+                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+                final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
+                        timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
+                        request.getEntityFilter().getEntityIdList(),
+                        request.getEntityTypeFilter().getEntityTypeIdList(),
+                        request.getResourceGroupFilter().getResourceGroupOidList());
 
-            final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
-            records.forEach(responseObserver::onNext);
+                final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
+                records.forEach(responseObserver::onNext);
+            }
             responseObserver.onCompleted();
         } catch (EntitySavingsException | RuntimeException e) {
             responseObserver.onError(Status.INTERNAL

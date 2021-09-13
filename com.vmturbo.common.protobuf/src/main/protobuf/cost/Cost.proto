@@ -1564,6 +1564,9 @@ message GetEntitySavingsStatsRequest {
 
     // Resource group list
     optional ResourceGroupFilter resource_group_filter = 6;
+
+    // Whether to aggregate records by time. If false, then raw entity ids are returned.
+    optional bool aggregate_records = 8 [default = true];
 }
 
 message ResourceGroupFilter {
@@ -1597,4 +1600,7 @@ message EntitySavingsStatsRecord {
         // Dollar amount of the savings or investment
         optional float value = 2;
     }
+
+    // For raw stats records, the entity id.
+    optional int64 entity_oid = 3;
 }

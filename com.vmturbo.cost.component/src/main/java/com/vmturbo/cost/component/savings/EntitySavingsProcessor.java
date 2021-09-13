@@ -13,6 +13,11 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.CloudSavingsAvailable;
+import com.vmturbo.commons.Units;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 
 /**
@@ -35,6 +40,8 @@ class EntitySavingsProcessor {
 
     private final DataRetentionProcessor dataRetentionProcessor;
 
+    private final CostNotificationSender costNotificationSender;
+
     /**
      * Logger.
      */
@@ -50,6 +57,7 @@ class EntitySavingsProcessor {
      * @param entityEventsJournal entity events journal
      * @param clock clock
      * @param dataRetentionProcessor stats retention processor.
+     * @param notificationSender For sending out savings broadcast notification.
      */
     EntitySavingsProcessor(@Nonnull EntitySavingsTracker entitySavingsTracker,
             @Nonnull TopologyEventsPoller topologyEventsPoller,
@@ -57,7 +65,8 @@ class EntitySavingsProcessor {
             @Nonnull EntitySavingsStore entitySavingsStore,
             @Nonnull EntityEventsJournal entityEventsJournal,
             @Nonnull final Clock clock,
-            @Nonnull final DataRetentionProcessor dataRetentionProcessor) {
+            @Nonnull final DataRetentionProcessor dataRetentionProcessor,
+            @Nonnull final CostNotificationSender notificationSender) {
         this.topologyEventsPoller = topologyEventsPoller;
         this.entitySavingsTracker = entitySavingsTracker;
         this.rollupProcessor = rollupProcessor;
@@ -65,6 +74,7 @@ class EntitySavingsProcessor {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.clock = clock;
         this.dataRetentionProcessor = dataRetentionProcessor;
+        this.costNotificationSender = notificationSender;
     }
 
     /**
@@ -110,6 +120,7 @@ class EntitySavingsProcessor {
             logger.info("Invoking data retention processor.");
             dataRetentionProcessor.process(false);
 
+            sendSavingsNotification(hourlyStatsTimes);
             logger.info("END: Processing savings/investment. {} Hourly stats.",
                     hourlyStatsTimes.size());
         } catch (Throwable e) {
@@ -171,5 +182,41 @@ class EntitySavingsProcessor {
     private long getLastHourlyStatsTime() {
         LastRollupTimes lastRollupTimes = entitySavingsStore.getLastRollupTimes();
         return lastRollupTimes.getLastTimeByHour();
+    }
+
+    /**
+     * Sends out broadcast notification about Cloud Savings available.
+     *
+     * @param hourlyStatsTimes Times for which stats data was written this time.
+     */
+    private void sendSavingsNotification(@Nonnull final List<Long> hourlyStatsTimes) {
+        if (hourlyStatsTimes.isEmpty()) {
+            return;
+        }
+        // Start time is inclusive and end time is exclusive.
+        // E.g if hourlyStatsTime is 7:00 PM (only 1 value), then startTime: 7:00 PM, and
+        // endTime: 8:00 PM. If hourlyStatsTime is 6:00 PM and 7:00 PM, then startTime: 6:00 PM,
+        // endTime: 8:00 PM. All stats including start time (greater than equal to) and
+        // excluding (less than) are returned when these times are used later for query.
+        hourlyStatsTimes.sort(Long::compare);
+        long startTime = hourlyStatsTimes.get(0);
+        long endTime = hourlyStatsTimes.get(hourlyStatsTimes.size() - 1);
+        endTime += (long)Units.HOUR_MS;
+
+        try {
+            costNotificationSender.sendCostNotification(CostNotification.newBuilder()
+                    .setCloudSavingsAvailable(CloudSavingsAvailable.newBuilder().setStartDate(
+                            startTime).setEndDate(endTime).build())
+                    .build());
+            logger.info("Sent out Cloud Savings available notification. Start: {}, End: {}.",
+                    startTime, endTime);
+        } catch (CommunicationException ce) {
+            logger.warn("Unable to send out Cloud Savings notification. Start: {}, End: {}.",
+                    startTime, endTime, ce);
+        } catch (InterruptedException ie) {
+            logger.warn("Interrupted on Cloud Savings notification. Start: {}, End: {}: {}",
+                    startTime, endTime, ie.getMessage());
+            Thread.currentThread().interrupt();
+        }
     }
 }

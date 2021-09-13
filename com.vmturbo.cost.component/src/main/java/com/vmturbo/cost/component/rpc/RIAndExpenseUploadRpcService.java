@@ -175,9 +175,13 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
             costNotificationSender.sendCostNotification(CostNotification.newBuilder()
                     .setAccountExpensesAvailable(AccountExpensesAvailable.getDefaultInstance())
                     .build());
-        } catch (InterruptedException | CommunicationException e) {
+        } catch (CommunicationException e) {
             logger.warn("Could not send billing notification. Topology: {}, {} accounts.",
                     topologyId, accountCount, e);
+        } catch (InterruptedException ie) {
+            logger.warn("Interrupted when sending billing notification. Topology: {}, {} accounts: {}",
+                    topologyId, accountCount, ie.getMessage());
+            Thread.currentThread().interrupt();
         }
     }
 

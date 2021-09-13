@@ -32,6 +32,7 @@ import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.FileType;
 import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
 
@@ -126,7 +127,10 @@ public enum ColType {
     COST_SOURCE(CostSource.values()[0].getName()),
 
     /** file type column. */
-    FILE_TYPE(FileType.values()[0].getName());
+    FILE_TYPE(FileType.values()[0].getName()),
+
+    /** savings type column. */
+    SAVINGS_TYPE(SavingsType.values()[0].getName());
 
     static final byte[] NULL_BYTE_ARRAY = {0};
     static final byte[] TRUE_BYTE_ARRAY = {1};
@@ -487,6 +491,7 @@ public enum ColType {
             case COST_CATEGORY:
             case COST_SOURCE:
             case FILE_TYPE:
+            case SAVINGS_TYPE:
                 return ((EnumType)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
