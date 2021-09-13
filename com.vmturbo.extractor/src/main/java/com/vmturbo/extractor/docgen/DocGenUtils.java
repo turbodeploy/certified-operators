@@ -122,6 +122,11 @@ public class DocGenUtils {
     public static final String REFERENCE = "Reference";
 
     /**
+     * Enum type.
+     */
+    public static final String ENUM_TYPE = "enum";
+
+    /**
      * Type of the map key if this field is a map.
      */
     public static final String MAP_KEY_TYPE = "MapKeyType";
@@ -135,6 +140,11 @@ public class DocGenUtils {
      * Supported group types of this item.
      */
     public static final String SUPPORTED_GROUP_TYPES = "SupportedGroupTypes";
+
+    /**
+     * Type indicating the field is a json.
+     */
+    public static final String JSON_TYPE = "JSON";
 
     /**
      * Notes for the field.
@@ -247,7 +257,7 @@ public class DocGenUtils {
      * @return list of properties which exist in json
      */
     public static List<BeanPropertyDefinition> getProperties(JavaType javaType) {
-        if (javaType.isTypeOrSubTypeOf(Number.class)) {
+        if (DocGenUtils.hasNoNestedFields(javaType)) {
             // no need to introspect for classes wrapping primitive types
             return Collections.emptyList();
         }
@@ -268,6 +278,21 @@ public class DocGenUtils {
         return properties.stream()
                 .filter(property -> !ignoredProperties.contains(property.getName()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Check whether there are nested fields in the given type.
+     *
+     * @param javaType type of a json field
+     * @return true if no nested fields, otherwise false
+     */
+    public static boolean hasNoNestedFields(JavaType javaType) {
+        return javaType.isPrimitive()
+                || javaType.isTypeOrSubTypeOf(Number.class)
+                || javaType.isTypeOrSubTypeOf(String.class)
+                || javaType.isTypeOrSubTypeOf(Boolean.class)
+                || javaType.isTypeOrSubTypeOf(Character.class)
+                || javaType.isTypeOrSubTypeOf(Byte.class);
     }
 
     /**

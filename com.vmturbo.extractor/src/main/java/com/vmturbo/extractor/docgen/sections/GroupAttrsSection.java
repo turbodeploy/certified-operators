@@ -2,6 +2,7 @@ package com.vmturbo.extractor.docgen.sections;
 
 import static com.vmturbo.extractor.docgen.DocGenUtils.GROUP_ATTRS_SECTION_NAME;
 import static com.vmturbo.extractor.docgen.DocGenUtils.GROUP_ATTRS_SECTION_PATH;
+import static com.vmturbo.extractor.docgen.DocGenUtils.SUPPORTED_GROUP_TYPES;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,6 +52,11 @@ public class GroupAttrsSection extends BaseAttrsSection<GroupType> {
     @Override
     GroupType[] getAllTypes() {
         return GroupType.values();
+    }
+
+    @Override
+    String getSupportedTypeField() {
+        return SUPPORTED_GROUP_TYPES;
     }
 }
 
