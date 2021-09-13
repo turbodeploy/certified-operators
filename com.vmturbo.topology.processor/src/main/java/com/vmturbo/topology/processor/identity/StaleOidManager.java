@@ -9,10 +9,12 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+
 /**
  * Manager to handle and expire stale oids.
  */
-public interface StaleOidManager {
+public interface StaleOidManager extends StringDiagnosable {
 
     /**
      * Initializes the manager.

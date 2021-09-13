@@ -1,12 +1,14 @@
 package com.vmturbo.topology.processor.identity;
 
-import static com.vmturbo.topology.processor.identity.StaleOidManagerImpl.EXPIRATION_TASK_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
@@ -45,8 +47,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
+import com.vmturbo.topology.processor.db.tables.RecurrentOperations;
+import com.vmturbo.topology.processor.db.tables.records.RecurrentOperationsRecord;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl.OidExpirationResultRecord;
 
 /**
  * Class to test a {@link StaleOidManagerImpl}. These tests heavily rely on the
@@ -74,6 +81,7 @@ public class StaleOidManagerTest {
     private final Clock clock = mock(Clock.class);
     private ScheduledExecutorService executor;
     private String expirationExceptionMessage = "Exception with OidExpirationTask";
+    private RecurrentOperationsRecord recurrentOperationsRecord;
 
     long oid1 = 1;
     long oid2 = 2;
@@ -93,6 +101,8 @@ public class StaleOidManagerTest {
         executor = Executors.newScheduledThreadPool(1);
         staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
             TimeUnit.HOURS.toMillis(VALIDATION_FREQUENCY_HRS), 0, context, clock, true, executor, new HashMap<>());
+        recurrentOperationsRecord = context.newRecord(RecurrentOperations.RECURRENT_OPERATIONS)
+                .values(LocalDateTime.now(), StaleOidManagerImpl.EXPIRATION_TASK_NAME, true, true, 10, 10, "");
     }
 
     /**
@@ -129,7 +139,7 @@ public class StaleOidManagerTest {
     }
 
     /**
-     * Tests that if an exception is thrown inside an {@link com.vmturbo.topology.processor.identity.StaleOidManagerImpl.OidExpirationTask}
+     * Tests that if an exception is thrown inside an OidExpirationTask
      * we still perform other tasks.
      * @throws InterruptedException if the task gets interrupted
      * @throws TimeoutException if a timeout has been reached
@@ -224,7 +234,7 @@ public class StaleOidManagerTest {
         } catch (CancellationException e) {
             assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
                 assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
-            assertEquals(EXPIRATION_TASK_NAME,
+            assertEquals(StaleOidManagerImpl.EXPIRATION_TASK_NAME,
                 assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
         }
     }
@@ -297,7 +307,7 @@ public class StaleOidManagerTest {
 
         assertEquals(Timestamp.valueOf(LocalDateTime.ofInstant(Instant.ofEpochMilli(currentTime), clock.getZone())),
             assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getExecutionTime());
-        assertEquals(EXPIRATION_TASK_NAME,
+        assertEquals(StaleOidManagerImpl.EXPIRATION_TASK_NAME,
             assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getOperationName());
         Assert.assertTrue(assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getIsExpired());
         assertEquals(currentTime - TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
@@ -371,7 +381,22 @@ public class StaleOidManagerTest {
                     assignedIdentityJooqProvider.getGetExpiredRecordsQuery().getExpirationTimePerEntityType(entityType).getTime());
             }
         }
+    }
 
+    /**
+     * Tests that the diags collection works properly.
+     * @throws DiagnosticsException if an error occurs
+     */
+    @Test
+    public void testDiagsCollection() throws DiagnosticsException {
+        initialize();
+        DiagnosticsAppender appender = mock(DiagnosticsAppender.class);
+        staleOidManager.collectDiags(appender);
+        verify(appender).appendString(eq(StaleOidManagerImpl.DIAGS_HEADER));
+        verify(appender, times(1)).appendString(eq(new OidExpirationResultRecord(recurrentOperationsRecord).toCsvLine()));
+
+        String diagsFileName = staleOidManager.getFileName();
+        assertEquals(StaleOidManagerImpl.DIAGS_FILE_NAME, diagsFileName);
     }
 
     /**
@@ -444,7 +469,7 @@ public class StaleOidManagerTest {
                              (String)ctx.bindings()[1], (Boolean)ctx.bindings()[2], (Boolean)ctx.bindings()[3], (Integer)ctx.bindings()[4], (Integer)ctx.bindings()[5],
                              (String)ctx.bindings()[6]);
             }
-            if (isGetRecurrentOperationsQuery(ctx.sql())) {
+            if (isCountValidRecurrentOperationsQuery(ctx.sql())) {
                 if (doNotReturnSuccessfulUpdates) {
                     mockResult = new MockResult();
                 } else {
@@ -454,7 +479,12 @@ public class StaleOidManagerTest {
                     mockResult = new MockResult(1, result);
                 }
             }
-
+            if (isGetRecurrentOperationsQuery(ctx.sql())) {
+                Result<RecurrentOperationsRecord> result =
+                        create.newResult(RecurrentOperations.RECURRENT_OPERATIONS);
+                result.add(recurrentOperationsRecord);
+                mockResult = new MockResult(1, result);
+            }
             if (nQueries == queriesPerExpirationTask && staleOidManagerProcess != null) {
                 staleOidManagerProcess.cancel(true);
             }
@@ -498,8 +528,12 @@ public class StaleOidManagerTest {
             return sql.contains("insert") && sql.contains("recurrent_operations");
         }
 
+        private boolean isCountValidRecurrentOperationsQuery(String sql) {
+            return sql.contains("select count(*)") && sql.contains("recurrent_operations");
+        }
+
         private boolean isGetRecurrentOperationsQuery(String sql) {
-            return sql.contains("select") && sql.contains("recurrent_operations");
+            return sql.contains("select") && sql.contains("recurrent_operations") && !sql.contains("count");
         }
     }
 
