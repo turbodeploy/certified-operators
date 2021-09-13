@@ -1,9 +1,12 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyMap;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -50,6 +53,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
@@ -102,7 +106,7 @@ public class EntitySavingsTrackerTest {
     private static final long serviceProvider1Id = 5000L;
     private static final long serviceProvider2Id = 5001L;
 
-    private static final RepositoryClient repositoryClient = mock(RepositoryClient.class);
+    private static RepositoryClient repositoryClient;
 
     // Maps the period start time to a list of events in the period that start at the start time and ends 1 hour later.
     private static final Map<LocalDateTime, List<SavingsEvent>> eventsByPeriod = new HashMap<>();
@@ -172,10 +176,12 @@ public class EntitySavingsTrackerTest {
                 return stateSet.stream();
             }
         };
-        when(entityStateStore.getAllEntityStates()).thenAnswer(stateStream);
+        when(entityStateStore.getAllEntityStates(any(DSLContext.class))).thenAnswer(stateStream);
     }
 
     private void setupRepositoryClient() {
+        repositoryClient = mock(RepositoryClient.class);
+
         // Create topology entities for vm1 and vm2. These two VMs have events (see eventsByPeriod)
         List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
         TopologyEntityDTO vm1EntityDto = TopologyEntityDTO.newBuilder()
@@ -276,6 +282,39 @@ public class EntitySavingsTrackerTest {
     }
 
     /**
+     * Verify the DSLContext passed into methods of entityStateStore and entitySavingsStore are not
+     * the same as the one passed into the constructor of EntitySavingsTracker. The transactional
+     * DSLContext should be used.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void verifyCorrectDslContextUsed() throws Exception {
+        tracker.processEvents(time0900am, time1000am);
+        final long startTimeMillis = TimeUtil.localDateTimeToMilli(time0900am, clock);
+        ArgumentCaptor<DSLContext> dslCaptor = ArgumentCaptor.forClass(DSLContext.class);
+        verify(tracker).generateStats(eq(startTimeMillis), dslCaptor.capture());
+        DSLContext generateStatesDsl = dslCaptor.getValue();
+        assertNotEquals(dsl, generateStatesDsl);
+
+        ArgumentCaptor<DSLContext> clearUpdatedFlagsDslCaptor = ArgumentCaptor.forClass(DSLContext.class);
+        verify(entityStateStore).clearUpdatedFlags(clearUpdatedFlagsDslCaptor.capture());
+        DSLContext clearUpdateFlagsDsl = clearUpdatedFlagsDslCaptor.getValue();
+        assertNotEquals(dsl, clearUpdateFlagsDsl);
+
+        ArgumentCaptor<DSLContext> updateStateDslCaptor = ArgumentCaptor.forClass(DSLContext.class);
+        verify(entityStateStore).updateEntityStates(anyMap(), any(TopologyEntityCloudTopology.class),
+                updateStateDslCaptor.capture());
+        DSLContext updateStateDsl = updateStateDslCaptor.getValue();
+        assertNotEquals(dsl, updateStateDsl);
+
+        ArgumentCaptor<DSLContext> deleteEntityStatesDslCaptor = ArgumentCaptor.forClass(DSLContext.class);
+        verify(entityStateStore).deleteEntityStates(anySet(), deleteEntityStatesDslCaptor.capture());
+        DSLContext deleteEntityStatesDsl = deleteEntityStatesDslCaptor.getValue();
+        assertNotEquals(dsl, deleteEntityStatesDsl);
+    }
+
+    /**
      * Call the process method with start and end time at 9am and 10am respectively.
      * Process the period 9:00 - 10:00.
      *
@@ -373,7 +412,10 @@ public class EntitySavingsTrackerTest {
         EntitySavingsTracker tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
                 entityStateStore, Clock.systemUTC(), mock(TopologyEntityCloudTopologyFactory.class),
                 repositoryClient, dsl, realtimeTopologyContextId, 2));
-        tracker.generateStats(eq(time1000amMillis), any(DSLContext.class));
+        tracker.generateStats(time1000amMillis, dsl);
+
+        // Make sure we call the version of getAllEntityStates that accepts DSL context as parameter.
+        verify(entityStateStore).getAllEntityStates(dsl);
 
         // addHourlyStats is called three times.
         // First 2 states will generate 2 stats records => 1 call

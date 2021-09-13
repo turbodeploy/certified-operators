@@ -152,20 +152,20 @@ public class EntitySavingsTracker {
                 // any of the data store methods, the transaction will be rolled back and processing
                 // will stop. When the tracker is executed again in the next hour, we will start
                 // from the hour that failed last time.
-                dsl.transaction(transaction -> {
+                dsl.transaction(transactionConfig -> {
                     // DSL context to be used within the transaction scope. Use this dsl context
                     // in data store operations within this transaction.
-                    DSLContext dsl = DSL.using(transaction);
+                    DSLContext transactionDsl = DSL.using(transactionConfig);
 
                     // Clear the updated_by_event flags
-                    entityStateStore.clearUpdatedFlags(dsl);
+                    entityStateStore.clearUpdatedFlags(transactionDsl);
 
                     // Update entity states. Also insert new states to track new entities.
                     entityStateStore.updateEntityStates(entityStates,
-                            createCloudTopology(entityStates.keySet()), dsl);
+                            createCloudTopology(entityStates.keySet()), transactionDsl);
 
                     // create stats records from state map for this period.
-                    generateStats(startTimeMillis, dsl);
+                    generateStats(startTimeMillis, transactionDsl);
 
                     // We delete inactive entity state after the stats for the entity have been flushed
                     // a final time.
@@ -173,7 +173,7 @@ public class EntitySavingsTracker {
                             .filter(EntityState::isDeletePending)
                             .map(EntityState::getEntityId)
                             .collect(Collectors.toSet());
-                    entityStateStore.deleteEntityStates(statesToRemove, dsl);
+                    entityStateStore.deleteEntityStates(statesToRemove, transactionDsl);
                 });
 
                 // Add start time to list to indicate this hour's data is ready for rollup.
@@ -210,7 +210,7 @@ public class EntitySavingsTracker {
         Set<EntitySavingsStats> stats = new HashSet<>();
         // Use try with resource here because the stream implementation uses an open cursor that
         // need to be closed.
-        try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates()) {
+        try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates(dsl)) {
             stateStream.forEach(state -> {
                 stats.addAll(stateToStats(state, statTime));
                 if (stats.size() >= chunkSize) {

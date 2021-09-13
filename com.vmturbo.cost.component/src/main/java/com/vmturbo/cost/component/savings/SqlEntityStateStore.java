@@ -214,10 +214,15 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
 
     @Override
     public Stream<EntityState> getAllEntityStates() {
+        return getAllEntityStates(dsl);
+    }
+
+    @Override
+    public Stream<EntityState> getAllEntityStates(@Nonnull DSLContext transactionContext) {
         // Use jooq lazy fetch to avoid load the whole table into memory.
         // https://www.jooq.org/doc/3.2/manual/sql-execution/fetching/lazy-fetching/
         // https://stackoverflow.com/questions/32209248/java-util-stream-with-resultset
-        return dsl.selectFrom(ENTITY_SAVINGS_STATE)
+        return transactionContext.selectFrom(ENTITY_SAVINGS_STATE)
                 .fetchSize(chunkSize)
                 .fetchStream()
                 .map(record -> EntityState.fromJson(record.getEntityState()));
