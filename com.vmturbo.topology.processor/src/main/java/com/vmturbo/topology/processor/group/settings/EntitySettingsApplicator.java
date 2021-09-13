@@ -1439,10 +1439,10 @@ public class EntitySettingsApplicator {
             final CoreSocketRatioPolicyEnum csrMode = getSettingValue(entitySettings,
                             EntitySettingSpecs.CoreSocketRatioMode,
                             CoreSocketRatioPolicyEnum.RESPECT);
-            if (csrMode != CoreSocketRatioPolicyEnum.RESPECT) {
+            if (csrMode == CoreSocketRatioPolicyEnum.LEGACY) {
                 return incrementMHz;
             }
-            final float socketSpeed = getSocketSpeed(entity, vcpuCommodityBuilder, incrementMHz);
+            final float socketSpeed = getSocketSpeed(entity, vcpuCommodityBuilder, incrementMHz, csrMode);
             final UsedIncrementUnitVCpu incrementUnit =
                             getSettingValue(entitySettings, EntitySettingSpecs.VmVcpuIncrementUnit,
                                             UsedIncrementUnitVCpu.MHZ);
@@ -1455,15 +1455,24 @@ public class EntitySettingsApplicator {
         }
 
         private static float getSocketSpeed(@Nonnull TopologyEntityDTO.Builder entity,
-                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder, float incrementMHz) {
-            if (vcpuCommodityBuilder.hasCapacityIncrement()) {
+                        @Nonnull CommoditySoldDTOOrBuilder vcpuCommodityBuilder, float incrementMHz, CoreSocketRatioPolicyEnum csrmode) {
+            if (vcpuCommodityBuilder.hasCapacityIncrement() && csrmode == CoreSocketRatioPolicyEnum.RESPECT) {
                 return vcpuCommodityBuilder.getCapacityIncrement();
             }
             final Integer numCpus = getVmInfoParameter(entity, VirtualMachineInfo::hasNumCpus,
                             VirtualMachineInfo::getNumCpus);
-            final Integer cpsr =
-                            getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
-                                            VirtualMachineInfo::getCoresPerSocketRatio);
+
+            // Handling CONTROL case, set cores per socket to 1 and generate actions that assume
+            // this so that scale actions may be per vCPU/core
+            // TODO: 1 may be replaced with another optimal algorithm
+            final Integer cpsr;
+            if (csrmode == CoreSocketRatioPolicyEnum.CONTROL) {
+                cpsr = 1;
+            } else {
+                cpsr = getVmInfoParameter(entity, VirtualMachineInfo::hasCoresPerSocketRatio,
+                        VirtualMachineInfo::getCoresPerSocketRatio);
+            }
+
             if (numCpus != null) {
                 final long coreSpeed = Math.round(vcpuCommodityBuilder.getCapacity() / numCpus);
                 if (cpsr == null) {
