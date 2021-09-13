@@ -23,7 +23,7 @@ import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
-import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.NamespaceConsistentScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.CloudNativeEntityConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.VirtualMachineConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -33,8 +33,8 @@ import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestRe
 public class CpuConsistentScalingFactorPostStitchingOperationTest {
     private final CpuConsistentScalingFactorPostStitchingOperation vmOperation =
         new VirtualMachineConsistentScalingFactorPostStitchingOperation(true);
-    private final CpuConsistentScalingFactorPostStitchingOperation nsOperation =
-        new NamespaceConsistentScalingFactorPostStitchingOperation(true);
+    private final CpuConsistentScalingFactorPostStitchingOperation cnEntityOperation =
+        new CloudNativeEntityConsistentScalingFactorPostStitchingOperation(true);
 
     private EntityChangesBuilder<TopologyEntity> resultBuilder = new UnitTestResultBuilder();
 
@@ -47,6 +47,16 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
 
     private TopologyEntity.Builder ns = makeTopologyEntityBuilder(2L,
         EntityType.NAMESPACE_VALUE,
+        Collections.emptyList(),
+        Collections.emptyList());
+
+    private TopologyEntity.Builder pod = makeTopologyEntityBuilder(3L,
+        EntityType.CONTAINER_POD_VALUE,
+        Collections.emptyList(),
+        Collections.emptyList());
+
+    private TopologyEntity.Builder wc = makeTopologyEntityBuilder(4L,
+        EntityType.WORKLOAD_CONTROLLER_VALUE,
         Collections.emptyList(),
         Collections.emptyList());
 
@@ -115,27 +125,39 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
      */
     @Test
     public void testNsMissingNamespaceInfo() {
-        nsOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
+        cnEntityOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
         assertFalse(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
     }
 
     /**
-     * testNsConsistentScalingFactorSet.
+     * testCloudNativeEntityConsistentScalingFactorSet.
      */
     @Test
-    public void testNsConsistentScalingFactorSet() {
+    public void testCloudNativeEntityConsistentScalingFactorSet() {
         ns.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
             .setCapacity(2000.0)
             .setScalingFactor(2.0f)
             .build());
+        wc.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+            .setCapacity(2000.0)
+            .setScalingFactor(2.0f)
+            .build());
+        pod.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE))
+            .setCapacity(2000.0)
+            .setScalingFactor(2.0f)
+            .build());
 
-        nsOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
+        cnEntityOperation.performOperation(Stream.of(ns.build(), wc.build(), pod.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
         assertTrue(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
         // 1 / scalingFactor = 1 / 2 = 0.5
         assertEquals(0.5f, ns.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.5f, wc.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(0.5f, pod.getEntityBuilder().getAnalysisSettings().getConsistentScalingFactor(), 0);
     }
 
     /**
@@ -149,7 +171,7 @@ public class CpuConsistentScalingFactorPostStitchingOperationTest {
             .setScalingFactor(0)
             .build());
 
-        nsOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
+        cnEntityOperation.performOperation(Stream.of(ns.build()), settingsMock, resultBuilder)
             .getChanges().forEach(change -> change.applyChange(journal));
         assertFalse(ns.getEntityBuilder().getAnalysisSettings().hasConsistentScalingFactor());
         // Default consistentScalingFactor is 1 if not set.
