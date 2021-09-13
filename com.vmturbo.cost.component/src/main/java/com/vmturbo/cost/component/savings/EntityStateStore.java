@@ -71,11 +71,24 @@ public interface EntityStateStore<T> {
     /**
      * Get all entity states.
      *
-     * <p>NOTE: This stream must be closed through try-with-resource, as it amy represent underlying
+     * <p>NOTE: This stream must be closed through try-with-resource, as it may represent underlying
      * database connections.
      *
      * @return all entity states
-     * @throws EntitySavingsException error durring operation
+     * @throws EntitySavingsException error during operation
      */
     Stream<EntityState> getAllEntityStates() throws EntitySavingsException;
+
+    /**
+     * Get all entity states. Use this method to pass in a transaction object so this method will
+     * return states that are updated or added in the transaction even before they are committed.
+     *
+     * <p>NOTE: This stream must be closed through try-with-resource, as it may represent underlying
+     * database connections.
+     *
+     * @param transaction object used for transaction management
+     * @return all entity states
+     * @throws EntitySavingsException error during operation
+     */
+    Stream<EntityState> getAllEntityStates(T transaction) throws EntitySavingsException;
 }
