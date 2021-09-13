@@ -21,28 +21,81 @@
             See the no-run-postgres-container profile below
         <postgresPort>5432</postgresPort>
         -->
+        <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+
         <postgresUserName>postgres</postgresUserName>
         <postgresPassword>vmturbo</postgresPassword>
         <targetSchemaName>extractor</targetSchemaName>
-        <postgresSchemaName>${targetSchemaName}_{maven.build.timestamp}</postgresSchemaName>
+        <postgresSchemaName>${targetSchemaName}_${maven.build.timestamp}</postgresSchemaName>
         <postgresDriver>org.postgresql.Driver</postgresDriver>
-        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+
+        <mysqlDbUrl>jdbc:mysql://localhost:3306</mysqlDbUrl>
+        <mysqlUsername>root</mysqlUsername>
+        <mysqlPassword>vmturbo</mysqlPassword>
+        <mysqlTargetSchemaName>search</mysqlTargetSchemaName>
+        <mysqlSchemaName>${mysqlTargetSchemaName}_${maven.build.timestamp}</mysqlSchemaName>
+        <mysqlDriver>org.mariadb.jdbc.Driver</mysqlDriver>
     </properties>
     <build>
         <plugins>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>create-mysql-search-schema</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>com.vmturbo.search.schema.SchemaCreator</mainClass>
+                            <arguments>
+                                <argument>-create</argument>
+                                <argument>${mysqlDbUrl}</argument>
+                                <argument>${mysqlSchemaName}</argument>
+                                <argument>${mysqlUsername}</argument>
+                                <argument>${mysqlPassword}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- a temporary mysql database used for jooq generation needs to be deleted -->
+                    <!-- e.g. flyway:clean for mysql only removes the contents but not the db itself -->
+                    <execution>
+                        <id>drop-mysql-search-schema</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>com.vmturbo.search.schema.SchemaCreator</mainClass>
+                            <arguments>
+                                <argument>-drop</argument>
+                                <argument>${mysqlDbUrl}</argument>
+                                <argument>${mysqlSchemaName}</argument>
+                                <argument>${mysqlUsername}</argument>
+                                <argument>${mysqlPassword}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <!-- flyway is only needed for PostgreSQL -->
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-maven-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>migrate</id>
+                        <id>migrate-postgresql</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>migrate</goal>
                         </goals>
                     </execution>
                     <execution>
-                        <id>clean-db</id>
+                        <id>clean-db-postgresql</id>
                         <phase>process-sources</phase>
                         <goals>
                             <goal>clean</goal>
@@ -61,51 +114,92 @@
                     </schemas>
                 </configuration>
             </plugin>
+
             <plugin>
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq-codegen-maven</artifactId>
 
                 <executions>
+                    <!-- PostgreSQL codegen -->
                     <execution>
+                        <id>postgresql-jooq-codegen</id>
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>generate</goal>
                         </goals>
+                        <configuration>
+                            <jdbc>
+                                <driver>${postgresDriver}</driver>
+                                <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
+                                <user>${postgresUserName}</user>
+                                <password>${postgresPassword}</password>
+                            </jdbc>
+                            <generator>
+                                <database>
+                                    <name>org.jooq.meta.postgres.PostgresDatabase</name>
+                                    <schemaVersionProvider>SELECT CONCAT_WS('_', '${targetSchemaName}',
+                                        MAX(version)) from "${postgresSchemaName}".schema_version
+                                    </schemaVersionProvider>
+                                    <includes>.*</includes>
+                                    <excludes>schema_version</excludes>
+                                    <schemata>
+                                        <schema>
+                                            <inputSchema>${postgresSchemaName}</inputSchema>
+                                            <outputSchema>${targetSchemaName}</outputSchema>
+                                        </schema>
+                                    </schemata>
+                                </database>
+                                <generate>
+                                    <pojos>true</pojos>
+                                </generate>
+                                <target>
+                                    <packageName>com.vmturbo.extractor.schema</packageName>
+                                    <directory>${project.build.directory}/generated-sources/jooq</directory>
+                                </target>
+                            </generator>
+                        </configuration>
+                    </execution>
+
+                    <!-- MySQL codegen -->
+                    <execution>
+                        <id>mysql-jooq-codegen</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <jdbc>
+                                <driver>${mysqlDriver}</driver>
+                                <url>${mysqlDbUrl}</url>
+                                <user>${mysqlUsername}</user>
+                                <password>${mysqlPassword}</password>
+                            </jdbc>
+                            <generator>
+                                <database>
+                                    <name>org.jooq.meta.mysql.MySQLDatabase</name>
+                                    <includes>.*</includes>
+                                    <excludes>schema_version</excludes>
+                                    <inputSchema>${mysqlSchemaName}</inputSchema>
+                                    <outputSchema>${mysqlTargetSchemaName}</outputSchema>
+                                </database>
+                                    <generate>
+                                        <pojos>true</pojos>
+                                    </generate>
+                                <target>
+                                    <packageName>com.vmturbo.search.schema</packageName>
+                                    <directory>${project.build.directory}/generated-sources/jooq</directory>
+                                </target>
+                            </generator>
+                        </configuration>
                     </execution>
                 </executions>
-
-                <configuration>
-                    <jdbc>
-                        <driver>${postgresDriver}</driver>
-                        <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
-                        <user>${postgresUserName}</user>
-                        <password>${postgresPassword}</password>
-                    </jdbc>
-
-                    <generator>
-                        <database>
-                            <name>org.jooq.meta.postgres.PostgresDatabase</name>
-                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${targetSchemaName}',
-                                MAX(version)) from "${postgresSchemaName}".schema_version
-                            </schemaVersionProvider>
-                            <includes>.*</includes>
-                            <excludes>schema_version</excludes>
-                            <schemata>
-                                <schema>
-                                    <inputSchema>${postgresSchemaName}</inputSchema>
-                                    <outputSchema>${targetSchemaName}</outputSchema>
-                                </schema>
-                            </schemata>
-                        </database>
-                        <generate>
-                            <pojos>true</pojos>
-                        </generate>
-                        <target>
-                            <packageName>com.vmturbo.extractor.schema</packageName>
-                            <directory>${project.build.directory}/generated-sources/jooq</directory>
-                        </target>
-                    </generator>
-                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.mariadb.jdbc</groupId>
+                        <artifactId>mariadb-java-client</artifactId>
+                        <version>1.1.7</version>
+                    </dependency>
+                </dependencies>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -263,6 +357,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.search.schema</artifactId>
         </dependency>
     </dependencies>
 </project>

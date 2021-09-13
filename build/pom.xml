@@ -387,6 +387,7 @@
                 <module>../com.vmturbo.search.api</module>
                 <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.search.schema</module>
             </modules>
         </profile>
 
@@ -1001,6 +1002,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.search.schema</module>
                 <module>../com.vmturbo.oid</module>
                 <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
@@ -1091,6 +1093,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.search.schema</module>
                 <module>../com.vmturbo.oid</module>
                 <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
@@ -1215,6 +1218,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.search.schema</module>
                 <module>../com.vmturbo.oid</module>
                 <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
@@ -1383,6 +1387,7 @@
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.search.schema</module>
                 <module>../com.vmturbo.oid</module>
                 <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
@@ -2375,6 +2380,11 @@
                 <artifactId>com.vmturbo.testbases</artifactId>
                 <version>${project.version}</version>
                 <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.search.schema</artifactId>
+                <version>${project.version}</version>
             </dependency>
 
             <dependency>

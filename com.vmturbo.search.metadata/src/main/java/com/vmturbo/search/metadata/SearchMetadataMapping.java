@@ -2,6 +2,7 @@ package com.vmturbo.search.metadata;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -12,7 +13,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.jooq.DataType;
+import org.jooq.impl.SQLDataType;
 
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO.Aggregation;
@@ -37,6 +42,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.search.metadata.DbFieldDescriptor.Location;
 import com.vmturbo.search.metadata.utils.MetadataMappingUtils;
 
 /**
@@ -563,6 +569,26 @@ public enum SearchMetadataMapping {
         CommodityType.MEM, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
         CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM), Type.NUMBER);
 
+    /**
+     * How api types of primitive fields are stored in db (using orm-specific jooq declarations).
+     */
+    private static final Map<Type, DataType<?>> API_TYPE_TO_DB_TYPE = ImmutableMap.<Type, DataType<?>>builder()
+                    .put(Type.NUMBER, DbFieldDescriptor.NUMERIC_DB_TYPE)
+                    .put(Type.BOOLEAN, SQLDataType.TINYINT)
+                    .put(Type.ENUM, SQLDataType.SMALLINT)
+                    .put(Type.INTEGER, SQLDataType.BIGINT)
+                    // truncated
+                    .put(Type.TEXT, SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE))
+                    .put(Type.MULTI_TEXT, SQLDataType.VARCHAR(DbFieldDescriptor.STRING_SIZE))
+                    .build();
+
+    // TODO the members of the enum need to be simplified/spread out to hierarchy of interfaces and classes
+    // TODO bring this to a state where only single constructor exists
+    // required information - 3 composite fields:
+    // - Supplier for memory-value from context interface (aka 'patcher', hierarchy of classes)
+    // - Converter between memory and db valuetypes
+    // - Db-value storage descriptor (table, column, type)
+    // TODO consider changing this enum to interface, then generic arguments can be used for dbtype, memtype etc
 
     // name of the column in db table
     private final String columnName;
@@ -1012,6 +1038,31 @@ public enum SearchMetadataMapping {
 
     public boolean isDirect() {
         return direct;
+    }
+
+    /**
+     * Construct db location description.
+     * TODO change enumvalues' constructor to provide that directly.
+     *
+     * @return description for where the field is persisted
+     */
+    public DbFieldDescriptor<?> getDbDescriptor() {
+        boolean isPrimitive = SearchEntityMetadata.Constants.ENTITY_COMMON_FIELDS.containsValue(this);
+        final DbFieldDescriptor.Location location;
+        DataType<?> dbType = API_TYPE_TO_DB_TYPE.get(apiDatatype);
+        if (isPrimitive) {
+            location = (this == PRIMITIVE_SEVERITY || this == RELATED_ACTION_COUNT)
+                            ? Location.Actions : Location.Entities;
+        } else {
+            // TODO put tags to stringmaps
+            if (apiDatatype == Type.TEXT || apiDatatype == Type.MULTI_TEXT) {
+                location = Location.Strings;
+            } else {
+                location = Location.Numerics;
+                dbType = DbFieldDescriptor.NUMERIC_DB_TYPE;
+            }
+        }
+        return new DbFieldDescriptor(location, columnName, dbType);
     }
 
     /**
