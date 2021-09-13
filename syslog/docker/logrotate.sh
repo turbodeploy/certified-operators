@@ -1,5 +1,6 @@
 #!/bin/bash
-LOG_FILE=/home/vmtsyslog/rsyslog/log.txt
+
+# logrotate for audit and extra logs
 AUDIT_FILE=/var/log/turbonomic/audit.log
 EXTRA_FILE=/home/vmtsyslog/rsyslog/extra.txt
 # The max size is 100MB by default
@@ -49,7 +50,6 @@ function rotate() {
 # Check hourly for the log rotation.
 while true
 do
-    rotate ${LOG_FILE}
     rotate ${AUDIT_FILE}
     rotate ${EXTRA_FILE}
     sleep ${CHECKINTERVAL}

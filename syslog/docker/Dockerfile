@@ -32,7 +32,8 @@ COPY diags.py /
 COPY collect_diags.sh /
 COPY collect_diags_proactive.sh /
 COPY logrotate.sh /
-RUN chmod 755 /entrypoint.sh && chmod 755 /diags.py && chmod 755 /collect_diags.sh && chmod 755 /logrotate.sh && chmod 755 /collect_diags_proactive.sh
+COPY logrotate_product.sh /
+RUN chmod 755 /entrypoint.sh && chmod 755 /diags.py && chmod 755 /collect_diags.sh && chmod 755 /logrotate_product.sh && chmod 755 /logrotate.sh && chmod 755 /collect_diags_proactive.sh
 
 EXPOSE 2514
 
