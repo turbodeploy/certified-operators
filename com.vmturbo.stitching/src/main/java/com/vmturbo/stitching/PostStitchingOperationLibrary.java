@@ -19,7 +19,7 @@ import com.vmturbo.stitching.poststitching.ComputedNumVCoreUsedValuePostStitchin
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.CloudNativeEntityConsistentScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.NamespaceConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.VirtualMachineConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.CloudNativeVMCpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation.HostCpuScalingFactorPostStitchingOperation;
@@ -136,7 +136,7 @@ public class PostStitchingOperationLibrary {
                 enableConsistentScalingOnHeterogeneousProviders),
             new VirtualMachineConsistentScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
-            new CloudNativeEntityConsistentScalingFactorPostStitchingOperation(
+            new NamespaceConsistentScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
             new CloudNativeAppCPUFrequencyPostStitchingOperation(),
             new ServiceResponseTimePostStitchingOperation(),

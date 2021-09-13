@@ -10,7 +10,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
@@ -194,18 +193,17 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
     }
 
     /**
-     * Set the ConsistentScalingFactor for cloud native entities like namespace, workload controller
-     * and container pod.
+     * Set the ConsistentScalingFactor for namespaces.
      */
-    public static class CloudNativeEntityConsistentScalingFactorPostStitchingOperation extends
+    public static class NamespaceConsistentScalingFactorPostStitchingOperation extends
         CpuConsistentScalingFactorPostStitchingOperation {
 
         /**
-         * Create a new CloudNativeEntityConsistentScalingFactorPostStitchingOperation.
+         * Create a new NamespaceConsistentScalingFactorPostStitchingOperation.
          *
          * @param enableConsistentScalingOnHeterogeneousProviders If disabled, this operation does nothing.
          */
-        public CloudNativeEntityConsistentScalingFactorPostStitchingOperation(
+        public NamespaceConsistentScalingFactorPostStitchingOperation(
             final boolean enableConsistentScalingOnHeterogeneousProviders) {
             super(enableConsistentScalingOnHeterogeneousProviders);
         }
@@ -214,10 +212,9 @@ public abstract class CpuConsistentScalingFactorPostStitchingOperation implement
         @Override
         public StitchingScope<TopologyEntity> getScope(
             @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
-            // We must set the consistent scaling factor on namespaces, workload controllers and
-            // container pods (for quota commodities).
-            return stitchingScopeFactory.multiEntityTypesScope(ImmutableList.of(EntityType.NAMESPACE,
-                EntityType.WORKLOAD_CONTROLLER, EntityType.CONTAINER_POD));
+            // We must set the consistent scaling factor on namespaces
+            // (for quota commodities).
+            return stitchingScopeFactory.entityTypeScope(EntityType.NAMESPACE);
         }
 
         @Override

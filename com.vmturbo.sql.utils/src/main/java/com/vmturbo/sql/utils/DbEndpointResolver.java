@@ -27,7 +27,6 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.pool.DbConnectionPoolConfig;
 
 /**
  * This class resolves any {@link DbEndpoint} properties that were not provided using builder
@@ -94,8 +93,6 @@ public class DbEndpointResolver {
     public static final String MIN_POOL_SIZE_PROPERTY = "conPoolInitialSize";
     /** DB connection pool maximum size property. */
     public static final String MAX_POOL_SIZE_PROPERTY = "conPoolMaxActive";
-    /** DB connection pool keep alive interval (in minutes). */
-    public static final String POOL_KEEP_ALIVE_INTERVAL_MINUTES = "conPoolKeepAliveIntervalMinutes";
 
     /** system property name for retrieving component name for certain property defaults. */
     public static final String COMPONENT_TYPE_PROPERTY = "component_type";
@@ -117,15 +114,9 @@ public class DbEndpointResolver {
     /** default value for whether to use a connection pool for database connections. */
     public static final boolean DEFAULT_USE_CONNECTION_POOL = false;
     /** default value for connection pool initial and minimum size. */
-    public static final int DEFAULT_MIN_POOL_SIZE = 1;
+    public static final int DEFAULT_MIN_POOL_SIZE = 5;
     /** default value for connection pool maximum size. */
     public static final int DEFAULT_MAX_POOL_SIZE = 10;
-    /** default value for connection pool keep alive interval (in minutes).
-     *
-     *  <p>This definition is redundant, but included for consistency with other settings in this
-     *  class and so that it is easy to find. </p>*/
-    public static final int DEFAULT_POOL_KEEP_ALIVE_INTERVAL_MINUTES =
-            DbConnectionPoolConfig.DEFAULT_KEEPALIVE_TIME_MINUTES;
 
     // absolute min and max values (guardrails) for some properties
     /** default value for connection pool initial and minimum size. */
@@ -176,7 +167,6 @@ public class DbEndpointResolver {
         resolveUseConnectionPool();
         resolveMinPoolSize();
         resolveMaxPoolSize();
-        resolvePoolKeepAliveInterval();
         resolveSecure();
         resolveMigrationLocations();
         resolveFlywayCallbacks();
@@ -341,7 +331,7 @@ public class DbEndpointResolver {
     }
 
     /**
-     * Resolve the conPoolActive property for this endpoint.
+     * Resolve the dbMinPoolSize property for this endpoint.
      *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
@@ -351,11 +341,11 @@ public class DbEndpointResolver {
         final String fromTemplate = getFromTemplate(DbEndpointConfig::getUseConnectionPool);
         config.setUseConnectionPool(Boolean.parseBoolean(firstNonNull(
                 configuredPropValue(USE_CONNECTION_POOL),
-                currentValue, fromTemplate, Boolean.toString(DEFAULT_USE_CONNECTION_POOL))));
+                currentValue, fromTemplate, Boolean.toString(false))));
     }
 
     /**
-     * Resolve the conPoolInitialSize property for this endpoint.
+     * Resolve the dbMinPoolSize property for this endpoint.
      *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
@@ -372,7 +362,7 @@ public class DbEndpointResolver {
     }
 
     /**
-     * Resolve the conPoolMaxActive property for this endpoint.
+     * Resolve the dbMaxPoolSize property for this endpoint.
      *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
@@ -385,27 +375,9 @@ public class DbEndpointResolver {
         String propValue = firstNonNull(configuredPropValue(MAX_POOL_SIZE_PROPERTY),
                 currentValue, fromTemplate, fromDefault);
         int maxPoolSize = Integer.parseInt(propValue);
-        // Enforce guardrails on the final maximum pool size.
         maxPoolSize =
                 Math.min(ABSOLUTE_MAX_POOL_SIZE, Math.max(ABSOLUTE_MIN_POOL_SIZE, maxPoolSize));
         config.setMaxPoolSize(maxPoolSize);
-    }
-
-    /**
-     * Resolve the conPoolKeepAliveIntervalMinutes property for this endpoint.
-     *
-     * @throws UnsupportedDialectException if this endpoint is mis-configured
-     */
-    private void resolvePoolKeepAliveInterval() throws UnsupportedDialectException {
-        String fromTemplate = getFromTemplate(DbEndpointConfig::getKeepAliveIntervalMinutes);
-        String fromDefault = Integer.toString(DEFAULT_POOL_KEEP_ALIVE_INTERVAL_MINUTES);
-        String currentValue = config.getKeepAliveIntervalMinutes() != null
-                ? config.getKeepAliveIntervalMinutes().toString()
-                : null;
-        String propValue = firstNonNull(configuredPropValue(POOL_KEEP_ALIVE_INTERVAL_MINUTES),
-                currentValue, fromTemplate, fromDefault);
-        int keepAliveIntervalMinutes = Integer.parseInt(propValue);
-        config.setKeepAliveIntervalMinutes(keepAliveIntervalMinutes);
     }
 
     /**

@@ -35,7 +35,6 @@ public class DbEndpointConfig {
     private Boolean useConnectionPool;
     private Integer minPoolSize;
     private Integer maxPoolSize;
-    private Integer keepAliveIntervalMinutes;
     private Boolean secure;
     private String migrationLocations;
     private FlywayCallback[] flywayCallbacks;
@@ -278,24 +277,6 @@ public class DbEndpointConfig {
      */
     public void setMaxPoolSize(int maxPoolSize) {
         this.maxPoolSize = maxPoolSize;
-    }
-
-    /**
-     * Gets the connection pool keep alive interval in minutes.
-     *
-     * @return the connection pool keep alive interval in minutes
-     */
-    public Integer getKeepAliveIntervalMinutes() {
-        return keepAliveIntervalMinutes;
-    }
-
-    /**
-     * Sets the connection pool keep alive interval in minutes.
-     *
-     * @param keepAliveIntervalMinutes the connection pool keep alive interval in minutes
-     */
-    public void setKeepAliveIntervalMinutes(int keepAliveIntervalMinutes) {
-        this.keepAliveIntervalMinutes = keepAliveIntervalMinutes;
     }
 
     @Override

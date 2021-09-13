@@ -90,19 +90,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     @Nonnull
     Optional<DatabaseConfig> getDatabaseConfig(@Nonnull ENTITY_CLASS entity);
 
-
-    /**
-     * Get the database configuration of a particular entity.
-     *
-     * The database configuration consists of all the properties of the entity that
-     * affect the database tier price (within a specific region and service).
-     *
-     * @param entity The entity.
-     * @return An optional containing the {@link DatabaseConfig}. An empty optional if there is no
-     *         database costs associated with this entity.
-     */
-    @Nonnull
-    Optional<DatabaseServerConfig> getDatabaseServerConfig(@Nonnull ENTITY_CLASS entity);
     /**
      * Get the network configuration of a particular entity.
      *
@@ -201,68 +188,14 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final DatabaseEngine engine;
         private final LicenseModel licenseModel;
         private final DeploymentType deploymentType;
+        private final Double hourlyBilledOps;
 
         public DatabaseConfig(
                 final DatabaseEdition edition,
                 final DatabaseEngine engine,
                 @Nonnull  LicenseModel licenseModel,
-                @Nullable DeploymentType deploymentType) {
-            this.engine = engine;
-            this.edition = edition;
-            this.licenseModel = licenseModel;
-            this.deploymentType = deploymentType;
-        }
-
-        @Nonnull
-        public DatabaseEdition getEdition() {
-            return edition;
-        }
-
-        @Nonnull
-        public DatabaseEngine getEngine() {
-            return engine;
-        }
-
-        @Nonnull
-        public Optional<LicenseModel> getLicenseModel() {
-            return Optional.ofNullable(licenseModel);
-        }
-
-        @Nonnull
-        public Optional<DeploymentType> getDeploymentType() {
-            return Optional.ofNullable(deploymentType);
-        }
-
-        public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {
-            DeploymentType otherDeploymentType = databaseTierConfigPrice.hasDbDeploymentType() ?
-                databaseTierConfigPrice.getDbDeploymentType() : null;
-            LicenseModel otherLicenseModel = databaseTierConfigPrice.hasDbLicenseModel() ?
-                databaseTierConfigPrice.getDbLicenseModel() : null;
-
-            return databaseTierConfigPrice.getDbEdition() == edition &&
-                    databaseTierConfigPrice.getDbEngine() == engine &&
-                    otherLicenseModel == licenseModel &&
-                    otherDeploymentType == deploymentType;
-        }
-    }
-
-    /**
-     * A wrapper class around the database configuration of an entity.
-     */
-    @Immutable
-    class DatabaseServerConfig {
-        private final DatabaseEdition edition;
-        private final DatabaseEngine engine;
-        private final LicenseModel licenseModel;
-        private final DeploymentType deploymentType;
-        private final Double hourlyBilledOps;
-
-        public DatabaseServerConfig(
-            final DatabaseEdition edition,
-            final DatabaseEngine engine,
-            @Nonnull  LicenseModel licenseModel,
-            @Nullable DeploymentType deploymentType,
-            @Nullable Double hourlyBilledOps) {
+                @Nullable DeploymentType deploymentType,
+                @Nullable Double hourlyBilledOps) {
             this.engine = engine;
             this.edition = edition;
             this.licenseModel = licenseModel;
@@ -270,10 +203,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
             this.hourlyBilledOps = hourlyBilledOps;
         }
 
-        public DatabaseServerConfig(final DatabaseEdition edition,
-            final DatabaseEngine engine,
-            @Nonnull  LicenseModel licenseModel,
-            @Nullable DeploymentType deploymentType) {
+        public DatabaseConfig(final DatabaseEdition edition,
+                              final DatabaseEngine engine,
+                              @Nonnull  LicenseModel licenseModel,
+                              @Nullable DeploymentType deploymentType) {
             this(edition, engine, licenseModel, deploymentType, null);
         }
 
@@ -309,9 +242,9 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
                 databaseTierConfigPrice.getDbLicenseModel() : null;
 
             return databaseTierConfigPrice.getDbEdition() == edition &&
-                databaseTierConfigPrice.getDbEngine() == engine &&
-                otherLicenseModel == licenseModel &&
-                otherDeploymentType == deploymentType;
+                    databaseTierConfigPrice.getDbEngine() == engine &&
+                    otherLicenseModel == licenseModel &&
+                    otherDeploymentType == deploymentType;
         }
     }
 
