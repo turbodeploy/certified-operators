@@ -44,7 +44,7 @@ public class ResizerTest {
     Trader vm, vm1, vm2;
     Trader cont, pod;
     Trader pm;
-    Trader namespace;
+    Trader workloadController, namespace;
     Ledger ledger;
     public static final Set<CommoditySpecification> EXPECTED_COMM_SPECS_TO_BE_RESIZED =
                     Collections.unmodifiableSet(
@@ -1195,6 +1195,87 @@ public class ResizerTest {
     }
 
     /**
+     * Test updating dependent commodities for container resizing by taking ConsistentScalingFactor
+     * into account.
+     *
+     * @param resourceCommodity Given resource commodity.
+     * @param quotaCommodity    Given quota commodity.
+     * @param movable           Whether entity is movable.
+     */
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: UpdateDependentCommoditiesForContainerResizingWithCSF({0}, {1}, {2})")
+    public void testUpdateDependentCommoditiesForContainerResizingWithCSF(CommoditySpecification resourceCommodity,
+                                                                          CommoditySpecification quotaCommodity,
+                                                                          boolean movable) {
+        Economy economy = new Economy();
+        double namespaceCapacity = 102400;
+        double namespaceUsage = 1536;
+        setupContainerTopologyForResizeTest(economy, resourceCommodity, quotaCommodity, namespaceCapacity, 1024,
+            49, 1024, namespaceUsage, 0.65, 0.75,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
+        // Set movable on the shoppingList of pod.
+        // Note that in real environment, movable of pod is always false when supplier is workload
+        // controller, and movable of container and workload controller is always false. The case of
+        // setting movable to true is used only for testing purpose.
+        economy.getMarketsAsBuyer(cont).keySet().forEach(sl -> sl.setMovable(movable));
+        economy.getMarketsAsBuyer(pod).keySet().forEach(sl -> sl.setMovable(movable));
+        economy.getMarketsAsBuyer(workloadController).keySet().forEach(sl -> sl.setMovable(movable));
+        cont.getSettings().setConsistentScalingFactor(3f);
+        pod.getSettings().setConsistentScalingFactor(3f);
+        workloadController.getSettings().setConsistentScalingFactor(2f);
+        namespace.getSettings().setConsistentScalingFactor(2f);
+        final double podCommSoldQuantityBeforeResize = pod.getCommoditiesSold()
+            .get(pod.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        final double wcCommSoldQuantityBeforeResize = workloadController.getCommoditiesSold()
+            .get(workloadController.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        final double nsCommSoldQuantityBeforeResize = namespace.getCommoditiesSold()
+            .get(namespace.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        TestUtils.setupRawCommodityMap(economy);
+        ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(1, actions.size());
+        double capacityChange = actions.stream().filter(Resize.class::isInstance)
+            .map(Resize.class::cast)
+            .mapToDouble(r -> r.getNewCapacity() - r.getOldCapacity())
+            .sum();
+        assertEquals(-950, capacityChange, TestUtils.FLOATING_POINT_DELTA);
+        final double podCommSoldQuantityAfterResize = pod.getCommoditiesSold()
+            .get(pod.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        final double wcCommSoldQuantityAfterResize = workloadController.getCommoditiesSold()
+            .get(workloadController.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        final double nsCommSoldQuantityAfterResize = namespace.getCommoditiesSold()
+            .get(namespace.getBasketSold().indexOf(quotaCommodity)).getQuantity();
+        // Pod quantity change is always same as container capacity change
+        assertEquals(-950, podCommSoldQuantityAfterResize - podCommSoldQuantityBeforeResize, TestUtils.FLOATING_POINT_DELTA);
+        if (TestUtils.VCPU.equals(resourceCommodity) && !movable) {
+            // If given resource commodity is VCPU, requiresCSF is true, and if movable is false,
+            // workload controller and namespace quantity change is updated by
+            // containerCapacityChange * containerCSF / namespaceCSF = -950 * 3 / 2 = -1425
+            assertEquals(-1425, wcCommSoldQuantityAfterResize - wcCommSoldQuantityBeforeResize, TestUtils.FLOATING_POINT_DELTA);
+            assertEquals(-1425, nsCommSoldQuantityAfterResize - nsCommSoldQuantityBeforeResize, TestUtils.FLOATING_POINT_DELTA);
+        } else {
+            // else if given resource commodity is VMem (requiresCSF is false) OR movable is true,
+            // workload controller and namespace quantity change is same as container capacity change (-950).
+            assertEquals(-950, wcCommSoldQuantityAfterResize - wcCommSoldQuantityBeforeResize, TestUtils.FLOATING_POINT_DELTA);
+            assertEquals(-950, nsCommSoldQuantityAfterResize - nsCommSoldQuantityBeforeResize, TestUtils.FLOATING_POINT_DELTA);
+        }
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestUpdateDependentCommoditiesForContainerResizingWithCSF() {
+        return new Object[][] {
+            // resource commodity: VCPU, quota commodity: VCPULimitQuota (requiresCSF is true), movable: false
+            {TestUtils.VCPU, TestUtils.VCPULIMITQUOTA, false},
+            // resource commodity: VCPU, quota commodity: VCPULimitQuota (requiresCSF is true), movable: true
+            {TestUtils.VCPU, TestUtils.VCPULIMITQUOTA, true},
+            // resource commodity: VMem, quota commodity: VMemLimitQuota (requiresCSF is false), movable: false
+            {TestUtils.VMEM, TestUtils.VMEMLIMITQUOTA, false},
+        };
+    }
+
+    /**
      * Make sure that a single container part of a scalingGroup will not be consistently scaled.
      **/
     @Test
@@ -1289,7 +1370,7 @@ public class ResizerTest {
     /**
      * Sets up topology with one PM, one VM placed on the PM, and one app placed on the VM.
      * @param economy in which all the traders are present.
-     * @param nsAndPodVmemLimitCapacity - The VM's VMEM capacity.
+     * @param nsAndPodVmemLimitCapacity - The Namespace and Pod VMemLimitQuota capacity.
      * @param contVmemCapacity - The Container's VMEM capacity.
      * @param vmemUsedByApp - The quantity of VMEM used by the app.
      * @param vmemUsedByCont - The quantity of VMEM used by the container.
@@ -1298,49 +1379,88 @@ public class ResizerTest {
      * @param maxDesiredUtil - The maximum desired utilization.
      * @param economyRightSizeLower - Economy's right size lower limit.
      * @param economyRightSizeUpper - Economy's right size upper limit.
-     * @return Economy with the topology setup.
+     */
+    private void setupContainerTopologyForResizeTest(
+        Economy economy,
+        double nsAndPodVmemLimitCapacity,
+        double contVmemCapacity,
+        double vmemUsedByApp,
+        double vmemUsedByCont,
+        double vmemLimitUsedByPod,
+        double minDesiredUtil, double maxDesiredUtil,
+        double economyRightSizeLower, double economyRightSizeUpper) {
+        setupContainerTopologyForResizeTest(economy, TestUtils.VMEM, TestUtils.VMEMLIMITQUOTA,
+            nsAndPodVmemLimitCapacity, contVmemCapacity, vmemUsedByApp, vmemUsedByCont, vmemLimitUsedByPod,
+            minDesiredUtil, maxDesiredUtil, economyRightSizeLower, economyRightSizeUpper);
+    }
+
+    /**
+     * Sets up topology with one PM, one VM placed on the PM, and one app placed on the VM.
+     * @param economy in which all the traders are present.
+     * @param resourceCommodity Given resource commodity.
+     * @param quotaCommodity Given quota commodity.
+     * @param nsAndPodQuotaLimitCapacity - The Namespace and Pod quota limit commodity capacity.
+     * @param contResourceCommCapacity - The Container's resource commodity capacity.
+     * @param resourceCommUsedByApp - The quantity of resource commodity used by the app.
+     * @param resourceCommUsedByCont - The quantity of resource commodity used by the container.
+     * @param quotaCommUsedByPod - The quantity of quota commodity used by the pod.
+     * @param minDesiredUtil - The minimum desired utilization.
+     * @param maxDesiredUtil - The maximum desired utilization.
+     * @param economyRightSizeLower - Economy's right size lower limit.
+     * @param economyRightSizeUpper - Economy's right size upper limit.
      */
     private void setupContainerTopologyForResizeTest(
             Economy economy,
-            double nsAndPodVmemLimitCapacity,
-            double contVmemCapacity,
-            double vmemUsedByApp,
-            double vmemUsedByCont,
-            double vmemLimitUsedByPod,
+            CommoditySpecification resourceCommodity,
+            CommoditySpecification quotaCommodity,
+            double nsAndPodQuotaLimitCapacity,
+            double contResourceCommCapacity,
+            double resourceCommUsedByApp,
+            double resourceCommUsedByCont,
+            double quotaCommUsedByPod,
             double minDesiredUtil, double maxDesiredUtil,
             double economyRightSizeLower, double economyRightSizeUpper) {
 
         // Create Namespace
         namespace = TestUtils.createTrader(economy, TestUtils.NAMESPACE_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VMEMLIMITQUOTA),
-                new double[]{nsAndPodVmemLimitCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(quotaCommodity),
+                new double[]{nsAndPodQuotaLimitCapacity}, false, false);
         namespace.setDebugInfoNeverUseInCode("NS1");
-        namespace.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResizable(false));
+        namespace.getCommoditiesSold().forEach(cs -> cs.getSettings().setResizable(false));
+        // Create WorkloadController and place on Namespace
+        workloadController = TestUtils.createTrader(economy, TestUtils.CONTROLLER_TYPE,
+            Arrays.asList(0L), Arrays.asList(quotaCommodity),
+            new double[]{nsAndPodQuotaLimitCapacity}, false, false);
+        workloadController.setDebugInfoNeverUseInCode("WC1");
+        workloadController.getCommoditiesSold().forEach(cs -> cs.getSettings().setResold(true).setResizable(false));
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(quotaCommodity), workloadController,
+            new double[]{quotaCommUsedByPod}, namespace).setMovable(false);
         //Create pod and place on namespace
         pod = TestUtils.createTrader(economy, TestUtils.POD_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VMEMLIMITQUOTA),
-                new double[]{nsAndPodVmemLimitCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(quotaCommodity),
+                new double[]{nsAndPodQuotaLimitCapacity}, false, false);
         pod.setDebugInfoNeverUseInCode("POD1");
-        pod.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResold(true).setResizable(false));
+        pod.getCommoditiesSold().forEach(cs -> cs.getSettings().setResold(true).setResizable(false));
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VMEMLIMITQUOTA), pod,
-                new double[]{vmemLimitUsedByPod}, namespace).setMovable(false);
+                Arrays.asList(quotaCommodity), pod,
+                new double[]{quotaCommUsedByPod}, workloadController).setMovable(false);
         //Create cont and place on pod
         cont = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
-                new double[]{contVmemCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(resourceCommodity),
+                new double[]{contResourceCommCapacity}, false, false);
         cont.setDebugInfoNeverUseInCode("CONTAINER1");
         cont.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(5);
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VMEMLIMITQUOTA), cont,
-                new double[]{vmemUsedByCont}, pod).setMovable(false);
+                Arrays.asList(quotaCommodity), cont,
+                new double[]{resourceCommUsedByCont}, pod).setMovable(false);
         //Create app and place on container
         app = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                 Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
         app.setDebugInfoNeverUseInCode("APP1");
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VMEM), app,
-                new double[]{vmemUsedByApp}, cont);
+                Arrays.asList(resourceCommodity), app,
+                new double[]{resourceCommUsedByApp}, cont);
         namespace.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
         cont.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
         economy.getSettings().setRightSizeLower(economyRightSizeLower);

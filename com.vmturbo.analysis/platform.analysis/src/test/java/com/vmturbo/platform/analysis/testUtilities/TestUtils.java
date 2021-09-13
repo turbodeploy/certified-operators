@@ -526,13 +526,16 @@ public class TestUtils {
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
                         M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
+        CommodityResizeSpecification vCPUQuotaDependency =
+            new CommodityResizeSpecification(TestUtils.VCPULIMITQUOTA.getType(),
+                M2Utils.ADD_TWO_ARGS, (a,b,c) -> Math.min(a, b));
         CommodityResizeSpecification DBMemDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
         CommodityResizeSpecification HeapDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
-        commodityResizeDependencyMap.put(TestUtils.VCPU.getType(), Arrays.asList(vCpuDependency));
+        commodityResizeDependencyMap.put(TestUtils.VCPU.getType(), Arrays.asList(vCpuDependency, vCPUQuotaDependency));
         commodityResizeDependencyMap.put(TestUtils.VMEM.getType(), Arrays.asList(vMemDependency, vMemQuotaDependency));
         commodityResizeDependencyMap.put(TestUtils.DBMEM.getType(), Arrays.asList(DBMemDependency));
         commodityResizeDependencyMap.put(TestUtils.HEAP.getType(), Arrays.asList(HeapDependency));
@@ -561,7 +564,8 @@ public class TestUtils {
 
         rawMap.put(TestUtils.VCPU.getType(), new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.CPU.getType(), false, false),
-            new RawMaterial(TestUtils.VCPU.getType(), true, false)))
+            new RawMaterial(TestUtils.VCPU.getType(), true, false),
+            new RawMaterial(TestUtils.VCPULIMITQUOTA.getType(), true, false)))
             .requiresConsistentScalingFactor(true)
             .build()));
         rawMap.put(TestUtils.VMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(

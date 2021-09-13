@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import com.vmturbo.platform.analysis.utilities.Bisection;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
@@ -765,6 +766,16 @@ public class Resizer {
             if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
                 return;
             }
+            // Whether it requires consistentScalingFactor to update supplier quantity based on the
+            // commodity being resized.
+            // See {@link TraderSettingsTO#getConsistentScalingFactor()} and
+            // {@link ConsistentScalingNumber} for more details on the ConsistentScalingFactor.
+            final boolean requiresCSF =
+                economy.getRawMaterials(seller.getBasketSold().get(commoditySoldIndex).getBaseType())
+                    .filter(RawMaterials::requiresConsistentScalingFactor).isPresent();
+            // ConsistentScalingFactor of consumer entity being resized.
+            final float consumerCSF = seller.getSettings().getConsistentScalingFactor();
+
             List<Integer> skippedCommodityTypes =
                             economy.getHistoryBasedResizeSkippedDependentCommodities(seller
                                             .getBasketSold().get(commoditySoldIndex).getBaseType());
@@ -791,11 +802,12 @@ public class Resizer {
                     double changeInCapacity = newCapacity - commoditySold.getCapacity();
 
                     updateUsageOnBoughtAndSoldCommodities(commoditySold, commSoldBySupplier, shoppingList, boughtIndex,
-                                                            typeOfCommBought, newCapacity, changeInCapacity, reverse, false);
+                                                          typeOfCommBought, newCapacity, changeInCapacity, reverse,
+                                                          false, requiresCSF, consumerCSF);
 
                     if (commSoldBySupplier.getSettings().isResold()) {
                         resizeDependentCommoditiesOnReseller(commoditySold, economy, seller, supplier, specOfSold,
-                                typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                                typeOfCommBought, newCapacity, changeInCapacity, reverse, requiresCSF, consumerCSF);
                     }
                 }
             }
@@ -822,12 +834,19 @@ public class Resizer {
      * @param newCapacity       is the new desired capacity.
      * @param changeInCapacity  The change in capacity.
      * @param reverse           true if reverse updating
+     * @param requiresCSF       True if it requires consistentScalingFactor when updating supplier
+     *                          quantity from consumer capacity changes.
+     *                          See {@link TraderSettingsTO#getConsistentScalingFactor()} and
+     *                          {@link ConsistentScalingNumber} for more details on the ConsistentScalingFactor.
+     * @param consumerCSF       ConsistentScalingFactor of the consumer entity being resized.
      */
     private static void resizeDependentCommoditiesOnReseller(CommoditySold resizingCommodity,
                                                              Economy economy, Trader consumer,
                                                              Trader supplier, CommoditySpecification commSpec,
                                                              CommodityResizeSpecification typeOfCommBought,
-                                                             double newCapacity, double changeInCapacity, boolean reverse) {
+                                                             double newCapacity, double changeInCapacity,
+                                                             boolean reverse, boolean requiresCSF,
+                                                             float consumerCSF) {
         Optional<ShoppingList> slOfSupplier = economy.getMarketsAsBuyer(supplier).keySet().stream()
                 .filter(sl -> sl.getBasket().indexOfBaseType(commSpec.getBaseType()) != -1)
                 .findFirst();
@@ -841,10 +860,10 @@ public class Resizer {
             CommoditySold commSoldBySupplier = sl.getSupplier().getCommoditiesSold().get(soldIndex);
             updateUsageOnBoughtAndSoldCommodities(resizingCommodity, commSoldBySupplier, sl,
                     sl.getBasket().indexOfBaseType(commSpec.getBaseType()),
-                    typeOfCommBought, newCapacity, changeInCapacity, reverse, true);
+                    typeOfCommBought, newCapacity, changeInCapacity, reverse, true, requiresCSF, consumerCSF);
             if (commSoldBySupplier.getSettings().isResold()) {
                 resizeDependentCommoditiesOnReseller(resizingCommodity, economy, consumer, sl.getSupplier(),
-                    commSpec, typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                    commSpec, typeOfCommBought, newCapacity, changeInCapacity, reverse, requiresCSF, consumerCSF);
             }
         });
     }
@@ -861,13 +880,19 @@ public class Resizer {
      * @param changeInCapacity change in capacity.
      * @param reverse reverses updation when true
      * @param isResold true if updating commodity on a reseller.
+     * @param requiresCSF True if it requires consistentScalingFactor when updating supplier
+     *                    quantity from consumer capacity changes.
+     *                    See {@link TraderSettingsTO#getConsistentScalingFactor()} and
+     *                    {@link ConsistentScalingNumber} for more details on the ConsistentScalingFactor.
+     * @param consumerCSF ConsistentScalingFactor of the consumer entity being resized.
      */
     private static void updateUsageOnBoughtAndSoldCommodities(CommoditySold resizingCommodity,
                                                               CommoditySold commSoldBySupplier,
                                                               ShoppingList shoppingList, int boughtIndex,
                                                               CommodityResizeSpecification typeOfCommBought,
                                                               double newCapacity, double changeInCapacity,
-                                                              boolean reverse, boolean isResold) {
+                                                              boolean reverse, boolean isResold, boolean requiresCSF,
+                                                              float consumerCSF) {
 
         logger.trace("consumer : {}, boughtQnty : {}, peakQnty : {}, newCap : {}, capChange : {}",
                 shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
@@ -888,20 +913,26 @@ public class Resizer {
                         logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
                                 reverse, isResold);
                     }
-                    commSoldBySupplier.setQuantity(Math.max(0, commSoldBySupplier.getQuantity() + changeInCapacity));
+                    commSoldBySupplier.setQuantity(Math.max(0,
+                        commSoldBySupplier.getQuantity()
+                            + getChangeInSupplierQuantity(shoppingList, changeInCapacity, requiresCSF, consumerCSF)));
                     if (commSoldBySupplier.getPeakQuantity() + changeInCapacity < 0) {
                         logger.warn(NEGATIVE_PEAK_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
                                 reverse, isResold);
                     }
-                    commSoldBySupplier.setPeakQuantity(Math.max(0, commSoldBySupplier.getPeakQuantity() + changeInCapacity));
+                    commSoldBySupplier.setPeakQuantity(Math.max(0,
+                        commSoldBySupplier.getPeakQuantity()
+                            + getChangeInSupplierQuantity(shoppingList, changeInCapacity, requiresCSF, consumerCSF)));
                 } else {
                     DoubleTernaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
                     double decrementedQuantity = decrementFunction.applyAsDouble(
                             oldQuantityBought, newCapacity, 0);
                     double decrementedPeakQuantity = decrementFunction.applyAsDouble(
                             oldPeakQuantityBought, newCapacity, 0);
-                    double newQuantityBought = commSoldBySupplier.getQuantity() - (oldQuantityBought - decrementedQuantity);
-                    double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity() - (oldPeakQuantityBought - decrementedPeakQuantity);
+                    double newQuantityBought = commSoldBySupplier.getQuantity()
+                        - getChangeInSupplierQuantity(shoppingList, (oldQuantityBought - decrementedQuantity), requiresCSF, consumerCSF);
+                    double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity()
+                        - getChangeInSupplierQuantity(shoppingList, (oldPeakQuantityBought - decrementedPeakQuantity), requiresCSF, consumerCSF);
                     if (newQuantityBought < 0) {
                         logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
                                 reverse, isResold);
@@ -927,9 +958,9 @@ public class Resizer {
                 shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
                 shoppingList.getPeakQuantities()[boughtIndex] = incrementedPeakQuantity;
                 commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity()
-                        + (incrementedQuantity - oldQuantityBought));
+                        + getChangeInSupplierQuantity(shoppingList, (incrementedQuantity - oldQuantityBought), requiresCSF, consumerCSF));
                 commSoldBySupplier.setPeakQuantity(commSoldBySupplier.getPeakQuantity()
-                        + (incrementedPeakQuantity - oldPeakQuantityBought));
+                        + getChangeInSupplierQuantity(shoppingList, (incrementedPeakQuantity - oldPeakQuantityBought), requiresCSF, consumerCSF));
                 resizeImpact.putIfAbsent(resizingCommodity, new ResizeActionStateTracker());
                 resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought, oldPeakQuantityBought);
             }
@@ -939,9 +970,9 @@ public class Resizer {
             double currentQuantityBought = shoppingList.getQuantities()[boughtIndex];
             double currentPeakQuantityBought = shoppingList.getPeakQuantities()[boughtIndex];
             double newQuantityBought = commSoldBySupplier.getQuantity()
-                    - (currentQuantityBought - oldQuantityBought);
+                    - getChangeInSupplierQuantity(shoppingList, (currentQuantityBought - oldQuantityBought), requiresCSF, consumerCSF);
             double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity()
-                    - (currentPeakQuantityBought - oldPeakQuantityBought);
+                    - getChangeInSupplierQuantity(shoppingList, (currentPeakQuantityBought - oldPeakQuantityBought), requiresCSF, consumerCSF);
             if (newQuantityBought < 0) {
                 logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
                         reverse, isResold);
@@ -955,6 +986,62 @@ public class Resizer {
             shoppingList.getQuantities()[boughtIndex] = oldQuantityBought;
             shoppingList.getPeakQuantities()[boughtIndex] = oldPeakQuantityBought;
         }
+    }
+
+    /**
+     * Get supplier quantity change from consumer capacity change based on the consistentScalingFactor
+     * of consumer and supplier ({@link TraderSettingsTO#getConsistentScalingFactor()}).
+     * <p>
+     * Market runs analysis in normalized units. ScalingFactor of consumers and providers could be
+     * inconsistent in some cases in heterogeneous environment, for example, Container as consumer and
+     * Namespace as supplier, where scalingFactor of namespace is the max scalingFactor of corresponding
+     * containers (one namespace could have multiple containers running on different VMs with different
+     * speed). Same normalized unit change on consumer capacity and supplier quantity could lead to
+     * different consistent unit (like millicores) change. To make sure supplier quantity change
+     * correctly reflects consumer capacity change in consistent unit after market analysis, we need
+     * to properly scale the consumer capacity change as the supplier quantity change based on
+     * ConsistentScalingFactor (CSF) by:
+     * <p>
+     * changeInSupplierQuantity = changeInConsumerCapacity * consumerCSF / supplierCSF;
+     * <p>
+     * The change only applies to the case where corresponding resizing commodity requires
+     * consistentScalingFactor and shoppingList movable is false. ShoppingList movable as false
+     * guarantees only the suppliers, with consumers not moved, get quantity change scaled and updated.
+     *
+     * @param sl                       The shoppingList of the consumer.
+     * @param changeInConsumerCapacity Change in capacity of the consumer being resized.
+     * @param requiresCSF              True if it requires consistentScalingFactor when updating supplier
+     *                                 quantity from consumer capacity changes.
+     *                                 See {@link TraderSettingsTO#getConsistentScalingFactor()} and
+     *                                 {@link ConsistentScalingNumber} for more details on the
+     *                                 ConsistentScalingFactor.
+     * @param consumerCSF              ConsistentScalingFactor of the consumer entity being resized.
+     * @return Change in supplier quantity from consumer capacity change.
+     */
+    private static double getChangeInSupplierQuantity(@NonNull final ShoppingList sl,
+                                                      final double changeInConsumerCapacity,
+                                                      final boolean requiresCSF,
+                                                      final float consumerCSF) {
+        // When movable is true, do not scale changeInConsumerCapacity as changeInSupplierQuantity.
+        // For example, when consumer entity being resized is container, we only want to do such
+        // quantity update on namespace supplier (a container is always on the same namespace) to
+        // guarantee consistent quantity change, while NOT on VM supplier when container could be
+        // moved to a different VM because container CSF is set based on original VM supplier but not
+        // updated during the move; besides, actions like container resizing and pod move with VM as
+        // supplier are performance based using normalized units, where it makes sense to directly
+        // set consumer capacity change as supplier quantity change.
+        // The quantity could still be scaled on VM supplier when container pod movable is false on VM.
+        // In this case, container and VM ConsistentScalingFactor is the same so the scaled quantity
+        // change is still the same as consumer capacity change.
+        if (!requiresCSF || sl.isMovable() || sl.getSupplier() == null) {
+            return changeInConsumerCapacity;
+        }
+        final double changeInSupplierQuantity =
+            changeInConsumerCapacity * consumerCSF / sl.getSupplier().getSettings().getConsistentScalingFactor();
+        logger.trace("Updating changeInSupplierQuantity from {} to {} for supplier {} based on supplier CSF {} and consumer CSF {} ",
+            () -> changeInConsumerCapacity, () -> changeInSupplierQuantity, () -> sl.getSupplier().getDebugInfoNeverUseInCode(),
+            () -> sl.getSupplier().getSettings().getConsistentScalingFactor(), () -> consumerCSF);
+        return changeInSupplierQuantity;
     }
 
     /**
