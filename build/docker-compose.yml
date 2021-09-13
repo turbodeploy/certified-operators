@@ -217,6 +217,7 @@ services:
       - clustermgr
       - kafka1
       - nginx
+      - db
     ports:
       - "${API_HTTP_PORT}"
       - "${API_DEBUG_PORT}"
