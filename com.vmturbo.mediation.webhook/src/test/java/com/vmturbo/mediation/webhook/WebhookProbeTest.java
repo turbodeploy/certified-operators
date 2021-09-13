@@ -5,7 +5,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,7 +15,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.dto.workflow.HttpMethod;
 import com.vmturbo.api.dto.workflow.RequestHeader;
+import com.vmturbo.mediation.webhook.WebhookProbeTest.WebhookProperties.WebhookPropertiesBuilder;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -29,7 +30,6 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.util.WebhookConstants;
-import com.vmturbo.platform.sdk.common.util.WebhookConstants.AuthenticationMethod;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
@@ -69,8 +69,11 @@ public class WebhookProbeTest {
     @Test
     public void testTemplateWithUnknownProperty() throws Exception {
         // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO("http://google.com",
-                "Test $action.description1", "GET");
+        final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO(new WebhookPropertiesBuilder()
+                .setUrl("http://google.com")
+                .setTemplatedActionBody("Test $action.description1")
+                .setHttpMethod(HttpMethod.GET.name())
+                .build());
 
         IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
         when(propertyProvider.getProperty(any())).thenReturn(30000);
@@ -111,9 +114,11 @@ public class WebhookProbeTest {
     @Test
     public void testTemplateWithParseException() throws Exception {
         // ARRANGE
-        final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO("http://google.com",
-                "#set ($test=]())", "GET");
-
+        final ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO(new WebhookPropertiesBuilder()
+                .setUrl("http://google.com")
+                .setTemplatedActionBody("#set ($test=]())")
+                .setHttpMethod(HttpMethod.GET.name())
+                .build());
         IPropertyProvider propertyProvider = mock(IPropertyProvider.class);
         when(propertyProvider.getProperty(any())).thenReturn(30000);
         IProbeContext probeContext = mock(IProbeContext.class);
@@ -153,7 +158,9 @@ public class WebhookProbeTest {
         probe.initialize(probeContext, null);
         final IProgressTracker progressTracker = mock(IProgressTracker.class);
 
-        ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO(null, "test", null);
+        ActionExecutionDTO actionExecutionDTO = createActionExecutionDTO(new WebhookPropertiesBuilder()
+                .setTemplatedActionBody("test")
+                .build());
 
         // this method should throw an exception
         final ActionResult result = probe.executeAction(actionExecutionDTO,
@@ -163,7 +170,7 @@ public class WebhookProbeTest {
         Assert.assertEquals(ActionResponseState.FAILED, result.getState());
     }
 
-    private ActionExecutionDTO createActionExecutionDTO(String url, String template, String method) {
+    private ActionExecutionDTO createActionExecutionDTO(WebhookProperties webhookProperties) {
         return ActionExecutionDTO.newBuilder().setActionType(ActionType.RESIZE)
             .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
                     .setActionType(ActionType.RESIZE)
@@ -172,74 +179,78 @@ public class WebhookProbeTest {
                             .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
                             .setId("4521")
                             .build())
-                    .build())
-            .setWorkflow(createWorkflow(url, template, method, null, null, null,
-                    Collections.emptyList())).build();
+                    .build()).setWorkflow(createWorkflow(webhookProperties))
+                .build();
     }
 
     /**
      * Creates a workflow with input parameters.
      *
-     * @param url the url that we are making call to.
-     * @param template the template for the body of call.
-     * @param method the method of the http call e.g., GET, POST,...
-     * @param authenticationMethod the method to use to do authentication.
-     * @param username the username to use for authentication
-     * @param password the password to use for authentication
-     * @param headers the request headers
+     * @param webhookProperties the webhook properties.
      * @return the workflow object created.
      */
-    public static Workflow createWorkflow(String url, String template, String method,
-            AuthenticationMethod authenticationMethod, String username, String password,
-            final List<RequestHeader> headers) {
+    public static Workflow createWorkflow(WebhookProperties webhookProperties) {
         Workflow.Builder workflow = Workflow.newBuilder()
                 .setId("Webhook");
 
-        if (url != null) {
+        if (webhookProperties.getUrl() != null) {
             workflow.addProperty(Property.newBuilder()
                     .setName(WebhookConstants.URL)
-                    .setValue(url)
+                    .setValue(webhookProperties.getUrl())
                     .build());
         }
 
-        if (template != null) {
-            workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.TEMPLATED_ACTION_BODY)
-                    .setValue(template)
-                    .build());
-        }
-
-        if (method != null) {
+        if (webhookProperties.getHttpMethod() != null) {
             workflow.addProperty(Property.newBuilder()
                     .setName(WebhookConstants.HTTP_METHOD)
-                    .setValue(method)
+                    .setValue(webhookProperties.getHttpMethod())
                     .build());
         }
 
-        if (authenticationMethod != null) {
+        if (webhookProperties.getTemplatedActionBody() != null) {
             workflow.addProperty(Property.newBuilder()
-                    .setName(WebhookConstants.AUTHENTICATION_METHOD)
-                    .setValue(authenticationMethod.name())
+                    .setName(WebhookConstants.TEMPLATED_ACTION_BODY)
+                    .setValue(webhookProperties.getTemplatedActionBody())
                     .build());
         }
 
-        if (username != null) {
+        if (webhookProperties.getUsername() != null) {
             workflow.addProperty(Property.newBuilder()
                     .setName(WebhookConstants.USER_NAME)
-                    .setValue(username)
+                    .setValue(webhookProperties.getUsername())
                     .build());
         }
 
-        if (password != null) {
+        if (webhookProperties.getPassword() != null) {
             workflow.addProperty(Property.newBuilder()
                     .setName(WebhookConstants.PASSWORD)
-                    .setValue(password)
+                    .setValue(webhookProperties.getPassword())
                     .build());
         }
 
-        if (!headers.isEmpty()) {
-            workflow.addAllProperty(populateHeadersAsProperties(headers));
+        if (webhookProperties.getTrustSelfSignedCertificate() != null) {
+            workflow.addProperty(Property.newBuilder()
+                    .setName(WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME)
+                    .setValue(webhookProperties.getTrustSelfSignedCertificate())
+                    .build());
         }
+
+        if (webhookProperties.getAuthenticationMethod() != null) {
+            workflow.addProperty(Property.newBuilder()
+                    .setName(WebhookConstants.AUTHENTICATION_METHOD)
+                    .setValue(webhookProperties.getAuthenticationMethod())
+                    .build());
+        }
+
+        workflow.addProperty(Property.newBuilder()
+                .setName(WebhookConstants.HAS_TEMPLATE_APPLIED)
+                .setValue(String.valueOf(webhookProperties.hasTemplateApplied()))
+                .build());
+
+        if (webhookProperties.getHeaders() != null) {
+            workflow.addAllProperty(populateHeadersAsProperties(webhookProperties.getHeaders()));
+        }
+
         return workflow.build();
     }
 
@@ -272,5 +283,137 @@ public class WebhookProbeTest {
             result.add(headerValue);
         });
         return result;
+    }
+
+    /**
+     * Utility class to hold webhook properties.
+     */
+    static class WebhookProperties {
+        private final String url;
+        private final String httpMethod;
+        private final String authenticationMethod;
+        private final String username;
+        private final String password;
+        private final String trustSelfSignedCertificate;
+        private final String templatedActionBody;
+        private final List<RequestHeader> headers;
+        private final boolean hasTemplateApplied;
+
+        private WebhookProperties(String url, String httpMethod, String authenticationMethod,
+                String username, String password, String trustSelfSignedCertificate,
+                String templatedActionBody, List<RequestHeader> headers,
+                boolean hasTemplateApplied) {
+            this.url = url;
+            this.httpMethod = httpMethod;
+            this.authenticationMethod = authenticationMethod;
+            this.username = username;
+            this.password = password;
+            this.trustSelfSignedCertificate = trustSelfSignedCertificate;
+            this.templatedActionBody = templatedActionBody;
+            this.headers = headers;
+            this.hasTemplateApplied = hasTemplateApplied;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public String getHttpMethod() {
+            return httpMethod;
+        }
+
+        public String getAuthenticationMethod() {
+            return authenticationMethod;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public String getTrustSelfSignedCertificate() {
+            return trustSelfSignedCertificate;
+        }
+
+        public String getTemplatedActionBody() {
+            return templatedActionBody;
+        }
+
+        public List<RequestHeader> getHeaders() {
+            return headers;
+        }
+
+        public boolean hasTemplateApplied() {
+            return hasTemplateApplied;
+        }
+
+        /**
+         * WebhookProperties builder class.
+         */
+        public static class WebhookPropertiesBuilder {
+            private String url;
+            private String httpMethod;
+            private String authenticationMethod;
+            private String username;
+            private String password;
+            private String trustSelfSignedCertificate;
+            private String templatedActionBody;
+            private List<RequestHeader> headers;
+            private boolean hasTemplateApplied;
+
+            public WebhookPropertiesBuilder setUrl(String url) {
+                this.url = url;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setHttpMethod(String httpMethod) {
+                this.httpMethod = httpMethod;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setAuthenticationMethod(String authenticationMethod) {
+                this.authenticationMethod = authenticationMethod;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setUsername(String username) {
+                this.username = username;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setPassword(String password) {
+                this.password = password;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setTrustSelfSignedCertificate(
+                    String trustSelfSignedCertificate) {
+                this.trustSelfSignedCertificate = trustSelfSignedCertificate;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setTemplatedActionBody(String templatedActionBody) {
+                this.templatedActionBody = templatedActionBody;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setHeaders(List<RequestHeader> headers) {
+                this.headers = headers;
+                return this;
+            }
+
+            public WebhookPropertiesBuilder setHasTemplateApplied(boolean hasTemplateApplied) {
+                this.hasTemplateApplied = hasTemplateApplied;
+                return this;
+            }
+
+            public WebhookProperties build() {
+                return new WebhookProperties(url, httpMethod, authenticationMethod, username, password,
+                        trustSelfSignedCertificate, templatedActionBody, headers, hasTemplateApplied);
+            }
+        }
     }
 }
