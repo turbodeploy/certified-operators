@@ -1,7 +1,5 @@
 package com.vmturbo.extractor.schema;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,8 +17,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 @Configuration
 @Import(SQLDatabaseConfig2.class)
 public class ExtractorDbBaseConfig {
-    private static final Logger logger = LogManager.getLogger();
-
     @Autowired
     private SQLDatabaseConfig2 dbConfig;
 

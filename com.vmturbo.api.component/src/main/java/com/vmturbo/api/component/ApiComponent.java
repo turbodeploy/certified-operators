@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
@@ -17,6 +18,7 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -39,6 +41,8 @@ import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.search.SearchDBConfig;
 
 /**
  * This is the "main()" for the API Component. The API component implements
@@ -55,7 +59,8 @@ import com.vmturbo.components.common.config.PropertiesLoader;
     SwaggerConfig.class,
     ServiceConfig.class,
     ApiDiagnosticsConfig.class,
-    SpringJdbcHttpSessionDBConfig.class
+    SpringJdbcHttpSessionDBConfig.class,
+    SearchDBConfig.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -63,6 +68,15 @@ public class ApiComponent extends BaseVmtComponent {
 
     @Autowired
     private ApiDiagnosticsConfig diagnosticsConfig;
+
+    @Autowired
+    private SearchDBConfig dbConfig;
+
+    /**
+     * Health check interval for db connection.
+     */
+    @Value("${mariadbHealthCheckIntervalSeconds:60}")
+    private int mariaHealthCheckIntervalSeconds;
 
     // env vars
     private static final String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
@@ -202,5 +216,11 @@ public class ApiComponent extends BaseVmtComponent {
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
         }
+    }
+
+    @PostConstruct
+    private void setup() {
+        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                        () -> dbConfig.dataSource().getConnection()));
     }
 }
