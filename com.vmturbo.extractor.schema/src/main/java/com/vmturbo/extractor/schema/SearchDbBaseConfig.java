@@ -30,7 +30,7 @@ public class SearchDbBaseConfig {
     /**
      * Default user for mysql database.
      */
-    @Value("${dbs.search.user:extractor}")
+    @Value("${dbs.search.user:search}")
     private String searchDatabaseUser;
 
     /**
