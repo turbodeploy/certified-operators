@@ -149,10 +149,10 @@ public enum GlobalSettingSpecs {
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**
-     * This setting is used to sepcify whether to include demand from terminated entities in CCA.
+     * This setting is used to specify whether to include demand from terminated entities in CCA.
      */
     CloudCommitmentIncludeTerminatedEntities("cca.include.terminated.entities", "Cloud Commitment Include Terminated Entities",
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**
