@@ -8,6 +8,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 
 /**
@@ -29,7 +30,8 @@ public class EntitySavingsProcessorTest {
 
     private EntitySavingsProcessor entitySavingsProcessor = Mockito.spy(new EntitySavingsProcessor(
             entitySavingsTracker, topologyEventsPoller, rollupSavingsProcessor, entitySavingsStore,
-            entityEventsJournal, clock, Mockito.mock(DataRetentionProcessor.class)));
+            entityEventsJournal, clock, Mockito.mock(DataRetentionProcessor.class),
+            Mockito.mock(CostNotificationSender.class)));
 
     /**
      * Start time is 9:00. End time is 10:00.

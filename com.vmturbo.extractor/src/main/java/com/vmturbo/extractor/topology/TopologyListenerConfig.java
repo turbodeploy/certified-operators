@@ -61,6 +61,7 @@ import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
 import com.vmturbo.extractor.topology.fetcher.BottomUpCostFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.CloudSavingsFetcher;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.RICoverageFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
@@ -534,5 +535,16 @@ public class TopologyListenerConfig {
         return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
+    /**
+     * Creates instance of Cloud Savings listener.
+     *
+     * @return Cloud Savings listener.
+     */
+    @Bean
+    public CloudSavingsListener cloudSavingsListener() {
+        final CloudSavingsListener ceListener = new CloudSavingsListener(new CloudSavingsFetcher(
+                dbConfig.ingesterEndpoint(), costService(), pool(), writerConfig()));
+        costNotificationProcessor().addCostNotificationListener(ceListener);
+        return ceListener;
+    }
 }
-

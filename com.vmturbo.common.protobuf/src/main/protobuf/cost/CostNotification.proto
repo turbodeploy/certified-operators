@@ -5,8 +5,8 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "plan/PlanProgressStatusEnum.proto";
 
-// This defines notifications that are sent to subscriging components in varios circumstances
-// is the notification message from cost component to plan orchestrator at the end of an
+// This defines notifications that are sent to subscribing components in various circumstances.
+// It is the notification message from cost component to plan orchestrator at the end of an
 // optimize cloud plan.
 message CostNotification {
 
@@ -18,6 +18,9 @@ message CostNotification {
 
         // Notify when account expenses (billing costs) are available.
         AccountExpensesAvailable account_expenses_available = 3;
+
+        // When savings data is available for query.
+        CloudSavingsAvailable cloud_savings_available = 4;
     }
 
     // A message about a cost operation stats
@@ -67,5 +70,17 @@ message CostNotification {
 
     // Notification sent out from cost when AccountExpenses (Billing costs) have been persisted.
     message AccountExpensesAvailable {
+    }
+
+    // Notification about new cloud savings data being available for query. Typically every hour
+    // new savings data is written to entity_savings_by_hour DB table, so one notification of
+    // this type is sent out. E.g at 10:15 AM, data is written to DB for 9:00 - 10:00 time period,
+    // so start_date (inclusive) will be 9:00 and end_date (exclusive) will be 10:00.
+    message CloudSavingsAvailable {
+        // The start timestamp (inclusive) of available savings data.
+        optional uint64 start_date = 1;
+
+        // The end timestamp (exclusive) of available savings data.
+        optional uint64 end_date = 2;
     }
 }

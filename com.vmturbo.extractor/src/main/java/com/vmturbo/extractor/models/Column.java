@@ -14,6 +14,7 @@ import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.FileType;
+import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.schema.enums.Severity;
 
 /**
@@ -476,5 +477,13 @@ public class Column<T> {
         return new Column<>(name, ColType.FILE_TYPE);
     }
 
-
+    /**
+     * Savings_type column.
+     *
+     * @param field Field type
+     * @return Instance of column type.
+     */
+    public static Column<SavingsType> savingsTypeColumn(TableField<?, SavingsType> field) {
+        return new Column<>(field, ColType.SAVINGS_TYPE);
+    }
 }

@@ -4,9 +4,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 
@@ -48,6 +50,18 @@ public interface EntitySavingsStore<T> {
             @Nonnull Collection<Long> entityOids,
             @Nonnull Collection<Integer> entityTypes,
             @Nonnull Collection<Long> resourceGroups)
+            throws EntitySavingsException;
+
+    /**
+     * Returns raw (un-aggregated) savings stats records in the given time range.
+     *
+     * @param startTime Savings start time.
+     * @param endTime Savings end time.
+     * @return Stats record stream.
+     * @throws EntitySavingsException Thrown on DB access exception.
+     */
+    @Nonnull
+    Stream<EntitySavingsStatsRecord> getSavingsStats(long startTime, long endTime)
             throws EntitySavingsException;
 
     /**
