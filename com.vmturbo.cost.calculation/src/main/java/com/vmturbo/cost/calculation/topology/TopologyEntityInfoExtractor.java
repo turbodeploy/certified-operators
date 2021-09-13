@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseServerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
@@ -125,22 +126,50 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 .build());
     }
 
-
+    /**
+     * Populates and return DatabaseConfig for Database entity type.
+     * @param entity The entity.
+     * @return
+     */
     @Override
     @Nonnull
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
-        if ((entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE
-            || entity.getEntityType() == EntityType.DATABASE_VALUE)
+        if ( entity.getEntityType() == EntityType.DATABASE_VALUE
             && entity.hasTypeSpecificInfo()) {
             if (entity.getTypeSpecificInfo().hasDatabase()) {
                 DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
                 return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
                     dbConfig.getEngine(),
                     dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
-                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null,
-                    dbConfig.hasHourlyBilledOps() ? dbConfig.getHourlyBilledOps() : null));
+                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null));
             }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Populates and return DatabaseServerConfig for DatabaseServer entityType.
+     * For backward compatibility reasons with IWO, an entity with
+     * TypespecificInfo can contain DatabaseServer data both in
+     * database or databaseServer data structure. In the future,
+     * this requirement may change and further refactor to simplify is possible.
+     * @param entity The entity.
+     * @return
+     */
+    @Override
+    @Nonnull
+    public Optional<DatabaseServerConfig> getDatabaseServerConfig(
+        TopologyEntityDTO entity) {
+        if (entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE
+            && entity.hasTypeSpecificInfo()
+            && entity.getTypeSpecificInfo().hasDatabaseServer()) {
+                DatabaseServerInfo dbServerConfig = entity.getTypeSpecificInfo().getDatabaseServer();
+                return Optional.of(new DatabaseServerConfig(dbServerConfig.getEdition(),
+                    dbServerConfig.getEngine(),
+                    dbServerConfig.hasLicenseModel() ? dbServerConfig.getLicenseModel() : null,
+                    dbServerConfig.hasDeploymentType() ? dbServerConfig.getDeploymentType() : null,
+                    dbServerConfig.hasHourlyBilledOps() ? dbServerConfig.getHourlyBilledOps() : null));
         }
         return Optional.empty();
     }

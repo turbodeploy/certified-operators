@@ -44,25 +44,9 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
             final DatabaseData dbData = appData.getDbData();
             // Note that we will add a 'databaseInfo' even if the 'appData.getDbData()' has no info
             final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
-            if (dbData.hasEdition()) {
-                databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
-                databaseInfoBuilder.setRawEdition(dbData.getEdition());
-            }
-            if (dbData.hasEngine()) {
-                databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
-            }
-            if (dbData.hasVersion()) {
-                databaseInfoBuilder.setVersion(dbData.getVersion());
-            }
-            if (dbData.hasDeploymentType()) {
-                parseDeploymentType(dbData.getDeploymentType()).ifPresent(
-                    databaseInfoBuilder::setDeploymentType);
-            }
-            if (dbData.hasLicenseModel()) {
-                parseLicenseModel(dbData.getLicenseModel()).ifPresent(
-                    databaseInfoBuilder::setLicenseModel);
-            }
-            // we don't yet need 'dbData.getVersion() - but that may change
+
+            setupDatabaseData(dbData, databaseInfoBuilder);
+
             appInfo.setDatabase(databaseInfoBuilder);
         }
         return appInfo.build();
