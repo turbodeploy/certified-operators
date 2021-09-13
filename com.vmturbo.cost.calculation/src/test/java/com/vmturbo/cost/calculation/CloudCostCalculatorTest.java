@@ -839,9 +839,9 @@ public class CloudCostCalculatorTest {
 
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
                 .setType(EntityType.DATABASE_SERVER_VALUE)
-                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                .setDatabaseServerConfig(new EntityInfoExtractor.DatabaseServerConfig(
                         DatabaseEdition.ENTERPRISE,
-                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ, null))
                 .build(infoExtractor);
         mockDBSEntityCall(dbId, storageAmount, iopsAmount);
 
@@ -877,9 +877,9 @@ public class CloudCostCalculatorTest {
         final float iopsAmount = 1000f;
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
                 .setType(EntityType.DATABASE_SERVER_VALUE)
-                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                .setDatabaseServerConfig(new EntityInfoExtractor.DatabaseServerConfig(
                         DatabaseEdition.NONE,
-                        DatabaseEngine.POSTGRESQL, LicenseModel.NO_LICENSE_REQUIRED, DeploymentType.SINGLE_AZ))
+                        DatabaseEngine.POSTGRESQL, LicenseModel.NO_LICENSE_REQUIRED, DeploymentType.SINGLE_AZ, null))
                 .build(infoExtractor);
         mockDBSEntityCall(dbId, storageAmount, iopsAmount);
 
@@ -968,9 +968,9 @@ public class CloudCostCalculatorTest {
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
                 .setType(EntityType.DATABASE_SERVER_VALUE)
                 .setEntityState(EntityState.POWERED_OFF)
-                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                .setDatabaseServerConfig(new EntityInfoExtractor.DatabaseServerConfig(
                         DatabaseEdition.ENTERPRISE,
-                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ, null))
                 .build(infoExtractor);
 
         when(infoExtractor.getRDBCommodityCapacity(any(), any())).thenReturn(Optional.empty());

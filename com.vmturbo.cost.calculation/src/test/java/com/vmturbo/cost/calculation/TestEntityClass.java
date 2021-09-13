@@ -11,6 +11,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseServerConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 
@@ -66,6 +67,8 @@ public final class TestEntityClass {
 
         private Optional<DatabaseConfig> databaseConfig = Optional.empty();
 
+        private Optional<DatabaseServerConfig> databaseServerConfig = Optional.empty();
+
         private Optional<NetworkConfig> networkConfig = Optional.empty();
 
         private Optional<VirtualVolumeConfig> volumeConfig = Optional.empty();
@@ -103,6 +106,12 @@ public final class TestEntityClass {
         }
 
         @Nonnull
+        public Builder setDatabaseServerConfig(@Nonnull final DatabaseServerConfig databaseServerConfig) {
+            this.databaseServerConfig = Optional.of(databaseServerConfig);
+            return this;
+        }
+
+        @Nonnull
         public Builder setNetworkConfig(@Nonnull final NetworkConfig ipConfig) {
             this.networkConfig = Optional.of(ipConfig);
             return this;
@@ -131,6 +140,7 @@ public final class TestEntityClass {
             when(infoExtractor.getComputeTierConfig(ret)).thenReturn(computeTierConfig);
             when(infoExtractor.getEntityType(ret)).thenReturn(type);
             when(infoExtractor.getDatabaseConfig(ret)).thenReturn(databaseConfig);
+            when(infoExtractor.getDatabaseServerConfig(ret)).thenReturn(databaseServerConfig);
             when(infoExtractor.getNetworkConfig(ret)).thenReturn(networkConfig);
             return ret;
         }

@@ -10,7 +10,7 @@ import com.vmturbo.api.enums.DatabaseServerFeatures;
 import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseServerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -48,7 +48,7 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
         final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
                 EntityType.DATABASE_SERVER,
                 TypeSpecificInfo.newBuilder()
-                        .setDatabase(DatabaseInfo.newBuilder()
+                        .setDatabaseServer(DatabaseServerInfo.newBuilder()
                                 .setEdition(TEST_DATABASE_EDITION)
                                 .setRawEdition(RAW_DATABASE_EDITION)
                                 .setEngine(TEST_DATABASE_ENGINE)
