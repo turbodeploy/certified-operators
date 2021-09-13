@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.ContainerPlatformContextAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -278,8 +279,10 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
                         if (minimalEntity.hasDisplayName() && minimalEntity.hasEntityType()) {
                             if (minimalEntity.getEntityType() == EntityType.NAMESPACE_VALUE) {
                                 aspect.setNamespace(minimalEntity.getDisplayName());
+                                aspect.setNamespaceEntity(ServiceEntityMapper.toBaseApiDTO(minimalEntity));
                             } else if (minimalEntity.getEntityType() == EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE) {
                                 aspect.setContainerPlatformCluster(minimalEntity.getDisplayName());
+                                aspect.setContainerClusterEntity(ServiceEntityMapper.toBaseApiDTO(minimalEntity));
                             }
                         }
                     }

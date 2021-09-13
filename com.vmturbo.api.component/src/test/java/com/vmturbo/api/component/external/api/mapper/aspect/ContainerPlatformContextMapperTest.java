@@ -26,7 +26,9 @@ import org.mockito.internal.util.collections.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper.ContainerPlatformContextMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.ContainerPlatformContextAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -72,6 +74,7 @@ public class ContainerPlatformContextMapperTest {
             .setEntityType(ApiEntityType.NAMESPACE.typeNumber())
             .setDisplayName(nsDisplayName)
             .build();
+    private final BaseApiDTO namespaceEntity = ServiceEntityMapper.toBaseApiDTO(namespace);
 
     private final long secondNamespaceOid = 889L;
     private final String secondNsDisplayName = "turbo";
@@ -87,6 +90,7 @@ public class ContainerPlatformContextMapperTest {
             .setEntityType(ApiEntityType.CONTAINER_PLATFORM_CLUSTER.typeNumber())
             .setDisplayName(clusterDisplayName)
             .build();
+    private final BaseApiDTO containerClusterEntity = ServiceEntityMapper.toBaseApiDTO(containerCluster);
 
     private final ApiPartialEntity container = ApiPartialEntity.newBuilder().setOid(11L)
             .setEntityType(ApiEntityType.CONTAINER.typeNumber())
@@ -507,6 +511,10 @@ public class ContainerPlatformContextMapperTest {
         context = (ContainerPlatformContextAspectApiDTO)podContext;
         Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
         Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+        Assert.assertNotNull(context.getNamespaceEntity());
+        Assert.assertEquals(namespaceEntity.toString(), context.getNamespaceEntity().toString());
+        Assert.assertNotNull(context.getContainerClusterEntity());
+        Assert.assertEquals(containerClusterEntity.toString(), context.getContainerClusterEntity().toString());
     }
 
     /**
