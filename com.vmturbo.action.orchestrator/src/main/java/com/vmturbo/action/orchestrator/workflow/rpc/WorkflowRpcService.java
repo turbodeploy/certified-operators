@@ -1,20 +1,34 @@
 package com.vmturbo.action.orchestrator.workflow.rpc;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.velocity.exception.MethodInvocationException;
+import org.apache.velocity.runtime.parser.ParseException;
 
+import com.vmturbo.action.orchestrator.velocity.Velocity;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowRequest;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowResponse;
+import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowResponse;
@@ -39,18 +53,27 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplBase  {
 
     private static final String ACTION_STREAM_KAFKA = "ActionStreamKafka";
+    private static final String WEBHOOK_TARGET_NOT_ENABLED_MESSAGE = "Could not find the webhook target needed for "
+            + "creating webhook workflows "
+            + "as a result we failed the request for %s with type %s"
+            + " Please double check that the Webhook component is enabled.";
 
     // the store for the workflows that are uploaded
     private final WorkflowStore workflowStore;
     private final ThinTargetCache thinTargetCache;
+    private final ActionExecutionServiceBlockingStub actionExecutionService;
 
     private static final Logger logger = LogManager.getLogger();
 
     public WorkflowRpcService(
             @Nonnull WorkflowStore workflowStore,
-            @Nonnull ThinTargetCache thinTargetCache) {
+            @Nonnull ThinTargetCache thinTargetCache,
+            @Nonnull Channel topologyProcessorChannel) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.actionExecutionService = ActionExecutionServiceGrpc
+                .newBlockingStub(Objects.requireNonNull(topologyProcessorChannel));
+
     }
 
     /**
@@ -148,12 +171,9 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
         if (!targetIdOpt.isPresent()) {
             responseObserver.onError(
                 Status.INTERNAL
-                    .withDescription(
-                        "Could not find the webhook target needed for creating webhook workflows "
-                            + "as a result we failed the request for "
-                            + request.getWorkflow().getWorkflowInfo().getDisplayName()
-                            + " with type " + request.getWorkflow().getWorkflowInfo().getType()
-                            + " Please double check that the Webhook component is enabled.")
+                    .withDescription(String.format(WEBHOOK_TARGET_NOT_ENABLED_MESSAGE,
+                            request.getWorkflow().getWorkflowInfo().getDisplayName(),
+                            request.getWorkflow().getWorkflowInfo().getType()))
                     .asException());
             return;
         }
@@ -320,6 +340,95 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
             logger.error("Cannot delete the workflow with ID: " + request.getId(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+    }
+
+    @Override
+    public void executeWorkflow(final WorkflowDTO.ExecuteWorkflowRequest request,
+                final StreamObserver<WorkflowDTO.ExecuteWorkflowResponse> responseObserver) {
+        // deserialize ActionApiDTO
+        final ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        final ActionApiDTO actionApiDTO;
+        try {
+            actionApiDTO = objectMapper.readValue(request.getActionApiDTO(), ActionApiDTO.class);
+        } catch (JsonProcessingException ex) {
+            logger.error("Failed to de-serialize ActionApiDTO to execute the webhook: {} ",
+                    request.getActionApiDTO(), ex);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to de-serialize ActionApiDTO.")
+                    .asException());
+            return;
+        }
+
+        final Optional<Workflow> workflowOpt;
+        try {
+            workflowOpt = workflowStore.fetchWorkflow(request.getWorkflowId());
+        } catch (WorkflowStoreException e) {
+            logger.error("Failure when looking up workflow with ID {}. ", request.getWorkflowId(), e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            return;
+        }
+
+        if (!workflowOpt.isPresent()) {
+            logger.error("Trying out workflow {} failed as it does not exist.", request.getWorkflowId());
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Workflow with ID: " + request.getWorkflowId() + " has not been found")
+                    .asException());
+            return;
+        }
+
+        final Workflow workflow = workflowOpt.get();
+        final WorkflowInfo workflowInfo = workflow.getWorkflowInfo();
+        final Optional<Long> targetIdOpt = findOnlyWebhookTarget();
+        if (!targetIdOpt.isPresent()) {
+            responseObserver.onError(
+                    Status.INTERNAL
+                            .withDescription(String.format(WEBHOOK_TARGET_NOT_ENABLED_MESSAGE,
+                                    workflowInfo.getDisplayName(), workflowInfo.getType()))
+                            .asException());
+            return;
+        }
+
+        if (workflowInfo.getType() != OrchestratorType.WEBHOOK) {
+            logger.error("Trying out workflow {} failed as workflow type {} is not supported.",
+                    request.getWorkflowId(), workflowInfo.getType());
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Trying out workflow of type " + workflowInfo.getType() + " is not supported.")
+                    .asException());
+            return;
+        }
+
+        // apply template
+        final String templatedAction;
+        try {
+            templatedAction = Velocity.apply(workflowInfo.getWebhookInfo().getTemplate(), actionApiDTO);
+        } catch (ParseException | MethodInvocationException | IOException ex) {
+            logger.error("Applying webhook template failed for workflow {} because of an Exception.",
+                    workflowOpt.get().getId(), ex);
+            responseObserver.onNext(WorkflowDTO.ExecuteWorkflowResponse.newBuilder()
+                    .setSucceeded(false)
+                    .setExecutionDetails("Exception while applying template: " + ex.getMessage())
+                    .build()
+            );
+            responseObserver.onCompleted();
+            return;
+        }
+
+        // call topology processor
+        final ExecuteWorkflowResponse executionResult = actionExecutionService.executeWorkflow(ExecuteWorkflowRequest
+                .newBuilder()
+                .setWorkflow(workflow)
+                .setTargetId(targetIdOpt.get())
+                .setRequestBody(templatedAction)
+                .build());
+
+        responseObserver.onNext(WorkflowDTO.ExecuteWorkflowResponse.newBuilder()
+                .setSucceeded(executionResult.getSucceeded())
+                .setExecutionDetails(executionResult.getExecutionDetails())
+                .build()
+        );
+        responseObserver.onCompleted();
     }
 
     private Optional<Long> findOnlyWebhookTarget() {

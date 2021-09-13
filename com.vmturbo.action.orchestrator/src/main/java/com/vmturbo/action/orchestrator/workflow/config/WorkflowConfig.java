@@ -57,7 +57,7 @@ public class WorkflowConfig {
     public WorkflowRpcService workflowRpcService() {
         return new WorkflowRpcService(
             workflowStore(),
-            tpConfig.thinTargetCache());
+            tpConfig.thinTargetCache(), tpConfig.topologyProcessorChannel());
     }
 
     @Bean

@@ -1,23 +1,33 @@
 package com.vmturbo.action.orchestrator.workflow.rpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
+import com.google.common.io.Files;
+
 import io.grpc.stub.StreamObserver;
 
 import org.hamcrest.CoreMatchers;
-import org.junit.Assert;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,10 +36,14 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.common.protobuf.topology.ActionExecution;
+import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.CreateWorkflowResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.DeleteWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.DeleteWorkflowResponse;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.ExecuteWorkflowRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.ExecuteWorkflowResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
@@ -37,6 +51,8 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO.UpdateWorkflowRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.UpdateWorkflowResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
+import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
@@ -50,6 +66,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 public class WorkflowRpcServiceTest {
 
     private static final long WEBHOOK_TARGET_ID = 100L;
+    private static final long WEBHOOK_ID = 123L;
+    private static final String EXECUTION_RESULT = "Response code: 200, Body: test";
 
     private static final ThinTargetInfo WEBHOOK_TARGET = ImmutableThinTargetInfo.builder()
         .displayName("Webhook target")
@@ -77,6 +95,10 @@ public class WorkflowRpcServiceTest {
             .setType(OrchestratorType.WEBHOOK)
             .setDisplayName("A unique name for the webhook")
             .setDescription("An old description")
+            .setWebhookInfo(WorkflowInfo.WebhookInfo.newBuilder()
+                    .setTemplate("{\"id\": \"$action.uuid\", \"type\": \"$action.actionType\", \"commodity\":"
+                            + " \"$action.risk.reasonCommodities.toArray()[0]\", \"to\": \"$action.newValue\"}")
+                    .build())
             .buildPartial())
         .buildPartial();
 
@@ -93,19 +115,35 @@ public class WorkflowRpcServiceTest {
     private ThinTargetCache thinTargetCache;
     @Mock
     private WorkflowStore workflowStore;
+    @Mock
+    private ActionExecutionServiceMole actionExecutionServiceMole;
+
+    private GrpcTestServer grpcTestServer;
 
     private WorkflowRpcService workflowRpcService;
 
     /**
      * Set up the object to test with mock implementations.
+     *
+     * @throws IOException if something goes wrong starting the mock server.
      */
     @Before
-    public void before() {
+    public void before() throws IOException {
         MockitoAnnotations.initMocks(this);
-        workflowRpcService = new WorkflowRpcService(workflowStore, thinTargetCache);
+        grpcTestServer = GrpcTestServer.newServer(actionExecutionServiceMole);
+        grpcTestServer.start();
+        workflowRpcService = new WorkflowRpcService(workflowStore, thinTargetCache, grpcTestServer.getChannel());
 
         when(thinTargetCache.getAllTargets()).thenReturn(Arrays.asList(
             WEBHOOK_TARGET));
+    }
+
+    /**
+     * Cleanups after test.
+     */
+    @After
+    public void after() {
+        grpcTestServer.close();
     }
 
     /**
@@ -364,7 +402,7 @@ public class WorkflowRpcServiceTest {
         verify(updateObs, times(0)).onCompleted();
         verify(updateObs, times(1)).onError(exceptionCaptor.capture());
 
-        Assert.assertThat(exceptionCaptor.getValue().getMessage(), CoreMatchers.containsString(
+        assertThat(exceptionCaptor.getValue().getMessage(), CoreMatchers.containsString(
                 "The workflow id provided in the request body must be equal to the id provided as path parameter"));
     }
 
@@ -440,5 +478,202 @@ public class WorkflowRpcServiceTest {
         verify(deleteObs, times(0)).onCompleted();
         verify(deleteObs, times(1)).onError(any());
 
+    }
+
+    /**
+     * Tests successful execution of workflow.
+     *
+     * @throws WorkflowStoreException should not happen.
+     */
+    @Test
+    public void testSuccessfulWorkflowExecution() throws WorkflowStoreException {
+        // ARRANGE
+        final String actionApiDto = readSampleActionApiDto();
+        when(workflowStore.fetchWorkflow(eq(WEBHOOK_ID))).thenReturn(Optional.of(EXISTING_WORKFLOW));
+        ArgumentCaptor<ActionExecution.ExecuteWorkflowRequest> captor =
+                ArgumentCaptor.forClass(ActionExecution.ExecuteWorkflowRequest.class);
+        doAnswer(invocation -> {
+            StreamObserver<ActionExecution.ExecuteWorkflowResponse> observer = invocation
+                    .getArgumentAt(1, StreamObserver.class);
+            observer.onNext(ActionExecution.ExecuteWorkflowResponse.newBuilder()
+                    .setSucceeded(true)
+                    .setExecutionDetails(EXECUTION_RESULT)
+                    .build());
+            observer.onCompleted();
+            return null;
+        }).when(actionExecutionServiceMole).executeWorkflow(captor.capture(), any());
+        when(actionExecutionServiceMole.executeWorkflow(captor.capture()))
+                .thenReturn(ActionExecution.ExecuteWorkflowResponse.newBuilder()
+                        .setSucceeded(true)
+                        .setExecutionDetails(EXECUTION_RESULT)
+                        .build()
+                );
+
+        // ACT
+        StreamObserver<ExecuteWorkflowResponse> executeObs = mock(StreamObserver.class);
+        workflowRpcService.executeWorkflow(ExecuteWorkflowRequest.newBuilder()
+                .setActionApiDTO(actionApiDto)
+                .setWorkflowId(WEBHOOK_ID)
+                .build(), executeObs);
+
+        // ASSERT
+        assertEquals("{\"id\": \"637078747168364\", \"type\": \"RESIZE\", \"commodity\": \"VMem\", \"to\": \"59768832.0\"}",
+                captor.getValue().getRequestBody());
+        assertEquals(EXISTING_WORKFLOW, captor.getValue().getWorkflow());
+        ArgumentCaptor<ExecuteWorkflowResponse> workflowResponse =
+                ArgumentCaptor.forClass(ExecuteWorkflowResponse.class);
+        verify(executeObs, times(1)).onNext(workflowResponse.capture());
+        assertEquals(EXECUTION_RESULT, workflowResponse.getValue().getExecutionDetails());
+        assertTrue(workflowResponse.getValue().getSucceeded());
+        verify(executeObs, times(1)).onCompleted();
+        verify(executeObs, times(0)).onError(any());
+    }
+
+    /**
+     * Tests execution of workflow when the deserialization ActionApiDTO fails.
+     */
+    @Test
+    public void testWorkflowExecutionFailedDeserialization() {
+        // ARRANGE
+        doAnswer(invocation -> {
+            fail("This method should not be called");
+            return null;
+        }).when(actionExecutionServiceMole).executeWorkflow(any(), any());
+
+        // ACT
+        StreamObserver<ExecuteWorkflowResponse> executeObs = mock(StreamObserver.class);
+        workflowRpcService.executeWorkflow(ExecuteWorkflowRequest.newBuilder()
+                .setActionApiDTO("{")
+                .setWorkflowId(WEBHOOK_ID)
+                .build(), executeObs);
+
+        // ASSERT
+        ArgumentCaptor<Throwable> workflowResponse =
+                ArgumentCaptor.forClass(Throwable.class);
+        verify(executeObs, times(0)).onNext(any());
+        verify(executeObs, times(0)).onCompleted();
+        verify(executeObs, times(1)).onError(workflowResponse.capture());
+        assertEquals("INTERNAL: Failed to de-serialize ActionApiDTO.", workflowResponse.getValue().getMessage());
+    }
+
+    /**
+     * Tests execution of workflow when the workflow cannot be looked up.
+     *
+     * @throws WorkflowStoreException should not happen.
+     */
+    @Test
+    public void testWorkflowExecutionWorkflowNotFound() throws WorkflowStoreException {
+        // ARRANGE
+        final String actionApiDto = readSampleActionApiDto();
+        when(workflowStore.fetchWorkflow(eq(WEBHOOK_ID))).thenReturn(Optional.empty());
+        doAnswer(invocation -> {
+            fail("This method should not be called");
+            return null;
+        }).when(actionExecutionServiceMole).executeWorkflow(any(), any());
+
+        // ACT
+        StreamObserver<ExecuteWorkflowResponse> executeObs = mock(StreamObserver.class);
+        workflowRpcService.executeWorkflow(ExecuteWorkflowRequest.newBuilder()
+                .setActionApiDTO(actionApiDto)
+                .setWorkflowId(WEBHOOK_ID)
+                .build(), executeObs);
+
+        // ASSERT
+        ArgumentCaptor<Throwable> workflowResponse =
+                ArgumentCaptor.forClass(Throwable.class);
+        verify(executeObs, times(0)).onNext(any());
+        verify(executeObs, times(0)).onCompleted();
+        verify(executeObs, times(1)).onError(workflowResponse.capture());
+        assertEquals("INVALID_ARGUMENT: Workflow with ID: 123 has not been found", workflowResponse.getValue().getMessage());
+    }
+
+    /**
+     * Tests execution of workflow when the type of workflow is not webhook.
+     *
+     * @throws WorkflowStoreException should not happen.
+     */
+    @Test
+    public void testWorkflowExecutionNotWebhook() throws WorkflowStoreException {
+        // ARRANGE
+        final String actionApiDto = readSampleActionApiDto();
+        when(workflowStore.fetchWorkflow(eq(WEBHOOK_ID))).thenReturn(Optional.of(Workflow.newBuilder()
+                .setId(123L)
+                .setWorkflowInfo(WorkflowInfo.newBuilder()
+                        .setType(OrchestratorType.ACTION_SCRIPT)
+                        .setDisplayName("action script")
+                        .build()).build()));
+        doAnswer(invocation -> {
+            fail("This method should not be called");
+            return null;
+        }).when(actionExecutionServiceMole).executeWorkflow(any(), any());
+
+        // ACT
+        StreamObserver<ExecuteWorkflowResponse> executeObs = mock(StreamObserver.class);
+        workflowRpcService.executeWorkflow(ExecuteWorkflowRequest.newBuilder()
+                .setActionApiDTO(actionApiDto)
+                .setWorkflowId(WEBHOOK_ID)
+                .build(), executeObs);
+
+        // ASSERT
+        ArgumentCaptor<Throwable> workflowResponse =
+                ArgumentCaptor.forClass(Throwable.class);
+        verify(executeObs, times(0)).onNext(any());
+        verify(executeObs, times(0)).onCompleted();
+        verify(executeObs, times(1)).onError(workflowResponse.capture());
+        assertEquals("INVALID_ARGUMENT: Trying out workflow of type ACTION_SCRIPT is not supported.",
+                workflowResponse.getValue().getMessage());
+    }
+
+    /**
+     * Tests successful execution of workflow.
+     *
+     * @throws WorkflowStoreException should not happen.
+     */
+    @Test
+    public void testWorkflowExecutionFailedTemplateApplication() throws WorkflowStoreException {
+        // ARRANGE
+        final String actionApiDto = readSampleActionApiDto();
+        when(workflowStore.fetchWorkflow(eq(WEBHOOK_ID))).thenReturn(Optional.of(Workflow.newBuilder()
+                .setId(123L)
+                .setWorkflowInfo(WorkflowInfo.newBuilder()
+                        .setType(OrchestratorType.WEBHOOK)
+                        .setDisplayName("A unique name for the webhook")
+                        .setWebhookInfo(WorkflowInfo.WebhookInfo.newBuilder()
+                            .setTemplate("{\"id\": \"$action.uuid1\", \"type\": \"$action.actionType\", \"commodity\":"
+                                    + " \"$action.risk.reasonCommodities.toArray()[0]\", \"to\": \"$action.newValue\"}")
+                            ))
+                .build()));
+        doAnswer(invocation -> {
+            fail("This method should not be called");
+            return null;
+        }).when(actionExecutionServiceMole).executeWorkflow(any(), any());
+
+        // ACT
+        StreamObserver<ExecuteWorkflowResponse> executeObs = mock(StreamObserver.class);
+        workflowRpcService.executeWorkflow(ExecuteWorkflowRequest.newBuilder()
+                .setActionApiDTO(actionApiDto)
+                .setWorkflowId(WEBHOOK_ID)
+                .build(), executeObs);
+
+        // ASSERT
+        ArgumentCaptor<ExecuteWorkflowResponse> workflowResponse =
+                ArgumentCaptor.forClass(ExecuteWorkflowResponse.class);
+        verify(executeObs, times(1)).onNext(workflowResponse.capture());
+        assertThat(workflowResponse.getValue().getExecutionDetails(),
+                CoreMatchers.containsString("Exception while applying template:"));
+        assertFalse(workflowResponse.getValue().getSucceeded());
+        verify(executeObs, times(1)).onCompleted();
+        verify(executeObs, times(0)).onError(any());
+
+    }
+
+    private String readSampleActionApiDto() {
+        final File file1 = ResourcePath.getTestResource(getClass(), "resizeActionApiDto.json").toFile();
+        try {
+            return Files.asCharSource(file1, Charset.defaultCharset()).read();
+        } catch (IOException ex) {
+            fail("Failed to load the sample ActionApiDto resource");
+            return "";
+        }
     }
 }
