@@ -2,6 +2,7 @@ package com.vmturbo.extractor.docgen.sections;
 
 import static com.vmturbo.extractor.docgen.DocGenUtils.ENTITY_ATTRS_SECTION_NAME;
 import static com.vmturbo.extractor.docgen.DocGenUtils.ENTITY_ATTRS_SECTION_PATH;
+import static com.vmturbo.extractor.docgen.DocGenUtils.SUPPORTED_ENTITY_TYPES;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,6 +53,11 @@ public class EntityAttrsSection extends BaseAttrsSection<EntityType> {
     @Override
     EntityType[] getAllTypes() {
         return EntityType.values();
+    }
+
+    @Override
+    String getSupportedTypeField() {
+        return SUPPORTED_ENTITY_TYPES;
     }
 }
 

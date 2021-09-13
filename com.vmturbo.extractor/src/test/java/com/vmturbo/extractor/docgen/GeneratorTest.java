@@ -2,6 +2,7 @@ package com.vmturbo.extractor.docgen;
 
 import static com.github.npathai.hamcrestopt.OptionalMatchers.isEmpty;
 import static com.github.npathai.hamcrestopt.OptionalMatchers.isPresentAnd;
+import static com.vmturbo.extractor.docgen.DocGenUtils.JSON_TYPE;
 import static com.vmturbo.extractor.schema.Tables.ENTITY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -60,34 +61,48 @@ public class GeneratorTest {
         assertThat(rewrite.at("/tables/entity/intro").asText(), is("intro-text"));
         assertThat(rewrite.at("/tables/entity/columns/oid/Description"), isA(NullNode.class));
         assertThat(rewrite.at("/tables/entity/columns/type/Description"), isA(NullNode.class));
-        assertThat(rewrite.at("/tables/entity/columns/type/Type").asText(), is("/enums/entity_type"));
+        assertThat(rewrite.at("/tables/entity/columns/type/Type").asText(), is(DocGenUtils.ENUM_TYPE));
+        assertThat(rewrite.at("/tables/entity/columns/type/Reference").asText(), is("/enums/entity_type"));
         assertThat(rewrite.at("/tables/entity/columns/name/Description"), isA(NullNode.class));
         assertThat(rewrite.at("/tables/entity/columns/environment/Description"), isA(NullNode.class));
         assertThat(rewrite.at("/tables/entity/columns/attrs/Description"), isA(NullNode.class));
-        assertThat(rewrite.at("/tables/entity/columns/attrs/Reference").asText(), is("/shared/entity.attrs or /shared/group.attrs"));
+        assertThat(rewrite.at("/tables/entity/columns/attrs/Reference").asText(), is("/shared/entity.attrs|/shared/group.attrs"));
         assertThat(rewrite.at("/tables/entity/columns/first_seen/Description"), isA(NullNode.class));
         assertThat(rewrite.at("/tables/entity/columns/last_seen/Description"), isA(NullNode.class));
 
         // verify table_data section
         assertThat(rewrite.at("/table_data/action.attrs/fields/moveInfo/Description"), isA(NullNode.class));
-        assertThat(rewrite.at("/table_data/action.attrs/fields/moveInfo/Type").asText(), is("/shared/MoveChange"));
+        assertThat(rewrite.at("/table_data/action.attrs/fields/moveInfo/Type").asText(), is(JSON_TYPE));
+        assertThat(rewrite.at("/table_data/action.attrs/fields/moveInfo/Reference").asText(), is("/shared/MoveChange"));
         assertThat(rewrite.at("/table_data/action.attrs/fields/moveInfo/MapKeyType").asText(), is("/enums/entity_type"));
         assertThat(rewrite.at("/table_data/action.attrs/fields/buyRiInfo/MapKeyType"), isA(MissingNode.class));
 
         // verify shared section
-        assertThat(rewrite.at("/shared/entity.attrs/fields/guest_os_type/Type").asText(), is("/enums/OSType"));
+        assertThat(rewrite.at("/shared/entity.attrs/fields/guest_os_type/Type").asText(), is("String"));
+        assertThat(rewrite.at("/shared/entity.attrs/fields/guest_os_type/Reference").asText(), is("/enums/OSType"));
         assertThat(rewrite.at("/shared/entity.attrs/fields/guest_os_type/SupportedEntityTypes").asText(), is("VIRTUAL_MACHINE"));
         assertThat(rewrite.at("/shared/entity.attrs/fields/tags/SupportedEntityTypes").asText(), is("ALL"));
         assertThat(rewrite.at("/shared/entity.attrs/fields/targets/Repeated").asText(), is("true"));
         assertThat(rewrite.at("/shared/Target/intro"), isA(NullNode.class));
 
-        assertThat(rewrite.at("/shared/MoveChange/fields/from/Type").asText(), is("/shared/ActionImpactedEntity"));
+        assertThat(rewrite.at("/shared/MoveChange/fields/from/Type").asText(), is(JSON_TYPE));
+        assertThat(rewrite.at("/shared/MoveChange/fields/from/Reference").asText(), is("/shared/ActionImpactedEntity"));
 
         // verify exporter section
         assertThat(rewrite.at("/exporter/intro"), isA(NullNode.class));
         assertThat(rewrite.at("/exporter/fields/timestamp/Format").asText(), is(Constants.TIMESTAMP_PATTERN));
-        assertThat(rewrite.at("/exporter/fields/entity/Type").asText(), is("/exporter/Entity"));
+        assertThat(rewrite.at("/exporter/fields/entity/Type").asText(), is(JSON_TYPE));
+        assertThat(rewrite.at("/exporter/fields/entity/Reference").asText(), is("/exporter/Entity"));
         assertThat(rewrite.at("/exporter/Entity/intro"), isA(NullNode.class));
+        assertThat(rewrite.at("/exporter/Entity/fields/state/Type").asText(), is("String"));
+        assertThat(rewrite.at("/exporter/Entity/fields/state/Reference").asText(), is("/enums/entity_state"));
+        assertThat(rewrite.at("/exporter/Entity/fields/related/Type").asText(), is(JSON_TYPE));
+        assertThat(rewrite.at("/exporter/Entity/fields/related/Reference").asText(), is("/exporter/RelatedEntity"));
+        assertThat(rewrite.at("/exporter/Entity/fields/related/MapKeyType").asText(), is("/enums/entity_type"));
+        assertThat(rewrite.at("/exporter/Entity/fields/related/Repeated").asText(), is("true"));
+        assertThat(rewrite.at("/exporter/CostByCategory/fields/source/Type").asText(), is("Float"));
+        assertThat(rewrite.at("/exporter/CostByCategory/fields/source/MapKeyType").asText(), is("/enums/cost_source"));
+        assertThat(rewrite.at("/exporter/CostByCategory/fields/total/Type").asText(), is("Float"));
         assertThat(rewrite.at("/exporter/Action/intro"), isA(NullNode.class));
         assertThat(rewrite.at("/exporter/Group/intro"), isA(NullNode.class));
     }

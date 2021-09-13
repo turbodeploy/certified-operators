@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Lists;
 
 import org.jooq.Configuration;
 import org.jooq.DataType;
@@ -36,6 +35,7 @@ import org.jooq.TableField;
 import org.jooq.UniqueKey;
 import org.jooq.impl.DefaultConfiguration;
 
+import com.vmturbo.extractor.docgen.DocGenUtils;
 import com.vmturbo.extractor.docgen.Section;
 
 /**
@@ -50,7 +50,7 @@ public class TableSection<R extends Record> extends Section<TableField<R, ?>> {
 
     private static final com.google.common.collect.Table<Table, TableField, String> COLUMNS_WITH_REFERENCE =
             new ImmutableTable.Builder<Table, TableField, String>()
-                    .put(ENTITY, ENTITY.ATTRS, ENTITY_ATTRS_SECTION_PATH + " or " + GROUP_ATTRS_SECTION_PATH)
+                    .put(ENTITY, ENTITY.ATTRS, ENTITY_ATTRS_SECTION_PATH + "|" + GROUP_ATTRS_SECTION_PATH)
                     .put(PENDING_ACTION, PENDING_ACTION.ATTRS, TABLE_DATA_DOC_PREFIX + "/" + ACTION_ATTRS_SECTION_NAME)
                     .put(COMPLETED_ACTION, COMPLETED_ACTION.ATTRS, TABLE_DATA_DOC_PREFIX + "/" + ACTION_ATTRS_SECTION_NAME)
                     .build();
@@ -75,26 +75,20 @@ public class TableSection<R extends Record> extends Section<TableField<R, ?>> {
                 .collect(Collectors.toList());
     }
 
-
     @Override
     public List<String> getFieldNames(final TableField<R, ?> field) {
-        List<String> fields = Lists.newArrayList(TYPE, NULLABLE, PRIMARY, DESCRIPTION);
-        // special reference for the jsonb column in entity and action table
-        if (COLUMNS_WITH_REFERENCE.contains(table, field)) {
-            fields.add(REFERENCE);
-        }
-        return ImmutableList.copyOf(fields);
+        return ImmutableList.of(TYPE, NULLABLE, PRIMARY, DESCRIPTION, REFERENCE);
     }
 
     @Override
     public JsonNode getItemFieldValue(TableField<R, ?> item, String fieldName) {
         switch (fieldName) {
             case TYPE:
-                String typeSpec = getTypeSpec(item);
                 if (item.getDataType(POSTGRES_CONFIG).isEnum()) {
-                    typeSpec = ENUMS_DOC_PREFIX + "/" + typeSpec;
+                    return JsonNodeFactory.instance.textNode(DocGenUtils.ENUM_TYPE);
+                } else {
+                    return JsonNodeFactory.instance.textNode(getTypeSpec(item));
                 }
-                return JsonNodeFactory.instance.textNode(typeSpec);
             case NULLABLE:
                 final boolean nullable = item.getDataType().nullability().nullable();
                 return JsonNodeFactory.instance.booleanNode(nullable);
@@ -107,10 +101,18 @@ public class TableSection<R extends Record> extends Section<TableField<R, ?>> {
                     return JsonNodeFactory.instance.booleanNode(false);
                 }
             case REFERENCE:
-                return JsonNodeFactory.instance.textNode(COLUMNS_WITH_REFERENCE.get(table, item));
-            default:
-                return JsonNodeFactory.instance.nullNode();
+                if (item.getDataType(POSTGRES_CONFIG).isEnum()) {
+                    return JsonNodeFactory.instance.textNode(ENUMS_DOC_PREFIX + "/" + getTypeSpec(item));
+                } else {
+                    // special reference for the jsonb column in entity and action table
+                    String val = COLUMNS_WITH_REFERENCE.get(table, item);
+                    if (val != null) {
+                        return JsonNodeFactory.instance.textNode(val);
+                    }
+                }
+                break;
         }
+        return JsonNodeFactory.instance.nullNode();
     }
 
     private String getTypeSpec(final Field<?> field) {
