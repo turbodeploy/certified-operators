@@ -804,7 +804,7 @@ public class ServiceConfig {
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
                 targetService(), mapperConfig.workflowMapper(), communicationConfig.settingPolicyRpcService(),
-                secureStorageClient());
+                secureStorageClient(), actionsService());
     }
 
     @Bean
