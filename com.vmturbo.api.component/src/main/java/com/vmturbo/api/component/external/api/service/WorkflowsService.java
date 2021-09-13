@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CharMatcher;
 import com.google.common.collect.Lists;
 
@@ -22,12 +23,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.workflow.AuthenticationMethod;
 import com.vmturbo.api.dto.workflow.RequestHeader;
 import com.vmturbo.api.dto.workflow.WebhookApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
+import com.vmturbo.api.dto.workflow.WorkflowOperationRequestApiDTO;
+import com.vmturbo.api.dto.workflow.WorkflowOperationResponseApiDTO;
 import com.vmturbo.api.enums.OrchestratorType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -49,6 +53,7 @@ import com.vmturbo.communication.CommunicationException;
 public class WorkflowsService implements IWorkflowsService {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String HEADER_FIELD_NAME = "name";
     private static final String HEADER_FIELD_VALUE = "value";
     private final WorkflowServiceBlockingStub workflowServiceRpc;
@@ -56,17 +61,20 @@ public class WorkflowsService implements IWorkflowsService {
     private final WorkflowMapper workflowMapper;
     private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
     private final SecureStorageClient secureStorageClient;
+    private final ActionsService actionsService;
 
     public WorkflowsService(@Nonnull WorkflowServiceBlockingStub workflowServiceRpc,
                             @Nonnull TargetsService targetsService,
                             @Nonnull WorkflowMapper workflowMapper,
                             @Nonnull SettingPolicyServiceBlockingStub settingsPoliciesService,
-                            @Nonnull SecureStorageClient secureStorageClient) {
+                            @Nonnull SecureStorageClient secureStorageClient,
+                            @Nonnull ActionsService actionsService) {
         this.workflowServiceRpc = Objects.requireNonNull(workflowServiceRpc);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.workflowMapper = Objects.requireNonNull(workflowMapper);
         this.settingPolicyRpcService = Objects.requireNonNull(settingsPoliciesService);
         this.secureStorageClient = Objects.requireNonNull(secureStorageClient);
+        this.actionsService = Objects.requireNonNull(actionsService);
     }
 
     /**
@@ -250,6 +258,38 @@ public class WorkflowsService implements IWorkflowsService {
                 logger.error("Failed to delete webhook password credentials.", e);
             }
         }
+    }
+
+    @Override
+    public WorkflowOperationResponseApiDTO performOperation(String workflowUuid,
+                                                            WorkflowOperationRequestApiDTO operationRequest)
+            throws Exception {
+        final long workflowId = Long.parseLong(workflowUuid);
+
+        // get the workflow to make sure it exists
+        final WorkflowDTO.Workflow currentWorkflow = getWorkflowById(workflowId);
+
+        if (currentWorkflow.getWorkflowInfo().getType() != WorkflowDTO.OrchestratorType.WEBHOOK) {
+            throw new InvalidOperationException("The workflows of type \""
+                    + currentWorkflow.getWorkflowInfo().getType() + "\" cannot be tried out.");
+        }
+
+        // get the action
+        final ActionApiDTO actionApiDTO = actionsService
+                .getActionByUuid(String.valueOf(operationRequest.getActionId()), null);
+
+        // make the call to AO
+        final WorkflowDTO.ExecuteWorkflowResponse executionResult = workflowServiceRpc
+                .executeWorkflow(WorkflowDTO.ExecuteWorkflowRequest.newBuilder()
+                .setWorkflowId(workflowId)
+                .setActionApiDTO(OBJECT_MAPPER.writeValueAsString(actionApiDTO))
+                .build());
+
+        final WorkflowOperationResponseApiDTO responseApiDTO = new WorkflowOperationResponseApiDTO();
+        responseApiDTO.setSucceeded(executionResult.getSucceeded());
+        responseApiDTO.setDetails(executionResult.getExecutionDetails());
+
+        return responseApiDTO;
     }
 
     @Override
