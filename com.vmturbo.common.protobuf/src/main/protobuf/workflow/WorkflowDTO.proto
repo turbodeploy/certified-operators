@@ -223,6 +223,24 @@ message DeleteWorkflowRequest {
 message DeleteWorkflowResponse {
 }
 
+// Request for executing a workflow
+message ExecuteWorkflowRequest {
+    // The id for workflow
+    optional int64 workflowId = 1;
+
+    // The serialized ActionApiDTO
+    optional string actionApiDTO = 2;
+}
+
+// Response for executing a workflow
+message ExecuteWorkflowResponse {
+    // the flag indicating if the call was successful
+    optional bool succeeded = 1;
+    // The user-readable result of execution of workflow. For webhook workflows, this includes the response code
+    // from the endpoint and the response body.
+    optional string executionDetails = 2;
+}
+
 service DiscoveredWorkflowService {
     // Store workflows discovered from a single Orchestration target
     rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
@@ -246,4 +264,8 @@ service WorkflowService {
 
     // delete a workflow
     rpc deleteWorkflow(DeleteWorkflowRequest) returns (DeleteWorkflowResponse);
+
+    // Executes a workflow. This executions does not affect any action lifecycle used for testing (trying out) a
+    // workflow.
+    rpc executeWorkflow(ExecuteWorkflowRequest) returns (ExecuteWorkflowResponse);
 }
