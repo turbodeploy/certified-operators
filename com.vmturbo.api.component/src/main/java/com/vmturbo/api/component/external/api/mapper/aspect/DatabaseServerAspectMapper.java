@@ -17,7 +17,7 @@ import com.vmturbo.api.enums.ClusterRole;
 import com.vmturbo.api.enums.DatabaseServerFeatures;
 import com.vmturbo.api.enums.FeatureState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseServerInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -35,25 +35,25 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
     @Override
     public DatabaseServerEntityAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         final DatabaseServerEntityAspectApiDTO aspect = new DatabaseServerEntityAspectApiDTO();
-        if (entity.getTypeSpecificInfo().hasDatabase()) {
-            final DatabaseInfo databaseInfo = entity.getTypeSpecificInfo().getDatabase();
-            if (databaseInfo.hasRawEdition()) {
-                aspect.setDbEdition(databaseInfo.getRawEdition());
+        if (entity.getTypeSpecificInfo().hasDatabaseServer()) {
+            final DatabaseServerInfo databaseServerInfo = entity.getTypeSpecificInfo().getDatabaseServer();
+            if (databaseServerInfo.hasRawEdition()) {
+                aspect.setDbEdition(databaseServerInfo.getRawEdition());
             }
-            if (databaseInfo.hasEngine()) {
-                aspect.setDbEngine(databaseInfo.getEngine().name());
+            if (databaseServerInfo.hasEngine()) {
+                aspect.setDbEngine(databaseServerInfo.getEngine().name());
             }
-            if (databaseInfo.hasVersion()) {
-                aspect.setDbVersion(databaseInfo.getVersion());
+            if (databaseServerInfo.hasVersion()) {
+                aspect.setDbVersion(databaseServerInfo.getVersion());
             }
-            if (databaseInfo.hasLicenseModel()) {
-                aspect.setLicenseModel(databaseInfo.getLicenseModel().name());
+            if (databaseServerInfo.hasLicenseModel()) {
+                aspect.setLicenseModel(databaseServerInfo.getLicenseModel().name());
             }
-            if (databaseInfo.hasDeploymentType()) {
-                aspect.setDeploymentType(databaseInfo.getDeploymentType().name());
+            if (databaseServerInfo.hasDeploymentType()) {
+                aspect.setDeploymentType(databaseServerInfo.getDeploymentType().name());
             }
-            if (databaseInfo.hasHourlyBilledOps()) {
-                aspect.setHourlyBilledOps(databaseInfo.getHourlyBilledOps());
+            if (databaseServerInfo.hasHourlyBilledOps()) {
+                aspect.setHourlyBilledOps(databaseServerInfo.getHourlyBilledOps());
             }
         }
 
