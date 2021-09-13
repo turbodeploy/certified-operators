@@ -12,7 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseServerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseServerData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -48,6 +52,7 @@ public abstract class TypeSpecificInfoMapper {
      * @return a new {@link TypeSpecificInfo} with the 'oneof' field corresponding to the type
      * of the given 'sdkEntity'
      */
+
     @Nonnull
     public abstract TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
             @Nonnull EntityDTOOrBuilder sdkEntity,
@@ -151,6 +156,89 @@ public abstract class TypeSpecificInfoMapper {
         }
 
         return Optional.ofNullable(mappedLicenseModel);
+    }
+
+    protected void setupDatabaseData(DatabaseData dbData, DatabaseInfo.Builder databaseInfoBuilder) {
+        if (dbData.hasEdition()) {
+            databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
+            databaseInfoBuilder.setRawEdition(dbData.getEdition());
+        }
+        if (dbData.hasEngine()) {
+            databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
+        }
+        if (dbData.hasVersion()) {
+            databaseInfoBuilder.setVersion(dbData.getVersion());
+        }
+        if (dbData.hasDeploymentType()) {
+            parseDeploymentType(dbData.getDeploymentType()).ifPresent(
+                databaseInfoBuilder::setDeploymentType);
+        }
+        if (dbData.hasLicenseModel()) {
+            parseLicenseModel(dbData.getLicenseModel()).ifPresent(
+                databaseInfoBuilder::setLicenseModel);
+        }
+
+        if (!dbData.getLowerBoundScaleUpList().isEmpty()) {
+            databaseInfoBuilder.addAllLowerBoundScaleUp(dbData.getLowerBoundScaleUpList());
+        }
+        if (dbData.hasHourlyBilledOps()) {
+            databaseInfoBuilder.setHourlyBilledOps(dbData.getHourlyBilledOps());
+        }
+
+    }
+
+    protected void setupDatabaseServerData(DatabaseServerData dbServerData, DatabaseServerInfo.Builder databaseServerInfoBuilder) {
+        if (dbServerData.hasEdition()) {
+            databaseServerInfoBuilder.setEdition(parseDbEdition(dbServerData.getEdition()));
+            databaseServerInfoBuilder.setRawEdition(dbServerData.getEdition());
+        }
+        if (dbServerData.hasEngine()) {
+            databaseServerInfoBuilder.setEngine(parseDbEngine(dbServerData.getEngine()));
+        }
+        if (dbServerData.hasVersion()) {
+            databaseServerInfoBuilder.setVersion(dbServerData.getVersion());
+        }
+        if (dbServerData.hasDeploymentType()) {
+            parseDeploymentType(dbServerData.getDeploymentType()).ifPresent(
+                databaseServerInfoBuilder::setDeploymentType);
+        }
+        if (dbServerData.hasLicenseModel()) {
+            parseLicenseModel(dbServerData.getLicenseModel()).ifPresent(
+                databaseServerInfoBuilder::setLicenseModel);
+        }
+        if (!dbServerData.getLowerBoundScaleUpList().isEmpty()) {
+            databaseServerInfoBuilder.addAllLowerBoundScaleUp(dbServerData.getLowerBoundScaleUpList());
+        }
+        if (dbServerData.hasHourlyBilledOps()) {
+            databaseServerInfoBuilder.setHourlyBilledOps(dbServerData.getHourlyBilledOps());
+        }
+    }
+
+    protected void setupDatabaseServerData(DatabaseData dbServerData, DatabaseServerInfo.Builder databaseServerInfoBuilder) {
+        if (dbServerData.hasEdition()) {
+            databaseServerInfoBuilder.setEdition(parseDbEdition(dbServerData.getEdition()));
+            databaseServerInfoBuilder.setRawEdition(dbServerData.getEdition());
+        }
+        if (dbServerData.hasEngine()) {
+            databaseServerInfoBuilder.setEngine(parseDbEngine(dbServerData.getEngine()));
+        }
+        if (dbServerData.hasVersion()) {
+            databaseServerInfoBuilder.setVersion(dbServerData.getVersion());
+        }
+        if (dbServerData.hasDeploymentType()) {
+            parseDeploymentType(dbServerData.getDeploymentType()).ifPresent(
+                databaseServerInfoBuilder::setDeploymentType);
+        }
+        if (dbServerData.hasLicenseModel()) {
+            parseLicenseModel(dbServerData.getLicenseModel()).ifPresent(
+                databaseServerInfoBuilder::setLicenseModel);
+        }
+        if (!dbServerData.getLowerBoundScaleUpList().isEmpty()) {
+            databaseServerInfoBuilder.addAllLowerBoundScaleUp(dbServerData.getLowerBoundScaleUpList());
+        }
+        if (dbServerData.hasHourlyBilledOps()) {
+            databaseServerInfoBuilder.setHourlyBilledOps(dbServerData.getHourlyBilledOps());
+        }
     }
 
 }
