@@ -28,7 +28,6 @@ message TypeSpecificInfo {
         PhysicalMachineInfo physical_machine = 14;
         BusinessAccountInfo business_account = 28;
         DatabaseInfo database = 46;
-        DatabaseServerInfo databaseServer = 50;
         ComputeTierInfo compute_tier = 56;
         VirtualVolumeInfo virtual_volume = 60;
         StorageInfo storage = 70;
@@ -306,7 +305,7 @@ message TypeSpecificInfo {
         optional string version = 5;
 
         // Raw DB edition
-        optional string raw_edition = 6;
+        optional string rawEdition = 6;
 
         // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
         repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
@@ -314,33 +313,6 @@ message TypeSpecificInfo {
         // Average number of billed operations (e.g. reads, writes) per hour.
         optional double hourly_billed_ops = 8;
     }
-
-  // specific data for a DatabaseServer entity
-  message DatabaseServerInfo {
-    // Edition
-    optional .common_dto.DatabaseEdition edition = 1;
-
-    // Engine
-    optional .common_dto.DatabaseEngine engine = 2;
-
-    // LicenseModel
-    optional .common_dto.LicenseModel license_model = 3;
-
-    // DeploymentType
-    optional .common_dto.DeploymentType deployment_type = 4;
-
-    // DB version
-    optional string version = 5;
-
-    // Raw DB edition
-    optional string raw_edition = 6;
-
-    // list of lower bound capacity limits while scaling up per commodity that applies to this Database.
-    repeated .common_dto.CommodityCapacityLimit lower_bound_scale_up = 7;
-
-    // Average number of billed operations (e.g. reads, writes) per hour.
-    optional double hourly_billed_ops = 8;
-  }
 
     // specific data for virtual volume
     message VirtualVolumeInfo {

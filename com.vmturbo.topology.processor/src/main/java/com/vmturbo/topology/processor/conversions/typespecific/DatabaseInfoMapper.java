@@ -24,14 +24,36 @@ public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
             return TypeSpecificInfo.getDefaultInstance();
         }
         final ApplicationData appData = sdkEntity.getApplicationData();
+        final DatabaseData dbData = appData.getDbData();
         Builder appInfo = TypeSpecificInfo.newBuilder();
         if (appData.hasDbData()) {
-            final DatabaseData dbData = appData.getDbData();
             // Note that we will add a 'databaseInfo' even if the 'appData.getDbData()' has no info
             final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
-
-            setupDatabaseData(dbData, databaseInfoBuilder);
-
+            if (dbData.hasEdition()) {
+                databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
+                databaseInfoBuilder.setRawEdition(dbData.getEdition());
+            }
+            if (dbData.hasEngine()) {
+                databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));
+            }
+            if (dbData.hasVersion()) {
+                databaseInfoBuilder.setVersion(dbData.getVersion());
+            }
+            if (dbData.hasDeploymentType()) {
+                parseDeploymentType(dbData.getDeploymentType()).ifPresent(
+                        databaseInfoBuilder::setDeploymentType);
+            }
+            if (dbData.hasLicenseModel()) {
+                parseLicenseModel(dbData.getLicenseModel()).ifPresent(
+                        databaseInfoBuilder::setLicenseModel);
+            }
+            if (!dbData.getLowerBoundScaleUpList().isEmpty()) {
+                databaseInfoBuilder.addAllLowerBoundScaleUp(dbData.getLowerBoundScaleUpList());
+            }
+            if (dbData.hasHourlyBilledOps()) {
+                databaseInfoBuilder.setHourlyBilledOps(dbData.getHourlyBilledOps());
+            }
+            // we don't yet need 'dbData.getVersion() - but that may change
             appInfo.setDatabase(databaseInfoBuilder);
         }
         return appInfo.build();
