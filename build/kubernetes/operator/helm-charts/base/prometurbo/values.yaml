@@ -397,6 +397,7 @@ businessApplications:
       - mediation-azurevolumes
       - mediation-gcpsa
       - mediation-gcpcost
+      - mediation-gcpbilling
       - mediation-vcenter
       - mediation-vcenterbrowsing
 

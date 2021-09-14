@@ -249,6 +249,10 @@ dependencies:
     repository: file://../probes/mediation-gcpproject
     version: 0.1.0
     condition: gcp.enabled
+  - name: mediation-gcpbilling
+    repository: file://../probes/mediation-gcpbilling
+    version: 0.1.0
+    condition: gcp.enabled
   - name: mediation-hds
     repository: file://../probes/mediation-hds
     version: 0.1.0
