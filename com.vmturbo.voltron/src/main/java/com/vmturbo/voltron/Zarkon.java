@@ -6,6 +6,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.Protocol;
 import com.ecwid.consul.v1.ConsulClient;
@@ -27,6 +28,8 @@ import com.vmturbo.voltron.Voltron.VoltronContext;
  * Voltron's data.
  */
 class Zarkon implements Runnable {
+
+    private static final int ARANGO_DB_ERROR_CODE_DATABASE_NOT_FOUND = 1228;
     private static final Logger logger = LogManager.getLogger();
     private final AtomicBoolean demolished = new AtomicBoolean(false);
 
@@ -56,6 +59,7 @@ class Zarkon implements Runnable {
             if (repoContext != null) {
                 ConfigurableEnvironment repoEnv = repoContext.getEnvironment();
                 // Create an arango driver, and drop the database.
+                String dbName = RepositoryComponentConfig.DATABASE_NAME_PREFIX + namespace;
                 try {
                     ArangoDB arangoDB = new ArangoDB.Builder().host(repoEnv.getProperty("REPOSITORY_ARANGODB_HOST", "localhost"),
                             Integer.parseInt(repoEnv.getProperty("arangoDBPort", "8529")))
@@ -64,7 +68,7 @@ class Zarkon implements Runnable {
                             .maxConnections(5)
                             .useProtocol(Protocol.HTTP_VPACK)
                             .build();
-                    ArangoDatabase db = arangoDB.db(RepositoryComponentConfig.DATABASE_NAME_PREFIX + namespace);
+                    ArangoDatabase db = arangoDB.db(dbName);
                     final boolean success = db.drop();
                     if (success) {
                         logger.info("Dropped arango database: {}", db.name());
@@ -72,6 +76,15 @@ class Zarkon implements Runnable {
                         logger.warn(
                                 "Database {} was not dropped successfully. May not have existed.",
                                 db.name());
+                    }
+                } catch (ArangoDBException e) {
+                    if (e.getErrorNum() != null
+                            && e.getErrorNum() == ARANGO_DB_ERROR_CODE_DATABASE_NOT_FOUND) {
+                        logger.warn(
+                                "Database {} was not dropped successfully. It did not exist.",
+                                dbName);
+                    } else {
+                        logger.error("Failed to demolish arango database.", e);
                     }
                 } catch (Exception e) {
                     logger.error("Failed to demolish arango database.", e);
