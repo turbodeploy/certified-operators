@@ -43,8 +43,6 @@ if [ "$UI" == "" ]; then
     export UI=unset
 fi
 
-envsubst '${API} ${UI} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS} ${SSL_PROTOCOLS} ${SSL_CIPHERS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
-
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
 # starting a component, but not in production where we do not want logging to be captured by Docker
@@ -55,6 +53,20 @@ if [[ -z ${LOG_TO_STDOUT} ]]; then
 else
   export LOGGER_COMMAND="eval tee >(logger --tag ${instance_id} -u /tmp/log.sock)"
 fi
+
+ENV_VARS=(
+    '${API}' '${UI}' '${GRAFANA}' '${TOPOLOGY}' '${DNS_RESOLVER}' '${WORKER_PROCESSES}'
+    '${WORKER_CONNECTIONS}' '${SSL_PROTOCOLS}' '${SSL_CIPHERS}' '${DISABLE_HTTPS_REDIRECT}'
+)
+mkdir -p /tmp/nginx/includes
+envsubst "${ENV_VARS[*]}" < /etc/nginx/nginx.conf.template > /tmp/nginx/nginx.conf
+sed -i "s=/etc/nginx/includes/=/tmp/nginx/includes/=" /tmp/nginx/nginx.conf
+
+
+find /etc/nginx/includes -type f  | while read conf; do
+    envsubst "${ENV_VARS[*]}" < "$conf" > /tmp/nginx/includes/"$(basename "$conf")"
+    sed -i "s=/etc/nginx/includes/=/tmp/nginx/includes/=" /tmp/nginx/includes/"$(basename "$conf")"
+done
 
 echo "Configuring" $WORKER_PROCESSES "and" $WORKER_CONNECTIONS "connections per process." 2>&1 | ${LOGGER_COMMAND}
 
@@ -68,12 +80,13 @@ if [ ! -f "/etc/nginx/certs/tls.crt" ] | [ ! -f "/etc/nginx/certs/tls.key" ]; th
     openssl req -newkey rsa:2048 -x509 -sha256 -days 365 -nodes -keyout tls.key -new -out tls.crt -subj /CN=localhost -reqexts SAN -extensions SAN \
       -config <(printf '[ req ]\ndistinguished_name	= req_distinguished_name\n[ req_distinguished_name ]\ncountryName = US\n[SAN]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n extendedKeyUsage = serverAuth, clientAuth, emailProtection\n keyUsage=nonRepudiation, digitalSignature, keyEncipherment')
     popd
-    sed -i "s/etc\/nginx\/certs/tmp\/certs/" /tmp/nginx.conf
+    echo "Finished with certs" | ${LOGGER_COMMAND}
+    sed -i "s=/etc/nginx/certs=/tmp/certs=" /tmp/nginx/nginx.conf
 fi
 
 start_nginx() {
     echo "Starting nginx" 2>&1 | ${LOGGER_COMMAND}
-    exec nginx -c /tmp/nginx.conf -p /var/log/nginx > >($LOGGER_COMMAND) 2>&1
+    exec nginx -c /tmp/nginx/nginx.conf -p /var/log/nginx > >($LOGGER_COMMAND) 2>&1
 }
 
 start_nginx
