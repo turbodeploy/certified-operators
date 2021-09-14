@@ -715,16 +715,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *
      * @param workflow the information describing this Workflow, including ID, displayName,
      *                     and defining data - parameters and properties.
-     * @param secureStorageClient The client for secure storage.
-     * @param includeTemplate boolean flag set to true if we want to include the template
-     *                     in the workflow, false otherwise.
-     *
      * @return a newly created {@link Workflow} DTO
      * @throws ContextCreationException if the webhook workflow is invalid or there is an issue getting
      *                                  webhook info from the store.
      */
-    public static Workflow buildWorkflow(WorkflowDTO.Workflow workflow, SecureStorageClient secureStorageClient,
-                                         boolean includeTemplate) throws ContextCreationException {
+    private Workflow buildWorkflow(WorkflowDTO.Workflow workflow) throws ContextCreationException {
         WorkflowDTO.WorkflowInfo workflowInfo = workflow.getWorkflowInfo();
         final Workflow.Builder wfBuilder = Workflow.newBuilder();
         if (workflowInfo.hasDisplayName()) {
@@ -745,7 +740,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                 .collect(Collectors.toList()));
 
         // add webhook workflow info
-        wfBuilder.addAllProperty(WebhookContext.getProperties(workflow, secureStorageClient, includeTemplate));
+        wfBuilder.addAllProperty(WebhookContext.getProperties(workflow, secureStorageClient));
 
         if (workflowInfo.hasScriptPath()) {
             wfBuilder.setScriptPath(workflowInfo.getScriptPath());
@@ -769,21 +764,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
             wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
         }
         wfBuilder.setApiMessageFormatEnabled(workflowInfo.getApiMessageFormatEnabled());
-
         return wfBuilder.build();
-    }
-
-    /**
-     * Create a Workflow DTO representing the given {@link WorkflowDTO.WorkflowInfo}.
-     *
-     * @param workflow the information describing this Workflow, including ID, displayName,
-     *                     and defining data - parameters and properties.
-     * @return a newly created {@link Workflow} DTO
-     * @throws ContextCreationException if the webhook workflow is invalid or there is an issue getting
-     *                                  webhook info from the store.
-     */
-    public Workflow buildWorkflow(WorkflowDTO.Workflow workflow) throws ContextCreationException {
-        return buildWorkflow(workflow, secureStorageClient, true);
     }
 
     @Nonnull

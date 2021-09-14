@@ -64,7 +64,7 @@ public class WebhookContextTest {
                         .build())
                 .build();
 
-        List<Property> properties = WebhookContext.getProperties(workflow, secureStorageClient, true);
+        List<Property> properties = WebhookContext.getProperties(workflow, secureStorageClient);
 
         Optional<String> urlProperty = getWebhookPropertyValue(WebhookConstants.URL, properties);
         assertTrue(urlProperty.isPresent());

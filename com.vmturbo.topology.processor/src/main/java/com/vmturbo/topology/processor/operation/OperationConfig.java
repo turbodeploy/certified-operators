@@ -125,9 +125,6 @@ public class OperationConfig {
     @Value("${enableDiscoveryResponsesCaching:true}")
     private boolean enableDiscoveryResponsesCaching;
 
-    @Value("${workflowExecutionTimeoutMillis:60000}")
-    private int workflowExecutionTimeoutMillis;
-
     /**
      * The path to cached discovery responses.
      */
@@ -201,8 +198,7 @@ public class OperationConfig {
                 matrixConfig.matrixInterface(),
                 binaryDiscoveryDumper(),
                 enableDiscoveryResponsesCaching,
-                licenseCheckClientConfig.licenseCheckClient(),
-                workflowExecutionTimeoutMillis
+                licenseCheckClientConfig.licenseCheckClient()
             )
                 : new OperationManager(identityProviderConfig.identityProvider(),
             targetConfig.targetStore(),
@@ -231,8 +227,7 @@ public class OperationConfig {
             matrixConfig.matrixInterface(),
             binaryDiscoveryDumper(),
             enableDiscoveryResponsesCaching,
-            licenseCheckClientConfig.licenseCheckClient(),
-                workflowExecutionTimeoutMillis
+            licenseCheckClientConfig.licenseCheckClient()
         );
     }
 }

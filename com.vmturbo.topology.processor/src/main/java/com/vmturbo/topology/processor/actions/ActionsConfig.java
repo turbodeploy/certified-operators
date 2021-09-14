@@ -228,7 +228,6 @@ public class ActionsConfig {
     public ActionExecutionRpcService actionExecutionService() {
         return new ActionExecutionRpcService(
                 operationConfig.operationManager(),
-                secureStorageClient(),
                 actionExecutionContextFactory());
     }
 

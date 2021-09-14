@@ -289,8 +289,7 @@ public class OperationControllerTest {
                                         TheMatrix.instance(),
                                         binaryDiscoveryDumper(),
                                         false,
-                                        licenseCheckClient(),
-                                        60000);
+                                        licenseCheckClient());
         }
 
         @Bean

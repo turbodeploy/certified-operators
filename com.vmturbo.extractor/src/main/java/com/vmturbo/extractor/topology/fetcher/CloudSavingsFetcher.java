@@ -22,7 +22,6 @@ import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions.EntitySavings;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.schema.Tables;
 import com.vmturbo.extractor.schema.enums.SavingsType;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -79,11 +78,14 @@ public class CloudSavingsFetcher {
      * @return True if entity_savings DB table is empty and migration is required.
      */
     private boolean checkDataMigrationRequired() {
-        int rowCount = 0;
+        final String query = String.format("SELECT count(*) FROM %s", EntitySavings.name());
+        long rowCount = 0;
         try {
-            rowCount = dbEndpoint.dslContext().selectCount().from(Tables.ENTITY_SAVINGS)
-                    .fetchOne().value1();
-            logger.info("Found {} current total cloud savings rows.", rowCount);
+            Object count = dbEndpoint.dslContext().fetchValue(query);
+            if (count instanceof Long) {
+                rowCount = (Long)count;
+                logger.info("Found {} current cloud savings rows.", rowCount);
+            }
         } catch (UnsupportedDialectException | SQLException | DataAccessException e) {
             logger.warn("Unable to get Cloud Savings table count.", e);
         } catch (InterruptedException ie) {

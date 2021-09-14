@@ -36,14 +36,12 @@ public class WebhookContext {
      *
      * @param workflow The {@link WorkflowDTO.WorkflowInfo} to extract the webhook properties from.
      * @param secureStorageClient The {@link SecureStorageClient} to access webhook sensitive data.
-     * @param includeTemplate Flag set to true if we want to include the template, false otherwise.
-     *
      * @return list of {@link Workflow.Property} containing webhook properties.
      * @throws ContextCreationException if failed to extract webhook fields.
      */
     @Nonnull
     public static List<Property> getProperties(@Nonnull final WorkflowDTO.Workflow workflow,
-            @Nonnull SecureStorageClient secureStorageClient, boolean includeTemplate) throws ContextCreationException {
+            @Nonnull SecureStorageClient secureStorageClient) throws ContextCreationException {
         if (!workflow.hasWorkflowInfo() || !workflow.getWorkflowInfo().hasWebhookInfo()) {
             return Collections.emptyList();
         }
@@ -72,7 +70,7 @@ public class WebhookContext {
                     TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME).setValue(trustedValue).build());
         }
 
-        if (includeTemplate && webhookInfo.hasTemplate()) {
+        if (webhookInfo.hasTemplate()) {
             webhookProperties.add(Workflow.Property.newBuilder()
                     .setName(TEMPLATED_ACTION_BODY)
                     .setValue(webhookInfo.getTemplate())

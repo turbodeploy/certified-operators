@@ -81,6 +81,7 @@ message WorkflowInfo {
         // request headers
         repeated RequestHeader headers = 7;
 
+
         // the type of http method made to webhook
         enum HttpMethod {
             GET = 1;

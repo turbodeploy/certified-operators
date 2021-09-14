@@ -209,7 +209,7 @@ public class OperationManagerWithQueueTest {
                 discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
                 groupScopeResolver, targetDumpingSettings, systemNotificationProducer,
                 discoveryQueue, 10, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
-                licenseCheckClient, 60000);
+                licenseCheckClient);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 

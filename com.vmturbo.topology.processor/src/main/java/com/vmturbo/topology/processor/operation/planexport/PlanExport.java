@@ -117,10 +117,7 @@ public class PlanExport extends Operation {
      */
     @Override
     protected void completeOperation() {
-        if (getDurationTimer() != null) {
-            getDurationTimer().observe();
-        }
-
+        getDurationTimer().observe();
         getStatusCounter().labels(getStatus().name()).increment();
     }
 }
