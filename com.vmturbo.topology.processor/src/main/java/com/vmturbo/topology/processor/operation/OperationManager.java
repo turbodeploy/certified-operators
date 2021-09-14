@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -84,6 +85,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.platform.sdk.common.util.SetOnce;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -138,6 +140,7 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
+import com.vmturbo.topology.processor.workflow.WorkflowExecutionResult;
 
 /**
  * Responsible for managing all operations.
@@ -273,6 +276,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final int workflowExecutionTimeoutMillis;
+
     /**
      * Timeout for acquiring the permit for running a discovering operation
      * on a target.
@@ -314,7 +319,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
                             final boolean enableDiscoveryResponsesCaching,
-                            final LicenseCheckClient licenseCheckClient) {
+                            final LicenseCheckClient licenseCheckClient,
+                            final int workflowExecutionTimeoutMillis) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -355,6 +361,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // cleared.
         operationListener.notifyOperationsCleared();
         this.licenseCheckClient = licenseCheckClient;
+        this.workflowExecutionTimeoutMillis = workflowExecutionTimeoutMillis;
     }
 
     @Override
@@ -376,6 +383,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final Action action = new Action(actionDto.getActionOid(), target.getProbeId(),
                 targetId, identityProvider,
                 actionDto.getActionType());
+
         final ActionOperationCallback callback = new ActionOperationCallback() {
             @Override
             public void onActionProgress(@Nonnull ActionProgress actionProgress) {
@@ -513,6 +521,100 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private Target getTarget(long targetId) throws TargetNotFoundException {
         return targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
+    }
+
+    /**
+     * Request execution of a workflow without affecting action state.
+     *
+     * @param actionExecutionDTO The input action execution DTO containing the workflow details.
+     * @param targetId The unique target ID.
+     *
+     * return WorkflowExecutionResult The workflow execution result.
+     *
+     * @throws ProbeException If an error occurs when connecting to the probe.
+     * @throws TargetNotFoundException If the target is not found.
+     * @throws CommunicationException If a communication error occurs.
+     * @throws InterruptedException If the current thread is interrupted.
+     */
+    public WorkflowExecutionResult requestWorkflow(ActionExecutionDTO actionExecutionDTO, final long targetId)
+        throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
+        final SetOnce<WorkflowExecutionResult> result = SetOnce.create();
+
+        final String workflowID = actionExecutionDTO.getWorkflow().getId();
+        final Target target = targetStore.getTarget(targetId)
+                .orElseThrow(() -> new TargetNotFoundException(targetId));
+        final String probeType = getProbeTypeWithCheck(target);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        final ActionOperationCallback callback = new ActionOperationCallback() {
+            @Override
+            public void onActionProgress(@Nonnull ActionProgress actionProgress) {
+                logger.debug("Execution of workflow with {} ID is in progress", workflowID);
+            }
+
+            @Override
+            public void onSuccess(@Nonnull ActionResult response) {
+                final ActionResponseState actionResponseState =
+                        response.getResponse().getActionResponseState();
+                final Boolean isSucceeded;
+                switch (actionResponseState) {
+                    case SUCCEEDED:
+                        logger.debug("Execution of workflow with {} ID was successful", workflowID);
+                        isSucceeded = Boolean.TRUE;
+                        break;
+                    case FAILED:
+                        logger.debug("Execution of workflow with {} ID was failed", workflowID);
+                        isSucceeded = Boolean.FALSE;
+                        break;
+                    default:
+                        logger.debug("{} unexpected state for completed action execution operation."
+                                        + "Treat execution of workflow with {} ID was failed",
+                                actionResponseState, workflowID);
+                        isSucceeded = Boolean.FALSE;
+                        break;
+                }
+                result.trySetValue(
+                        new WorkflowExecutionResult(
+                                isSucceeded, response.getResponse().getResponseDescription()));
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(@Nonnull String error) {
+                result.trySetValue(new WorkflowExecutionResult(
+                        Boolean.FALSE, "Workflow execution has failed: " + error));
+                logger.debug("Execution of workflow with {} ID has failed", workflowID);
+                latch.countDown();
+            }
+        };
+
+        final ActionRequest request  = ActionRequest.newBuilder()
+                .setProbeType(probeType)
+                .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
+                .setActionExecutionDTO(actionExecutionDTO)
+                .build();
+
+        final Action action = new Action(0, target.getProbeId(),
+                targetId, identityProvider,
+                ActionType.NONE);
+
+        final ActionMessageHandler messageHandler = new ActionMessageHandler(
+                action,
+                remoteMediationServer.getMessageHandlerExpirationClock(),
+                actionTimeoutMs, callback);
+
+        logger.info("Sending workflow execution request to probe; workfowID = {}", workflowID);
+        remoteMediationServer.sendActionRequest(target, request, messageHandler);
+
+        latch.await(workflowExecutionTimeoutMillis, TimeUnit.MILLISECONDS);
+
+        logger.debug("Action execution DTO after trying out the workflow with {} ID is: \n {}", workflowID,
+                request.getActionExecutionDTO().toString());
+
+        return result.getValue().orElse(new WorkflowExecutionResult(
+                Boolean.FALSE, "Workflow execution has timed out after "
+                + workflowExecutionTimeoutMillis + "msec"));
     }
 
     /**

@@ -96,7 +96,7 @@ public abstract class Operation {
     public Operation(final long probeId,
                      final long targetId,
                      @Nonnull final IdentityProvider identityProvider,
-                     @Nonnull DataMetricSummary durationMetricSummary) {
+                     @Nullable DataMetricSummary durationMetricSummary) {
         Objects.requireNonNull(identityProvider);
         this.startTime = LocalDateTime.now();
         this.id = identityProvider.generateOperationId();
@@ -105,7 +105,11 @@ public abstract class Operation {
         this.status = Status.IN_PROGRESS;
         this.errors = new ArrayList<>();
         this.userInitiated = false;
-        this.durationTimer = durationMetricSummary.startTimer();
+        if (durationMetricSummary != null) {
+            this.durationTimer = durationMetricSummary.startTimer();
+        } else {
+            this.durationTimer = null;
+        }
     }
 
     public long getId() {
@@ -130,6 +134,7 @@ public abstract class Operation {
         return completionTime;
     }
 
+    @Nullable
     public DataMetricTimer getDurationTimer() {
         return durationTimer;
     }
@@ -287,7 +292,9 @@ public abstract class Operation {
      * Complete the operation and update any associated Prometheus metrics.
      */
     protected void completeOperation() {
-        durationTimer.observe();
+        if (durationTimer != null) {
+            durationTimer.observe();
+        }
         getStatusCounter().labels(status.name()).increment();
     }
 
