@@ -51,7 +51,6 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
-import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseServerConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.Builder;
@@ -714,7 +713,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
         logger.trace("Starting entity cost calculation for dbs {} (isBillable={})", entityId, isBillable(entity));
 
-        entityInfoExtractor.getDatabaseServerConfig(entity).ifPresent(databaseServerConfig -> {
+        entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
             final Optional<ENTITY_CLASS> tier  = cloudTopology.getDatabaseServerTier(entityId);
 
@@ -725,7 +724,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     final DatabaseServerTierPriceList dbsPriceList = getDbsPriceList(
                             onDemandPriceTable.get(), entityInfoExtractor.getId(databaseTier));
                     if (dbsPriceList != null) {
-                        recordDatabaseServerCost(dbsPriceList, context.getCostJournal(), databaseTier, databaseServerConfig, entity);
+                        recordDatabaseServerCost(dbsPriceList, context.getCostJournal(), databaseTier, databaseConfig, entity);
                     } else {
                         logger.debug("calculateDatabaseServerCost: Price table is missed for region {}, tier {} ",
                                 regionId, databaseTier);
@@ -814,11 +813,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @param dbsPriceList    DB server list contains all the db prices.
      * @param journal        Journal used to add the costs to.
      * @param dbsTier   DB server Tier that we are calculating.
-     * @param databaseServerConfig DB server config of the db that we want to record.
+     * @param databaseConfig DB server config of the db that we want to record.
      * @param entity         current DB server entity.
      */
     private void recordDatabaseServerCost(DatabaseServerTierPriceList dbsPriceList,
-            Builder<ENTITY_CLASS> journal, ENTITY_CLASS dbsTier, DatabaseServerConfig databaseServerConfig,
+            Builder<ENTITY_CLASS> journal, ENTITY_CLASS dbsTier, DatabaseConfig databaseConfig,
             final ENTITY_CLASS entity) {
 
         final TraxNumber computeBillableAmount = trax(isBillable(entity) ? 1.0 : 0.0, "On-demand billed amount");
@@ -826,7 +825,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         for (DatabaseServerTierConfigPrice serverConfigPrice : dbsPriceList.getConfigPricesList()) {
             final DatabaseTierConfigPrice configPrice =
                     serverConfigPrice.getDatabaseTierConfigPrice();
-            if (databaseServerConfig.matchesPriceTableConfig(configPrice)) {
+            if (databaseConfig.matchesPriceTableConfig(configPrice)) {
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
                         configPrice.getPricesList().get(0), computeBillableAmount);
                 final Multimap<CommodityType, Price> storagePrices = ArrayListMultimap.create();
@@ -852,7 +851,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             calculateRDBStorageCost(entry.getValue(), entity,
                                     entry.getKey()), FULL);
                 }
-                Double hourlyBilledOpsValue = databaseServerConfig.getHourlyBilledOps();
+                Double hourlyBilledOpsValue = databaseConfig.getHourlyBilledOps();
                 if (!ioRequestsPrice.isEmpty() && Objects.nonNull(hourlyBilledOpsValue)) {
                     final TraxNumber hourlyBilledOps = trax(hourlyBilledOpsValue,
                             "billed I/O operations per hour");
