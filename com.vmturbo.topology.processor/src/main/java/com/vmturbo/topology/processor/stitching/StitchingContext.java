@@ -25,11 +25,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
+import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.targets.Target;
@@ -407,6 +407,13 @@ public class StitchingContext {
                                             builders.size())));
             logger.error(messageBuilder.toString());
         }
+
+        final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
+        final List<String> logMessages = msgGrouper
+                .getMessages(SdkToTopologyEntityConverter.LOGMESSAGEGROUPER_SESSION_ID);
+        logMessages.forEach(logger::warn);
+        msgGrouper.clear(SdkToTopologyEntityConverter.LOGMESSAGEGROUPER_SESSION_ID);
+
         return result;
     }
 
