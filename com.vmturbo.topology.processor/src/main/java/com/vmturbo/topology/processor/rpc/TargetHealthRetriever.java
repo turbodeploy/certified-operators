@@ -38,9 +38,9 @@ import common.HealthCheck.HealthState;
  * all the special cases for the interplay between latest validations and discoveries.
  */
 public class TargetHealthRetriever {
-    private static final long DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER = 3;
+    private static final long DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER = 10;
 
-    private static final int TEMP_COUNTER_THRESHOLD = 3; // !! replace with a proper setting value
+    private static final int TEMP_COUNTER_THRESHOLD = 3; //TODO replace with a proper setting value
 
     private final IOperationManager operationManager;
     private final TargetStatusTracker targetStatusTracker;
