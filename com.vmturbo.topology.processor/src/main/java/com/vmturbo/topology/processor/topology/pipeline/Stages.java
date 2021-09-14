@@ -766,6 +766,10 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
+            if (TopologyDTOUtil.isPlan(getContext().getTopologyInfo())) {
+                final int modified = controllableManager.setUncontrollablePodsToControllableInPlan(input);
+                return Status.success("Marked " + modified + " pods as topologycontrollable.");
+            }
             final int controllableModified = controllableManager.applyControllable(input);
             final int suspendableModified = controllableManager.applySuspendable(input);
             final int scaleModified = controllableManager.applyScaleEligibility(input);

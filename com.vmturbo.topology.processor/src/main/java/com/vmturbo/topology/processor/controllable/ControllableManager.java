@@ -70,6 +70,45 @@ public class ControllableManager {
     }
 
     /**
+     * Mark pods which are in ready state and are set uncontrollable to controllable so that they can
+     * be considered in plan. This handles cases where such pods will remain non intuitively unplaced
+     * for example if the VM which they are currently on gets suspended, or such pods are added
+     * as cloned pods in the plan.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    public int setUncontrollablePodsToControllableInPlan(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entitiesOfType(EntityDTO.EntityType.CONTAINER_POD)
+                .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.POWERED_ON
+                        && entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getControllable() == false)
+                .filter(entity -> {
+                    Set<Long> providerOids = entity.getTopologyEntityDtoBuilder()
+                            .getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(comms -> comms.getProviderEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE
+                                    && comms.hasProviderId())
+                            .map(TopologyEntityDTO.CommoditiesBoughtFromProvider::getProviderId)
+                            .collect(Collectors.toSet());
+                    for (Long providerOid : providerOids) {
+                        // We would ideally have only one VM provider for each pod
+                        if (providerOid < 0 || (topology.getEntity(providerOid).isPresent()
+                        && topology.getEntity(providerOid).get().getTopologyEntityDtoBuilder()
+                                .getEditBuilder().hasRemoved())) {
+                            // filter cloned pods or those pods for which the VM has been removed
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .map(entity -> {
+                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(true);
+                    logger.trace("Mark Pod {} as controllable in plan", entity);
+                    return entity.getOid();
+                })
+                .collect(Collectors.toSet()).size();
+    }
+
+    /**
      * First get all out of controllable entity ids, and change their TopologyEntityDTO controllable
      * flag to false.
      *

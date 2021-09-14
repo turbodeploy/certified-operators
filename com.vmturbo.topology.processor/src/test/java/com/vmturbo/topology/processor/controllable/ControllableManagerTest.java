@@ -98,6 +98,7 @@ public class ControllableManagerTest {
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
             TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(14));
+
     private final TopologyEntityDTO.Builder vm1 = TopologyEntityDTO.newBuilder()
         .setOid(13)
         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -112,6 +113,7 @@ public class ControllableManagerTest {
             .setControllable(true))
         .addCommoditiesBoughtFromProviders(
             TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
+
     private final TopologyEntityDTO.Builder VDC = TopologyEntityDTO.newBuilder()
         .setOid(16)
         .setEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
@@ -244,6 +246,75 @@ public class ControllableManagerTest {
         assertFalse(vmBazEntityBuilder.getAnalysisSettings().getControllable());
         assertTrue(pmInMaintenance.getAnalysisSettings().getControllable());
         assertTrue(pmPoweredOn.getAnalysisSettings().getControllable());
+    }
+
+    /**
+     * Test that the uncontrollable pod entites which are in power state powered on are
+     * correctly set to controllable. Also ensure that the pods which are controllable
+     * already, remain as is.
+     */
+    @Test
+    public void testSetUncontrollablePodToControllable() {
+        // Pods to test unplaced uncontrollable pods logic
+        final TopologyEntityDTO.Builder pod3 = TopologyEntityDTO.newBuilder()
+                .setOid(1111)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setControllable(false))
+                .addCommoditiesBoughtFromProviders(
+                        // actual VM provider in topology
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(13));
+        final TopologyEntityDTO.Builder pod4 = TopologyEntityDTO.newBuilder()
+                .setOid(1112)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setControllable(false))
+                .addCommoditiesBoughtFromProviders(
+                        // removed VM provider in topology
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(1221)
+                                .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+        final TopologyEntityDTO.Builder clonePod = TopologyEntityDTO.newBuilder()
+                .setOid(1113)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setControllable(false))
+                .addCommoditiesBoughtFromProviders(
+                        // VM provider for cloned pod
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(-1)
+                                .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+        final TopologyEntityDTO.Builder vmToRemove = TopologyEntityDTO.newBuilder()
+                .setOid(1221)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEdit(TopologyEntityDTO.Edit.newBuilder()
+                        // Its ok to use a random plan id, as its needed only to test an internal
+                        // function, without any plan id validation.
+                        .setRemoved(TopologyEntityDTO.Removed.newBuilder().setPlanId(1551).build())
+                        .build())
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setControllable(true))
+                .addCommoditiesBoughtFromProviders(
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(15));
+
+        topology.put(pod3.getOid(), TopologyEntity.newBuilder(pod3));
+        topology.put(pod4.getOid(), TopologyEntity.newBuilder(pod4));
+        topology.put(clonePod.getOid(), TopologyEntity.newBuilder(clonePod));
+        topology.put(vmToRemove.getOid(), TopologyEntity.newBuilder(vmToRemove)
+                .addConsumer(topology.get(pod3.getOid())));
+
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        controllableManager.setUncontrollablePodsToControllableInPlan(topologyGraph);
+        assertTrue(pod1.getAnalysisSettings().getControllable());
+        assertTrue(pod2.getAnalysisSettings().getControllable());
+        // Pod with provider still in topology keeps controllable false
+        assertFalse(pod3.getAnalysisSettings().getControllable());
+        // Pod with provider no more in topology changes controllable to true
+        assertTrue(pod4.getAnalysisSettings().getControllable());
+        // Clone pod changes controllable to true
+        assertTrue(clonePod.getAnalysisSettings().getControllable());
     }
 
     /**
