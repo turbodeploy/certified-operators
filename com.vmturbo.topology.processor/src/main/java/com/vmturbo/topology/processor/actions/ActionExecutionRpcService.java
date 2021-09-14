@@ -1,5 +1,9 @@
 package com.vmturbo.topology.processor.actions;
 
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HAS_TEMPLATE_APPLIED;
+import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
+
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -15,12 +19,19 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.securestorage.SecureStorageClient;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionListRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowRequest;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.topology.processor.actions.data.context.AbstractActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.context.ContextCreationException;
@@ -28,6 +39,7 @@ import com.vmturbo.topology.processor.operation.ActionOperationRequest;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.workflow.WorkflowExecutionResult;
 
 public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
@@ -39,6 +51,11 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     private final IOperationManager operationManager;
 
     /**
+     * The secure storage client.
+     */
+    private final SecureStorageClient secureStorageClient;
+
+    /**
      * Constructs instances of ActionExecutionContext, an interface for collecting data needed for
      * action execution.
      */
@@ -48,12 +65,15 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
      * Construct an ActionExecutionRpcService to respond to execute action requests.
      *
      * @param operationManager used to initiate actions.
+     * @param secureStorageClient the secure storage client.
      * @param actionExecutionContextFactory builds an ActionExecutionContext, providing additional
      *                                      data required for action execution.
      */
     public ActionExecutionRpcService(@Nonnull final IOperationManager operationManager,
+                                     @Nonnull final SecureStorageClient secureStorageClient,
                                      @Nonnull final ActionExecutionContextFactory actionExecutionContextFactory) {
         this.operationManager = Objects.requireNonNull(operationManager);
+        this.secureStorageClient = Objects.requireNonNull(secureStorageClient);
         this.actionExecutionContextFactory = actionExecutionContextFactory;
     }
 
@@ -185,4 +205,60 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
         return actionExecutionContext;
     }
+
+    @Override
+    public void executeWorkflow(final ExecuteWorkflowRequest request,
+            final StreamObserver<ExecuteWorkflowResponse> responseObserver) {
+        try {
+            final Workflow workflow =
+                    AbstractActionExecutionContext.buildWorkflow(request.getWorkflow(), secureStorageClient, false)
+                        .toBuilder()
+                            .addProperty(Workflow.Property.newBuilder()
+                                .setName(HAS_TEMPLATE_APPLIED)
+                                .setValue(Boolean.toString(true)))
+                            .addProperty(Workflow.Property.newBuilder()
+                                .setName(TEMPLATED_ACTION_BODY)
+                                .setValue(request.getRequestBody()))
+                        .build();
+
+            ActionExecutionDTO actionExecutionDTO = ActionExecutionDTO.newBuilder()
+                            .setActionType(ActionItemDTO.ActionType.NONE)
+                            .addActionItem(ActionItemDTO.newBuilder()
+                                    .setUuid("")
+                                    .setActionType(ActionItemDTO.ActionType.NONE)
+                                    .setTargetSE(CommonDTO.EntityDTO.newBuilder()
+                                            .setId("")
+                                            .setEntityType(CommonDTO.EntityDTO.EntityType.UNKNOWN)
+                                    )
+                            )
+                            .setWorkflow(workflow)
+                            .build();
+
+            logger.info("Start execution of workflow with {} ID", workflow.getId());
+            WorkflowExecutionResult result = operationManager.requestWorkflow(actionExecutionDTO,
+                    request.getTargetId());
+            logger.info("Execute workflow request completed for ID: {}", workflow.getId());
+
+            ExecuteWorkflowResponse response = ExecuteWorkflowResponse.newBuilder()
+                    .setSucceeded(result.getSucceeded())
+                    .setExecutionDetails(result.getExecutionDetails())
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (ProbeException e) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription(e.getMessage()).asException());
+        } catch (InterruptedException e) {
+            responseObserver.onError(Status.ABORTED
+                    .withDescription(e.getMessage()).asException());
+        } catch (TargetNotFoundException | ContextCreationException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(e.getMessage()).asException());
+        } catch (CommunicationException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription(e.getMessage()).asException());
+        }
+    }
+
 }
