@@ -38,6 +38,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -934,6 +935,132 @@ public class TopologyEditorTest {
         TopologyEntity.Builder vmToRemove = topology.get(vmId);
         assertTrue(vmToRemove.getEntityBuilder().hasEdit()
             && vmToRemove.getEntityBuilder().getEdit().hasRemoved());
+    }
+
+    /**
+     * Test that any consumer daemon pod is removed from the topology when the hosting VM
+     * is removed by the edit.
+     * */
+    @Test
+    public void testDaemonPodsRemovalWhenProviderVMRemoved() throws Exception {
+        // Create a test pod that is marked as daemon and is consumer of our test VM
+        final TopologyEntity.Builder daemonPod = TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(51L)
+                        .setDisplayName("DaemonPod")
+                        .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(vmId)
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
+                                        .setUsed(USED).build())
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VCPU)
+                                        .setUsed(USED).build())
+                                .build())
+                        .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .setDaemon(true)));
+        final TopologyEntity.Builder daemonPodContainer =
+                TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+                        .setOid(52L)
+                        .setDisplayName("daemonPodContainer")
+                        .setEntityType(EntityType.CONTAINER_VALUE)
+                        .setAnalysisSettings(
+                                AnalysisSettings.newBuilder()
+                                        .setSuspendable(false)
+                                        .setControllable(false)
+                        )
+                        .addCommoditiesBoughtFromProviders(
+                                CommoditiesBoughtFromProvider.newBuilder()
+                                        .setProviderId(daemonPod.getOid())
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(VMEM)
+                                                .setUsed(USED)
+                                                .build())
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(VCPU)
+                                                .setUsed(USED)
+                                                .build())
+                                        .build())
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(VCPU)
+                                .setUsed(USED)
+                                .setCapacity(VCPU_CAPACITY))
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(VMEM)
+                                .setUsed(USED)
+                                .setCapacity(VMEM_CAPACITY)));
+
+        final TopologyEntity.Builder daemonPodApp = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                .setOid(53L)
+                .setDisplayName("daemonPodApp")
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(daemonPodContainer.getOid())
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                .setUsed(50))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                .setUsed(50))
+                ));
+        final TopologyEntity.Builder app = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(54L)
+                        .setDisplayName("app")
+                        .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(container.getOid())
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setUsed(50))
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setUsed(50))
+                        ));
+        final TopologyEntity.Builder service = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(55L)
+                        .setDisplayName("Service")
+                        .setEntityType(EntityType.SERVICE_VALUE)
+                        .setEntityState(TopologyDTO.EntityState.POWERED_ON)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(daemonPodApp.getOid())
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)))
+                                .setProviderId(app.getOid())
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)))
+                        ));
+
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(service, daemonPodApp, app, container, daemonPodContainer, pod, daemonPod, vm)
+                .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
+        List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
+                .setTopologyRemoval(TopologyRemoval.newBuilder()
+                        .setEntityId(vmId)
+                        .setTargetEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .build())
+                .build());
+
+        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+
+        assertTrue(vm.getEntityBuilder().hasEdit()
+                && vm.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(daemonPod.getEntityBuilder().hasEdit()
+                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(daemonPodContainer.getEntityBuilder().hasEdit()
+                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(daemonPodApp.getEntityBuilder().hasEdit()
+                && daemonPod.getEntityBuilder().getEdit().hasRemoved());
+        assertFalse(pod.getEntityBuilder().hasEdit());
+        assertFalse(container.getEntityBuilder().hasEdit());
+        assertFalse(app.getEntityBuilder().hasEdit());
+        assertFalse(service.getEntityBuilder().hasEdit());
     }
 
     @Test
