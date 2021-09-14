@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
@@ -41,7 +40,6 @@ import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.common.api.utils.EnvironmentUtils;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.config.PropertiesLoader;
-import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.search.SearchDBConfig;
 
 /**
@@ -216,11 +214,5 @@ public class ApiComponent extends BaseVmtComponent {
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
         }
-    }
-
-    @PostConstruct
-    private void setup() {
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        () -> dbConfig.dataSource().getConnection()));
     }
 }
