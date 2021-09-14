@@ -1,9 +1,5 @@
 package com.vmturbo.search;
 
-import java.sql.SQLException;
-
-import javax.sql.DataSource;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,7 +9,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.SearchDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
 /**
@@ -57,17 +52,5 @@ public class SearchDBConfig {
     @Bean
     public ApiQueryEngine apiQueryEngine() {
         return new ApiQueryEngine(queryEndpoint(), enableSearchApi, apiPaginationDefaultLimit, apiPaginationMaxLimit);
-    }
-
-    /**
-     * Create a new data source for the search endpoint.
-     *
-     * @return data source
-     * @throws UnsupportedDialectException when endpoint is misconfigured
-     * @throws SQLException when creation fails
-     * @throws InterruptedException when creation is interrupted
-     */
-    public DataSource dataSource() throws UnsupportedDialectException, SQLException, InterruptedException {
-        return queryEndpoint().datasource();
     }
 }
