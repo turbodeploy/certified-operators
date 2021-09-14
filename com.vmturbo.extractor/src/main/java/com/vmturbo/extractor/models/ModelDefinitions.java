@@ -174,7 +174,7 @@ public class ModelDefinitions {
     public static final Column<Integer> NUM_ACTIONS = Column.intColumn("num_actions");
 
     /**
-     * wasted_file table.
+     * file table.
      */
     public static final Table FILE_TABLE = Table.named("file").withColumns(VOLUME_OID, FILE_PATH,
             FILE_TYPE, FILE_SIZE, MODIFICATION_TIME, STORAGE_OID, IS_ATTACHED, FILE_HASH).build();
