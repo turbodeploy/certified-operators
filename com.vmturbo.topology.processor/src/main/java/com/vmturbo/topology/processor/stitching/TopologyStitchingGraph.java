@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -85,6 +86,17 @@ public class TopologyStitchingGraph {
      * A map permitting lookup from the original entity builder to its corresponding stitching entity.
      */
     private final Map<EntityDTO.Builder, TopologyStitchingEntity> stitchingEntities;
+
+    /**
+     * Session ID for LogMessageGrouper so that we can group certain log messages together to
+     * avoid log pollution.
+     */
+    public static final String LOGMESSAGEGROUPER_SESSION_ID = "TopologyStitchingGraph";
+
+    /**
+     * logType for log message when provider of a bought commodity is missing from the topology.
+     */
+    private static final String PROVIDER_MISSING = "ProviderMissing";
 
     /**
      * Create a new stitchingGraph.
@@ -147,6 +159,10 @@ public class TopologyStitchingGraph {
      * Clients should never attempt to add a {@link TopologyStitchingEntity} for an entity already in the
      * stitchingGraph. This may not be checked.
      *
+     * Note that this method uses {@link LogMessageGrouper} to consolidate log messages,
+     * so callers must make sure to dump the accumulated log messages and clear the messages
+     * when they are done.
+     *
      * @param entityData The entity to add a {@link TopologyStitchingEntity} for.
      * @param entityMap The map of localId -> {@link StitchingEntityData} for the target that discovered
      *                  this entity.
@@ -157,6 +173,12 @@ public class TopologyStitchingGraph {
         final EntityDTO.Builder entityDtoBuilder = entityData.getEntityDtoBuilder();
 
         final Map<StitchingErrorCode, MutableInt> errorsByCategory = new HashMap<>();
+
+        final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
+        msgGrouper.register(LOGMESSAGEGROUPER_SESSION_ID, PROVIDER_MISSING,
+                "The following entities are buying commodities from non-existent "
+                        + "providers. Turn on debug logging for more details. ");
+
 
         if (!entityDtoBuilder.getCommoditiesBoughtList().isEmpty()) {
             final List<Integer> invalidCommBought = new ArrayList<>();
@@ -169,10 +191,14 @@ public class TopologyStitchingGraph {
                 final String providerId = commodityBought.getProviderId();
                 final StitchingEntityData providerData = entityMap.get(providerId);
                 if (providerData == null) {
-                    // This is a pretty serious error if it happens, so it's worth the error level.
-                    logger.error("Entity {} (local id: {}) buying commodities {} from non-existent "
+                    // This error happens often when unstitched proxies are deleted after stitching.
+                    // Log it at debug level and create one consolidated message to log at error
+                    // level summarizing the issue, just in case it is a real problem.
+                    logger.debug("Entity {} (local id: {}) buying commodities {} from non-existent "
                                     + "provider {}", entityData.getOid(), entityData.getLocalId(),
                             commodityBought.getBoughtList(), providerId);
+                    msgGrouper.log(LOGMESSAGEGROUPER_SESSION_ID, PROVIDER_MISSING,
+                            String.valueOf(entityData.getOid()));
                     errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
                         k -> new MutableInt(0)).increment();
                     invalidCommBought.add(i);

@@ -60,8 +60,8 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
+import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.AutomationLevel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -71,7 +71,6 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -417,6 +416,11 @@ public class EntityStore {
                         stitchingEntityData + " to stitching context due to error.", e);
                 }
             });
+
+        final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
+        final List<String> logMessages = msgGrouper.getMessages(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
+        logMessages.forEach(logger::warn);
+        msgGrouper.clear(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
 
         // pass whether entity details are supported to the stitching context.
         builder.setEntityDetailsEnabled(entityDetailsEnabled);

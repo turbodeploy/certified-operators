@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -91,6 +93,12 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
  * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs.
  */
 public class SdkToTopologyEntityConverter {
+
+    /**
+     * Session ID for LogMessageGrouper so that we can group certain log messages together to
+     * avoid log pollution.
+     */
+    public static final String LOGMESSAGEGROUPER_SESSION_ID = "SdkToTopologyEntityConverter";
 
     /**
      * Map from an {@link EntityType} to a {@link TypeSpecificInfoMapper} instance  that will
@@ -197,7 +205,13 @@ public class SdkToTopologyEntityConverter {
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
             @Nonnull final TopologyStitchingEntity entity,
             @Nonnull final ResoldCommodityCache resoldCommodityCache) {
-        return newTopologyEntityDTO(entity, resoldCommodityCache, false);
+        final TopologyDTO.TopologyEntityDTO.Builder retVal =
+                newTopologyEntityDTO(entity, resoldCommodityCache, false);
+        final LogMessageGrouper msgGrouper = LogMessageGrouper.getInstance();
+        final List<String> logMessages = msgGrouper.getMessages(LOGMESSAGEGROUPER_SESSION_ID);
+        logMessages.forEach(logger::warn);
+        msgGrouper.clear(LOGMESSAGEGROUPER_SESSION_ID);
+        return retVal;
     }
 
     /**
@@ -212,6 +226,7 @@ public class SdkToTopologyEntityConverter {
             @Nonnull final TopologyStitchingEntity entity,
             @Nonnull final ResoldCommodityCache resoldCommodityCache,
             final boolean entityDetailsEnabled) {
+        final Set<String> commodityTypesMissingProviders = new HashSet<>();
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -258,7 +273,8 @@ public class SdkToTopologyEntityConverter {
                             .setProviderEntityType(e.getEntityType().getNumber());
             for (CommoditiesBought commodityBought : comms) {
                 commodityBought.getBoughtList().forEach(b -> {
-                    cbBuilder.addCommodityBought(newCommodityBoughtDTO(b, e.getCommoditiesSold()));
+                    cbBuilder.addCommodityBought(newCommodityBoughtDTO(b, e.getCommoditiesSold(),
+                            commodityTypesMissingProviders));
                 });
                 // Transfer the action eligibility settings from the
                 // TopologyStitchingEntity's CommoditiesBought (if they were set)
@@ -267,6 +283,20 @@ public class SdkToTopologyEntityConverter {
                         commodityBought, cbBuilder);
             }
             result.addCommoditiesBoughtFromProviders(cbBuilder.build());
+        });
+
+        // Log error messages through the LogMessageGrouper so that they can be consolidated by
+        // commodity type for the whole topology, reducing log pollution.
+        final String logMessageFormat = "The following entities could not have percentiles "
+                + "populated for commodity %s because a corresponding sold commodity was not found."
+                + " Enable DEBUG logging for more information. ";
+        LogMessageGrouper logMessageGrouper = LogMessageGrouper.getInstance();
+
+        commodityTypesMissingProviders.forEach(commString -> {
+            logMessageGrouper.register(LOGMESSAGEGROUPER_SESSION_ID, commString,
+                    String.format(logMessageFormat, commString));
+            logMessageGrouper.log(LOGMESSAGEGROUPER_SESSION_ID, commString,
+                    String.valueOf(entity.getOid()));
         });
 
         // Allocate this set outside the inner loop so we can reuse it for each connection type.
@@ -548,7 +578,8 @@ public class SdkToTopologyEntityConverter {
 
     private static TopologyDTO.CommodityBoughtDTO.Builder newCommodityBoughtDTO(
             @Nonnull CommonDTO.CommodityDTOOrBuilder commDTO,
-            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities,
+            @Nonnull Set<String> commodityTypesMissingProviders) {
         final TopologyDTO.CommodityBoughtDTO.Builder retCommBoughtBuilder =
             TopologyDTO.CommodityBoughtDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
@@ -559,7 +590,8 @@ public class SdkToTopologyEntityConverter {
             .flatMap(prop -> prop.getValuesList().stream())
             .forEach(retCommBoughtBuilder::addAggregates);
 
-        setUsedAndPeakForBoughtCommodity(retCommBoughtBuilder, commDTO, providerSoldCommodities);
+        setUsedAndPeakForBoughtCommodity(retCommBoughtBuilder, commDTO, providerSoldCommodities,
+                commodityTypesMissingProviders);
 
         // Only set reservedCapacity for specific commodityType
         if (reservedCommodityType.contains(commDTO.getCommodityType())) {
@@ -719,19 +751,35 @@ public class SdkToTopologyEntityConverter {
         }
     }
 
+    private static String getCommodityTypeString(@Nonnull CommonDTO.CommodityDTOOrBuilder commDTO) {
+        if (StringUtils.isNotBlank(commDTO.getKey())) {
+            return commDTO.getCommodityType().toString() + "::" + commDTO.getKey();
+        } else {
+            return commDTO.getCommodityType().toString();
+        }
+    }
+
     /**
      * Set the used and peak value for the bought commodity.
      * If the peak or used are percentage based then calculate the respective value(s)
      * based on capacity of the corresponding sold commodity.
+     * Note that this method uses {@link LogMessageGrouper} to consolidate log messages,
+     * so callers must make sure to dump the accumulated log messages and clear the messages
+     * when they are done.
      *
      * @param builder builder for topology bought commodity
      * @param commDTO the commodity to get used/peak values for
      * @param providerSoldCommodities stream of sold commodities on provider side
+     * @param commodityTypesMissingProviders a set of Strings describing the commodity types for
+     * which we were supposed to deliver percentage based values but we cannot because the sold
+     * commodity is missing. This is provided so calling method can log an appropriate message with
+     * context.
      */
     private static void setUsedAndPeakForBoughtCommodity(
             @Nonnull TopologyDTO.CommodityBoughtDTO.Builder builder,
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
-            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities,
+            @Nonnull Set<String> commodityTypesMissingProviders) {
         if (!commDTO.hasUsed() && !commDTO.hasPeak()) {
             return;
         }
@@ -753,7 +801,11 @@ public class SdkToTopologyEntityConverter {
             .findAny();
 
         if (!commSold.isPresent()) {
-            logger.error("No matching sold commodity of type {} and key {} on provider, "
+            commodityTypesMissingProviders.add(getCommodityTypeString(commDTO));
+            // This message is creating a lot of noise when unstitched proxies are deleted after
+            // stitching. We log it at DEBUG level, and wrap multiple messages of the same
+            // commodity type into a single message that the caller will log at WARN level.
+            logger.debug("No matching sold commodity of type {} and key {} on provider, "
                 + "using percentage for used ({}) and peak ({}) values",
                 commDTO.getCommodityType(), commDTO.getKey(),
                 commDTO.getUsed(), commDTO.getPeak());

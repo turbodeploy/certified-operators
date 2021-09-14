@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.logmessagegrouper.LogMessageGrouper;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -492,11 +493,33 @@ public class TopologyStitchingGraphTest {
 
         assertEquals(2, graph.entityCount());
         final List<EntityDTO.Builder> entitiesWithId1 = graph.entities()
-            .filter(entity -> entity.getLocalId().equals("1"))
-            .map(TopologyStitchingEntity::getEntityBuilder)
-            .collect(Collectors.toList());
+                .filter(entity -> entity.getLocalId().equals("1"))
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList());
 
         assertThat(entitiesWithId1, containsInAnyOrder(e1.getEntityDtoBuilder(), e2.getEntityDtoBuilder()));
+    }
+
+    /**
+     * Test that addStitchingData method logs missing provider errors through LogMessageGrouper
+     */
+    @Test
+    public void testEntityMissingProvider() {
+        final StitchingEntityData e1 = stitchingData("1", Collections.singletonList("2"))
+                .forTarget(1L);
+
+        final TopologyStitchingGraph graph = new TopologyStitchingGraph(1);
+        graph.addStitchingData(e1, topologyMapOf(e1));
+
+        final LogMessageGrouper logMsgGrouper = LogMessageGrouper.getInstance();
+        final List<String> logMessages = logMsgGrouper
+                .getMessages(TopologyStitchingGraph.LOGMESSAGEGROUPER_SESSION_ID);
+        final String missingProviderMessage =
+                "The following entities are buying commodities from non-existent providers.";
+
+        assertEquals(1, logMessages.size());
+        assertTrue(logMessages.get(0).contains(missingProviderMessage));
+        assertTrue(logMessages.get(0).contains(String.valueOf(e1.getOid())));
     }
 
     @Test
