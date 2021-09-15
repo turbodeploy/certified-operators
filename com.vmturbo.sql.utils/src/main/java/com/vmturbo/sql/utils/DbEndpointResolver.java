@@ -115,7 +115,7 @@ public class DbEndpointResolver {
     /** default value for host name. */
     public static final String DEFAULT_HOST_VALUE = "localhost";
     /** default value for whether to use a connection pool for database connections. */
-    public static final boolean DEFAULT_USE_CONNECTION_POOL = false;
+    public static final boolean DEFAULT_USE_CONNECTION_POOL = true;
     /** default value for connection pool initial and minimum size. */
     public static final int DEFAULT_MIN_POOL_SIZE = 1;
     /** default value for connection pool maximum size. */
