@@ -19,6 +19,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
@@ -31,6 +32,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.status.TargetStatusTracker;
+import com.vmturbo.topology.processor.workflow.WorkflowExecutionResult;
 
 /**
  * Operation manager supplies with information about operations on targets.
@@ -253,6 +255,23 @@ public interface IOperationManager {
             @Nonnull List<ActionOperationRequest> requestList,
             long targetId,
             @Nullable Long secondaryTargetId)
+            throws ProbeException, TargetNotFoundException, CommunicationException,
+            InterruptedException;
+
+    /**
+     * Request execution of a workflow without affecting action state.
+     *
+     * @param actionExecutionDTO The input action execution DTO containing the workflow details.
+     * @param targetId The unique target ID.
+     *
+     * return WorkflowExecutionResult The workflow execution result.
+     *
+     * @throws ProbeException If an error occurs when connecting to the probe.
+     * @throws TargetNotFoundException If the target is not found.
+     * @throws CommunicationException If a communication error occurs.
+     * @throws InterruptedException If the current thread is interrupted.
+     */
+    WorkflowExecutionResult requestWorkflow(ActionExecutionDTO actionExecutionDTO, final long targetId)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;
 
