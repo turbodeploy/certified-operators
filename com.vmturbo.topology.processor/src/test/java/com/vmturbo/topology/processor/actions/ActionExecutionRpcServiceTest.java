@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.actions;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -43,13 +42,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionListRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowRequest;
-import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowResponse;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -80,7 +76,6 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
-import com.vmturbo.topology.processor.workflow.WorkflowExecutionResult;
 
 @RunWith(Parameterized.class)
 public class ActionExecutionRpcServiceTest {
@@ -111,7 +106,7 @@ public class ActionExecutionRpcServiceTest {
                     targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock, secureStorageClient);
 
     private final ActionExecutionRpcService actionExecutionBackend = new ActionExecutionRpcService(
-            operationManager, Mockito.mock(SecureStorageClient.class), actionExecutionContextFactory);
+            operationManager, actionExecutionContextFactory);
 
     @Captor
     private ArgumentCaptor<ActionOperationRequest> actionRequestCaptor;
@@ -941,42 +936,6 @@ public class ActionExecutionRpcServiceTest {
         actionExecutionStub.executeActionList(request);
     }
 
-    @Test
-    public void testWebhookTryoutSuceeded() throws Exception {
-        final long targetId = targetIdCounter.getAndIncrement();
-        ExecuteWorkflowRequest request = createWorkflowRequest(targetId);
-
-        Mockito.when(operationManager.requestWorkflow(Mockito.any(),
-                Mockito.eq(targetId))).thenReturn(new WorkflowExecutionResult(
-                        Boolean.TRUE, "Workflow execution has suceeded"));
-
-        ExecuteWorkflowResponse response = actionExecutionStub.executeWorkflow(request);
-
-        Mockito.verify(operationManager).requestWorkflow(Mockito.any(),
-                Mockito.eq(targetId));
-
-        assertTrue(response.getSucceeded());
-        assertTrue(!response.getExecutionDetails().isEmpty());
-    }
-
-    @Test
-    public void testWebhookTryoutFailed() throws Exception {
-        final long targetId = targetIdCounter.getAndIncrement();
-        ExecuteWorkflowRequest request = createWorkflowRequest(targetId);
-
-        Mockito.when(operationManager.requestWorkflow(Mockito.any(),
-                Mockito.eq(targetId))).thenReturn(new WorkflowExecutionResult(
-                        Boolean.FALSE, "Workflow execution has failed"));
-
-        ExecuteWorkflowResponse response = actionExecutionStub.executeWorkflow(request);
-
-        Mockito.verify(operationManager).requestWorkflow(Mockito.any(),
-                Mockito.eq(targetId));
-
-        assertFalse(response.getSucceeded());
-        assertTrue(!response.getExecutionDetails().isEmpty());
-    }
-
     private Map<Long, Entity> initializeTopology(final long targetId, NewEntityRequest... entities)
             throws Exception {
         return Arrays.stream(entities).map(entityRequest -> {
@@ -1070,23 +1029,6 @@ public class ActionExecutionRpcServiceTest {
         } else {
             actionExecutionStub.executeAction(request);
         }
-    }
-
-    private ExecuteWorkflowRequest createWorkflowRequest(final long targetId) {
-        final WorkflowDTO.Workflow workflow = WorkflowDTO.Workflow.newBuilder()
-                    .setId(0)
-                    .setWorkflowInfo(
-                        WorkflowInfo.newBuilder()
-                            .setName("Workflow Name")
-                            .setDisplayName("Workflow Display Name")
-                            .setTargetId(targetId)
-                            .build())
-                   .build();
-
-        return ExecuteWorkflowRequest.newBuilder()
-                   .setWorkflow(workflow)
-                   .setTargetId(targetId)
-                   .build();
     }
 
     private static class NewEntityRequest {

@@ -395,8 +395,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             TheMatrix.instance(),
             binaryDiscoveryDumper(),
             false,
-            licenseCheckClient(),
-            100);
+            licenseCheckClient()
+            );
     }
 
     @Bean
@@ -603,7 +603,6 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public ActionExecutionRpcService actionExecutionRpcService() {
         return new ActionExecutionRpcService(
                 operationManager(),
-                secureStorageClient(),
                 actionExecutionContextFactory());
     }
 

@@ -88,7 +88,6 @@ public class OperationManagerWithQueue extends OperationManager {
      * @param binaryDiscoveryDumper handles recording discovery responses in binary.
      * @param enableDiscoveryResponsesCaching whether or not to cache discovery responses.
      * @param licenseCheckClient license check client.
-     * @param workflowExecutionTimeoutMillis workflow execution timeout.
      */
     public OperationManagerWithQueue(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
@@ -114,8 +113,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
                             final boolean enableDiscoveryResponsesCaching,
-                            final LicenseCheckClient licenseCheckClient,
-                            final int workflowExecutionTimeoutMillis) {
+                            final LicenseCheckClient licenseCheckClient) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
                 discoveredCloudCostUploader, discoveredPlanDestinationUploader,
@@ -123,7 +121,7 @@ public class OperationManagerWithQueue extends OperationManager {
                 derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryTimeoutSeconds, validationTimeoutSeconds,
                 actionTimeoutSeconds, planExportTimeoutSeconds, 0, 0, 0, 0, matrix,
-                binaryDiscoveryDumper, enableDiscoveryResponsesCaching, licenseCheckClient, workflowExecutionTimeoutMillis);
+                binaryDiscoveryDumper, enableDiscoveryResponsesCaching, licenseCheckClient);
 
         this.discoveryQueue = discoveryQueue;
     }
