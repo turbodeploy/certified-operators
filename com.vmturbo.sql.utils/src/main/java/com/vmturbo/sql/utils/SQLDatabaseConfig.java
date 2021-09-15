@@ -1,5 +1,9 @@
 package com.vmturbo.sql.utils;
 
+import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_MAX_POOL_SIZE;
+import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_MIN_POOL_SIZE;
+import static com.vmturbo.sql.utils.DbEndpointResolver.DEFAULT_USE_CONNECTION_POOL;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -97,7 +101,7 @@ public abstract class SQLDatabaseConfig {
     /**
      * If true, use a connection pool for database connections.
      */
-    @Value("${conPoolActive:false}")
+    @Value("${conPoolActive:" + DEFAULT_USE_CONNECTION_POOL + "}")
     private boolean isConnectionPoolActive;
 
     /**
@@ -109,13 +113,13 @@ public abstract class SQLDatabaseConfig {
     /**
      * DB connection pool initial and minimum size. Defaults to 1.
      */
-    @Value("${conPoolInitialSize:1}")
+    @Value("${conPoolInitialSize:" + DEFAULT_MIN_POOL_SIZE + "}")
     private int dbMinPoolSize;
 
     /**
      * DB connection pool maximum size. Defaults to 10.
      */
-    @Value("${conPoolMaxActive:10}")
+    @Value("${conPoolMaxActive:" + DEFAULT_MAX_POOL_SIZE + "}")
     private int dbMaxPoolSize;
 
     /**
