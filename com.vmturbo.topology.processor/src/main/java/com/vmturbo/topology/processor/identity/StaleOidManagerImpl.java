@@ -64,7 +64,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
     /**
      * Header for the diags.
      */
-    public static final String DIAGS_HEADER = "Execution time, Task name, Successful Update, Successful Expiration, Updated Records, Expired Records";
+    public static final String DIAGS_HEADER = "Execution time, Task name, Successful Update, Successful Expiration, Updated Records, Expired Records, Errors";
 
     /**
      * Maximum number of operations that we want to copy in the diags.
@@ -297,8 +297,8 @@ public class StaleOidManagerImpl implements StaleOidManager {
                     logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",
                             TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - currentTimeMs),
                             numberOfExpiredOids);
+                    stopwatch.stop();
                 }
-                stopwatch.stop();
             // We need to catch all the exceptions to make sure the scheduled tasks will keep going even
             // if one task fails
             } catch (Exception e) {
@@ -469,6 +469,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
             this.successfulUpdate = recurrentOperationsRecord.getLastSeenUpdateSuccessful();
             this.updatedRecords = recurrentOperationsRecord.getUpdatedRecords();
             this.expiredRecords = recurrentOperationsRecord.getExpiredRecords();
+            this.errors = recurrentOperationsRecord.getErrors();
         }
 
         public void setUpdatedRecords(int updatedRecords) {
@@ -510,8 +511,8 @@ public class StaleOidManagerImpl implements StaleOidManager {
         }
 
         public synchronized String toCsvLine() {
-            return String.format("%s, %s, %s, %s, %d, %d", this.timeStamp, EXPIRATION_TASK_NAME, this.isSuccessfulUpdate(),
-                    this.isSuccessfulExpiration(), this.updatedRecords, this.expiredRecords);
+            return String.format("%s, %s, %s, %s, %d, %d, %s", this.timeStamp, EXPIRATION_TASK_NAME, this.isSuccessfulUpdate(),
+                    this.isSuccessfulExpiration(), this.updatedRecords, this.expiredRecords, this.errors);
         }
 
     }
