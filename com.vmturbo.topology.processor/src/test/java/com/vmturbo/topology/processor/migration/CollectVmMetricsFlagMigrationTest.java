@@ -36,7 +36,7 @@ public class CollectVmMetricsFlagMigrationTest {
     private static final String PROPERTY_DESCRIPTION =
                     "Overwrite Hypervisor or Cloud Provider Virtual Machine metrics "
                     + "with data from the target";
-    private static final Boolean PROPERTY_DEFAULT = Boolean.FALSE;
+    private static final Boolean PROPERTY_DEFAULT = Boolean.TRUE;
     private static final String REGEX = "(true|false)";
     private static final String PROBE_TYPE = "probeType";
 

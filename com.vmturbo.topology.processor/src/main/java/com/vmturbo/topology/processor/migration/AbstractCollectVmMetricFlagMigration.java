@@ -38,7 +38,13 @@ public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
     private static final String PROPERTY_DESCRIPTION =
                     "Overwrite Hypervisor or Cloud Provider Virtual Machine metrics with "
                     + "data from the target";
-    private static final Boolean PROPERTY_DEFAULT = Boolean.FALSE;
+
+    /**
+     * The default value for `collectVmMetrics` property.
+     * For existing targets, we don`t want to changes behavior,
+     * so they continue to collect VM metrics.
+     */
+    private static final Boolean PROPERTY_DEFAULT = Boolean.TRUE;
 
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
