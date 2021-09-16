@@ -303,7 +303,7 @@ public class TopologyConverter {
     //<CONSUMER_TYPE, SELLER_TYPE, COMMODITY_TYPE_THAT_MAY_HAVE_RESERVATION>
     private static final Map<Integer, Map<Integer, Set<Integer>>> ENTITIES_AND_COMMODITIES_NEEDS_TO_CAP_RESERVATION = ImmutableMap
             .of(EntityType.VIRTUAL_MACHINE_VALUE,
-                    ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableSet.of(CommodityDTO.CommodityType.CPU_VALUE)));
+                    ImmutableMap.of(EntityType.PHYSICAL_MACHINE_VALUE, ImmutableSet.of(CommodityDTO.CommodityType.CPU_VALUE, CommodityDTO.CommodityType.MEM_VALUE)));
 
 
     //Store the entities whose commodity usage need to be modified because of reservation during convertingToMarket
