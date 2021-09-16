@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -32,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -1184,7 +1184,7 @@ public class ExplanationComposer {
         String commodityDisplayName = commodityDisplayName(reasonCommodity.getCommodityType(),
             keepItShort);
         if (reasonCommodity.hasSuffix()) {
-            commodityDisplayName += " " + reasonCommodity.getSuffix().name().toLowerCase();
+            commodityDisplayName += " " + StringUtils.capitalize(reasonCommodity.getSuffix().name().toLowerCase());
         }
         if (keepItShort || !reasonCommodity.hasTimeSlot()) {
             return commodityDisplayName;

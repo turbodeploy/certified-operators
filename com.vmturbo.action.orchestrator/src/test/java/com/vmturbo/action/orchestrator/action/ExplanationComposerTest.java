@@ -217,9 +217,9 @@ public class ExplanationComposerTest {
         final ReasonCommodity reasonWithReservationSuffix = createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, Suffix.RESERVATION);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, reasonWithReservationSuffix));
         action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, CPU reservation Congestion",
+        assertEquals("(^_^)~Mem, CPU Reservation Congestion",
                 ExplanationComposer.composeExplanation(action));
-        assertEquals(ImmutableSet.of("Mem Congestion", "CPU reservation Congestion"),
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Reservation Congestion"),
                 ExplanationComposer.composeRelatedRisks(action));
     }
 
