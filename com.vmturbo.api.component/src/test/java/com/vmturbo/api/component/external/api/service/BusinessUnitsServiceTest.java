@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -747,4 +748,33 @@ public class BusinessUnitsServiceTest {
         Assert.fail("The test should have thrown StatusRuntimeException");
     }
 
+    /**
+     * Test get all Business Units without filters.
+     *
+     * @throws Exception if getBusinessUnits throws an exception.
+     */
+    @Test
+    public void testGetAllBusinessUnits() throws Exception {
+        final String businessUnitUuid1 = "111";
+        final String businessUnitUuid2 = "222";
+        final BusinessUnitApiDTO buApiDTO1 = new BusinessUnitApiDTO();
+        buApiDTO1.setUuid(businessUnitUuid1);
+        final BusinessUnitApiDTO buApiDTO2 = new BusinessUnitApiDTO();
+        buApiDTO2.setUuid(businessUnitUuid2);
+        when(accountRetriever.getBusinessAccountsInScope(any(), any()))
+                .thenReturn(ImmutableList.of(buApiDTO1, buApiDTO2));
+
+        List<BusinessUnitApiDTO> businessUnitApiDTOList =
+                businessUnitsService.getBusinessUnits(null, null, null, null);
+
+        ArgumentCaptor<List> scopeCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List> criteriaCaptor = ArgumentCaptor.forClass(List.class);
+        verify(accountRetriever).getBusinessAccountsInScope(scopeCaptor.capture(), criteriaCaptor.capture());
+
+        assertEquals(2, businessUnitApiDTOList.size());
+        assertThat(businessUnitApiDTOList.stream().map(BusinessUnitApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder(businessUnitUuid1, businessUnitUuid2));
+        assertTrue(scopeCaptor.getValue().isEmpty());
+        assertNull(criteriaCaptor.getValue());
+    }
 }
