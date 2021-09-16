@@ -135,7 +135,6 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                                      @Nullable String cloudType,
                                                      @Nullable Boolean hasParent,
                                                      @Nullable String scopeUuid) throws Exception {
-        // TODO OM-35804 implement required behavior for other types other than discount
         if (BusinessUnitType.DISCOUNT.equals(type)) {
             final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
                 .build());
@@ -183,8 +182,11 @@ public class BusinessUnitsService implements IBusinessUnitsService {
             return cloudTypeScopedBusinessUnits.stream()
                 .filter(businessUnit -> childrenBusinessUnits.contains(businessUnit.getUuid()))
                 .collect(Collectors.toList());
-            }
-        return ImmutableList.of(new BusinessUnitApiDTO());
+        }
+        // return all accounts without filters
+        final List<BusinessUnitApiDTO> cloudTypeScopedBusinessUnits =
+                businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList(), null);
+        return cloudTypeScopedBusinessUnits;
     }
 
     /**
