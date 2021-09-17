@@ -363,6 +363,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
         connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(entity);
     }
 
+    @Override
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final Set<StitchingEntity> entities) {
         connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).addAll(entities);

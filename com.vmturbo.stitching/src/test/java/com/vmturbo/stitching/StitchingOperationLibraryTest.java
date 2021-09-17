@@ -12,7 +12,6 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
-import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
@@ -37,9 +36,7 @@ public class StitchingOperationLibraryTest {
 
     @Test
     public void testFabricProbeCategory() throws StitchingUnknownProbeException {
-        assertEquals(
-                Arrays.asList(FabricChassisStitchingOperation.class,
-                        FabricPMStitchingOperation.class),
+        assertEquals(Collections.singletonList(FabricPMStitchingOperation.class),
                 library.stitchingOperationsFor(SDKProbeType.UCS.getProbeType(),
                         ProbeCategory.FABRIC).stream()
                         .map(Object::getClass)
