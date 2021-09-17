@@ -309,7 +309,7 @@
             <!-- Permit easy instrumentation of gRPC with Prometheus -->
             <groupId>me.dinowernli</groupId>
             <artifactId>java-grpc-prometheus</artifactId>
-        </dependency>
+        </dependency><!-- END Prometheus dependencies, for component metrics -->
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>component-status-api</artifactId>
@@ -326,6 +326,13 @@
             <groupId>it.unimi.dsi</groupId>
             <artifactId>fastutil</artifactId>
         </dependency>
-        <!-- END Prometheus dependencies, for component metrics -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+        </dependency>
     </dependencies>
 </project>

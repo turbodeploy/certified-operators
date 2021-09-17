@@ -1910,6 +1910,10 @@
                         <trimStackTrace>false</trimStackTrace>
                         <!-- Required to deal properly with non-ASCII characters across platforms. -->
                         <argLine>${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
+                        <!-- make the build version available for use in tests, as a system property -->
+                        <systemPropertyVariables>
+                            <buildVersionNumber>${project.version}</buildVersionNumber>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>
