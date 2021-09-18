@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.operation.action;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -9,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -24,7 +25,7 @@ public class ActionList extends Operation {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final List<ActionExecutionState> actions;
+    private final Map<Long, ActionExecutionState> actionMap;
 
     /**
      * Collect data about actions durations.
@@ -48,26 +49,26 @@ public class ActionList extends Operation {
     /**
      * Constructs action list operation.
      *
-     * @param actions List of actions from action execution operation.
+     * @param actionMap Map of actions indexed by action OID.
      * @param probeId Probe ID.
      * @param targetId Target ID.
      * @param identityProvider Identity provider to create a unique ID.
      */
     public ActionList(
-            @Nonnull final List<ActionExecutionState> actions,
+            @Nonnull final Map<Long, ActionExecutionState> actionMap,
             final long probeId,
             final long targetId,
             @Nonnull final IdentityProvider identityProvider) {
         super(probeId, targetId, identityProvider, ACTION_DURATION_SUMMARY);
-        this.actions = actions;
+        this.actionMap = actionMap;
     }
 
     public List<ActionExecutionState> getActions() {
-        return actions;
+        return new ArrayList<>(actionMap.values());
     }
 
     public String getActionIdsString() {
-        return actions.stream()
+        return actionMap.values().stream()
                 .map(ActionExecutionState::getActionId)
                 .map(String::valueOf)
                 .collect(Collectors.joining(", "));
@@ -82,35 +83,18 @@ public class ActionList extends Operation {
     /**
      * Updates action progress from the specified action progress message.
      *
-     * @param actionProgress Action progress message to extract progress information from.
-     */
-    public void updateProgress(final ActionProgress actionProgress) {
-        final long actionId = actionProgress.getActionOid();
-        for (int actionIndex = 0; actionIndex < actions.size(); actionIndex++) {
-            final ActionExecutionState action = actions.get(actionIndex);
-            if (action.getActionId() == actionId) {
-                updateProgress(actionProgress.getResponse(), actionIndex);
-                return;
-            }
-        }
-
-        logger.error("Action {} not found in the ActionList: {}", actionId, toString());
-    }
-
-    /**
-     * Updates action progress from the specified action progress message.
-     *
      * @param actionResponse Action response message to extract progress information from.
-     * @param actionIndex The index of the action in the action list.
      */
-    public void updateProgress(final ActionResponse actionResponse, final int actionIndex) {
-        if (actionIndex < 0 || actionIndex >= actions.size()) {
-            logger.error("Wrong action index {} for the ActionList: {}", actionIndex, toString());
+    public void updateProgress(final ActionResponse actionResponse) {
+        final long actionOid = actionResponse.getActionOid();
+        final ActionExecutionState action = actionMap.get(actionOid);
+
+        if (action == null) {
+            logger.error("Cannot find action with OID {} in {}", actionOid, toString());
             return;
         }
 
-        final ActionExecutionState action = actions.get(actionIndex);
-        action.setActionState(action.getActionState());
+        action.setActionState(actionResponse.getActionResponseState());
         action.setProgress(actionResponse.getProgress());
         action.setDescription(actionResponse.getResponseDescription());
     }
@@ -127,7 +111,7 @@ public class ActionList extends Operation {
     @Override
     protected void completeOperation() {
         getDurationTimer().observe();
-        actions.forEach(action -> {
+        actionMap.values().forEach(action -> {
             final Status status = action.getStatus();
             if (status != null) {
                 final String actionType = action.getActionType().toString();
