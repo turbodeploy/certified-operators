@@ -458,17 +458,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     secondaryTarget.getMediationAccountVals(groupScopeResolver));
         }
 
-        final List<ActionExecutionState> actions = new ArrayList<>(requestList.size());
+        final Map<Long, ActionExecutionState> actionMap = new HashMap<>();
         for (final ActionOperationRequest request : requestList) {
             final ActionExecutionDTO actionDto = request.getActionExecutionDTO();
-            actions.add(new ActionExecutionState(actionDto.getActionOid(), actionDto.getActionType()));
+            final long actionOid = actionDto.getActionOid();
+            final ActionType actionType = actionDto.getActionType();
+            actionMap.put(actionOid, new ActionExecutionState(actionOid, actionType));
 
             // Update the ENTITY_ACTION table in preparation for executing the action
-            insertControllableAndSuspendableState(actionDto.getActionOid(),
-                    actionDto.getActionType(), request.getControlAffectedEntities());
+            insertControllableAndSuspendableState(actionOid, actionType,
+                    request.getControlAffectedEntities());
         }
 
-        final ActionList actionList = new ActionList(actions, target.getProbeId(),
+        final ActionList actionList = new ActionList(actionMap, target.getProbeId(),
                 targetId, identityProvider);
 
         final ActionListOperationCallback callback = new ActionListOperationCallback() {
@@ -1192,7 +1194,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull final ActionList actionList,
             @Nonnull ActionProgress progress) {
         resultExecutor.execute(() -> {
-            actionList.updateProgress(progress);
+            actionList.updateProgress(progress.getResponse());
             operationListeners.forEach(operationListener ->
                     operationListener.notifyOperationState(actionList));
             for (final ActionExecutionState action : actionList.getActions()) {
@@ -1624,9 +1626,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final List<ActionResponse> responseList = response.getResponseList();
         boolean success = false;
         final List<ErrorDTO> errors = new ArrayList<>();
-        for (int actionIndex = 0; actionIndex < responseList.size(); actionIndex++) {
-            final ActionResponse actionResponse = responseList.get(actionIndex);
-            actionList.updateProgress(actionResponse, actionIndex);
+        for (final ActionResponse actionResponse : responseList) {
+            actionList.updateProgress(actionResponse);
             if (actionResponse.getActionResponseState() == ActionResponseState.SUCCEEDED) {
                 // If at least one action succeeded consider this operation as successful
                 success = true;

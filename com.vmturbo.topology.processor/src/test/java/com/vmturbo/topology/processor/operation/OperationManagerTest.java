@@ -121,6 +121,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.action.ActionExecutionState;
 import com.vmturbo.topology.processor.operation.action.ActionList;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -210,6 +211,7 @@ public class OperationManagerTest {
     private long targetId;
     private Target target;
 
+    private static final long ACTION_OID = 111L;
     private static final long ACTIVATE_VM_ID = 100L;
     private static final long DEACTIVATE_VM_ID = 200L;
     private static final long MOVE_SOURCE_ID = 20L;
@@ -1184,6 +1186,7 @@ public class OperationManagerTest {
                 Collections.singletonList(request), targetId, null);
         final ActionListResponse response = ActionListResponse.newBuilder()
                 .addResponse(ActionResponse.newBuilder()
+                        .setActionOid(ACTION_OID)
                         .setActionResponseState(ActionResponseState.SUCCEEDED)
                         .setProgress(100)
                         .setResponseDescription("Huzzah!"))
@@ -1197,6 +1200,10 @@ public class OperationManagerTest {
                 .fetchSet(ENTITY_ACTION.ENTITY_ID);
         Assert.assertEquals(2, moveEntityIds.size());
         assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
+        for (final ActionExecutionState action : actionList.getActions()) {
+            Assert.assertEquals(ActionResponseState.SUCCEEDED, action.getActionState());
+            Assert.assertEquals(100, action.getProgress());
+        }
 
         request = new ActionOperationRequest(ActionExecutionDTO.newBuilder(actionDto())
                 .setActionType(ActionType.START)
@@ -1419,7 +1426,7 @@ public class OperationManagerTest {
     @Nonnull
     private ActionExecutionDTO actionDto() {
         return ActionExecutionDTO.newBuilder()
-                .setActionOid(111L)
+                .setActionOid(ACTION_OID)
                 .addAllActionItem(actionItemDtos())
                 .setActionType(ActionType.MOVE)
                 .setActionState(ActionResponseState.IN_PROGRESS)
