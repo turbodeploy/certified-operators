@@ -1407,6 +1407,7 @@
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
+                <module>../com.vmturbo.extractor.api</module>
                 <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.topology.processor.api</module>
