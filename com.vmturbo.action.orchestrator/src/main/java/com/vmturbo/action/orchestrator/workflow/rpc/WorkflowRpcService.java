@@ -1,14 +1,9 @@
 package com.vmturbo.action.orchestrator.workflow.rpc;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.grpc.Channel;
 import io.grpc.Status;
@@ -16,13 +11,11 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.velocity.exception.MethodInvocationException;
-import org.apache.velocity.runtime.parser.ParseException;
 
-import com.vmturbo.action.orchestrator.velocity.Velocity;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
-import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator.ActionTemplateApplicationException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteWorkflowRequest;
@@ -62,17 +55,20 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
     private final WorkflowStore workflowStore;
     private final ThinTargetCache thinTargetCache;
     private final ActionExecutionServiceBlockingStub actionExecutionService;
+    private final ActionTemplateApplicator actionTemplateApplicator;
 
     private static final Logger logger = LogManager.getLogger();
 
     public WorkflowRpcService(
             @Nonnull WorkflowStore workflowStore,
             @Nonnull ThinTargetCache thinTargetCache,
-            @Nonnull Channel topologyProcessorChannel) {
+            @Nonnull Channel topologyProcessorChannel,
+            @Nonnull ActionTemplateApplicator actionTemplateApplicator) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.actionExecutionService = ActionExecutionServiceGrpc
                 .newBlockingStub(Objects.requireNonNull(topologyProcessorChannel));
+        this.actionTemplateApplicator = Objects.requireNonNull(actionTemplateApplicator);
 
     }
 
@@ -345,21 +341,7 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
     @Override
     public void executeWorkflow(final WorkflowDTO.ExecuteWorkflowRequest request,
                 final StreamObserver<WorkflowDTO.ExecuteWorkflowResponse> responseObserver) {
-        // deserialize ActionApiDTO
-        final ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        final ActionApiDTO actionApiDTO;
-        try {
-            actionApiDTO = objectMapper.readValue(request.getActionApiDTO(), ActionApiDTO.class);
-        } catch (JsonProcessingException ex) {
-            logger.error("Failed to de-serialize ActionApiDTO to execute the webhook: {} ",
-                    request.getActionApiDTO(), ex);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("Failed to de-serialize ActionApiDTO.")
-                    .asException());
-            return;
-        }
 
         final Optional<Workflow> workflowOpt;
         try {
@@ -400,27 +382,22 @@ public class WorkflowRpcService extends WorkflowServiceGrpc.WorkflowServiceImplB
         }
 
         // apply template
-        final String templatedAction;
+        final Workflow workflowWithTemplateProps;
         try {
-            templatedAction = Velocity.apply(workflowInfo.getWebhookInfo().getTemplate(), actionApiDTO);
-        } catch (ParseException | MethodInvocationException | IOException ex) {
-            logger.error("Applying webhook template failed for workflow {} because of an Exception.",
-                    workflowOpt.get().getId(), ex);
-            responseObserver.onNext(WorkflowDTO.ExecuteWorkflowResponse.newBuilder()
-                    .setSucceeded(false)
-                    .setExecutionDetails("Exception while applying template: " + ex.getMessage())
-                    .build()
-            );
-            responseObserver.onCompleted();
+            workflowWithTemplateProps = actionTemplateApplicator.addTemplateInformation(
+                    request.getActionApiDTO(), workflow);
+        } catch (ActionTemplateApplicationException ex) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(ex.getMessage())
+                    .asException());
             return;
         }
 
         // call topology processor
         final ExecuteWorkflowResponse executionResult = actionExecutionService.executeWorkflow(ExecuteWorkflowRequest
                 .newBuilder()
-                .setWorkflow(workflow)
+                .setWorkflow(workflowWithTemplateProps)
                 .setTargetId(targetIdOpt.get())
-                .setRequestBody(templatedAction)
                 .build());
 
         responseObserver.onNext(WorkflowDTO.ExecuteWorkflowResponse.newBuilder()

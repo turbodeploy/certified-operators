@@ -1,15 +1,19 @@
 package com.vmturbo.action.orchestrator.approval;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
+
+import io.grpc.Channel;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -23,6 +27,8 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -31,6 +37,8 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -88,8 +96,13 @@ public class ActionApprovalSenderTest {
         Mockito.when(actionTargetSelector.getTargetForAction(Mockito.any(ActionDTO.Action.class),
                 Mockito.any(EntitiesAndSettingsSnapshotFactory.class), Mockito.any(Optional.class)))
                 .thenReturn(actionTargetInfo);
+        final ActionExecutor actionExecutor = Mockito.spy(
+                new ActionExecutor(Mockito.mock(Channel.class),
+                        Mockito.mock(ActionExecutionStore.class), Clock.systemUTC(), 1,
+                        TimeUnit.HOURS, Mockito.mock(LicenseCheckClient.class),
+                        Mockito.mock(ActionTemplateApplicator.class)));
         this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector,
-            entitySettingsCache, actionTranslator);
+            entitySettingsCache, actionTranslator, actionExecutor);
     }
 
     /**

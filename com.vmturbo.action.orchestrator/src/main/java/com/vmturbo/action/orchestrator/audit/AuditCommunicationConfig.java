@@ -19,6 +19,7 @@ import com.vmturbo.action.orchestrator.action.AuditActionsStore;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -34,7 +35,8 @@ import com.vmturbo.components.api.server.IMessageSender;
         WorkflowConfig.class,
         TopologyProcessorConfig.class,
         ActionTranslationConfig.class,
-        ActionOrchestratorGlobalConfig.class
+        ActionOrchestratorGlobalConfig.class,
+        ActionExecutionConfig.class
 })
 public class AuditCommunicationConfig {
     @Autowired
@@ -49,6 +51,8 @@ public class AuditCommunicationConfig {
     private ActionOrchestratorDBConfig databaseConfig;
     @Autowired
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
+    @Autowired
+    private ActionExecutionConfig actionExecutionConfig;
 
     /**
      * Criteria for CLEARED audit event for action. If action is not recommended more then
@@ -88,7 +92,7 @@ public class AuditCommunicationConfig {
     public ActionAuditSender actionAuditSender() {
         return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(),
                 tpConfig.thinTargetCache(), actionTranslationConfig.actionTranslator(),
-                auditedActionsManager(), minsClearedActionsCriteria,
+                auditedActionsManager(), actionExecutionConfig.actionExecutor(), minsClearedActionsCriteria,
                 actionOrchestratorGlobalConfig.actionOrchestratorClock());
     }
 

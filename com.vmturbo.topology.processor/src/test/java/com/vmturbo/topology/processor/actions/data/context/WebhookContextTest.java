@@ -64,14 +64,7 @@ public class WebhookContextTest {
                         .build())
                 .build();
 
-        List<Property> properties = WebhookContext.getProperties(workflow, secureStorageClient, true);
-
-        Optional<String> urlProperty = getWebhookPropertyValue(WebhookConstants.URL, properties);
-        assertTrue(urlProperty.isPresent());
-
-        Optional<String> templateProperty = getWebhookPropertyValue(
-                WebhookConstants.TEMPLATED_ACTION_BODY, properties);
-        assertTrue(templateProperty.isPresent());
+        List<Property> properties = WebhookContext.getProperties(workflow, secureStorageClient);
 
         Optional<String> usernameProperty = getWebhookPropertyValue(WebhookConstants.USER_NAME,
                 properties);
@@ -93,8 +86,6 @@ public class WebhookContextTest {
                 String.format(WebhookConstants.HEADER_VALUE, 0), properties);
         assertTrue(headerValueProperty.isPresent());
 
-        assertEquals(urlProperty.get(), url);
-        assertEquals(templateProperty.get(), template);
         assertEquals(usernameProperty.get(), username);
         assertEquals(trustSelfSignedProperty.get(), String.valueOf(trustSelfSigned));
         assertEquals(authenticationMethodProperty.get(), authenticationMethod.toString());

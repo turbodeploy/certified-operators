@@ -1,11 +1,14 @@
 package com.vmturbo.action.orchestrator;
 
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +20,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Files;
 
 import org.junit.Assert;
 import org.mockito.Mockito;
@@ -62,8 +66,10 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -500,5 +506,35 @@ public class ActionOrchestratorTestUtils {
         when(entity.getOid()).thenReturn(entityId);
         when(entity.getEntityType()).thenReturn(entityType);
         return entity;
+    }
+
+    /**
+     * Reads sample ActionAPIDTO.
+     *
+     * @return ActionApiDTO represented as a string
+     */
+    public static String readSampleActionApiDto() {
+        final File file1 = ResourcePath.getTestResource(ActionOrchestratorTestUtils.class, "resizeActionApiDto.json")
+                .toFile();
+        try {
+            return Files.asCharSource(file1, Charset.defaultCharset()).read();
+        } catch (IOException ex) {
+            fail("Failed to load the sample ActionApiDto resource");
+            return "";
+        }
+    }
+
+    /**
+     * Get workflow property by name.
+     *
+     * @param workflowProperties the list of workflow properties
+     * @param propertyName the name of the property
+     * @return certain workflow if present otherwise Optional.empty().
+     **/
+    public static Optional<WorkflowProperty> getWorkflowProperty(
+            final List<WorkflowProperty> workflowProperties, final String propertyName) {
+        return workflowProperties.stream()
+                .filter(prop -> prop.getName().equals(propertyName))
+                .findFirst();
     }
 }

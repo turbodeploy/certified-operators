@@ -45,8 +45,6 @@ message ExecuteWorkflowRequest {
     // The ID of the target on which the action
     // should be executed.
     optional int64 target_id = 2;
-    // the message body sent to workflow. For webhook, this is the template after being applied to an action.
-    optional string requestBody = 3;
 }
 
 // The response for calling a workflow

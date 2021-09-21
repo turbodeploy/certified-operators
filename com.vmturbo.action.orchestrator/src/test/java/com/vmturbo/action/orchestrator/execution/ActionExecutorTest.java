@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecu
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionState;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -91,6 +92,7 @@ public class ActionExecutorTest {
         .build();
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+    private final ActionTemplateApplicator actionTemplateApplicator = mock(ActionTemplateApplicator.class);
 
     @Before
     public void setup() {
@@ -100,7 +102,8 @@ public class ActionExecutorTest {
         final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
         // The class under test
         actionExecutor = new ActionExecutor(server.getChannel(), actionExecutionStore,
-                executionStateFactory, 1, TimeUnit.HOURS, licenseCheckClient);
+                executionStateFactory, 1, TimeUnit.HOURS, licenseCheckClient,
+                actionTemplateApplicator);
     }
 
     /**

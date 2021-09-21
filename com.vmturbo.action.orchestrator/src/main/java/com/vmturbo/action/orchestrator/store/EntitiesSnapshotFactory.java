@@ -148,8 +148,9 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
             while (reqIt.hasNext()) {
                 final Entry<Long, CompletableFuture<PlanTopologySnapshot>> nextReq = reqIt.next();
                 try {
-                    final PlanTopologySnapshot snapshot = nextReq.getValue().getNow(null);
-                    if (snapshot != null) {
+                    final CompletableFuture<PlanTopologySnapshot> planSnapshotRequest = nextReq.getValue();
+                    if (planSnapshotRequest.isDone() && planSnapshotRequest.join() != null) {
+                        final PlanTopologySnapshot snapshot = planSnapshotRequest.join();
                         if (snapshot.creationTime.toEpochMilli() < earliestValidTime) {
                             logger.warn("Expiring plan snapshot for id {} created at {}", nextReq.getKey(), snapshot.creationTime);
                             reqIt.remove();
@@ -277,9 +278,7 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
                 new TopologyGraphCreator<>();
         try {
             while (topology.hasNext()) {
-                topology.nextChunk().forEach(projectedEntity -> {
-                    topologyGraphCreator.addEntity(new ActionGraphEntity.Builder(projectedEntity.getEntity()));
-                });
+                topology.nextChunk().forEach(projectedEntity -> topologyGraphCreator.addEntity(new ActionGraphEntity.Builder(projectedEntity.getEntity())));
             }
 
             requestedSnapshot.complete(new PlanTopologySnapshot(topologyGraphCreator.build(), clock, null));
@@ -340,7 +339,7 @@ public class EntitiesSnapshotFactory implements ProjectedTopologyListener {
         private final TopologyGraph<ActionGraphEntity> topologyGraph;
         private final PlanSnapshotConstructionException exception;
 
-        PlanTopologySnapshot(@Nonnull final TopologyGraph<ActionGraphEntity> topologyGraph,
+        PlanTopologySnapshot(@Nullable final TopologyGraph<ActionGraphEntity> topologyGraph,
                              @Nonnull final Clock clock,
                              @Nullable final PlanSnapshotConstructionException exception) {
             this.creationTime = clock.instant();

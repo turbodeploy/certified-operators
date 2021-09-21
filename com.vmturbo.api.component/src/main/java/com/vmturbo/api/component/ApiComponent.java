@@ -1,5 +1,6 @@
 package com.vmturbo.api.component;
 
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.zip.ZipOutputStream;
@@ -10,6 +11,8 @@ import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
 
 import com.google.common.collect.Lists;
+
+import io.grpc.BindableService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +37,7 @@ import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConf
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.component.rpc.RpcConfig;
 import com.vmturbo.api.component.security.SpringJdbcHttpSessionCondition;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
@@ -58,7 +62,8 @@ import com.vmturbo.search.SearchDBConfig;
     ServiceConfig.class,
     ApiDiagnosticsConfig.class,
     SpringJdbcHttpSessionDBConfig.class,
-    SearchDBConfig.class
+    SearchDBConfig.class,
+    RpcConfig.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -69,6 +74,9 @@ public class ApiComponent extends BaseVmtComponent {
 
     @Autowired
     private SearchDBConfig dbConfig;
+
+    @Autowired
+    private RpcConfig rpcConfig;
 
     /**
      * Health check interval for db connection.
@@ -214,5 +222,11 @@ public class ApiComponent extends BaseVmtComponent {
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
         }
+    }
+
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Arrays.asList(rpcConfig.apiMessageService());
     }
 }

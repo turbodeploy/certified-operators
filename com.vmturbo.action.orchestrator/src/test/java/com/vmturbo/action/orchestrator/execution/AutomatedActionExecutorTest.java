@@ -52,6 +52,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -75,8 +76,10 @@ public class AutomatedActionExecutorTest {
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
     private final ActionExecutionStore actionExecutionStore = Mockito.mock(ActionExecutionStore.class);
-    private final ActionExecutor actionExecutor = Mockito.spy(new ActionExecutor(channel,
-            actionExecutionStore, clock, 1, TimeUnit.HOURS, licenseCheckClient));
+    private final ActionTemplateApplicator actionTemplateApplicator = Mockito.mock(ActionTemplateApplicator.class);
+    private final ActionExecutor actionExecutor = Mockito.spy(
+            new ActionExecutor(channel, actionExecutionStore, clock, 1, TimeUnit.HOURS,
+                    licenseCheckClient, actionTemplateApplicator));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =

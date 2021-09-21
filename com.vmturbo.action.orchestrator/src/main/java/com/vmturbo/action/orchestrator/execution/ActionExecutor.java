@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
@@ -26,6 +27,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator.ActionTemplateApplicationException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -71,16 +74,29 @@ public class ActionExecutor implements ActionExecutionListener {
     private final SynchronousExecutionStateFactory synchronousExecutionStateFactory;
 
     private final LicenseCheckClient licenseCheckClient;
+    private final ActionTemplateApplicator actionTemplateApplicator;
 
-    ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
+    /**
+     * Creates an instance {@link ActionExecutor}.
+     *
+     * @param topologyProcessorChannel TP Grpc communication channel.
+     * @param actionExecutionStore the persistent store for action execution.
+     * @param clock the clock.
+     * @param executionTimeout Execution timeout for actions.
+     * @param executionTimeoutUnit Action execution timeout unit.
+     * @param licenseCheckClient the client for checking the license.
+     * @param actionTemplateApplicator the action template applicator for webhook workflows.
+     */
+    public ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
                    @Nonnull final ActionExecutionStore actionExecutionStore,
                    @Nonnull final Clock clock,
                    final int executionTimeout,
                    @Nonnull final TimeUnit executionTimeoutUnit,
-                   @Nonnull final LicenseCheckClient licenseCheckClient) {
+                   @Nonnull final LicenseCheckClient licenseCheckClient,
+                   @Nonnull final ActionTemplateApplicator actionTemplateApplicator) {
         this(topologyProcessorChannel, actionExecutionStore,
                 new DefaultSynchronousExecutionStateFactory(clock), executionTimeout,
-                executionTimeoutUnit, licenseCheckClient);
+                executionTimeoutUnit, licenseCheckClient, actionTemplateApplicator);
     }
 
     @VisibleForTesting
@@ -89,13 +105,15 @@ public class ActionExecutor implements ActionExecutionListener {
                    @Nonnull final SynchronousExecutionStateFactory executionStateFactory,
                    final int executionTimeout,
                    @Nonnull final TimeUnit executionTimeoutUnit,
-                   @Nonnull final LicenseCheckClient licenseCheckClient) {
+                   @Nonnull final LicenseCheckClient licenseCheckClient,
+                   @Nonnull final ActionTemplateApplicator actionTemplateApplicator) {
         this.actionExecutionService = ActionExecutionServiceGrpc.newBlockingStub(topologyProcessorChannel);
         this.actionExecutionStore = Objects.requireNonNull(actionExecutionStore);
         this.synchronousExecutionStateFactory = executionStateFactory;
         this.executionTimeout = executionTimeout;
         this.executionTimeoutUnit = executionTimeoutUnit;
         this.licenseCheckClient = licenseCheckClient;
+        this.actionTemplateApplicator = Objects.requireNonNull(actionTemplateApplicator);
     }
 
     /**
@@ -142,7 +160,7 @@ public class ActionExecutor implements ActionExecutionListener {
      * @return DTO to send request to topology processor
      */
     @Nonnull
-    public static ExecuteActionRequest createRequest(final long targetId,
+    public ExecuteActionRequest createRequest(final long targetId,
                          @Nonnull final ActionDTO.ActionSpec action,
                          @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
             throws ExecutionInitiationException {
@@ -162,7 +180,7 @@ public class ActionExecutor implements ActionExecutionListener {
      * @return DTO to send request to topology processor
      */
     @Nonnull
-    public static ExecuteActionRequest createRequest(final long targetId,
+    public ExecuteActionRequest createRequest(final long targetId,
             @Nonnull final ActionDTO.ActionSpec action,
             @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
             @Nullable String explanation,
@@ -184,7 +202,17 @@ public class ActionExecutor implements ActionExecutionListener {
             // will be the one from which the Workflow was discovered instead of the target
             // from which the original Target Entity was discovered
             executionRequestBuilder.setTargetId(workflowOpt.get().getWorkflowInfo().getTargetId());
-            executionRequestBuilder.setWorkflow(workflowOpt.get());
+
+            final WorkflowDTO.Workflow workflow;
+            try {
+                workflow = actionTemplateApplicator
+                        .addTemplateInformation(action, workflowOpt.get());
+            } catch (ActionTemplateApplicationException ex) {
+                throw new ExecutionInitiationException("Failed to apply template: " + ex.getMessage(),
+                        ex, Status.Code.INTERNAL);
+            }
+
+            executionRequestBuilder.setWorkflow(workflow);
         } else {
             // Typically, the target to execute the action is the target from which the
             // Target Entity was discovered

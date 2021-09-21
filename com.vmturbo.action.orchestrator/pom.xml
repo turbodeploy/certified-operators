@@ -223,7 +223,7 @@
                <artifactId>spotbugs-maven-plugin</artifactId>
                <version>${spotbugs.version}</version>
                <configuration>
-                   <maxAllowedViolations>2</maxAllowedViolations>
+                   <maxAllowedViolations>0</maxAllowedViolations>
                    <failOnError>true</failOnError>
                </configuration>
                <executions>

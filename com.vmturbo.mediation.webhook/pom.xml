@@ -187,35 +187,6 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Conversion to Public Api Message -->
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.api.conversion</artifactId>
-            <scope>compile</scope>
-        </dependency>
-
-        <!-- Velocity Libraries -->
-        <dependency>
-            <groupId>org.apache.velocity</groupId>
-            <artifactId>velocity-engine-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.velocity.tools</groupId>
-            <artifactId>velocity-tools-generic</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-text</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>commons-lang</groupId>
-            <artifactId>commons-lang</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-        </dependency>
-
         <!-- Unit testing related libraries: junit and mockito -->
         <dependency>
             <groupId>junit</groupId>
@@ -234,11 +205,6 @@
             <version>${project.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.github.tomakehurst</groupId>
-            <artifactId>wiremock-jre8</artifactId>
-            <scope>test</scope>
-        </dependency>
         <!-- needed by wiremock, otherwise it throws a NoSuchMethodError. -->
         <dependency>
             <groupId>org.apache.commons</groupId>
