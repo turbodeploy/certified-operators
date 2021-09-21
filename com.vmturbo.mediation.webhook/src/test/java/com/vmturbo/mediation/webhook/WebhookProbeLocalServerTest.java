@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -29,8 +30,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpHeaders;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,8 +41,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.api.dto.workflow.HttpMethod;
-import com.vmturbo.api.dto.workflow.RequestHeader;
+import com.vmturbo.mediation.connector.common.HttpMethodType;
 import com.vmturbo.mediation.webhook.WebhookProbeTest.WebhookProperties.WebhookPropertiesBuilder;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
@@ -188,7 +188,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -196,7 +196,7 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 Collections.emptyList());
     }
 
@@ -211,7 +211,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -220,7 +220,7 @@ public class WebhookProbeLocalServerTest {
                 Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 Collections.emptyList());
     }
 
@@ -232,13 +232,13 @@ public class WebhookProbeLocalServerTest {
     @Test
     public void testSuccessfulRequestWithMultipleHeadersWithTheSameName() throws InterruptedException {
         // ARRANGE
-        final List<RequestHeader> requestHeaders = Arrays.asList(
-                new RequestHeader("header_name", "header_value_1"),
-                new RequestHeader("header_name", "header_value_2"));
+        final List<Pair<String, String>> requestHeaders = Arrays.asList(
+                Pair.of("header_name", "header_value_1"),
+                Pair.of("header_name", "header_value_2"));
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .setHeaders(requestHeaders)
                         .build()))
                 .build();
@@ -248,7 +248,7 @@ public class WebhookProbeLocalServerTest {
                 Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 requestHeaders);
     }
 
@@ -260,13 +260,13 @@ public class WebhookProbeLocalServerTest {
     @Test
     public void testSuccessfulRequestWithMultipleDifferentHeaders() throws InterruptedException {
         // ARRANGE
-        final List<RequestHeader> requestHeaders = Arrays.asList(
-                new RequestHeader("header_name_1", "header_value_1"),
-                new RequestHeader("header_name_2", "header_value_2"));
+        final List<Pair<String, String>> requestHeaders = Arrays.asList(
+                Pair.of("header_name_1", "header_value_1"),
+                Pair.of("header_name_2", "header_value_2"));
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .setHeaders(requestHeaders)
                         .build()))
                 .build();
@@ -276,7 +276,7 @@ public class WebhookProbeLocalServerTest {
                 Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 requestHeaders);
     }
 
@@ -291,7 +291,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -314,13 +314,13 @@ public class WebhookProbeLocalServerTest {
     @Test
     public void testHttpServerReceivedHeaders() throws InterruptedException {
         // ARRANGE
-        final List<RequestHeader> requestHeaders = Arrays.asList(
-                new RequestHeader("header_name_1", "header_value_1"),
-                new RequestHeader("header_name_2", "header_value_2"));
+        final List<Pair<String, String>> requestHeaders = Arrays.asList(
+                Pair.of("header_name_1", "header_value_1"),
+                Pair.of("header_name_2", "header_value_2"));
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .setHeaders(requestHeaders)
                         .build()))
                 .build();
@@ -351,7 +351,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/not/found")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -373,7 +373,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -383,7 +383,7 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 Collections.emptyList());
     }
 
@@ -397,8 +397,8 @@ public class WebhookProbeLocalServerTest {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
-                        .setUrl("http://localhost:28121/get/$action.uuid")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setUrl("http://localhost:28121/get/144151046183109")
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .build()))
                 .build();
 
@@ -409,7 +409,7 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.FAILED, HttpMethod.GET.name(), "/get/" + ACTION_UUID, null,
+        verifyResults(result, ActionResponseState.FAILED, HttpMethodType.GET.name(), "/get/" + ACTION_UUID, null,
                 Collections.emptyList());
         assertTrue(result.getDescription().contains("404"));
         assertTrue(result.getDescription().contains("XYXYXY"));
@@ -428,7 +428,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.POST.name())
+                        .setHttpMethod(HttpMethodType.POST.name())
                         .setTemplatedActionBody(payload)
                         .build()))
                 .build();
@@ -438,7 +438,7 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.POST.name(), address, payload,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.POST.name(), address, payload,
                 Collections.emptyList());
     }
 
@@ -451,12 +451,12 @@ public class WebhookProbeLocalServerTest {
     public void testSuccessfulPostRequestWithATemplatedBody() throws InterruptedException {
         // ARRANGE
         final String address = "/";
-        final String payload = "{\"id\": \"$action.uuid\", \"type\": \"$action.actionType\", \"commodity\":"
-                + " \"$action.risk.reasonCommodities.toArray()[0]\", \"to\": \"$action.newValue\"}";
+        final String payload = "{\"id\": \"144151046183109\", \"type\": \"RESIZE\", \"commodity\":"
+                + " \"$VCPU\", \"to\": \"3.0\"}";
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.POST.name())
+                        .setHttpMethod(HttpMethodType.POST.name())
                         .setTemplatedActionBody(payload)
                         .build()))
                 .build();
@@ -465,9 +465,8 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.POST.name(), address,
-                "{\"id\": \"144151046183109\", \"type\": \"RESIZE\", \"commodity\": \"VCPU\", \"to\": \"3.0\"}",
-                Collections.emptyList());
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.POST.name(), address,
+                payload, Collections.emptyList());
     }
 
     /**
@@ -478,12 +477,12 @@ public class WebhookProbeLocalServerTest {
     @Test
     public void testSuccessfulPutRequestWithATemplatedBody() throws InterruptedException {
         // ARRANGE
-        final String address = "/actions/$action.uuid";
-        final String payload = "{\"description\": \"$action.details\"}";
+        final String address = "/actions/" + ACTION_UUID;
+        final String payload = "{\"description\": \"Resize up VCPU for Virtual Machine turbonomic-t8c from 2 to 3\"}";
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.PUT.name())
+                        .setHttpMethod(HttpMethodType.PUT.name())
                         .setTemplatedActionBody(payload)
                         .build()))
                 .build();
@@ -492,9 +491,8 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.PUT.name(), "/actions/" + ACTION_UUID,
-                "{\"description\": \"Resize up VCPU for Virtual Machine turbonomic-t8c from 2 to 3\"}",
-                Collections.emptyList());
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.PUT.name(), address,
+                payload, Collections.emptyList());
     }
 
     /**
@@ -508,7 +506,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121/get/method")
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .setAuthenticationMethod(AuthenticationMethod.BASIC.name())
                         .setUsername("testUser")
                         .setPassword("testPass")
@@ -519,7 +517,7 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), "/get/method", null,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), "/get/method", null,
                 Collections.emptyList());
 
         // make sure request has basic auth header
@@ -541,7 +539,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.PUT.name())
+                        .setHttpMethod(HttpMethodType.PUT.name())
                         .setTemplatedActionBody(payload)
                         .setAuthenticationMethod(AuthenticationMethod.NONE.name())
                         .build()))
@@ -575,7 +573,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.PUT.name())
+                        .setHttpMethod(HttpMethodType.PUT.name())
                         .setTemplatedActionBody(payload)
                         .setAuthenticationMethod(AuthenticationMethod.NONE.name())
                         .build()))
@@ -608,7 +606,7 @@ public class WebhookProbeLocalServerTest {
         // ARRANGE
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
-                        .setHttpMethod(HttpMethod.PUT.name())
+                        .setHttpMethod(HttpMethodType.PUT.name())
                         .setAuthenticationMethod(AuthenticationMethod.NONE.name())
                         .build()))
                 .build();
@@ -641,7 +639,7 @@ public class WebhookProbeLocalServerTest {
         final ActionExecutionDTO actionExecutionDTO = ON_PREM_RESIZE_ACTION.toBuilder().setWorkflow(
                 createWorkflow(new WebhookPropertiesBuilder()
                         .setUrl("http://localhost:28121" + address)
-                        .setHttpMethod(HttpMethod.GET.name())
+                        .setHttpMethod(HttpMethodType.GET.name())
                         .setTemplatedActionBody(payload)
                         .setHasTemplateApplied(true)
                         .build()))
@@ -651,12 +649,12 @@ public class WebhookProbeLocalServerTest {
         ActionResult result = probe.executeAction(actionExecutionDTO, account, Collections.emptyMap(), progressTracker);
 
         // ASSERT
-        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethod.GET.name(), address,
+        verifyResults(result, ActionResponseState.SUCCEEDED, HttpMethodType.GET.name(), address,
                 payload, Collections.emptyList());
     }
 
     private void verifyResults(ActionResult result, ActionResponseState expectedState, String expectedMethod,
-            String expectedAddress, String expectedPayload, final List<RequestHeader> headers) {
+            String expectedAddress, String expectedPayload, final List<Pair<String, String>> headers) {
         assertThat(result.getState(), is(expectedState));
         Optional<Request> request = handler.getLastRequest();
         assertTrue(request.isPresent());
@@ -669,16 +667,16 @@ public class WebhookProbeLocalServerTest {
             final Map<String, List<String>> receivedHeaders = request.get().headers;
             sentHeaders.forEach((key, value) -> {
                 final List<String> headerValues = receivedHeaders.get(key);
-                Assert.assertTrue(CollectionUtils.isEqualCollection(headerValues, value));
+                Assert.assertTrue(Objects.equals(headerValues, value));
             });
         }
     }
 
     private Map<String, List<String>> convertListOfHeadersIntoMap(
-            final List<RequestHeader> headers) {
+            final List<Pair<String, String>> headers) {
         final Map<String, List<String>> sentHeaders = new HashMap<>();
-        for (RequestHeader requestHeader : headers) {
-            sentHeaders.computeIfAbsent(requestHeader.getName(), k -> new ArrayList<>()).add(
+        for (Pair<String, String> requestHeader : headers) {
+            sentHeaders.computeIfAbsent(requestHeader.getKey(), k -> new ArrayList<>()).add(
                     requestHeader.getValue());
         }
         return sentHeaders;

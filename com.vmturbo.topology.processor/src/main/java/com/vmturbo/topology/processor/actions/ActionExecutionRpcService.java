@@ -211,15 +211,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
             final StreamObserver<ExecuteWorkflowResponse> responseObserver) {
         try {
             final Workflow workflow =
-                    AbstractActionExecutionContext.buildWorkflow(request.getWorkflow(), secureStorageClient, false)
-                        .toBuilder()
-                            .addProperty(Workflow.Property.newBuilder()
-                                .setName(HAS_TEMPLATE_APPLIED)
-                                .setValue(Boolean.toString(true)))
-                            .addProperty(Workflow.Property.newBuilder()
-                                .setName(TEMPLATED_ACTION_BODY)
-                                .setValue(request.getRequestBody()))
-                        .build();
+                    AbstractActionExecutionContext.buildWorkflow(request.getWorkflow(), secureStorageClient);
 
             ActionExecutionDTO actionExecutionDTO = ActionExecutionDTO.newBuilder()
                             .setActionType(ActionItemDTO.ActionType.NONE)

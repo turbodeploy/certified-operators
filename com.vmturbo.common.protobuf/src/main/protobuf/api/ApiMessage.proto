@@ -1,0 +1,20 @@
+syntax = "proto2";
+package api;
+
+option java_package = "com.vmturbo.common.protobuf.api";
+
+import "action/ActionDTO.proto";
+
+message ActionConversionRequest {
+  optional action.ActionSpec action_spec = 1;
+}
+
+message ActionConversionResponse {
+  optional string action_api_dto = 1;
+}
+
+// A service responsible for converting to API message.
+service ApiMessageService {
+  // converts a stream of actions to api messages
+  rpc ConvertActionToApiMessage(ActionConversionRequest) returns (ActionConversionResponse);
+}

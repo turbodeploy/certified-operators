@@ -4,9 +4,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.WEBHOOK_PASSWORD
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.AUTHENTICATION_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.HTTP_METHOD;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.PASSWORD;
-import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TEMPLATED_ACTION_BODY;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME;
-import static com.vmturbo.platform.sdk.common.util.WebhookConstants.URL;
 import static com.vmturbo.platform.sdk.common.util.WebhookConstants.USER_NAME;
 
 import java.util.ArrayList;
@@ -36,14 +34,13 @@ public class WebhookContext {
      *
      * @param workflow The {@link WorkflowDTO.WorkflowInfo} to extract the webhook properties from.
      * @param secureStorageClient The {@link SecureStorageClient} to access webhook sensitive data.
-     * @param includeTemplate Flag set to true if we want to include the template, false otherwise.
      *
      * @return list of {@link Workflow.Property} containing webhook properties.
      * @throws ContextCreationException if failed to extract webhook fields.
      */
     @Nonnull
     public static List<Property> getProperties(@Nonnull final WorkflowDTO.Workflow workflow,
-            @Nonnull SecureStorageClient secureStorageClient, boolean includeTemplate) throws ContextCreationException {
+            @Nonnull SecureStorageClient secureStorageClient) throws ContextCreationException {
         if (!workflow.hasWorkflowInfo() || !workflow.getWorkflowInfo().hasWebhookInfo()) {
             return Collections.emptyList();
         }
@@ -61,22 +58,10 @@ public class WebhookContext {
                 .setValue(webhookInfo.getHttpMethod().name())
                 .build());
 
-        webhookProperties.add(Workflow.Property.newBuilder()
-                .setName(URL)
-                .setValue(webhookInfo.getUrl())
-                .build());
-
         if (webhookInfo.hasTrustSelfSignedCertificates()) {
             String trustedValue = Boolean.toString(webhookInfo.getTrustSelfSignedCertificates());
             webhookProperties.add(Workflow.Property.newBuilder().setName(
                     TRUST_SELF_SIGNED_CERTIFICATES_PARAM_NAME).setValue(trustedValue).build());
-        }
-
-        if (includeTemplate && webhookInfo.hasTemplate()) {
-            webhookProperties.add(Workflow.Property.newBuilder()
-                    .setName(TEMPLATED_ACTION_BODY)
-                    .setValue(webhookInfo.getTemplate())
-                    .build());
         }
 
         if (webhookInfo.hasAuthenticationMethod()) {

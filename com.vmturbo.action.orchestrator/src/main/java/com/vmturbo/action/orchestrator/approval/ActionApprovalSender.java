@@ -42,6 +42,7 @@ public class ActionApprovalSender {
     private final ActionTargetSelector actionTargetSelector;
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
     private final ActionTranslator actionTranslator;
+    private final ActionExecutor actionExecutor;
 
     /**
      * Constructs action approval sender.
@@ -51,17 +52,20 @@ public class ActionApprovalSender {
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param entitySettingsCache cache of entity settings
      * @param actionTranslator the action translator
+     * @param actionExecutor the action executor
      */
     public ActionApprovalSender(@Nonnull WorkflowStore workflowStore,
             @Nonnull IMessageSender<ActionApprovalRequests> messageSender,
             @Nonnull ActionTargetSelector actionTargetSelector,
             @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-            @Nonnull ActionTranslator actionTranslator) {
+            @Nonnull ActionTranslator actionTranslator,
+            @Nonnull ActionExecutor actionExecutor) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.messageSender = Objects.requireNonNull(messageSender);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.actionExecutor = Objects.requireNonNull(actionExecutor);
     }
 
     /**
@@ -96,7 +100,7 @@ public class ActionApprovalSender {
                                 action.getWorkflowExecutionTarget(workflowStore));
                         if (targetForAction.isPresent()) {
                             final ExecuteActionRequest request =
-                                    ActionExecutor.createRequest(targetForAction.get(),
+                                    actionExecutor.createRequest(targetForAction.get(),
                                     actionTranslator.translateToSpec(action), workflowOpt,
                                             action.getDescription(), action.getRecommendationOid());
                             builder.addActions(request);

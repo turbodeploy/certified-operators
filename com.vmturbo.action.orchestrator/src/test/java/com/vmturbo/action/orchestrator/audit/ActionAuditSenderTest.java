@@ -6,6 +6,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,6 +20,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Channel;
+
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,10 +40,14 @@ import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionStore;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
+import com.vmturbo.action.orchestrator.workflow.webhook.ActionTemplateApplicator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -48,12 +56,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.api.ApiMessageMoles.ApiMessageServiceMole;
+import com.vmturbo.common.protobuf.api.ApiMessageServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -117,6 +128,8 @@ public class ActionAuditSenderTest {
     private AuditedActionsManager auditedActionsManager;
     @Mock
     private EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot;
+    @Mock
+    private ApiMessageServiceMole apiMessageServiceMole;
 
     private final ActionTranslator actionTranslator =
             ActionOrchestratorTestUtils.passthroughTranslator();
@@ -133,6 +146,9 @@ public class ActionAuditSenderTest {
 
     @Captor
     private ArgumentCaptor<AuditedActionsUpdate> persistedActionsCaptor;
+
+    private GrpcTestServer grpcTestServer;
+    private ActionTemplateApplicator actionTemplateApplicator;
 
     private static final ImmutableThinTargetInfo KAFKA_TARGET = ImmutableThinTargetInfo.builder()
             .oid(KAFKA_TARGET_ID)
@@ -207,10 +223,15 @@ public class ActionAuditSenderTest {
      * Initialises the tests.
      *
      * @throws WorkflowStoreException should not be thrown.
+     * @throws IOException if something goes wrong starting the mock server.
      */
     @Before
-    public void init() throws WorkflowStoreException {
+    public void init() throws WorkflowStoreException, IOException {
         MockitoAnnotations.initMocks(this);
+        grpcTestServer = GrpcTestServer.newServer(apiMessageServiceMole);
+        grpcTestServer.start();
+        actionTemplateApplicator = new ActionTemplateApplicator(ApiMessageServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+
 
         when(clock.millis()).thenReturn(CURRENT_TIME);
 
@@ -223,14 +244,28 @@ public class ActionAuditSenderTest {
 
         when(entitiesAndSettingsSnapshot.getSettingsForEntity(anyLong())).thenReturn(Collections.emptyMap());
 
+        final ActionExecutor actionExecutor = Mockito.spy(
+                new ActionExecutor(Mockito.mock(Channel.class),
+                        Mockito.mock(ActionExecutionStore.class), clock, 1, TimeUnit.HOURS,
+                        Mockito.mock(LicenseCheckClient.class), actionTemplateApplicator));
+
         actionAuditSender = new ActionAuditSender(
             workflowStore,
             messageSender,
             thinTargetCache,
             actionTranslator,
             auditedActionsManager,
+            actionExecutor,
             MINUTES_UNTIL_MARKED_CLEARED,
             clock);
+    }
+
+    /**
+     * Cleanups after test.
+     */
+    @After
+    public void after() {
+        grpcTestServer.close();
     }
 
     /**

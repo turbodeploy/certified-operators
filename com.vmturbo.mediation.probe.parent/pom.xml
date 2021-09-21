@@ -34,9 +34,6 @@
         <commons-lang3.version>3.8.1</commons-lang3.version>
         <surefire.version>3.0.0-M4</surefire.version>
         <spring.version>5.3.7</spring.version>
-        <commons-text.version>1.9</commons-text.version>
-        <velocity.version>2.3</velocity.version>
-        <velocity-tools.version>3.1</velocity-tools.version>
         <bouncycastle.version>1.69</bouncycastle.version>
         <!-- the latest wiremock (2.27.2) has vulnerable jetty-io.  See open issue
         https://github.com/tomakehurst/wiremock/issues/1412 for details. It will be removed with OM-65681-->

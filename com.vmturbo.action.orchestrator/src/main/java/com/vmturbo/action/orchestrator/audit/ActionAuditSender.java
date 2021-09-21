@@ -56,6 +56,7 @@ public class ActionAuditSender {
     private final ActionTranslator actionTranslator;
 
     private final AuditedActionsManager auditedActionsManager;
+    private final ActionExecutor actionExecutor;
 
     private final long minsClearedActionsCriteria;
 
@@ -69,6 +70,7 @@ public class ActionAuditSender {
      * @param thinTargetCache target cache
      * @param actionTranslator action translator
      * @param auditedActionsManager object responsible for maintaining the book keeping.
+     * @param actionExecutor the action executor.
      * @param minsClearedActionsCriteria the amount of time that needs to pass before concluding an
      *                                   action is cleared.
      * @param clock the object used to get the current time.
@@ -79,6 +81,7 @@ public class ActionAuditSender {
             @Nonnull ThinTargetCache thinTargetCache,
             @Nonnull ActionTranslator actionTranslator,
             @Nonnull AuditedActionsManager auditedActionsManager,
+            @Nonnull ActionExecutor actionExecutor,
             final long minsClearedActionsCriteria,
             @Nonnull Clock clock) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
@@ -86,6 +89,7 @@ public class ActionAuditSender {
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
+        this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.minsClearedActionsCriteria = minsClearedActionsCriteria;
         this.clock = Objects.requireNonNull(clock);
     }
@@ -462,7 +466,7 @@ public class ActionAuditSender {
             @Nonnull ActionResponseState oldState, @Nonnull ActionResponseState newState)
             throws ExecutionInitiationException {
         final ExecuteActionRequest request =
-                ActionExecutor.createRequest(workflow.getWorkflowInfo().getTargetId(),
+                actionExecutor.createRequest(workflow.getWorkflowInfo().getTargetId(),
                     actionTranslator.translateToSpec(action), Optional.of(workflow),
                     action.getDescription(), action.getRecommendationOid());
         return ActionEvent.newBuilder()
