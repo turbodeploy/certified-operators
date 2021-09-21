@@ -29,7 +29,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 /**
  * Abstract migration class to update target info and probe info.
  * It adds a new boolean flag `collectVmMetrics` that is responsible for
- * enabling/disabling of collection metrics for virtual machines.
+ * enabling/disabling the collection of virtual machines metrics.
  */
 public class AbstractCollectVmMetricFlagMigration extends AbstractMigration {
 
