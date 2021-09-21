@@ -1,4 +1,4 @@
-KAFKA_VERSION=2.8.0
+KAFKA_VERSION=2.8.1
 SCALA_VERSION=2.13
 KAFKA_DATA_DIR="/home/kafka/data"
 KAFKA_SERVER_CONFIG="/opt/kafka/config/server.properties"
