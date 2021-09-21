@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.Assert;
@@ -259,6 +260,7 @@ public class ActionExecutionContextTest {
                     .setHotRemoveSupported(false)
                     .setNewCapacity(newCapacity)
                     .setOldCapacity(oldCapacity)
+                     .setScalingGroupId("test-scaling-group")
                     .setCommodityAttribute(CommodityAttribute.CAPACITY))
                 .build();
         final int targetId = 13;
@@ -311,7 +313,8 @@ public class ActionExecutionContextTest {
                 actionExecutionContextFactory.getActionExecutionContext(request);
 
         // Resize actions should have exactly one actionItem
-        Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
+        List<ActionItemDTO> actionItems = actionExecutionContext.getActionItems();
+        Assert.assertEquals(1, actionItems.size());
 
         // The primary entity being acted upon should be among those listed as affected entities
         Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
@@ -324,7 +327,7 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
 
         // verify resize commodity value and attributes like: hotAddSupported
-        ActionItemDTO actionItemDTO = actionExecutionContext.getActionItems().get(0);
+        ActionItemDTO actionItemDTO = actionItems.get(0);
         Assert.assertEquals(ActionItemDTO.CommodityAttribute.Capacity, actionItemDTO.getCommodityAttribute());
         Assert.assertEquals(CommodityDTO.CommodityType.VMEM, actionItemDTO.getCurrentComm().getCommodityType());
         Assert.assertEquals(oldCapacity, actionItemDTO.getCurrentComm().getCapacity(), 0);
@@ -335,6 +338,7 @@ public class ActionExecutionContextTest {
         Assert.assertFalse(actionItemDTO.getCurrentComm().getVmemData().getHotRemoveSupported());
         Assert.assertTrue(actionItemDTO.getNewComm().getVmemData().hasHotRemoveSupported());
         Assert.assertFalse(actionItemDTO.getNewComm().getVmemData().getHotRemoveSupported());
+        Assert.assertTrue(actionItemDTO.hasConsistentScalingCompliance());
 
         // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);

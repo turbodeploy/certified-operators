@@ -449,6 +449,24 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         primaryAction.setDescription(getActionDescription());
         // set execution characteristics
         getExecutionCharacteristics().ifPresent(primaryAction::setCharacteristics);
+        // Whether the action is part of a scaling group
+        if (getConsistentScalingCompliance()) {
+            primaryAction.setConsistentScalingCompliance(true);
+        }
+    }
+
+    private boolean getConsistentScalingCompliance() {
+        ActionInfo info = actionSpec.getRecommendation().getInfo();
+        if (info.hasScale()) {
+            return info.getScale().hasScalingGroupId();
+        }
+        if (info.hasMove()) {
+            return info.getMove().hasScalingGroupId();
+        }
+        if (info.hasResize()) {
+            return info.getResize().hasScalingGroupId();
+        }
+        return false;
     }
 
     protected EntityDTO getFullEntityDTO(long entityId) throws ContextCreationException {
