@@ -8,7 +8,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 /**
  * This migration updates AppDynamics target info and probe info.
  * It adds a new boolean flag `collectVmMetrics` that is responsible for
- * enabling/disabling of collection metrics for virtual machines.
+ * enabling/disabling the collection of virtual machines metrics.
  */
 public class V_01_01_11__AppDynamics_Add_Vm_Metrics_Flag extends
                 AbstractCollectVmMetricFlagMigration {

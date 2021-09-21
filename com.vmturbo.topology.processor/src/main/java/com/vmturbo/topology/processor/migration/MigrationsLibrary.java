@@ -114,7 +114,9 @@ public class MigrationsLibrary {
             .put("V_01_01_13__Remove_GCP_Beta_Migration",
                 new V_01_01_13__Remove_GCP_Beta_Migration(keyValueStore, probeStore, targetStore))
             .put("V_01_01_14__GCP_Remove_Cost_Probe_Targets",
-                new V_01_01_14__GCP_Remove_Cost_Probe_Targets(keyValueStore));
+                new V_01_01_14__GCP_Remove_Cost_Probe_Targets(keyValueStore))
+            .put("V_01_01_15__NewRelic_Add_Vm_Metrics_Flag",
+                    new V_01_01_15__NewRelic_Add_Vm_Metrics_Flag(targetStore, probeStore));
         return builder.build();
     }
 }

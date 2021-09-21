@@ -7,7 +7,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 /**
  * This migration updates Dynatrace target info and probe info.
  * It adds a new boolean flag `collectVmMetrics` that is responsible for
- * enabling/disabling of collection metrics for virtual machines.
+ * enabling/disabling the collection of virtual machines metrics.
  */
 public class V_01_01_10__Dynatrace_Add_Vm_Metrics_Flag extends
                 AbstractCollectVmMetricFlagMigration {
