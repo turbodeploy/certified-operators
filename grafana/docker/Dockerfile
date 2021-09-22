@@ -1,26 +1,102 @@
-# When updating grafana versions, copy the "defaults.ini" of the new version into the
-# docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
-ARG grafana_version=8.0.6
-# Not all image renderer versions work with all versions of grafana.
+# This docker file is capable of building an image that contains multiple versions of the
+# grafana server for use in different scenarios, if needed. The following ARG specifies the
+# versions as a list of <name>:<version> pairs. One of the names should be "default"; that version
+# will be used when the GRAFANA_VERSION_NAME environment variable is unset (or, of course set to
+# "default") when the container starts up.
+
+# The helm chart that defines the container in which this image is used defines the grafana config
+# in as a configmap property whose value is mounted as a volume in /etc/grafana/grafana.ini. Hence
+# any attempt here to install our own config file will be ineffective. For that reason, any desired
+# customization is made here to the "defaults.ini" file that is located at top-level in the grafana
+# home directory and is consulted prior to loading the config file. Therefore, we require a copy
+# of this file for each grafana version included in the image. Please use the file from the
+# grafana tarball for the associated version as a starting point, and precede any customization
+# with a "TURBO" comment so we can port important changes to later versions.
+
+# Name the individual default.ini files like "/default-<name>.ini" in the docker context, where
+# <name> is the name associated with the version.
+ARG grafana_versions="default:8.0.6 datacloud:7.5.10"
+
+# Currently a single renderer version works in the configured grafana versions; this dockerfile will
+# need to be adjusted for per-grafana-version renderer versions if that does not continue to be true
 ARG grafana_img_renderer_version=v3.0.1
 
-FROM registry.access.redhat.com/ubi8 AS builder
+# We set up the grafana user in each dockerfile section, so the numeric group and user ids must
+# be consistent across all sections. The user id must also correspond to the value specified in
+# the helm charts ('runAsUser' in values.yaml).
+ARG grafana_user=472
+ARG grafana_group=1000
+
+FROM registry.access.redhat.com/ubi8 AS python
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ARG grafana_version
+ARG grafana_versions
+ARG grafana_img_renderer_version
+ARG grafana_group
+ARG grafana_user
+
+# This dockerfile section installs python and the libraries required for the image. We will copy
+# the libraries into the final image but will leave behind all else created here, which includes
+# the gcc library needed for some library builds. We don't attempt to carry over artifacgts of the
+# python install itself, since attempting to identify them is too error-prone. Instead, we
+# re-install python in the final image.
+RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
+
+# do base python install as its own step so we can get the resulting layer directly from the cache
+# when this is repeated in final build
+RUN dnf install -y --nobest python3-devel
+RUN dnf install -y --nobest gcc && \
+    dnf clean all && \
+    python3 -m pip install --upgrade pip
+
+# install required libraries, using run-time grafana user & group ids, to be copied in the final image
+WORKDIR /python-fetch/
+RUN chown -R grafana:grafana /python-fetch
+
+USER grafana
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt --target=/python-fetch/pylib
+
+FROM registry.access.redhat.com/ubi8 AS grafana
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
+
+ARG grafana_versions
+ARG grafana_img_renderer_version
+ARG grafana_group
+ARG grafana_user
+
+# This dockerfile section installs all the configured grafana versions from tarballs, to be
+# copied into the final image
+
+RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
+
+RUN dnf install -y wget && \
+    for version in $grafana_versions ; do \
+       v=${version#*:}; \
+       wget https://dl.grafana.com/enterprise/release/grafana-enterprise-$v.linux-amd64.tar.gz \
+           -nv --show-progress --progres=bar:force:noscroll:giga; \
+    done
 
 WORKDIR /grafana-fetch
 
-RUN dnf install -y wget && \
-    wget https://dl.grafana.com/enterprise/release/grafana-enterprise-$grafana_version.linux-amd64.tar.gz && \
-    tar -zxvf grafana-enterprise-$grafana_version.linux-amd64.tar.gz
+# All the tarballs are expanded with the configured grafana user/group
+RUN chown -R grafana:grafana /grafana-fetch
+USER grafana
 
+RUN for version in $grafana_versions; do \
+      name=${version%:*}; \
+      v=${version#*:}; \
+      tar -zxf /grafana-enterprise-$v.linux-amd64.tar.gz; \
+    done
 
 FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
-ARG grafana_version
-ARG grafana_img_renderer_version
+# This dockerfile section creates the final image, pulling needed bits from the prior sections
+# and setting up environment variables with needed grafana path overrides. The entrypoint script
+# is responsible for selecting the grafana version that will be used in the running container,
+# by creating symlinks in /tmp.
 
 # Required OpenShift Labels
 LABEL name="grafana" \
@@ -30,66 +106,99 @@ LABEL name="grafana" \
       summary="grafana" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 
-ENV GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
-  GF_PATHS_DATA="/var/lib/grafana" \
-  GF_PATHS_HOME="/grafana" \
-  GF_PATHS_LOGS="/var/log/grafana" \
-  GF_PATHS_PLUGINS="/grafana/plugins" \
-  GF_PATHS_PROVISIONING="/etc/grafana/provisioning" \
-  GRAFANA_PATH="/grafana/bin/grafana-server" \
-  # Make sure that python can find the grpc bindings
-  PYTHONPATH="/grpc"
+ARG grafana_versions
+ARG grafana_img_renderer_version
+ARG grafana_user
+ARG grafana_group
 
-# Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
-RUN groupadd -g 1000 grafana && useradd -r -g 1000 -s /bin/bash -u 102 grafana && \
-passwd -l root
+RUN groupadd -g $grafana_group grafana && useradd -r -g $grafana_group -s /bin/bash -u $grafana_user grafana
 
-COPY --from=builder /grafana-fetch/grafana-$grafana_version $GF_PATHS_HOME
+# install python now so we get the cached layer from docker cache (since so far we're identical to
+# --from=python image)
+
+RUN dnf install -y --nobest python3-devel
+
+# lock root password
+RUN passwd -l root
+
+# import files populated in prior dockerfile sections
+COPY --from=python /python-fetch/pylib /pylib
+COPY --from=grafana /grafana-fetch/ /grafana/
+
+# python classes generated in our maven build from protobuf definitions, so that our python
+# code can make use of needed grpc methods from turbonomic components
+COPY grpc /grpc
 
 COPY CentOS-AppStream.repo /etc/yum.repos.d/
 COPY CentOS-Base.repo /etc/yum.repos.d/
-
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     # The name and file path of the key needs to match the ones configured in the CentOS .repo files.
-    curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official
-RUN dnf search chrom && \
-    dnf install -y --nobest rsyslog procps python3-devel gcc udev chromium libXScrnSaver && \
-    dnf clean all
-RUN python3 -m pip install --upgrade pip
-RUN $GF_PATHS_HOME/bin/grafana-cli \
-    --pluginsDir "$GF_PATHS_PLUGINS" \
-    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
-    plugins install grafana-image-renderer
+    curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official -s -o /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official && \
+    dnf search chrom && \
+    dnf install -y --nobest rsyslog procps udev chromium libXScrnSaver
 
 COPY rsyslog.conf /etc
-# The grpc folder is populated by Maven with unzipped python bindings for XL gRPC services.
-COPY grpc /grpc
-COPY entrypoint.sh /
 
-RUN chown -R grafana:grafana $GF_PATHS_HOME && \
-    mkdir -p "$GF_PATHS_PROVISIONING/datasources" \
-             "$GF_PATHS_PROVISIONING/dashboards" \
-             "$GF_PATHS_PROVISIONING/plugins" \
-             "$GF_PATHS_PROVISIONING/notifiers" \
-             "$GF_PATHS_LOGS" \
-             "$GF_PATHS_PLUGINS" \
-             "$GF_PATHS_DATA" && \
-    cp $GF_PATHS_HOME/conf/sample.ini $GF_PATHS_CONFIG && \
-    chown -R grafana:grafana "$GF_PATHS_DATA" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING" && \
-    chmod -R 777 "$GF_PATHS_DATA" "$GF_PATHS_LOGS" "$GF_PATHS_PLUGINS" "$GF_PATHS_PROVISIONING" && \
+# set up directories required by grafana at runtime. Where these will differ based on grafana
+# version it will be up to the entrypoint script to make selections using synmlinks. Note that
+# we can't put things in /var/lib/grafana because that's mounted as a volume in the helm charts,
+# so we use /var/lib/grafanax where the former would be the natural choice.
+RUN mkdir -p /tmp/etc/grafana/provisioning/{dashboards,plugins,notifiers} \
+             /var/lib/grafanax/plugins /tmp/grafana/plugins \
+             /var/lib/grafanax/data \
+             /var/log/grafana && \
+    chown -R grafana:grafana /tmp/etc/grafana /tmp/grafana /var/lib/grafanax /var/log/grafana && \
     # Forward the Grafana data log to stdout.
-    ln -sf /dev/stdout $GF_PATHS_LOGS/grafana.log && \
-    chmod 755 /entrypoint.sh
+    ln -sf /dev/stdout $GF_PATHS_LOGS/grafana.log
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY defaults-*.ini /
+RUN for version in $grafana_versions; do \
+        name=${version%:*}; \
+        v=${version#*:}; \
+        ln -s -f /grafana/grafana-$v /grafana-$name; \
+        ln -s -f /defaults-$name.ini /grafana-$name/default.ini; \
+    done
 
-COPY defaults.ini $GF_PATHS_HOME/conf/
-COPY grafana_mgr.py /
 
-EXPOSE 3000
+COPY entrypoint.sh /
+RUN chmod +x /entrypoint.sh
 
 USER grafana
+
+# install plugins we rely on, either for Embedded Reporting or Saas Reporting. This is the union
+# of all plugins required in verious deployment; the entrypoint script is responsible to configure
+# only the plugins required in a given deployment
+RUN /grafana-default/bin/grafana-cli \
+    --pluginsDir /var/lib/grafanax/plugins \
+    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/download/$grafana_img_renderer_version/plugin-linux-x64-glibc.zip \
+    plugins install grafana-image-renderer
+RUN /grafana-default/bin/grafana-cli \
+    --pluginsDir /var/lib/grafanax/plugins \
+    --pluginUrl https://storage.googleapis.com/datacloud-grafana-datasource/datacloud-grafana-datasource-7428f43a.zip \
+    plugins install turbonomic-datacloud-grafana-datasource
+RUN /grafana-default/bin/grafana-cli \
+    --pluginsDir /var/lib/grafanax/plugins \
+    --pluginUrl https://grafana.com/api/plugins/marcusolsson-treemap-panel/versions/0.9.1/download \
+    plugins install marcusolsson-treemap-panel
+
+# This is our python script to manage the server, responding to newly uploaded licenses, SMTP
+# config changes in turbonomic, etc.
+COPY grafana_mgr.py /
+
+# Make sure that python can find installed libraries and grpc bindings
+ENV PYTHONPATH="/pylib:/grpc"
+
+# point grafana at its files - some of these paths must be established by the entrypoint script
+# e.g. by using symlinks
+ENV GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
+  GF_PATHS_DATA="/var/lib/grafanax/data" \
+  GF_PATHS_HOME="/tmp/grafana/home" \
+  GF_PATHS_LOGS="/var/log/grafana" \
+  GF_PATHS_PLUGINS="/tmp/grafana/plugins" \
+  GF_PATHS_PROVISIONING="/tmp/etc/grafana/provisioning" \
+  GRAFANA_PATH="$GF_PATHS_HOME/bin/grafana-server"
+
+EXPOSE 3000
 
 STOPSIGNAL SIGTERM
 
