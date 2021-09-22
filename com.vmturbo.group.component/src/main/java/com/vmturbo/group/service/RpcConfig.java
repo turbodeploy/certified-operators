@@ -13,6 +13,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsREST.EntityCustomTagsServiceController;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionREST.TopologyDataDefinitionServiceController;
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
 import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.entitytags.EntityCustomTagsConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
@@ -49,7 +51,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         ScheduleConfig.class,
         UserSessionConfig.class,
         TopologyProcessorClientConfig.class,
-        TopologyDataDefinitionConfig.class})
+        TopologyDataDefinitionConfig.class,
+        EntityCustomTagsConfig.class})
 public class RpcConfig {
 
     @Value("${groupRetrievePermitsSize:300000}")
@@ -93,6 +96,9 @@ public class RpcConfig {
 
     @Autowired
     private TopologyDataDefinitionConfig topologyDataDefinitionConfig;
+
+    @Autowired
+    private EntityCustomTagsConfig entityCustomTagsConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -300,6 +306,17 @@ public class RpcConfig {
          */
         settingConfig.settingsCreatorThreadPool().execute(creator);
         return creator;
+    }
+
+    @Bean
+    public EntityCustomTagsRpcService entityCustomTagsService() {
+        return new EntityCustomTagsRpcService(entityCustomTagsConfig.entityCustomTagsStore());
+    }
+
+    @Bean
+    public EntityCustomTagsServiceController entityCustomTagsServiceController(
+            final EntityCustomTagsRpcService entityCustomTagsRpcService) {
+        return new EntityCustomTagsServiceController(entityCustomTagsRpcService);
     }
 
 }

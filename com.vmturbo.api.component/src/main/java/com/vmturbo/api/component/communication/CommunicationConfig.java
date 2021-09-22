@@ -67,6 +67,8 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
@@ -750,5 +752,15 @@ public class CommunicationConfig {
     @Bean
     public ExtractorSettingServiceBlockingStub extractorSettingService() {
         return ExtractorSettingServiceGrpc.newBlockingStub(extractorClientConfig.extractorChannel());
+    }
+
+    /**
+     * Blocking stub for EntityCustomTags service.
+     *
+     * @return blocking stub
+     */
+    @Bean
+    public EntityCustomTagsServiceBlockingStub entityCustomTagsServiceBlockingStub() {
+        return EntityCustomTagsServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 }

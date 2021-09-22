@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -68,37 +69,42 @@ public class EntityCustomTagsStoreTest {
     /**
      * Test the default case of inserting three different tags. Two of them has the same key. Should
      * insert all three tags.
+     *
+     * @throws StoreOperationException should not happen.
      */
     @Test
-    public void testInsertTags() {
-        int[] result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
-        assertThat(Arrays.stream(result).sum(), is(3));
+    public void testInsertTags() throws StoreOperationException {
+        int result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
+        assertThat(result, is(3));
     }
 
     /**
-     * Test the case of inserting 3 tags, out of which 2 are the same. Should insert only two.
+     * Test the case of inserting 3 tags, out of which 2 are the same.
+     *
+     * @throws StoreOperationException due to duplicate tags insertion.
      */
-    @Test
-    public void testInsertDuplicateTags() {
+    @Test(expected = StoreOperationException.class)
+    public void testInsertDuplicateTags() throws StoreOperationException {
 
         final Tags tags1 = Tags.newBuilder()
                 .putTags(tagName1, TagValuesDTO.newBuilder()
                         .addAllValues(Arrays.asList(tagValue1, tagValue2)).build()).build();
         final Tags tags2 = Tags.newBuilder().putTags(tagName1, TagValuesDTO.newBuilder()
                         .addAllValues(Collections.singletonList(tagValue1)).build()).build();
-        int[] result1 = entityCustomTagsStore.insertTags(ENTITY_ID, tags2);
-        int[] result2 = entityCustomTagsStore.insertTags(ENTITY_ID, tags1);
-        assertThat(Arrays.stream(result1).sum() + Arrays.stream(result2).sum(), is(2));
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags2);
+        entityCustomTagsStore.insertTags(ENTITY_ID, tags1);
     }
 
     /**
      * Test the case of inserting 0 tags. Should complete with zero insertions.
+     *
+     * @throws StoreOperationException should not happen.
      */
     @Test
-    public void testEmptyTags() {
+    public void testEmptyTags() throws StoreOperationException {
 
         final Tags tags = Tags.newBuilder().build();
-        int[] result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
-        assertThat(Arrays.stream(result).sum(), is(0));
+        int result = entityCustomTagsStore.insertTags(ENTITY_ID, tags);
+        assertThat(result, is(0));
     }
 }

@@ -8,10 +8,10 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
 import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceImplBase;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.entitytags.EntityCustomTagsStore;
 
 /**
@@ -34,30 +34,31 @@ public class EntityCustomTagsRpcService extends EntityCustomTagsServiceImplBase 
     public void createTags(final EntityCustomTagsCreateRequest request,
                              final StreamObserver<EntityCustomTagsCreateResponse> responseObserver) {
         if (!request.hasEntityId()) {
-            final String errMsg = "Incoming EntityCustomTags create request does not contain entity id";
+            final String errMsg = "Incoming EntityCustomTags create request does not contain entity id: "
+                    + request;
             logger.error(errMsg);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
             return;
         }
 
         if (!request.hasTags()) {
-            final String errMsg = "Incoming EntityCustomTags create request does not contain any tags";
+            final String errMsg = "Incoming EntityCustomTags create request does not contain any tags: "
+                    + request;
             logger.error(errMsg);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
             return;
         }
 
-        entityCustomTagsStore.insertTags(request.getEntityId(), request.getTags());
+        final Tags entityCustomTags = request.getTags();
 
-        final EntityCustomTagsOuterClass.EntityCustomTags entityCustomTags =
-            EntityCustomTagsOuterClass.EntityCustomTags.newBuilder()
-                .setEntityId(request.getEntityId())
-                .setTags(request.getTags())
-                .build();
+        try {
+            entityCustomTagsStore.insertTags(request.getEntityId(), entityCustomTags);
+        } catch (StoreOperationException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            return;
+        }
 
-        responseObserver.onNext(EntityCustomTagsCreateResponse.newBuilder()
-                .setEntityCustomTags(entityCustomTags)
-                .build());
+        responseObserver.onNext(EntityCustomTagsCreateResponse.newBuilder().build());
         responseObserver.onCompleted();
     }
 }
