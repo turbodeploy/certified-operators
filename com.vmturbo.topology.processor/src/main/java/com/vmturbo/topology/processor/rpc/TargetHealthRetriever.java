@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.rpc;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,8 +13,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
@@ -38,25 +43,29 @@ import common.HealthCheck.HealthState;
  * all the special cases for the interplay between latest validations and discoveries.
  */
 public class TargetHealthRetriever {
-    private static final long DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER = 10;
-
-    private static final int TEMP_COUNTER_THRESHOLD = 3; //TODO replace with a proper setting value
-
     private final IOperationManager operationManager;
     private final TargetStatusTracker targetStatusTracker;
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
     private final Clock clock;
+    private final SettingServiceBlockingStub settingServiceClient;
+
+    private int failedDiscoveriesCountThreshold = (int)GlobalSettingSpecs.FailedDiscoveryCountThreshold
+                    .createSettingSpec().getNumericSettingValueType().getDefault();
+    private long delayedDataThresholdMultiplier = (long)GlobalSettingSpecs.DelayedDataThresholdMultiplier
+                    .createSettingSpec().getNumericSettingValueType().getDefault();
 
     TargetHealthRetriever(@Nonnull final IOperationManager operationManager,
             @Nonnull final TargetStatusTracker targetStatusTracker,
             @Nonnull final TargetStore targetStore, @Nonnull final ProbeStore probeStore,
-            @Nonnull final Clock clock) {
+            @Nonnull final Clock clock,
+            @Nonnull final SettingServiceBlockingStub settingServiceClient) {
         this.operationManager = operationManager;
         this.targetStatusTracker = targetStatusTracker;
         this.targetStore = targetStore;
         this.probeStore = probeStore;
         this.clock = clock;
+        this.settingServiceClient = settingServiceClient;
     }
 
     /**
@@ -79,12 +88,32 @@ public class TargetHealthRetriever {
             matchingTargets = targetStore.getTargets(targetIds);
         }
 
-        return matchingTargets.stream()
-            .collect(Collectors.toMap(Target::getId, this::targetToTargetHealth));
+        requestSettings();
+
+        return matchingTargets.stream().collect(
+                        Collectors.toMap(Target::getId, this::computeTargetHealthInfo));
+    }
+
+    private void requestSettings() {
+        GetMultipleGlobalSettingsRequest multipleSettingsRequest = GetMultipleGlobalSettingsRequest.newBuilder()
+                        .addSettingSpecName(GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName())
+                        .addSettingSpecName(GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName())
+                        .build();
+        Iterator<Setting> settings = settingServiceClient.getMultipleGlobalSettings(multipleSettingsRequest);
+        while (settings.hasNext()) {
+            Setting setting = settings.next();
+            if (GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName()
+                            .equals(setting.getSettingSpecName())) {
+                failedDiscoveriesCountThreshold = (int)setting.getNumericSettingValue().getValue();
+            } else if (GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName()
+                            .equals(setting.getSettingSpecName())) {
+                delayedDataThresholdMultiplier = (long)setting.getNumericSettingValue().getValue();
+            }
+        }
     }
 
     @Nonnull
-    private TargetHealth targetToTargetHealth(@Nonnull final Target target) {
+    private TargetHealth computeTargetHealthInfo(@Nonnull final Target target) {
         TargetHealth.Builder targetHealthBuilder = TargetHealth.newBuilder();
         targetHealthBuilder.setTargetName(target.getDisplayName());
 
@@ -198,7 +227,7 @@ public class TargetHealthRetriever {
         Map<Long, DiscoveryFailure> targetToFailedDiscoveries = targetStatusTracker.getFailedDiscoveries();
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(target.getId());
         if (lastDiscovery.getStatus() != Status.SUCCESS && discoveryFailure != null
-                        && discoveryFailure.getFailsCount() >= TEMP_COUNTER_THRESHOLD) {
+                        && discoveryFailure.getFailsCount() >= failedDiscoveriesCountThreshold) {
             return null;
         }
 
@@ -311,9 +340,9 @@ public class TargetHealthRetriever {
      * @return true if the data is too old based on the info about discoveries.
      */
     private boolean checkForDelayedData(Target target) {
-        long fullRediscoveryThreshold = DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER
+        long fullRediscoveryThreshold = delayedDataThresholdMultiplier
                         * target.getProbeInfo().getFullRediscoveryIntervalSeconds() * 1000;
-        long incrementalRediscoveryThreshold = DELAYED_DATA_PERIOD_THRESHOLD_MULTIPLIER
+        long incrementalRediscoveryThreshold = delayedDataThresholdMultiplier
                         * target.getProbeInfo().getIncrementalRediscoveryIntervalSeconds() * 1000;
         long currentInstant = System.currentTimeMillis();
 
