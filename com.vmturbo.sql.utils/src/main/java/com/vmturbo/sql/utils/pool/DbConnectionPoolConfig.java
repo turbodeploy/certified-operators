@@ -1,7 +1,9 @@
 package com.vmturbo.sql.utils.pool;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.zaxxer.hikari.HikariDataSource;
@@ -17,6 +19,11 @@ import org.springframework.context.annotation.Configuration;
 public class DbConnectionPoolConfig {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * This counter ensures the name of connection pool is unique.
+     */
+    private static final AtomicInteger poolCounter = new AtomicInteger(0);
 
     /**
      * Set the keep-alive time to 5 minutes.
@@ -46,18 +53,19 @@ public class DbConnectionPoolConfig {
     /**
      * Create a HikariDataSource, providing a pool of database connections.
      *
-     * @param schemaName the name of the schema
      * @param dbUrl the URL to use for connecting to the database
      * @param dbUsername the username to use when connecting to the database
      * @param dbPassword the password to use when connecting to the database
      * @param minPoolSize initial and minimum size for the DB connection pool
      * @param maxPoolSize maximum size for the DB connection pool
      * @param dbKeepAliveIntervalMinutes the keep-alive time in minutes
+     * @param poolName The name of the connection pool.
      * @return a HikariDataSource, providing a pool of database connections
      */
-    public static HikariDataSource getPooledDataSource(final String schemaName, final String dbUrl,
-            final String dbUsername, final String dbPassword, final int minPoolSize,
-            final int maxPoolSize, @Nullable final Integer dbKeepAliveIntervalMinutes) {
+    public static HikariDataSource getPooledDataSource(final String dbUrl,
+           final String dbUsername, final String dbPassword, final int minPoolSize,
+           final int maxPoolSize, @Nullable final Integer dbKeepAliveIntervalMinutes,
+           @Nonnull final String poolName) {
         HikariDataSource dataSource = new HikariDataSource();
         // Minimum keep-alive time is 1 minute
         final long keepAliveTimeMillis =
@@ -75,7 +83,7 @@ public class DbConnectionPoolConfig {
         dataSource.setMaximumPoolSize(maxPoolSize);
         dataSource.setKeepaliveTime(keepAliveTimeMillis);
         dataSource.setLeakDetectionThreshold(LEAK_DETECTION_THRESHOLD_MSEC);
-        dataSource.setPoolName(getPoolName(schemaName));
+        dataSource.setPoolName(poolName);
         return  dataSource;
     }
 
@@ -85,7 +93,7 @@ public class DbConnectionPoolConfig {
      * @param dbSchemaName the name of the schema
      * @return the pool name based on the schema name targeted by the pool
      */
-    public static String getPoolName(String dbSchemaName) {
-        return "pool-" + dbSchemaName;
+    public static String generatePoolName(String dbSchemaName) {
+        return "pool-" + poolCounter.getAndIncrement() + "-" + dbSchemaName;
     }
 }
