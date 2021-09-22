@@ -103,7 +103,7 @@ public class HistoryAggregationConfig {
     @Value("${enableExpiredOidFiltering:false}")
     private boolean enableExpiredOidFiltering;
 
-    @Value("${historyAggregation.movingStatisticsEnabled:false}")
+    @Value("${historyAggregation.movingStatisticsEnabled:true}")
     private boolean movingStatisticsEnabled;
 
     @Value("${historyAggregation.throttlingFastHalflifeHours:6}")
