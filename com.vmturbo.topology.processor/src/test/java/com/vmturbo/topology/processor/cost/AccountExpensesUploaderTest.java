@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.MoreCollectors;
 
 import io.grpc.stub.StreamObserver;
 
@@ -195,21 +196,25 @@ public class AccountExpensesUploaderTest {
                 .setAccountId(ACCOUNT_NAME_1).setId(AWS_CS_ID_1)
                 .setEntityType(EntityType.CLOUD_SERVICE).setCost(COST_AMOUNT_FLOAT)
                 .setAppliesProfile(false)
+                .setUsageDate(123)
                 .build());
         costDataDTOS.add(CostDataDTO.newBuilder()
                 .setAccountId(ACCOUNT_NAME_2).setId(AWS_CS_ID_2)
                 .setEntityType(EntityType.CLOUD_SERVICE).setCost(COST_AMOUNT_FLOAT)
                 .setAppliesProfile(false)
+                .setUsageDate(123)
                 .build());
         costDataDTOS.add(CostDataDTO.newBuilder()
                 .setAccountId(ACCOUNT_NAME_1).setId(DATABASE_SERVER_1)
                 .setEntityType(EntityType.DATABASE_SERVER).setCost(COST_AMOUNT_FLOAT)
                 .setAppliesProfile(false)
+                .setUsageDate(123)
                 .build());
         costDataDTOS.add(CostDataDTO.newBuilder()
                 .setAccountId(ACCOUNT_NAME_1).setId(COMPUTE_TIER_1)
                 .setEntityType(EntityType.VIRTUAL_MACHINE).setCost(COST_AMOUNT_FLOAT)
                 .setAppliesProfile(false)
+                .setUsageDate(123)
                 .build());
         return costDataDTOS;
     }
@@ -389,12 +394,14 @@ public class AccountExpensesUploaderTest {
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(mockStitchingContext, probeTypeMap);
 
         // create the account expenses
-        Map<Long, AccountExpenses.Builder> accountExpensesByAccountOid =
+        final List<AccountExpenses> accountExpensesList =
                 accountExpensesUploader.createAccountExpenses(cloudEntitiesMap,
                         mockStitchingContext, costDataByTargetId);
 
         // check account 1
-        AccountExpenses.Builder awsAccount1Expenses = accountExpensesByAccountOid.get(ACCOUNT_ID_1);
+        AccountExpenses awsAccount1Expenses = accountExpensesList.stream()
+                .filter(expenses -> expenses.getAssociatedAccountId() == ACCOUNT_ID_1)
+                .collect(MoreCollectors.onlyElement());
         // we should see that account 1 has one service expense for 0.5.
         Assert.assertEquals(1, awsAccount1Expenses.getAccountExpensesInfo()
                 .getServiceExpensesCount());
@@ -409,7 +416,9 @@ public class AccountExpensesUploaderTest {
                 .sum(), 0);
 
         // account 2 should also have a single service expense of 0.5, but no tier expenses
-        AccountExpenses.Builder awsAccount2Expenses = accountExpensesByAccountOid.get(ACCOUNT_ID_2);
+        AccountExpenses awsAccount2Expenses = accountExpensesList.stream()
+                .filter(expenses -> expenses.getAssociatedAccountId() == ACCOUNT_ID_2)
+                .collect(MoreCollectors.onlyElement());
         Assert.assertEquals(1, awsAccount2Expenses.getAccountExpensesInfo().getServiceExpensesCount());
         Assert.assertEquals(COST_AMOUNT_FLOAT, awsAccount2Expenses.getAccountExpensesInfo()
                 .getServiceExpenses(0).getExpenses().getAmount(), 0);

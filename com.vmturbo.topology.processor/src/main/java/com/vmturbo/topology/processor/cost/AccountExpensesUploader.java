@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.cost;
 
-import static com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_EXPENSES_SECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_UPLOAD_TIME;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
@@ -10,11 +9,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,17 +23,14 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricTimer;
-import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 
@@ -47,29 +45,6 @@ public class AccountExpensesUploader {
     private static final int AZURE_CS_NAME_INDEX = 2;
     private static final int AWS_CS_NAME_INDEX = 3;
     private static final int NUMBER_OF_CS_SPECS = 4;
-    private static final String EMPTY_SERVICE_PROVIDER = "";
-
-    /**
-     * Add cloud service spent metric ratios to topology processor metrics end point.
-     * This should be updated during broadcast hourly based on shouldSkipProcessingExpenses()
-     * or if there is new cost data information.
-     */
-    public static final DataMetricGauge CLOUD_SPENT_BREAKDOWN_GAUGE = DataMetricGauge.builder()
-            .withName(StringConstants.METRICS_TURBO_PREFIX + "cloud_spend_ratio")
-            .withHelp("The percentage of the grand total of cloud spend that corresponds to this cloud provider and service combination.")
-            .withLabelNames("cloud_provider", "cloud_service")
-            .build()
-            .register();
-
-    /**
-     * Tracks the amount of Business Accounts per cloud provider.
-     */
-    public static final DataMetricGauge BUSINESS_ACCOUNTS_GAUGE = DataMetricGauge.builder()
-            .withName(StringConstants.METRICS_TURBO_PREFIX + "business_accounts")
-            .withHelp("Number of business accounts for the given cloud provider.")
-            .withLabelNames("cloud_provider")
-            .build()
-            .register();
 
     private final RIAndExpenseUploadServiceBlockingStub costServiceClient;
 
@@ -154,15 +129,13 @@ public class AccountExpensesUploader {
                 UPLOAD_REQUEST_BUILD_STAGE).startTimer();
 
         // get the account expenses
-        Map<Long, AccountExpenses.Builder> accountExpensesByOid = createAccountExpenses(cloudEntitiesMap,
+        final List<AccountExpenses> accountExpensesList = createAccountExpenses(cloudEntitiesMap,
                 stitchingContext, costDataByTarget);
-        logger.debug("Created {} AccountExpenses.", accountExpensesByOid.size());
+        logger.debug("Created {} AccountExpenses.", accountExpensesList.size());
 
         // assemble and execute the upload
-        UploadAccountExpensesRequest.Builder requestBuilder = UploadAccountExpensesRequest.newBuilder();
-        accountExpensesByOid.values().forEach(expenses -> {
-            requestBuilder.addAccountExpenses(expenses.build());
-        });
+        final UploadAccountExpensesRequest.Builder requestBuilder = UploadAccountExpensesRequest.newBuilder();
+        accountExpensesList.forEach(requestBuilder::addAccountExpenses);
         buildTimer.observe();
         logger.debug("Building account expenses upload request took {} secs", buildTimer.getTimeElapsedSecs());
 
@@ -293,48 +266,14 @@ public class AccountExpensesUploader {
      * @return a map of account expenses, keyed by business account oid
      */
     @VisibleForTesting
-    public Map<Long, AccountExpenses.Builder> createAccountExpenses(
+    public List<AccountExpenses> createAccountExpenses(
             CloudEntitiesMap cloudEntitiesMap, StitchingContext stitchingContext,
             Map<Long, TargetCostData> costDataByTargetIdSnapshot) {
-        BUSINESS_ACCOUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
 
-        // create the initial AccountExpenses objects w/receipt time based on target discovery time
-        // in the future, this will be based on a billing time when that data is available.
-        Map<Long, AccountExpenses.Builder> expensesByAccountOid = new HashMap<>();
-        stitchingContext.getEntitiesOfType(EntityType.BUSINESS_ACCOUNT).forEach(stitchingEntity -> {
-            // TODO: use the discovery time as the expense received time until we can find a better
-            // expense-related time source. (e.g. the billing data itself). The time will be
-            // converted from a local datetime to unix epoch millis.
-            if (!costDataByTargetIdSnapshot.containsKey(stitchingEntity.getTargetId())) {
-                // it's possible that we don't have price or billing data for this target, since the
-                // billing discoveries have a different cycle time.
-                logger.warn("Not creating account expenses for account {} since no targetCostData for target id {}",
-                        stitchingEntity.getLocalId(),
-                        stitchingEntity.getTargetId());
-                return;
-            }
-            expensesByAccountOid.put(stitchingEntity.getOid(), AccountExpenses.newBuilder()
-                    .setAssociatedAccountId(stitchingEntity.getOid()));
-
-            // Look for service provider.
-            final Set<StitchingEntity> setAggregatedBy = stitchingEntity.getConnectedToByType()
-                .get(ConnectionType.AGGREGATED_BY_CONNECTION);
-            if (setAggregatedBy != null) {
-                final Optional<StitchingEntity> serviceProvider = setAggregatedBy.stream()
-                    .filter(aggregator -> aggregator.getEntityType() == EntityType.SERVICE_PROVIDER).findAny();
-                if (serviceProvider.isPresent()) {
-                    BUSINESS_ACCOUNTS_GAUGE.labels(serviceProvider.get().getDisplayName()).increment();
-                } else {
-                    BUSINESS_ACCOUNTS_GAUGE.labels(EMPTY_SERVICE_PROVIDER).increment();
-                }
-            } else {
-                BUSINESS_ACCOUNTS_GAUGE.labels(EMPTY_SERVICE_PROVIDER).increment();
-            }
-        });
-
+        final Table<Long, Long, Builder> accountExpenseTable =
+                HashBasedTable.create();
         Map<String, Double> cloudServiceSpentMap = new HashMap<>();
-        // Find the service expenses from the cost data objects, and assign them to the
-        // account expenses created above.
+        
         costDataByTargetIdSnapshot.forEach((targetId, targetCostData) -> {
             targetCostData.costDataDTOS.forEach(costData -> {
                 // find the expenses builder for the associated account.
@@ -343,28 +282,29 @@ public class AccountExpensesUploader {
                     logger.warn("No account id set for costData object {} with cost {}",
                             costData.getId(), costData.getCost());
                     return;
+                } else if (!costData.hasUsageDate()) {
+                    logger.warn("No usage date set for costData with ID '{}' and account ID '{}'. Skipping",
+                                costData.getId(), costData.getAccountId());
+                    return;
                 }
-                Long accountOid = cloudEntitiesMap.getOrDefault(costData.getAccountId(),
+                
+                final Long accountOid = cloudEntitiesMap.getOrDefault(costData.getAccountId(),
                         cloudEntitiesMap.getFallbackAccountOid(targetId));
                 if (!cloudEntitiesMap.containsKey(costData.getAccountId())) {
                     logger.warn("Couldn't find biz account oid for local id {}, using fallback account {}.",
                             costData.getAccountId(),
                             accountOid);
                 }
-                if (!expensesByAccountOid.containsKey(accountOid)) {
-                    logger.warn("No expense builder for account oid {}.", accountOid);
-                    return;
-                }
-
-                AccountExpenses.Builder accountExpensesBuilder = expensesByAccountOid.get(accountOid);
-
-                // Set the usage date for the account expenses for this account to be the value of
-                // the first costDataDTO which has a usage date.
-                // Since all the usage data is from yesterday and the smallest time frame is DAY,
-                // all the expenses should have the same date.
-                if (!accountExpensesBuilder.hasExpensesDate() && costData.hasUsageDate()) {
-                    accountExpensesBuilder.setExpensesDate(costData.getUsageDate());
-                    logger.info("usageTime for account {}: {}", accountOid, costData.getUsageDate());
+                
+                final AccountExpenses.Builder accountExpensesBuilder;
+                if (accountExpenseTable.contains(accountOid, costData.getUsageDate())) {
+                    accountExpensesBuilder = accountExpenseTable.get(accountOid, costData.getUsageDate());
+                } else {
+                    accountExpensesBuilder = AccountExpenses.newBuilder()
+                            .setAssociatedAccountId(accountOid)
+                            .setExpensesDate(costData.getUsageDate());
+                    
+                    accountExpenseTable.put(accountOid, costData.getUsageDate(), accountExpensesBuilder);
                 }
 
                 // create an expense entry for each cost object
@@ -415,8 +355,10 @@ public class AccountExpensesUploader {
 
             });
         });
-        pushCloudServiceSpentMetrics(cloudServiceSpentMap);
-        return expensesByAccountOid;
+        
+        return accountExpenseTable.values().stream()
+                .map(AccountExpenses.Builder::build)
+                .collect(ImmutableList.toImmutableList());
     }
 
     /**
@@ -449,28 +391,6 @@ public class AccountExpensesUploader {
         return cspName.equals("azure")
             ? String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AZURE_CS_NAME_INDEX])
             : String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AWS_CS_NAME_INDEX]);
-    }
-
-    // Expose the ratio spent per cloud service.
-    private void pushCloudServiceSpentMetrics(Map<String, Double> cloudServiceSpentMap) {
-        CLOUD_SPENT_BREAKDOWN_GAUGE.getLabeledMetrics().forEach((key, val) -> {
-            val.setData(0.0);
-        });
-        double totalAccountCloudServiceExpenses = cloudServiceSpentMap.values().stream().mapToDouble(v -> v).sum();
-        if (totalAccountCloudServiceExpenses > 0.0) {
-            cloudServiceSpentMap.forEach((serviceId, spent) -> {
-                String[] csIdSpecs = serviceId.split("::");
-                // Ids included in the cloudServiceSpentMap are already sanitized and will have
-                // 3 partitions around the "::". cspName::"CS"::cloudServiceName.
-                if (csIdSpecs.length == 3) {
-                    final String cspName = csIdSpecs[0];
-                    final String cloudServiceName = csIdSpecs[csIdSpecs.length - 1];
-                    CLOUD_SPENT_BREAKDOWN_GAUGE.labels(cspName, cloudServiceName).setData(spent / totalAccountCloudServiceExpenses);
-                } else {
-                    CLOUD_SPENT_BREAKDOWN_GAUGE.labels(serviceId, serviceId).setData(spent / totalAccountCloudServiceExpenses);
-                }
-            });
-        }
     }
 }
 
