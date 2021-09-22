@@ -116,8 +116,7 @@ public class TopologyProcessorRpcConfig {
     public TargetHealthRetriever targetHealthRetriever() {
         return new TargetHealthRetriever(operationConfig.operationManager(),
                 targetConfig.targetStatusTracker(), targetConfig.targetStore(),
-                probeConfig.probeStore(), clockConfig.clock(),
-                groupConfig.settingServiceClient());
+                probeConfig.probeStore(), clockConfig.clock());
     }
 
     /**

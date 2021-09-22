@@ -369,8 +369,7 @@
       "displayName": "Target health check settings",
       "defaultCategory": "HealthCheck",
       "settings": [
-        "failedDiscoveryCountThreshold",
-        "delayedDataThresholdMultiplier"
+        "failedDiscoveryCountThreshold"
       ]
     }
   }

@@ -5,32 +5,20 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealth;
 import com.vmturbo.common.protobuf.target.TargetDTO.TargetHealthSubCategory;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.utils.TimeUtil;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -64,10 +52,8 @@ public class TargetHealthRetrieverTest {
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
-    private SettingServiceMole settingsService = Mockito.spy(new SettingServiceMole());
-    private GrpcTestServer grpcServer = GrpcTestServer.newServer(settingsService);
-
-    private TargetHealthRetriever healthRetriever;
+    private TargetHealthRetriever healthRetriever = new TargetHealthRetriever(
+                    operationManager, targetStatusTracker, targetStore, probeStore, clock);
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
 
@@ -80,10 +66,9 @@ public class TargetHealthRetrieverTest {
 
     /**
      * Common setup before each test.
-     * @throws IOException can theoretically be thrown by grpcServer.start()
      */
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenReturn(IdentityGenerator.next());
         when(operationManager.getLastValidationForTarget(anyLong())).thenReturn(Optional.empty());
@@ -95,32 +80,6 @@ public class TargetHealthRetrieverTest {
                         .setProbeType(SDKProbeType.SERVICENOW.getProbeType())
                         .setFullRediscoveryIntervalSeconds(DEFAULT_REDISCOVERY_PERIOD)
                         .build();
-
-        List<Setting> settingsForRetriever = new ArrayList<>(2);
-        settingsForRetriever.add(Setting.newBuilder()
-                        .setSettingSpecName(GlobalSettingSpecs.FailedDiscoveryCountThreshold.getSettingName())
-                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5))
-                        .build());
-        settingsForRetriever.add(Setting.newBuilder()
-                        .setSettingSpecName(GlobalSettingSpecs.DelayedDataThresholdMultiplier.getSettingName())
-                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
-                        .build());
-        Mockito.when(settingsService.getMultipleGlobalSettings(Mockito.any())).thenReturn(settingsForRetriever);
-
-        grpcServer.start();
-        SettingServiceBlockingStub settingServiceClient = SettingServiceGrpc
-                        .newBlockingStub(grpcServer.getChannel());
-
-        healthRetriever = new TargetHealthRetriever(operationManager, targetStatusTracker,
-                        targetStore, probeStore, clock, settingServiceClient);
-    }
-
-    /**
-     * Release the test resources.
-     */
-    @After
-    public void shutdown() {
-        grpcServer.close();
     }
 
     /**
@@ -297,6 +256,7 @@ public class TargetHealthRetrieverTest {
                 .thenReturn(Optional.of(discovery));
 
         ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
+        int numberOfFailures = 4;
         ErrorDTO errorDTO = ErrorDTO.newBuilder()
                 .setErrorType(errorType)
                 .setDescription("data is missing")
@@ -304,8 +264,6 @@ public class TargetHealthRetrieverTest {
                 .build();
         discovery.addError(errorDTO);
         DiscoveryFailure discoveryFailure = new DiscoveryFailure(discovery);
-        //Try first with the number of discovery failures below the threshold set in setup().
-        int numberOfFailures = 4;
         for (int i = 0; i < numberOfFailures; i++)    {
             discoveryFailure.incrementFailsCount();
         }
@@ -315,15 +273,6 @@ public class TargetHealthRetrieverTest {
         when(targetStatusTracker.getFailedDiscoveries()).thenReturn(targetToFailedDiscoveries);
 
         TargetHealth healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(HealthState.NORMAL, healthInfo.getHealthState());
-        Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
-        Assert.assertEquals(numberOfFailures, healthInfo.getConsecutiveFailureCount());
-
-        //Now increase the number of failures by 1.
-        numberOfFailures++;
-        discoveryFailure.incrementFailsCount();
-
-        healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(HealthState.CRITICAL, healthInfo.getHealthState());
         Assert.assertEquals(TargetHealthSubCategory.DISCOVERY, healthInfo.getSubcategory());
         Assert.assertEquals(errorType, healthInfo.getErrorType());
@@ -367,6 +316,7 @@ public class TargetHealthRetrieverTest {
                 .thenReturn(Optional.of(discovery));
 
         ErrorDTO.ErrorType discoveryErrorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
+        int numberOfFailures = 4;
         ErrorDTO discoveryErrorDTO = ErrorDTO.newBuilder()
                 .setErrorType(discoveryErrorType)
                 .setDescription("data is missing")
@@ -374,7 +324,6 @@ public class TargetHealthRetrieverTest {
                 .build();
         discovery.addError(discoveryErrorDTO);
         DiscoveryFailure discoveryFailure = new DiscoveryFailure(discovery);
-        int numberOfFailures = 5;
         for (int i = 0; i < numberOfFailures; i++)    {
             discoveryFailure.incrementFailsCount();
         }
