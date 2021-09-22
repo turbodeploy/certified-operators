@@ -323,9 +323,17 @@ public enum GlobalSettingSpecs {
     /**
      * Targets Health Check settings: failed discovery count threshold to notify user.
      */
-    FailedDiscoveryCountThreshold("failedDiscoveryCountThreshold", "Number of successive failed discoveries after which we report the target as unhealthy",
-                           numeric(1, 100, 3),
-                           Collections.emptyList()),
+    FailedDiscoveryCountThreshold("failedDiscoveryCountThreshold",
+                    "Number of successive failed discoveries after which we report the target as unhealthy",
+                    numeric(1, 100, 3), Collections.emptyList()),
+
+    /**
+     * Targets Health Check settings: a  multiplier for the delayed data threshold (computed by default as
+     * 'multiplier * rediscovery period').
+     */
+    DelayedDataThresholdMultiplier("delayedDataThresholdMultiplier", "A multiplier applied to a target's rediscovery"
+                    + " interval. The resulting interval is used as a threshold for considering data to be delayed.",
+                    numeric(1, 100, 10), Collections.emptyList()),
 
     /**
      * Cloud savings action execution retention durations
