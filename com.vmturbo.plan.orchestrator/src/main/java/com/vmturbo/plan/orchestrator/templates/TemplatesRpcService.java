@@ -226,12 +226,6 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             return;
         }
 
-        if (templateUsedByReservation(request.getTemplateId())) {
-            responseObserver.onError(Status.FAILED_PRECONDITION
-                    .withDescription("Delete the reservations used by this template first.").asException());
-            return;
-        }
-
         try {
             final Template template = templatesDao.deleteTemplateById(request.getTemplateId());
             responseObserver.onNext(template);
@@ -249,17 +243,6 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
                 .withDescription(e.getLocalizedMessage())
                 .asException());
         }
-    }
-
-    private boolean templateUsedByReservation(long templateId) {
-        final Set<ReservationDTO.Reservation> reservationsByTemplates =
-                reservationDao.getReservationsByTemplates(Collections.singleton(templateId));
-        if (!reservationsByTemplates.isEmpty()) {
-            logger.error("This template {} is being used by reservations {}.", templateId,
-                    reservationsByTemplates.stream().map(ReservationDTO.Reservation::getName).collect(Collectors.toSet()));
-            return true;
-        }
-        return false;
     }
 
     @Override
