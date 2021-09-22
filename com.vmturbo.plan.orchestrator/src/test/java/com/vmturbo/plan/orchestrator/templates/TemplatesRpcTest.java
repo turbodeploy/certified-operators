@@ -283,25 +283,6 @@ public class TemplatesRpcTest {
         assertEquals(result, template);
     }
 
-    /**
-     * Test that if there is reservation depends on this user template, {@link StatusRuntimeException} will be thrown.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test(expected = StatusRuntimeException.class)
-    public void testDeleteTemplateFailed() throws Exception {
-        int value = 123;
-        final DeleteTemplateRequest request = DeleteTemplateRequest.newBuilder()
-                .setTemplateId(value)
-                .build();
-        Template template = Template.newBuilder()
-                .setId(value)
-                .setTemplateInfo(TemplateInfo.newBuilder().setName("test").build())
-                .build();
-        when(reservationDao.getReservationsByTemplates(Collections.singleton(Integer.toUnsignedLong(value))))
-                .thenReturn(Collections.singleton(ReservationDTO.Reservation.getDefaultInstance()));
-       templateServiceBlockingStub.deleteTemplate(request);
-    }
 
     /**
      * Tests getting the template for a cluster.

@@ -1,8 +1,6 @@
 package com.vmturbo.plan.orchestrator.templates;
 
 import static com.vmturbo.plan.orchestrator.db.Tables.DEPLOYMENT_PROFILE;
-import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION;
-import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE;
 
@@ -18,9 +16,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
-import com.vmturbo.components.common.utils.ReservationProtoUtil;
-import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -75,19 +70,6 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                 .selectFrom(TEMPLATE)
                 .where(TEMPLATE.TARGET_ID.isNotNull().and(TEMPLATE.TARGET_ID.notIn(discoveredTargetIds)))
                 .fetch();
-
-            // Find reservation records that used the templates to be deleted.
-            final List<ReservationRecord> invalidReservationRecords = transactionDsl.selectFrom(
-                    RESERVATION.join(RESERVATION_TO_TEMPLATE)
-                            .on(RESERVATION.ID.eq(RESERVATION_TO_TEMPLATE.RESERVATION_ID))
-                            .and(RESERVATION_TO_TEMPLATE.TEMPLATE_ID.in(buildTemplateIds(missingTargetTemplateRecords))))
-                    .fetch()
-                    .into(RESERVATION);
-            if (!invalidReservationRecords.isEmpty()) {
-                transactionDsl.batchDelete(invalidReservationRecords).execute();
-                logger.warn("Deleted invalidated reservations: {}", invalidReservationRecords.stream()
-                        .map(ReservationRecord::getName).collect(Collectors.toList()));
-            }
 
             final List<DeploymentProfileRecord> missingTargetDeployprofileRecords = transactionDsl
                 .selectFrom(DEPLOYMENT_PROFILE)
