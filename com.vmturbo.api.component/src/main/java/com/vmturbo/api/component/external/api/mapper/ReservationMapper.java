@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,6 +29,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
@@ -57,6 +60,7 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
@@ -79,6 +83,7 @@ import com.vmturbo.plan.orchestrator.api.NoSuchValueException;
 import com.vmturbo.plan.orchestrator.api.ReservationFieldsConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * A mapper class for convert Reservation related objects between Api DTO with XL DTO.
@@ -164,41 +169,104 @@ public class ReservationMapper {
      * @param demandApiInputDTO {@link DemandReservationApiInputDTO}
      * @return a {@link Reservation}
      * @throws InvalidOperationException if input parameter are not correct.
-     * @throws UnknownObjectException if there are any unknown objects.
      * @throws NoSuchValueException if invalid reservation value is specified.
      */
     public Reservation convertToReservation(
             @Nonnull final DemandReservationApiInputDTO demandApiInputDTO)
-            throws InvalidOperationException, UnknownObjectException, NoSuchValueException {
+            throws InvalidOperationException, NoSuchValueException {
         final Reservation.Builder reservationBuilder = Reservation.newBuilder();
         reservationBuilder.setName(demandApiInputDTO.getDemandName());
         convertReservationDateStatus(demandApiInputDTO.getReserveDateTime(),
                 demandApiInputDTO.getExpireDateTime(), reservationBuilder);
-        final List<DemandReservationParametersDTO> placementParameters = demandApiInputDTO.getParameters();
-        final List<ReservationTemplate> reservationTemplates = placementParameters.stream()
+        final List<DemandReservationParametersDTO> placementParameters =
+                demandApiInputDTO.getParameters();
+        final List<ReservationTemplate> reservationTemplates = placementParameters
+                .stream()
                 .map(DemandReservationParametersDTO::getPlacementParameters)
                 .map(this::convertToReservationTemplate)
                 .collect(Collectors.toList());
-        reservationBuilder.setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+        reservationBuilder.setReservationTemplateCollection(ReservationTemplateCollection
+                .newBuilder()
                 .addAllReservationTemplate(reservationTemplates)
                 .build());
-        final Set<Long> constraintIds = placementParameters.stream()
+        final Set<Long> constraintIds = placementParameters
+                .stream()
                 .map(DemandReservationParametersDTO::getPlacementParameters)
                 .map(PlacementParametersDTO::getConstraintIDs)
                 .filter(Objects::nonNull)
                 .flatMap(Set::stream)
                 .map(Long::valueOf)
                 .collect(Collectors.toSet());
-        final List<ReservationConstraintInfo> constraintInfos = new ArrayList<>();
-        for (Long constraintId : constraintIds) {
-            constraintInfos.add(ReservationConstraintInfo.newBuilder()
-                    .setConstraintId(constraintId).build());
-        }
-        reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+        final List<ReservationConstraintInfo> constraintInfos = constraintIds
+                .stream()
+                .map(constraintId -> ReservationConstraintInfo
+                        .newBuilder()
+                        .setConstraintId(constraintId)
+                        .build())
+                .collect(Collectors.toList());
+
+        reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection
+                .newBuilder()
                 .addAllReservationConstraintInfo(constraintInfos)
                 .build());
         convertReservationModeGroupingFromApi(demandApiInputDTO, reservationBuilder);
+
+        convertScopeFromApi(demandApiInputDTO, reservationBuilder);
+
         return reservationBuilder.build();
+    }
+
+    private void convertScopeFromApi(@NotNull DemandReservationApiInputDTO demandApiInputDTO,
+            Reservation.Builder reservationBuilder) throws InvalidOperationException {
+        // If scope is not set there is nothing to do
+        if (Objects.isNull(demandApiInputDTO.getScope())) {
+            return;
+        }
+
+        // An empty scope is equivalent to no scope being set, so there is nothing to do
+        if (demandApiInputDTO.getScope().isEmpty()) {
+            return;
+        }
+
+        final Pattern regex = Pattern.compile("[0-9]+");
+        Optional<String> invalidScopeUuid = demandApiInputDTO
+                .getScope()
+                .stream()
+                .filter(scopeId -> !regex.matcher(scopeId).matches())
+                .findAny();
+        if (invalidScopeUuid.isPresent()) {
+            throw new InvalidOperationException(invalidScopeUuid.get() + " is not a valid uuid");
+        }
+
+        List<Long> scope = demandApiInputDTO
+                .getScope()
+                .stream()
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+
+        GetGroupsRequest request = GetGroupsRequest
+                .newBuilder()
+                .setGroupFilter(GroupFilter
+                        .newBuilder()
+                        .addAllId(scope)
+                        .addAllDirectMemberTypes(Arrays.asList(MemberType
+                                .newBuilder()
+                                .setEntity(
+                                        EntityType.PHYSICAL_MACHINE_VALUE) // group of physical machines
+                                .build(), MemberType
+                                .newBuilder()
+                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER) // or group of clusters
+                                .build()))
+                        .build())
+                .build();
+
+        int numberOfGroupsThatAreAllowed = groupServiceBlockingStub.countGroups(request).getCount();
+
+        if (numberOfGroupsThatAreAllowed != scope.size()) {
+            throw new InvalidOperationException("Provided scopes are not valid");
+        }
+        // TODO: copy the scopes to the message when protobuf has been updated
+
     }
 
     /**
@@ -246,13 +314,21 @@ public class ReservationMapper {
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
         if (enableReservationModeGrouping) {
             if (reservation.hasReservationMode()) {
-                reservationApiDTO.setMode(ReservationFieldsConverter.modeToApi(reservation
-                    .getReservationMode()));
+                reservationApiDTO.setMode(
+                        ReservationFieldsConverter.modeToApi(reservation.getReservationMode()));
             }
             if (reservation.hasReservationGrouping()) {
-                reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(reservation
-                    .getReservationGrouping()));
+                reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(
+                        reservation.getReservationGrouping()));
             }
+            // Todo: Here we also need to set the scope in the DTO. This will happen after the protobuf
+            //  is updated.
+            //  sample:
+            //  if (reservation.hasScope()) {
+            //    reservationApiDTO.setScope(reservation.getScope().stream()
+            //            .map(Object::toString)
+            //            .collect(Collectors.toList()));
+            //}
         }
         return reservationApiDTO;
     }
@@ -331,18 +407,22 @@ public class ReservationMapper {
     }
 
     /**
-     * Validate the input start day and expire date, if there is any wrong input date, it will throw
-     * InvalidOperationException. And also it always set Reservation status to INITIAL, during create
+     * Validate the input start day and expire date, if there is any wrong input date, it will
+     * throw
+     * InvalidOperationException. And also it always set Reservation status to INITIAL, during
+     * create
      * Reservation, we will update its status if it is start day comes.
      *
-     * @param reserveDateStr start date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
-     * @param expireDateStr expire date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
+     * @param reserveDateStr start date of reservation, and date format is:
+     *         yyyy-MM-ddT00:00:00Z.
+     * @param expireDateStr expire date of reservation, and date format is:
+     *         yyyy-MM-ddT00:00:00Z.
      * @param reservationBuilder builder of Reservation.
      * @throws InvalidOperationException if input start date and expire date are illegal.
      */
     private void convertReservationDateStatus(@Nonnull final String reserveDateStr,
-                                        @Nonnull final String expireDateStr,
-                                        @Nonnull final Reservation.Builder reservationBuilder)
+            @Nonnull final String expireDateStr,
+            @Nonnull final Reservation.Builder reservationBuilder)
             throws InvalidOperationException {
         if (reserveDateStr == null) {
             throw new InvalidOperationException("Reservation date is missing.");
@@ -356,26 +436,29 @@ public class ReservationMapper {
 
         // Right now, UI set reservation start date to empty string when start date is current date,
         // after UI fix this issue, we can remove empty string covert here.
-        final long reserveDate = reserveDateStr.isEmpty() ? Instant.now().toEpochMilli() :
-                DateTimeUtil.parseIso8601TimeAndAdjustTimezone(reserveDateStr, null);
+        final long reserveDate = reserveDateStr.isEmpty() ? Instant.now().toEpochMilli()
+                : DateTimeUtil.parseIso8601TimeAndAdjustTimezone(reserveDateStr, null);
         final long expireDate = DateTimeUtil.parseIso8601TimeAndAdjustTimezone(expireDateStr, null);
         if (reserveDate > expireDate) {
-            throw new InvalidOperationException("Reservation expire date should be after start date.");
+            throw new InvalidOperationException(
+                    "Reservation expire date should be after start date.");
         }
         reservationBuilder.setStartDate(reserveDate);
         reservationBuilder.setExpirationDate(expireDate);
         final long today = Instant.now().toEpochMilli();
         if (today > expireDate) {
-            throw new InvalidOperationException("Reservation expire date should be after current date.");
+            throw new InvalidOperationException(
+                    "Reservation expire date should be after current date.");
         }
         reservationBuilder.setStatus(ReservationStatus.INITIAL);
     }
 
     private ReservationTemplate convertToReservationTemplate(
             @Nonnull final PlacementParametersDTO placementParameter) {
-        return ReservationTemplate.newBuilder()
+        return ReservationTemplate
+                .newBuilder()
                 .setCount(placementParameter.getCount())
-                .setTemplateId(Long.valueOf(placementParameter.getTemplateID()))
+                .setTemplateId(Long.parseLong(placementParameter.getTemplateID()))
                 .build();
     }
 
