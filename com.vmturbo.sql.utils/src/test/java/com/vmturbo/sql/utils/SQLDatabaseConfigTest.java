@@ -80,7 +80,7 @@ public class SQLDatabaseConfigTest {
         final String tmppass = "tmppass";
         final String schemaName = "vmtdb ";
         final Connection connection =
-                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, "root", "vmturbo", 1, 1, true)
+                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, "root", "vmturbo", 1, 1)
                         .getConnection();
         dropDbUser(connection, tmpuser);
         createDbUser(connection, tmpuser, tmppass);
@@ -100,7 +100,7 @@ public class SQLDatabaseConfigTest {
                         requestUserRemote, tmppass));
         connection.createStatement().execute("FLUSH PRIVILEGES");
         assertFalse(SQLDatabaseConfig.hasGrantPrivilege(
-                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, tmpuser, tmppass, 1, 1, true)
+                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, tmpuser, tmppass, 1, 1)
                         .getConnection(), tmpuser, "vmturbo", schemaName));
     }
 
@@ -155,7 +155,7 @@ public class SQLDatabaseConfigTest {
     public void testCanGrantPrivilege() throws SQLException {
         TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
         assertTrue(SQLDatabaseConfig.hasGrantPrivilege(
-                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, "root", "vmturbo", 1, 1, true)
+                testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, "root", "vmturbo", 1, 1)
                         .getConnection(), "root", "vmturbo", "vmtdb.* "));
     }
 

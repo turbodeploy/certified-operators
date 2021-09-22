@@ -352,6 +352,78 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
     }
 
     /**
+     * Test reservations will be deleted, if the depended template is deleted.
+     */
+    @Test
+    public void testUpdateReservationToInvalidWhenDeletingDependedTemplate() {
+        final long firstTarget = 123;
+        final long secondTarget = 456;
+        final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
+        final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
+
+        TemplateInfoToDeploymentProfileMap firstTargetMap = new TemplateInfoToDeploymentProfileMap(true);
+        TemplateInfoToDeploymentProfileMap secondTargetMap = new TemplateInfoToDeploymentProfileMap(true);
+
+        TemplateInfo firstTargetTemplateInfo1 = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-1")
+                .setName("first-target-template-1")
+                .build();
+        TemplateInfo secondTargetTemplateInfo2 = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-2")
+                .setName("first-target-template-2")
+                .build();
+        TemplateInfo thirdTemplateInfo = TemplateInfo.newBuilder()
+                .setProbeTemplateId("probe-template-3")
+                .setName("second-target-template-1")
+                .build();
+
+        DeploymentProfileInfo firstDeploymentProfile = DeploymentProfileInfo.newBuilder()
+                .setName("first-target-deployment-profile")
+                .setProbeDeploymentProfileId("probe-dp-1")
+                .build();
+        DeploymentProfileInfo secondDeploymentProfile = DeploymentProfileInfo.newBuilder()
+                .setName("second-target-deployment-profile")
+                .setProbeDeploymentProfileId("probe-dp-2")
+                .build();
+
+        firstTargetMap.put(firstTargetTemplateInfo1, Lists.newArrayList(firstDeploymentProfile));
+        firstTargetMap.put(secondTargetTemplateInfo2, Lists.newArrayList(firstDeploymentProfile));
+        secondTargetMap.put(thirdTemplateInfo, Lists.newArrayList(secondDeploymentProfile));
+
+        uploadMap.put(firstTarget, firstTargetMap);
+        uploadMap.put(secondTarget, secondTargetMap);
+        noReferenceMap.put(firstTarget, new ArrayList<>());
+        noReferenceMap.put(secondTarget, new ArrayList<>());
+
+        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+
+        final Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
+
+        uploadMap.clear();
+        noReferenceMap.clear();
+
+        uploadMap.put(secondTarget, secondTargetMap);
+        noReferenceMap.put(secondTarget, new ArrayList<>());
+
+        // verify init states before removing templates
+        final Set<ReservationDTO.Reservation> reservations = allTemplates.stream()
+                .map(template -> reservationDao.createReservation(buildReservation(template.getId())))
+                .collect(Collectors.toSet());
+        assertEquals(3, reservations.size());
+        assertTrue(reservations.stream().allMatch(reservation ->
+            reservation.getStatus().equals(ReservationDTO.ReservationStatus.INITIAL)));
+
+        // delete system templates
+        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+
+        // verify all reservations depend on deleted system templates are set to invalid state.
+        Set<ReservationDTO.Reservation> allReservations = reservationDao.getAllReservations();
+        assertEquals(1, allReservations.size());
+        assertTrue(allReservations.stream().allMatch(reservation ->
+            reservation.getStatus().equals(ReservationDTO.ReservationStatus.INITIAL)));
+    }
+
+    /**
      * Test duplicate name filtering.
      */
     @Test

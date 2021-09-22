@@ -209,7 +209,7 @@ public abstract class DbAdapter {
             throws UnsupportedDialectException, UnsupportedOperationException, SQLException {
         if (config.isRootAccessEnabled()) {
             return getDataSource(getUrl(config, database),
-                    config.getRootUserName(), config.getRootPassword(), false);
+                    config.getRootUserName(), config.getRootPassword(), true);
         } else {
             throw new UnsupportedOperationException(
                     String.format("DbEndpoint %s is not enabled for root access", this));

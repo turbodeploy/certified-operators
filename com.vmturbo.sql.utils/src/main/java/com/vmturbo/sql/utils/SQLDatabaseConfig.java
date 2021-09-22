@@ -169,7 +169,7 @@ public abstract class SQLDatabaseConfig {
     @Primary
     public DataSource dataSource() {
         return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
-                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize, false);
+                getDBRootPassword(false), dbMinPoolSize, dbMaxPoolSize);
     }
 
     /**
@@ -183,15 +183,19 @@ public abstract class SQLDatabaseConfig {
     @Nonnull
     protected DataSource dataSource(@Nonnull String dbUrl, @Nonnull String dbUsername,
                                     @Nonnull String dbPassword, final int minPoolSize,
-                                    final int maxPoolSize, final boolean usePool) {
+                                    final int maxPoolSize) {
         try {
-            if (usePool) {
+            if (isConnectionPoolActive) {
                 // Should be logged only once, on container startup
                 logger.info("Initializing pooled database connection source.");
-                final String poolName = DbConnectionPoolConfig.generatePoolName(getDbSchemaName());
-                HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
-                    dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize,
-                    dbPoolKeepAliveIntervalMinutes, poolName);
+                HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(getDbSchemaName(),
+                        dbUrl, dbUsername, dbPassword, minPoolSize, maxPoolSize, dbPoolKeepAliveIntervalMinutes);
+                final HikariPoolMonitor poolMonitor = poolMonitor();
+                if (poolMonitor != null) {
+                    dataSource.setMetricRegistry(poolMonitor.getMetricRegistry());
+                } else {
+                    logger.debug("The pool monitor will not be used.");
+                }
                 return  dataSource;
             } else {
                 MariaDbDataSource dataSource = new MariaDbDataSource();
@@ -347,7 +351,7 @@ public abstract class SQLDatabaseConfig {
             @Nonnull final String dbUsername, @Nonnull final String dbPassword,
             final boolean isPasswordInjected) {
         DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword,
-                dbMinPoolSize, dbMaxPoolSize, isConnectionPoolActive);
+                dbMinPoolSize, dbMaxPoolSize);
         try {
             // Test DB connection first with to the schema under given user credentials.
             // We use an un-pooled datasource because otherwise, failures can cause long waits.
@@ -369,7 +373,7 @@ public abstract class SQLDatabaseConfig {
         final String dbRootPassword = getDBRootPassword(false);
         DataSource rootDataSource =
                 dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, dbRootPassword,
-                        dbMinPoolSize, dbMaxPoolSize, false);
+                        dbMinPoolSize, dbMaxPoolSize);
         try (Connection rootConnection = rootDataSource.getConnection()) {
             if (hasGrantPrivilege(rootConnection, dbRootUsername, dbRootPassword, schemaName)) {
                 // explicitly create the needed database if it doesn't exist, so we can run
@@ -683,16 +687,11 @@ public abstract class SQLDatabaseConfig {
     @Nullable
     @Bean
     public HikariPoolMonitor poolMonitor() {
-        final DataSource dataSource = dataSource();
-        if (isConnectionPoolActive && poolMonitorIntervalSec > 0
-                && dataSource instanceof HikariDataSource) {
-            final HikariDataSource ds = (HikariDataSource)dataSource;
-            final HikariPoolMonitor poolMonitor = new HikariPoolMonitor(ds.getPoolName(), poolMonitorIntervalSec,
+        if (isConnectionPoolActive && poolMonitorIntervalSec > 0) {
+            return new HikariPoolMonitor(DbConnectionPoolConfig.getPoolName(getDbSchemaName()),
+                    poolMonitorIntervalSec,
                     getDbSchemaName(), poolMonitorExecutorService());
-            ds.setMetricRegistry(poolMonitor.getMetricRegistry());
-            return poolMonitor;
         } else {
-            logger.debug("The pool monitor will not be used.");
             return null;
         }
     }
@@ -700,7 +699,7 @@ public abstract class SQLDatabaseConfig {
     @Nonnull
     @Bean
     public ScheduledExecutorService poolMonitorExecutorService() {
-        final String poolName = DbConnectionPoolConfig.generatePoolName(getDbSchemaName());
+        final String poolName = DbConnectionPoolConfig.getPoolName(getDbSchemaName());
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("DbPoolMonitor-" + poolName + "-%d").build();
         return Executors.newScheduledThreadPool(1, threadFactory);

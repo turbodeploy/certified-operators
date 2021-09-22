@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION;
+import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -34,6 +35,7 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -43,6 +45,7 @@ import com.vmturbo.plan.orchestrator.api.NoSuchValueException;
 import com.vmturbo.plan.orchestrator.api.ReservationFieldsConverter;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
+import com.vmturbo.plan.orchestrator.db.tables.records.ReservationToTemplateRecord;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
@@ -175,7 +178,8 @@ public class ReservationDaoImpl implements ReservationDao {
     }
 
     /**
-     * Create a new reservation and it will create a new ID for the new reservation.
+     * Create a new reservation and it will create a new ID for the new reservation. And also
+     * it create mapping records between reservation with templates.
      *
      * @param reservation describe the contents of new reservation.
      * @return new created reservation.
@@ -188,15 +192,22 @@ public class ReservationDaoImpl implements ReservationDao {
                         .setId(IdentityGenerator.next())
                         .setStatus(ReservationStatus.INITIAL)
                         .build();
+                final Set<Long> templateIds = getTemplateIds(newReservation);
                 final DSLContext transactionDsl = DSL.using(configuration);
+
                 final ReservationRecord newReservationRecord = transactionDsl.newRecord(RESERVATION);
+                final List<ReservationToTemplateRecord> reservationToTemplateRecords =
+                        generateReservationToTemplateRecord(transactionDsl, newReservation, templateIds);
                 updateReservationRecordWithStore(newReservation, newReservationRecord);
+                // insert new mapping record between reservation with template.
+                transactionDsl.batchInsert(reservationToTemplateRecords).execute();
                 return newReservation;
             });
     }
 
     /**
-     * Update a existing reservation with a new reservation.
+     * Update a existing reservation with a new reservation. And also it will updates the mapping
+     * records between reservation with template.
      *
      * @param id The id of reservation needs to update.
      * @param reservation a new reservation need to store.
@@ -220,7 +231,16 @@ public class ReservationDaoImpl implements ReservationDao {
                     final ReservationDTO.Reservation newReservation = reservation.toBuilder()
                             .setId(id)
                             .build();
+                    final Set<Long> templateIds = getTemplateIds(reservation);
+                    // delete old mapping records between reservation with templates;
+                    transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
+                            .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.eq(id))
+                            .execute();
+                    final List<ReservationToTemplateRecord> reservationToTemplateRecords =
+                            generateReservationToTemplateRecord(transactionDsl, newReservation, templateIds);
                     updateReservationRecordWithStore(newReservation, reservationRecord);
+                    // insert new mapping record between reservation with template.
+                    transactionDsl.batchInsert(reservationToTemplateRecords).execute();
                     return newReservation;
                 });
             } catch (DataAccessException e) {
@@ -237,7 +257,8 @@ public class ReservationDaoImpl implements ReservationDao {
 
     /**
      * Batch update existing reservations, if there are missing reservations, it will throw
-     * {@link NoSuchObjectException}
+     * {@link NoSuchObjectException}. And also it will updates the mapping records between reservation
+     * with template.
      *
      * @param reservations A set of new reservations.
      * @return A set of new reservaitons.
@@ -252,6 +273,7 @@ public class ReservationDaoImpl implements ReservationDao {
                 dsl.transaction(configuration -> {
                     DSLContext transactionDsl = DSL.using(configuration);
                     final List<ReservationRecord> updateReservationRecords = new ArrayList<>();
+                    final List<ReservationToTemplateRecord> updateReservationToTemplateRecords = new ArrayList<>();
                     final Set<Long> reservationIds = reservations.stream()
                             .map(ReservationDTO.Reservation::getId)
                             .collect(Collectors.toSet());
@@ -262,6 +284,9 @@ public class ReservationDaoImpl implements ReservationDao {
                         throw new NoSuchObjectException("There are reservations missing, required: "
                                 + reservations.size() + " but found: " + reservationRecords.size());
                     }
+                    // delete old mapping record between reservation with template.
+                    transactionDsl.deleteFrom(RESERVATION_TO_TEMPLATE)
+                            .where(RESERVATION_TO_TEMPLATE.RESERVATION_ID.in(reservationIds)).execute();
                     final Map<Long, ReservationDTO.Reservation> reservationMap = reservations.stream()
                             .collect(Collectors.toMap(ReservationDTO.Reservation::getId, Function.identity()));
                     reservationRecords.stream()
@@ -275,7 +300,15 @@ public class ReservationDaoImpl implements ReservationDao {
                             })
                             .filter(Objects::nonNull)
                             .forEach(updateReservationRecords::add);
+                    reservationRecords.stream()
+                            .map(record -> reservationMap.get(record.getId()))
+                            .map(reservation -> generateReservationToTemplateRecord(
+                                    transactionDsl, reservation, getTemplateIds(reservation)))
+                            .flatMap(List::stream)
+                            .forEach(updateReservationToTemplateRecords::add);
                     transactionDsl.batchUpdate(updateReservationRecords).execute();
+                    // insert new mapping record between reservation with template.
+                    transactionDsl.batchInsert(updateReservationToTemplateRecords).execute();
                 });
             } catch (DataAccessException e) {
                 if (e.getCause() instanceof NoSuchObjectException) {
@@ -352,6 +385,39 @@ public class ReservationDaoImpl implements ReservationDao {
     @Override
     public ReservationDTO.Reservation deleteReservationById(final long id) throws NoSuchObjectException {
         return deleteReservationById(id, false, 0l);
+    }
+
+    /**
+     * Input a list of template ids, return all reservations which use anyone of these templates.
+     * It use the mapping table to find related reservations.
+     *
+     * @param templateIds a set of template ids.
+     * @return a set of {@link ReservationDTO.Reservation}.
+     */
+    @Nonnull
+    @Override
+    public Set<ReservationDTO.Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds) {
+        return dsl.transactionResult(configuration -> {
+            final DSLContext transactionDsl = DSL.using(configuration);
+            final List<ReservationRecord> reservationRecords = transactionDsl.selectFrom(
+                    RESERVATION.join(RESERVATION_TO_TEMPLATE)
+                                .on(RESERVATION.ID.eq(RESERVATION_TO_TEMPLATE.RESERVATION_ID))
+                                .and(RESERVATION_TO_TEMPLATE.TEMPLATE_ID.in(templateIds)))
+                    .fetch()
+                    .into(RESERVATION);
+            return reservationRecords.stream()
+                    .map(record -> record.into(Reservation.class))
+                    .map(reservation -> {
+                        try {
+                            return convertReservationToProto(reservation);
+                        } catch (NoSuchValueException e) {
+                            logger.error("convertReservationToProto", e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        });
     }
 
     /**
@@ -445,6 +511,38 @@ public class ReservationDaoImpl implements ReservationDao {
                 TimeZone.getTimeZone("UTC").toZoneId());
     }
 
+    /**
+     * Generate a record for mapping table between reservation with template.
+     *
+     * @param transactionDsl Transaction context.
+     * @param reservation {@link ReservationDTO.Reservation}.
+     * @param templateIds a set of template ids.
+     * @return a list of {@link ReservationToTemplateRecord}.
+     */
+    private List<ReservationToTemplateRecord> generateReservationToTemplateRecord(
+            @Nonnull DSLContext transactionDsl,
+            @Nonnull final ReservationDTO.Reservation reservation,
+            @Nonnull final Set<Long> templateIds) {
+
+        return templateIds.stream()
+                .map(templateId ->
+                        transactionDsl.newRecord(RESERVATION_TO_TEMPLATE,
+                                new ReservationToTemplateRecord(reservation.getId(), templateId)))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Return a set of template ids which the input parameter reservation uses.
+     *
+     * @param reservation {@link ReservationDTO.Reservation}.
+     * @return a Set of Template Ids.
+     */
+    private Set<Long> getTemplateIds(@Nonnull final ReservationDTO.Reservation reservation) {
+        return reservation.getReservationTemplateCollection()
+                .getReservationTemplateList().stream()
+                .map(ReservationTemplate::getTemplateId)
+                .collect(Collectors.toSet());
+    }
 
     /**
      * {@inheritDoc}

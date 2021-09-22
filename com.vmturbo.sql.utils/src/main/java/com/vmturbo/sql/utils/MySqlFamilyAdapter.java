@@ -39,9 +39,9 @@ class MySqlFamilyAdapter extends DbAdapter {
             final int keepAliveIntervalMinutes = config.getKeepAliveIntervalMinutes();
             logger.debug("Creating a pooled datasource for user: {}, minPoolSize={}, maxPoolSize={}",
                     user, minPoolSize, maxPoolSize);
-            final String poolName = DbConnectionPoolConfig.generatePoolName(config.getSchemaName());
             HikariDataSource dataSource = DbConnectionPoolConfig.getPooledDataSource(
-                    url, user, password, minPoolSize, maxPoolSize, keepAliveIntervalMinutes, poolName);
+                    config.getSchemaName(), url, user, password, minPoolSize, maxPoolSize,
+                    keepAliveIntervalMinutes);
             // In the SQLDatabaseConfig version of this initialization, we would create a
             // HikariPoolMonitor here. If this ever replaces SQLDatabaseConfig as the main way
             // for components to initialize their database connections, then we need to

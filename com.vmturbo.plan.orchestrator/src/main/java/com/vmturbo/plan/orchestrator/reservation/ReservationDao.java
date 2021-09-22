@@ -107,6 +107,15 @@ public interface ReservationDao extends DiagsRestorable<Void> {
     @Nonnull
     Reservation deleteReservationById(long id, boolean deployed, long delayedDeletionTimeInMillis) throws NoSuchObjectException;
 
+
+    /**
+     * Input a list of template ids, return all reservations which use anyone of these templates.
+     *
+     * @param templateIds a set of template ids.
+     * @return a set of {@link Reservation}.
+     */
+    public Set<Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds);
+
     /**
      * Add a reservation status listener.
      * @param listener the listener to be added.
