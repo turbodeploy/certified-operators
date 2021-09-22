@@ -43,10 +43,6 @@ public class EntityCustomTagsRpcServiceTest {
             .addAllValues(Collections.singletonList(tagValue1))
             .build()).build();
 
-    private static final EntityCustomTagsOuterClass.EntityCustomTags entityCustomTags =
-            EntityCustomTagsOuterClass.EntityCustomTags.newBuilder().setEntityId(ENTITY_ID).setTags(
-                    tags).build();
-
     private EntityCustomTagsRpcService entityCustomTagsService;
 
     /**
@@ -59,9 +55,11 @@ public class EntityCustomTagsRpcServiceTest {
 
     /**
      * Tests the creation of tags using the gRPC service.
+     *
+     * @throws StoreOperationException should not happen.
      */
     @Test
-    public void testCreate() {
+    public void testCreate() throws StoreOperationException {
 
         final EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest request =
                 EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest.newBuilder().setEntityId(
@@ -69,13 +67,11 @@ public class EntityCustomTagsRpcServiceTest {
         final StreamObserver<EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
 
-        when(entityCustomTagsStore.insertTags(ENTITY_ID, tags)).thenReturn(new int[]{1, 1, 1});
+        when(entityCustomTagsStore.insertTags(ENTITY_ID, tags)).thenReturn(3);
 
         entityCustomTagsService.createTags(request, mockObserver);
 
-        verify(mockObserver).onNext(EntityCustomTagsCreateResponse.newBuilder()
-                .setEntityCustomTags(entityCustomTags)
-                .build());
+        verify(mockObserver).onNext(EntityCustomTagsCreateResponse.newBuilder().build());
         verify(mockObserver).onCompleted();
     }
 

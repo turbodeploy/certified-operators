@@ -25,9 +25,7 @@ message EntityCustomTagsCreateRequest {
 }
 
 // Response for the rpc call is the object of entity tags created.
-message EntityCustomTagsCreateResponse {
-    optional EntityCustomTags entity_custom_tags = 1;
-}
+message EntityCustomTagsCreateResponse {}
 
 // The rpc service to manage user defined entity tags
 service EntityCustomTagsService {

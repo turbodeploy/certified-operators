@@ -401,7 +401,8 @@ public class ServiceConfig {
                 communicationConfig.thinTargetCache(),
                 mapperConfig.paginationMapper(),
                 communicationConfig.serviceEntityMapper(),
-                mapperConfig.settingManagerMappingLoader().getMapping());
+                mapperConfig.settingManagerMappingLoader().getMapping(),
+                communicationConfig.entityCustomTagsServiceBlockingStub());
     }
 
     @Bean

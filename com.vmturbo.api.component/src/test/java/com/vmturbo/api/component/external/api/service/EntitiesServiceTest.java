@@ -8,6 +8,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -70,6 +72,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.Actio
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsMoles.EntityCustomTagsServiceMole;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -128,6 +135,7 @@ public class EntitiesServiceTest {
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
     private final PolicyServiceMole policyService = spy(new PolicyServiceMole());
+    private final EntityCustomTagsServiceMole entityCustomTagsService = spy(new EntityCustomTagsServiceMole());
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
@@ -149,7 +157,7 @@ public class EntitiesServiceTest {
     @Rule
     public final GrpcTestServer grpcServer =
         GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
-            repositoryService, policyService);
+            repositoryService, policyService, entityCustomTagsService);
     private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
@@ -265,7 +273,8 @@ public class EntitiesServiceTest {
                 thinTargetCache,
                 paginationMapper,
                 serviceEntityMapper,
-                settingsManagerMapping);
+                settingsManagerMapping,
+                EntityCustomTagsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -530,6 +539,182 @@ public class EntitiesServiceTest {
 
         // check tags
         Assert.assertEquals(0, result.size());
+    }
+
+    /**
+     * Create tags using entity id should work as expected.
+     *
+     * @throws OperationFailedException should not happen.
+     */
+    @Test
+    public void testCreateTags() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey(TAG_KEY);
+        tag.setValues(TAG_VALUES);
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().putTags(TAG_KEY, TagValuesDTO.newBuilder()
+                .addAllValues(TAG_VALUES).build()).build();
+
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final EntityCustomTagsCreateResponse response =
+                EntityCustomTagsCreateResponse.newBuilder().build();
+
+        when(entityCustomTagsService.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        final List<TagApiDTO> result = service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
+
+        // check tags
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(TAG_KEY, result.get(0).getKey());
+        Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
+    }
+
+    /**
+     * Create empty tags using entity id should work as expected.
+     *
+     * @throws OperationFailedException should not happen.
+     */
+    @Test
+    public void testCreateEmptyTags() throws OperationFailedException {
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final EntityCustomTagsCreateResponse response =
+                EntityCustomTagsCreateResponse.newBuilder().build();
+
+        when(entityCustomTagsService.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        final List<TagApiDTO> result = service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
+
+        // check tags
+        Assert.assertEquals(0, result.size());
+    }
+
+    /**
+     * Create tags using invalid entity id should fail with exception.
+     *
+     * @throws OperationFailedException in case of illegal entity uuid.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCreateTagsInvalidId() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final EntityCustomTagsCreateResponse response =
+                EntityCustomTagsCreateResponse.newBuilder().build();
+
+        when(entityCustomTagsService.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(false);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
+    }
+
+    /**
+     * Create tags using invalid entity id should fail with exception.
+     *
+     * @throws OperationFailedException in case of empty string key in a tag.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testCreateTagsEmptyKey() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey("");
+        tag.setValues(TAG_VALUES);
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final EntityCustomTagsCreateResponse response =
+                EntityCustomTagsCreateResponse.newBuilder().build();
+
+        when(entityCustomTagsService.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
+    }
+
+    /**
+     * Create tags using invalid entity id should fail with exception.
+     *
+     * @throws OperationFailedException in case of empty string key in a tag.
+     */
+    @Test(expected = OperationFailedException.class)
+    public void testCreateTagsEmptyValues() throws OperationFailedException {
+
+        TagApiDTO tag = new TagApiDTO();
+        tag.setKey(TAG_KEY);
+        tag.setValues(new ArrayList<>());
+
+        List<TagApiDTO> tags = new ArrayList<>();
+        tags.add(tag);
+
+        final Tags tagsDTO = Tags.newBuilder().build();
+
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(VM_ID)
+                .setTags(tagsDTO).build();
+
+        final EntityCustomTagsCreateResponse response =
+                EntityCustomTagsCreateResponse.newBuilder().build();
+
+        when(entityCustomTagsService.createTags(request)).thenReturn(response);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        service.createTagsByEntityUuid(Long.toString(VM_ID), tags);
     }
 
     /**

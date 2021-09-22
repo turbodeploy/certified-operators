@@ -27,6 +27,7 @@ import com.google.common.collect.Maps;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -101,6 +102,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.RiskUtil;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateRequest;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsOuterClass.EntityCustomTagsCreateResponse;
+import com.vmturbo.common.protobuf.group.EntityCustomTagsServiceGrpc.EntityCustomTagsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
@@ -200,6 +204,8 @@ public class EntitiesService implements IEntitiesService {
 
     private final SettingsManagerMapping settingsManagerMapping;
 
+    private final EntityCustomTagsServiceBlockingStub entityCustomTagsService;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -263,7 +269,8 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final ThinTargetCache thinTargetCache,
         @Nonnull final PaginationMapper paginationMapper,
         @Nonnull final ServiceEntityMapper serviceEntityMapper,
-        final SettingsManagerMapping settingsManagerMapping) {
+        final SettingsManagerMapping settingsManagerMapping,
+        @Nonnull final EntityCustomTagsServiceBlockingStub entityCustomTagsService) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -287,6 +294,7 @@ public class EntitiesService implements IEntitiesService {
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.settingsManagerMapping = settingsManagerMapping;
+        this.entityCustomTagsService = entityCustomTagsService;
     }
 
     @Override
@@ -1002,8 +1010,44 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public List<TagApiDTO> createTagByEntityUuid(final String s, final TagApiDTO tagApiDTO) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<TagApiDTO> createTagsByEntityUuid(final String uuid, final List<TagApiDTO> tagApiDTOs)
+            throws OperationFailedException {
+        final long oid = getEntityOidFromString(uuid);
+
+        // Convert to Tags and also validate.
+        Tags tags = convertApiTagsToTags(tagApiDTOs);
+        final EntityCustomTagsCreateRequest request = EntityCustomTagsCreateRequest.newBuilder()
+                .setEntityId(oid)
+                .setTags(tags).build();
+
+        try {
+            entityCustomTagsService.createTags(request);
+        } catch(StatusRuntimeException e) {
+            throw new OperationFailedException("Entity service RPC call failed to complete request: "
+                    + e.getMessage());
+        }
+
+        return tagApiDTOs;
+    }
+
+    private static Tags convertApiTagsToTags(List<TagApiDTO> apiTags)
+            throws OperationFailedException {
+
+        final Tags.Builder tags = Tags.newBuilder();
+        for(TagApiDTO tag : apiTags) {
+
+            if(StringUtils.isEmpty(tag.getKey())) {
+                throw new OperationFailedException("Tag key cannot be empty string");
+            }
+
+            if(tag.getValues().isEmpty()) {
+                throw new OperationFailedException("Tag values list cannot be empty");
+            }
+
+            tags.putTags(tag.getKey(),
+                    TagValuesDTO.newBuilder().addAllValues(tag.getValues()).build());
+        }
+        return tags.build();
     }
 
     @Override

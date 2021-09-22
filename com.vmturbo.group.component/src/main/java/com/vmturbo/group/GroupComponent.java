@@ -108,7 +108,8 @@ public class GroupComponent extends BaseVmtComponent {
             rpcConfig.settingService(),
             rpcConfig.scheduleService(),
             rpcConfig.settingPolicyService(),
-            rpcConfig.topologyDataDefinitionRpcService());
+            rpcConfig.topologyDataDefinitionRpcService(),
+            rpcConfig.entityCustomTagsService());
     }
 
     @Nonnull
