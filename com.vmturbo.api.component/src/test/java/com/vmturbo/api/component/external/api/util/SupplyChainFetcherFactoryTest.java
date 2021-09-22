@@ -1436,7 +1436,7 @@ public class SupplyChainFetcherFactoryTest {
      * Verify that grpc request will not be called if the 'seeds' variable is empty.
      */
     @Test
-    public void getLeafEntitiesTestEmptySeeds() {
+    public void getLeafEntitiesTestEmptySeeds() throws OperationFailedException {
         List<Long> seeds = Collections.emptyList();
         List<BaseApiDTO> dtos = supplyChainFetcherFactory.fetchLeafEntities(seeds, null, null, null);
         Assert.assertTrue(dtos.isEmpty());
@@ -1444,11 +1444,10 @@ public class SupplyChainFetcherFactoryTest {
     }
 
     @Nonnull
-    private LeafEntitiesRequest verifyFilteredClass(@Nonnull String className) {
+    private LeafEntitiesRequest verifyFilteredClass(@Nonnull String className)
+            throws OperationFailedException {
         long id = 1L;
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
+        when(groupExpander.expandUuids(Mockito.any())).thenReturn(ImmutableSet.of(id));
         List<Long> seeds = Collections.singletonList(id);
         Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
                 .thenReturn(LeafEntitiesResponse.newBuilder().build());
@@ -1462,7 +1461,7 @@ public class SupplyChainFetcherFactoryTest {
      * Verify handling of expected class name.
      */
     @Test
-    public void getLeafEntitiesTestFilterClasses() {
+    public void getLeafEntitiesTestFilterClasses() throws OperationFailedException {
         LeafEntitiesRequest request = verifyFilteredClass("BusinessApplication");
         Assert.assertFalse(request.getFilterOutClassesList().isEmpty());
         Assert.assertEquals(EntityType.BUSINESS_APPLICATION, request.getFilterOutClassesList().get(0));
@@ -1472,7 +1471,7 @@ public class SupplyChainFetcherFactoryTest {
      * Verify throwing an exception if the provided class is unknown.
      */
     @Test(expected = IllegalArgumentException.class)
-    public void getLeafEntitiesTestFilterClassesUnexpected() {
+    public void getLeafEntitiesTestFilterClassesUnexpected() throws OperationFailedException {
         verifyFilteredClass("__||__");
     }
 
@@ -1480,17 +1479,15 @@ public class SupplyChainFetcherFactoryTest {
      * Verify handling of pagination parameters while getting leaf entities.
      */
     @Test
-    public void getLeafEntitiesPaginationTest() {
+    public void getLeafEntitiesPaginationTest() throws OperationFailedException {
         final String cursor = "10";
         final Integer limit = 100;
 
         long id = 1L;
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
 
         Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
                 .thenReturn(LeafEntitiesResponse.newBuilder().build());
+        when(groupExpander.expandUuids(Mockito.any())).thenReturn(ImmutableSet.of(id));
         ArgumentCaptor<LeafEntitiesRequest> reqCaptor = ArgumentCaptor.forClass(LeafEntitiesRequest.class);
         supplyChainFetcherFactory.fetchLeafEntities(Collections.singletonList(id), null, cursor, limit);
         verify(supplyChainServiceBackend).getLeafEntities(reqCaptor.capture());
@@ -1505,7 +1502,7 @@ public class SupplyChainFetcherFactoryTest {
      * Verify the parsing of {@link LeafEntity} instances.
      */
     @Test
-    public void getLeafEntitiesParsingTest() {
+    public void getLeafEntitiesParsingTest() throws OperationFailedException {
         final long id = 1L;
         final long entityId = 100L;
         final EntityType type = EntityType.APPLICATION_COMPONENT;
@@ -1519,9 +1516,7 @@ public class SupplyChainFetcherFactoryTest {
                         .setDisplayName(displayName)
                         .build())
                 .build();
-        ApiId apiId = Mockito.mock(ApiId.class);
-        Mockito.when(apiId.oid()).thenReturn(id);
-        Mockito.when(uuidMapper.fromOid(id)).thenReturn(apiId);
+        when(groupExpander.expandUuids(Mockito.any())).thenReturn(ImmutableSet.of(id));
         Mockito.when(supplyChainServiceBackend.getLeafEntities(Mockito.any()))
                         .thenReturn(response);
         List<BaseApiDTO> dtos = supplyChainFetcherFactory
