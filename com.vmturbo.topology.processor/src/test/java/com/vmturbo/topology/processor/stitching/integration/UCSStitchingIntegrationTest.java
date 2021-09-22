@@ -23,13 +23,18 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
@@ -51,16 +56,17 @@ import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
 import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
@@ -72,6 +78,8 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  * Attempt to simulate UCS stitching operation.
  */
 public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
+    private static final Collection<EntityType> FABRIC_PROVIDER_TYPES =
+                    ImmutableSet.of(EntityType.CHASSIS, EntityType.IO_MODULE);
 
     private final long vcProbeId = 1111L;
     private final long vcTargetId = 2222L;
@@ -80,13 +88,20 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
 
     @Test
     public void testUCSStitchingWithStandardOperations() throws Exception {
-        testUCSStitching(ImmutableList.of(new FabricChassisStitchingOperation(),
-                new FabricPMStitchingOperation()));
+        testUCSStitching(Collections.singletonList(new FabricPMStitchingOperation(false)),
+                        Arrays.asList("cc1HX01"), Collections.emptyMap());
+    }
+
+    @Test
+    public void testUCSStitchingDCsKeptAfterStitching() throws Exception {
+        testUCSStitching(Collections.singletonList(new FabricPMStitchingOperation(true)),
+                        Collections.emptyList(), ImmutableMap.of(36L, 67L, 34L, 67L));
     }
 
     @Test
     public void testUCSStitchingWithGenericOperations() throws Exception {
-        testUCSStitching(ImmutableList.of(getDataDrivenFabricStitchingOperation()));
+        testUCSStitching(ImmutableList.of(getDataDrivenFabricStitchingOperation()),
+                        Arrays.asList("cc1HX01"), Collections.emptyMap());
     }
 
     private StitchingOperation getDataDrivenFabricStitchingOperation() {
@@ -154,8 +169,9 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         return journalFactory.stitchingJournal(stitchingContext);
     }
 
-    private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
-            throws Exception {
+    private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest,
+                    Collection<String> removedProviderDisplayNames,
+                    Map<Long, Long> chassisToDcs) throws Exception {
         final Map<Long, EntityDTO> ucsEntities = sdkDtosFromFile(
                        getClass(), "protobuf/messages/cisco-ucs_data.json.zip", 1L);
         final Map<Long, EntityDTO> hypervisorEntities = sdkDtosFromFile(
@@ -196,7 +212,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
 
         // This DataCenter from the hypervisor should have been removed as a provider to the PMs that
         // had a Chassis provider from the fabric probe
-        final List<Long> removedProvider = oidsFor(Arrays.asList("cc1HX01").stream(),
+        final List<Long> removedProviders = oidsFor(removedProviderDisplayNames.stream(),
                 hypervisorEntities);
 
         // These are the providers added to esx4
@@ -237,16 +253,29 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
             StitchingTestUtils.visitNeighbors(pm, providerSubtree,
                     Collections.emptySet(), StitchingEntity::getProviders);
 
-            assertFalse(providerSubtree.stream()
-                    .anyMatch(provider -> provider.getOid() == removedProvider.get(0)));
+            removedProviders.forEach(removedProvider -> {
+                assertFalse(providerSubtree.stream()
+                                .anyMatch(provider -> provider.getOid() == removedProvider));
+            });
+            providerSubtree.stream().filter(p -> p.getEntityType() == EntityType.DATACENTER)
+                            .findAny().ifPresent(dc -> {
+                                final Collection<CommodityDTO.Builder> boughts =
+                                                pm.getCommodityBoughtListByProvider().get(dc).iterator().next()
+                                                                .getBoughtList();
+                                Assert.assertThat(boughts.size(), CoreMatchers.is(1));
+                                Assert.assertThat(boughts.iterator().next().getCommodityType(),
+                                                CoreMatchers.is(CommodityType.DATACENTER));
+                            });
+
             List<Long> copiedProviderOids = expectedCopiedProviders2;
             // if pm is esx4 change the list of copied provider oids
             if (pm.getDisplayName().equals(expectedRetainedDisplayNames.get(3))) {
                 copiedProviderOids = expectedCopiedProviders;
             }
-            copiedProviderOids.forEach(copiedProv ->
-                    assertTrue(providerSubtree.stream()
-                            .anyMatch(provider -> provider.getOid() == copiedProv)));
+            copiedProviderOids.forEach(copiedProv -> assertTrue(providerSubtree.stream()
+                            .anyMatch(provider -> provider.getOid() == copiedProv
+                                            && FABRIC_PROVIDER_TYPES.contains(
+                                            provider.getEntityType()))));
 
             // check that the stitched host will only sell one CPU/MEM/IO_THROUGHPUT/NET_THROUGHPUT
             // commodity with values from VC probe
@@ -265,10 +294,20 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
             });
         });
 
-        assertEquals(2, stitchingContext.getEntitiesOfType(EntityType.DATACENTER).count());
+        final Collection<TopologyStitchingEntity> dcs =
+                        stitchingContext.getEntitiesOfType(EntityType.DATACENTER)
+                                        .collect(Collectors.toSet());
+        assertEquals(2, dcs.size());
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
+        chassisToDcs.forEach((from, to) -> {
+            final TopologyEntityDTO.Builder chassis = topology.get(from);
+            final ConnectedEntity connectedEntity = chassis.getConnectedEntityList(0);
+            Assert.assertThat(connectedEntity.getConnectedEntityId(), CoreMatchers.is(to));
+            Assert.assertThat(connectedEntity.getConnectedEntityType(),
+                            CoreMatchers.is(EntityType.DATACENTER_VALUE));
+        });
         stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology.values().stream()
                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, TopologyEntity::newBuilder))),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal,
@@ -317,7 +356,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                                 ucsEntities.size() + 1L);
 
         List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest =
-                        ImmutableList.of(new FabricPMStitchingOperation());
+                        Collections.singletonList(new FabricPMStitchingOperation(false));
 
         final StitchingContext stitchingContext = prepareStitchingContext(ucsEntities,
                         hypervisorEntities, fabricStitchingOperationsToTest);

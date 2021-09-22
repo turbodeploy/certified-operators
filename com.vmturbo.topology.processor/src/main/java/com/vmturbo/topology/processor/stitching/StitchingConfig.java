@@ -108,6 +108,9 @@ public class StitchingConfig {
     @Value("${stitchingMergeKubernetesProbeTypes:true}")
     private boolean stitchingMergeKubernetesProbeTypes;
 
+    @Value("${keepDCsAfterFabricStitching:false}")
+    private boolean keepDCsAfterFabricStitching;
+
     @Autowired
     private ClockConfig clockConfig;
 
@@ -125,7 +128,7 @@ public class StitchingConfig {
 
     @Bean
     public StitchingOperationLibrary stitchingOperationLibrary() {
-        return new StitchingOperationLibrary();
+        return new StitchingOperationLibrary(keepDCsAfterFabricStitching);
     }
 
     @Bean

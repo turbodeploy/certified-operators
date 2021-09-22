@@ -94,6 +94,15 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
     }
 
     /**
+     * Adds connected to relationships between current entity and collection of entities.
+     *
+     * @param connectionType type of he connected to relationships
+     * @param entities collection of entities to which we are going connect to.
+     */
+    void addConnectedTo(@Nonnull final ConnectionType connectionType,
+                    @Nonnull final Set<StitchingEntity> entities);
+
+    /**
      * Get the connected {@link StitchingEntity} instances that are "connectedTo" this entity
      * grouped by connection type.
      *

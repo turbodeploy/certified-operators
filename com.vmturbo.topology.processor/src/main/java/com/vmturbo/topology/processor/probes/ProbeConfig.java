@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.probes;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -35,6 +36,9 @@ public class ProbeConfig {
     public ProbeInfoCompatibilityChecker compatibilityChecker() {
         return new ProbeInfoCompatibilityChecker();
     }
+
+    @Value("${keepDCsAfterFabricStitching:false}")
+    private boolean keepDCsAfterFabricStitching;
 
     @Bean
     public ProbeStore probeStore() {

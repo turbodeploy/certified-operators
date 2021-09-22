@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,9 +34,10 @@ public class CommoditySoldMerger {
         // Collect the mergeFromCommodities into a map where they can be looked up by
         // {@link CommodityBuilderIdentifier}.
         final Map<CommodityBuilderIdentifier, CommoditySold> mergeFromCommoditiesMap =
-            mergeFromCommodities.stream().collect(Collectors.toMap(
-                commodity -> new CommodityBuilderIdentifier(commodity.sold.getCommodityType(), commodity.sold.getKey()),
-                Function.identity()));
+                        new HashMap<>();
+        mergeFromCommodities.forEach(commodity -> mergeFromCommoditiesMap.put(
+                        new CommodityBuilderIdentifier(commodity.sold.getCommodityType(),
+                                        commodity.sold.getKey()), commodity));
 
         final List<CommoditySold> mergedCommodities =
             new ArrayList<>(Math.max(mergeFromCommodities.size(), mergeOntoCommodities.size()));

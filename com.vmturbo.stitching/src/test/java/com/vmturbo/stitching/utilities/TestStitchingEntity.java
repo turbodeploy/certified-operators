@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang.StringUtils;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -57,6 +58,12 @@ public class TestStitchingEntity implements StitchingEntity {
     @Override
     public Set<StitchingEntity> getConsumers() {
         return Collections.emptySet();
+    }
+
+    @Override
+    public void addConnectedTo(@Nonnull ConnectionType connectionType,
+                    @Nonnull Set<StitchingEntity> entities) {
+        throw new IllegalStateException();
     }
 
     @Nonnull

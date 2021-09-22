@@ -17,7 +17,6 @@ import com.vmturbo.stitching.billing.AwsBillingBusinessAccountStitchingOperation
 import com.vmturbo.stitching.billing.AwsBillingStitchingOperation;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
-import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.serviceslo.ServiceSLOStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
@@ -36,6 +35,16 @@ public class StitchingOperationLibrary {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final boolean keepDCsAfterFabricStitching;
+
+    public StitchingOperationLibrary(boolean keepDCsAfterFabricStitching) {
+        this.keepDCsAfterFabricStitching = keepDCsAfterFabricStitching;
+    }
+
+    public StitchingOperationLibrary() {
+        this(false);
+    }
+
     /**
      * Find an operation for the given probe type and category.
      *
@@ -53,8 +62,8 @@ public class StitchingOperationLibrary {
             case STORAGE:
                 return Collections.emptyList();
             case FABRIC:
-                return Arrays.asList(new FabricChassisStitchingOperation(),
-                        new FabricPMStitchingOperation());
+                return Collections.singletonList(
+                                new FabricPMStitchingOperation(keepDCsAfterFabricStitching));
             case HYPERVISOR:
                 return Collections.emptyList();
             case CLOUD_MANAGEMENT:
@@ -81,8 +90,8 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case HYPERCONVERGED:
                 if (probeType.equals(SDKProbeType.INTERSIGHT_UCS.getProbeType())) {
-                    return Arrays.asList(new FabricChassisStitchingOperation(),
-                            new FabricPMStitchingOperation());
+                    return Collections.singletonList(
+                            new FabricPMStitchingOperation(keepDCsAfterFabricStitching));
                 }
                 return Collections.emptyList();
             case PAAS:
