@@ -306,7 +306,8 @@ public class SupplyChainsService implements ISupplyChainsService {
     public List<BaseApiDTO> getLeafEntities(@Nonnull List<Long> uuids,
                                             @Nullable List<String> filterOutClasses,
                                             @Nullable String cursor,
-                                            @Nullable Integer limit) {
+                                            @Nullable Integer limit)
+            throws OperationFailedException {
         return supplyChainFetcherFactory.fetchLeafEntities(uuids, filterOutClasses, cursor, limit);
     }
 

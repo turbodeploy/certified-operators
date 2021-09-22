@@ -1608,19 +1608,17 @@ public class SupplyChainFetcherFactory {
     public List<BaseApiDTO> fetchLeafEntities(@Nonnull List<Long> uuids,
                                               @Nullable List<String> filterOutClasses,
                                               @Nullable String cursor,
-                                              @Nullable Integer limit) {
-        // Ensure that the entity oids are resolved (i.e. we know if its an entity).
-        List<ApiId> idList = uuids.stream()
-                        .map(uuidMapper::fromOid)
-                        .collect(Collectors.toList());
-        uuidMapper.bulkResolveEntities(idList);
-
-        if (idList.isEmpty()) {
+                                              @Nullable Integer limit)
+            throws OperationFailedException {
+        // Expand any groups in the input list of seeds.
+        final Set<String> uuidsSet = uuids.stream().map(String::valueOf).collect(Collectors.toSet());
+        final Set<Long> expandedUuids = groupExpander.expandUuids(uuidsSet);
+        if (expandedUuids.isEmpty()) {
             return Collections.emptyList();
         }
 
         final LeafEntitiesRequest.Builder builder = LeafEntitiesRequest.newBuilder();
-        builder.addAllSeeds(idList.stream().map(ApiId::oid).collect(Collectors.toList()));
+        builder.addAllSeeds(expandedUuids);
         if (filterOutClasses != null && !filterOutClasses.isEmpty()) {
             builder.addAllFilterOutClasses(filterOutClasses.stream()
                     .map(cls -> ApiEntityType.fromString(cls).typeNumber())
