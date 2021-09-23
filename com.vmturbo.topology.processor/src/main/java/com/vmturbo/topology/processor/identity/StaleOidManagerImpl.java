@@ -78,6 +78,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
     private static final Logger logger = LogManager.getLogger();
     private static final String UPDATE_TIMESTAMPS = "update_timestamps";
     private static final String EXPIRE_RECORDS = "expire_records";
+    private static final int RECURRENT_OPERATIONS_RETENTION_YEARS = 1;
 
     private final long entityExpirationTimeMs;
     private final long validationFrequencyMs;
@@ -87,6 +88,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
     private final ScheduledExecutorService executorService;
     private final Map<Integer, Long> expirationDaysPerEntity;
     private final long initialExpirationDelayMs;
+    private boolean shouldDeleteRecurrentOperations = true;
     private Consumer<Set<Long>> listener;
     private Supplier<Set<Long>> getCurrentOids;
 
@@ -178,7 +180,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
         }
         return this.executorService.scheduleWithFixedDelay(new OidExpirationTask(getCurrentOids,
                         this::notifyListener, entityExpirationTimeMs, context, expireOids, clock,
-                        this.expirationDaysPerEntity, validationFrequencyMs, false), initialExpirationDelayMs,
+                        this.expirationDaysPerEntity, validationFrequencyMs, false, this::deleteLatestRecurrentOperations), initialExpirationDelayMs,
                 validationFrequencyMs, TimeUnit.MILLISECONDS);
     }
 
@@ -198,7 +200,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
         OidExpirationTask task = new OidExpirationTask(this.getCurrentOids, this::notifyListener,
                 entityExpirationTimeMs, context, expireOids, clock, this.expirationDaysPerEntity,
                 validationFrequencyMs,
-                true);
+                true, this::deleteLatestRecurrentOperations);
         Future<?> future = this.executorService.submit(task);
         future.get(5, TimeUnit.MINUTES);
         return task.getNumberOfExpiredOids();
@@ -234,6 +236,23 @@ public class StaleOidManagerImpl implements StaleOidManager {
     }
 
     /**
+     * Delete the recurrent operations that are older than {@link StaleOidManagerImpl#RECURRENT_OPERATIONS_RETENTION_YEARS}.
+     * This should be done only once after every restart of the component.
+     * @return the number of deleted operations
+     */
+    private int deleteLatestRecurrentOperations() {
+        if (shouldDeleteRecurrentOperations) {
+            int deletedOperations = context.deleteFrom(RECURRENT_OPERATIONS)
+                    .where(RECURRENT_OPERATIONS.EXECUTION_TIME.lessThan(LocalDateTime.now().minusYears(RECURRENT_OPERATIONS_RETENTION_YEARS)))
+                    .execute();
+            logger.info("Deleted {} operations from the recurrent operations table", deletedOperations);
+            shouldDeleteRecurrentOperations = false;
+            return deletedOperations;
+        }
+        return 0;
+    }
+
+    /**
      * Task that expires the oids. These are the operations performed by this task:
      * 1) Set the last_seen timestamp of the oids retrieved from {@link OidExpirationTask#getCurrentOids}
      * 2) Get all the oids that haven't been seen for {@link OidExpirationTask#entityExpirationTimeMs}
@@ -251,14 +270,15 @@ public class StaleOidManagerImpl implements StaleOidManager {
         private final Map<Integer, Long> expirationDaysPerEntity;
         private final long validationFrequencyMs;
         private final boolean forceExpiration;
+        private final Supplier<Integer> deleteRecurrentOperations;
         private long currentTimeMs;
         private int numberOfExpiredOids;
         private OidExpirationResultRecord oidExpirationResultRecord;
 
         OidExpirationTask(@Nonnull final Supplier<Set<Long>> getCurrentOids, @Nonnull final Consumer<Set<Long>> notifyExpiredOids,
                 final long entityExpirationTimeMs, final DSLContext context, final boolean expireOids,
-                final Clock clock, final Map<Integer, Long> expirationTimePerEntity,
-                long validationFrequencyMs, boolean forceExpiration) {
+                final Clock clock, final Map<Integer, Long> expirationTimePerEntity, long validationFrequencyMs,
+                boolean forceExpiration, Supplier<Integer> deleteRecurrentOperations) {
             this.getCurrentOids = getCurrentOids;
             this.notifyExpiredOids = notifyExpiredOids;
             this.entityExpirationTimeMs = entityExpirationTimeMs;
@@ -268,6 +288,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
             this.expirationDaysPerEntity = expirationTimePerEntity;
             this.validationFrequencyMs = validationFrequencyMs;
             this.forceExpiration = forceExpiration;
+            this.deleteRecurrentOperations = deleteRecurrentOperations;
         }
 
         /**
@@ -276,6 +297,11 @@ public class StaleOidManagerImpl implements StaleOidManager {
         @Override
         public synchronized void run() {
             try {
+                try {
+                    deleteRecurrentOperations.get();
+                } catch (Exception e) {
+                    logger.error("Exception occurred while attempting to delete recurrent operations", e);
+                }
                 this.oidExpirationResultRecord = new OidExpirationResultRecord(Instant.ofEpochMilli(clock.millis()));
                 this.currentTimeMs = clock.millis();
                 final Stopwatch stopwatch = Stopwatch.createStarted();
