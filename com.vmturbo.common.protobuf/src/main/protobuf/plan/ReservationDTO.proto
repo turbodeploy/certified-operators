@@ -142,6 +142,10 @@ message ReservationTemplateCollection {
 message ConstraintInfoCollection {
     // A list of constraint information which contains details for different type of constraint.
     repeated ReservationConstraintInfo reservation_constraint_info = 1;
+
+    // Oids of groups whose members are the only possible providers for placements for those
+    // entity types.
+    repeated int64 scope_ids = 2;
 }
 
 message InitialPlacementRequest {

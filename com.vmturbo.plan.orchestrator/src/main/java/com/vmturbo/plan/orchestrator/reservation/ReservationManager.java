@@ -713,6 +713,7 @@ public class ReservationManager implements ReservationDeletedListener {
                 throw new Exception("Constraint not found for ID: " + reservationConstraintInfo.getConstraintId());
             }
         }
+        constraintInfoCollection.addAllScopeIds(reservation.getConstraintInfoCollection().getScopeIdsList());
         return reservation.toBuilder().setConstraintInfoCollection(constraintInfoCollection).build();
     }
 
