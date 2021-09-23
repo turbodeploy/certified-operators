@@ -9,6 +9,7 @@ metadata:
     containerImage: registry.connect.redhat.com/turbonomic/t8c-operator@sha256:3e1006cb49da957503fcd3505b5d19b05c4670237ff34da1c3ae11529f1d7e3e
     createdAt: "2019-07-01T00:00:00.000Z"
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
+    olm.properties: '[{"type": "olm.maxOpenShiftVersion", "value": "4.8"}]'
     repository: https://github.com/turbonomic/t8c-install/tree/master/operator
     support: Turbonomic, Inc.
   name: t8c-operator.v42.0.0
