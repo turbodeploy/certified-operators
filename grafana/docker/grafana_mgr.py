@@ -8,6 +8,7 @@ import logging
 import os
 import psutil
 import setting.Setting_pb2_grpc
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -78,6 +79,7 @@ class Grafana:
         # There is one "report-editor" user created by the platform. All other users get the
         # "Viewer" role.
         self.grafana_env["GF_USERS_AUTO_ASSIGN_ORG_ROLE"] = "Viewer"
+        signal.signal(signal.SIGTERM, self.handle_sigterm)
 
     def reboot(self):
         """ Restart the Grafana server. If the server is not up, starts the server. """
@@ -120,6 +122,9 @@ class Grafana:
                 self.logger.info("Killing Grafana server!!!")
                 self.process.kill()
             self.logger.info("Shut down existing Grafana server.")
+    def handle_sigterm(self, *args):
+        self.logger.info("Exiting after catching SIGTERM")
+        sys.exit("Caught SIGTERM")
 
     def clear_license(self):
         """ Delete the enterprise license. Causes a server restart. """
@@ -348,12 +353,11 @@ def run():
                     # Grafana may crash, or fail to start up (e.g. if the extractor hasn't finished
                     # initializing the database users).
                     grafana.ensureStarted()
-                    # TODO (roman, Sept 11 2020): Does this make it take longer to terminate the
-                    # process?
                     time.sleep(10)
     except:
-        _LOGGER.error("Shutting down after unexpected error:", sys.exc_info()[0])
-        grafana.shutdown()
+        if sys.exc_info()[0] != SystemExit:
+            _LOGGER.error("Shutting down after unexpected error: ", str(sys.exc_info()[0]))
+            grafana.shutdown()
 
 
 if __name__ == '__main__':
