@@ -100,7 +100,6 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
-import com.vmturbo.group.api.TagOrigin;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.db.Tables;
@@ -474,8 +473,7 @@ public class GroupDAO implements IGroupStore {
             final String tagKey = Truncator.truncateTagKey(entry.getKey(), true);
             for (String tagValue : entry.getValue().getValuesList()) {
                 final String truncateTagValue = Truncator.truncateTagValue(tagValue, true);
-                final GroupTags tag = new GroupTags(groupId, tagKey, truncateTagValue,
-                        (short)TagOrigin.DISCOVERED.ordinal());
+                final GroupTags tag = new GroupTags(groupId, tagKey, truncateTagValue);
                 result.add(
                     context.insertInto(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS)
                         .set(context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag))
