@@ -90,7 +90,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  */
 public class ReservationMapper {
 
-    private final boolean enableReservationModeGrouping;
+    private final boolean enableReservationEnhancements;
 
     private static final EnumMap<ReservationMode, Set<ReservationGrouping>> VALID_RESERVATION_MODE_GROUPINGS
         = new EnumMap<>(ImmutableMap.<ReservationMode, Set<ReservationGrouping>>builder()
@@ -153,12 +153,12 @@ public class ReservationMapper {
                       @Nonnull final TemplateServiceBlockingStub templateService,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                       @Nonnull final PolicyServiceBlockingStub policyService,
-                      final boolean enableReservationModeGrouping) {
+                      final boolean enableReservationEnhancements) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyService = Objects.requireNonNull(policyService);
-        this.enableReservationModeGrouping = enableReservationModeGrouping;
+        this.enableReservationEnhancements = enableReservationEnhancements;
     }
 
     /**
@@ -307,7 +307,7 @@ public class ReservationMapper {
                         reservationApiDTO);
         }
         reservationApiDTO.setReservationDeployed(reservation.getDeployed());
-        if (enableReservationModeGrouping) {
+        if (enableReservationEnhancements) {
             if (reservation.hasReservationMode()) {
                 reservationApiDTO.setMode(
                         ReservationFieldsConverter.modeToApi(reservation.getReservationMode()));
