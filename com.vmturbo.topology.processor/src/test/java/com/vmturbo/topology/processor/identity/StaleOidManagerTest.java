@@ -5,6 +5,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -45,6 +47,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -70,9 +74,10 @@ public class StaleOidManagerTest {
     private static final int EXPIRATION_DAYS = 30;
     private static final int INITIAL_DELAY_HRS = 6;
     private static final int VALIDATION_FREQUENCY_HRS = 1;
-    private static final int N_QUERIES_PER_EXPIRATION_TASK = 5;
+    private static final int N_QUERIES_PER_EXPIRATION_TASK = 6;
     private static final int TIMEOUT_SECONDS = 10;
-
+    private static final String EXPIRATION_EXCEPTION_MESSAGE = "Exception with OidExpirationTask";
+    private static final int DELETED_OPERATIONS_N = 10;
     private StaleOidManagerImpl staleOidManager;
     private ScheduledFuture<?> staleOidManagerProcess;
     private AssignedIdentityJooqProvider assignedIdentityJooqProvider;
@@ -80,7 +85,6 @@ public class StaleOidManagerTest {
     private final long currentTime = System.currentTimeMillis();
     private final Clock clock = mock(Clock.class);
     private ScheduledExecutorService executor;
-    private String expirationExceptionMessage = "Exception with OidExpirationTask";
     private RecurrentOperationsRecord recurrentOperationsRecord;
 
     long oid1 = 1;
@@ -139,32 +143,27 @@ public class StaleOidManagerTest {
     }
 
     /**
-     * Tests that if an exception is thrown inside an OidExpirationTask
-     * we still perform other tasks.
-     * @throws InterruptedException if the task gets interrupted
-     * @throws TimeoutException if a timeout has been reached
-     * @throws ExecutionException if an error occurs in the task
+     * Tests that no exception is ever propagate from an OidExpirationTask. The reason we do not
+     * want this is that any propagated exception would stop the scheduler to perform the tasks
      */
     @Test
-    public void testExceptionInScheduledTask()
-            throws InterruptedException, TimeoutException, ExecutionException {
-        final int nExpirationTasks = 5;
+    public void testExceptionInScheduledTask() {
         final AssignedIdentityJooqProvider assignedIdentityJooqProvider = new AssignedIdentityJooqProvider(3, true,
                 false);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), SQLDialect.MARIADB);
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        ArgumentCaptor<? extends Runnable> oidExpirationTask = ArgumentCaptor.forClass(Runnable.class);
         staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
-               TimeUnit.SECONDS.toMillis(1),
-               0, context, clock, true, executor, new HashMap<>());
+                TimeUnit.SECONDS.toMillis(1),
+                0, context, clock, true, executor, new HashMap<>());
         initialize();
-        for (int i = 0; i < nExpirationTasks; i++) {
-            try {
-               staleOidManagerProcess.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            } catch (CancellationException e) {
-               Assert.assertTrue(assignedIdentityJooqProvider.getSetRecurrentOperationQuery().getErrors()
-                       .contains(expirationExceptionMessage));
-            }
+        Mockito.verify(executor).scheduleWithFixedDelay(oidExpirationTask.capture(), anyLong(), anyLong(), any());
+        try {
+            oidExpirationTask.getValue().run();
+        } catch (Exception e) {
+            Assert.fail();
         }
-   }
+    }
 
     /**
      * Tests that we correctly set the last seen timestamp to the oids that currently exist in
@@ -248,7 +247,7 @@ public class StaleOidManagerTest {
     @Test
     public void testDoNotSetExpiredOidsBecauseOfFlag() throws Exception {
         AssignedIdentityJooqProvider assignedIdentityJooqProvider =
-                new AssignedIdentityJooqProvider(1, false, false);
+                new AssignedIdentityJooqProvider(2, false, false);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), SQLDialect.MARIADB);
         StaleOidManagerImpl staleOidManagerWithoutExpiration =
             new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
@@ -273,7 +272,7 @@ public class StaleOidManagerTest {
     @Test
     public void testDoNotSetExpiredOids() throws Exception {
         AssignedIdentityJooqProvider assignedIdentityJooqProvider =
-                new AssignedIdentityJooqProvider(3, false, true);
+                new AssignedIdentityJooqProvider(4, false, true);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), SQLDialect.MARIADB);
         StaleOidManagerImpl staleOidManagerWithoutExpiration =
                 new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
@@ -345,6 +344,27 @@ public class StaleOidManagerTest {
     }
 
     /**
+     * Test that having a null listener won't prevent the task from running.
+     *
+     * @throws InterruptedException when Future.get throws it.
+     * @throws ExecutionException when Future.get throws it.
+     * @throws TimeoutException when Future.get throws it.
+     */
+    @Test
+    public void testNullListener()
+            throws InterruptedException, ExecutionException, TimeoutException {
+        staleOidManagerProcess = staleOidManager.initialize(() -> entityStoreOids, null);
+        try {
+            staleOidManagerProcess.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Assert.fail();
+        } catch (CancellationException e) {
+            Assert.assertTrue(assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getIsExpired());
+            assertEquals(currentTime - TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                    assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getExpirationDate().getTime());
+        }
+    }
+
+    /**
      * Tests that entity types that have a day set in the expirationDaysPerEntity are expired
      * using that timestamp.
      *
@@ -357,9 +377,14 @@ public class StaleOidManagerTest {
         HashMap<String, String> expirationDaysPerEntity = new HashMap<>();
         expirationDaysPerEntity.put("VIRTUAL_MACHINE", "2");
         expirationDaysPerEntity.put("VIRTUAL_VOLUME", "5");
+        int validEntities = expirationDaysPerEntity.size();
+
+        //Add a non valid entity, make sure we do not throw an exception and we proceed with the task
+        final String invalidEntity = "INVALID_ENTITY";
+        expirationDaysPerEntity.put("INVALID_ENTITY", "-1");
 
         AssignedIdentityJooqProvider assignedIdentityJooqProvider =
-            new AssignedIdentityJooqProvider(N_QUERIES_PER_EXPIRATION_TASK, expirationDaysPerEntity);
+                new AssignedIdentityJooqProvider(N_QUERIES_PER_EXPIRATION_TASK + 2 * validEntities, expirationDaysPerEntity);
         final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), SQLDialect.MARIADB);
         entityStoreOids.add(oid1);
         entityStoreOids.add(oid2);
@@ -374,13 +399,45 @@ public class StaleOidManagerTest {
             Assert.fail();
         } catch (CancellationException e) {
             for (Entry<String, String> entry : expirationDaysPerEntity.entrySet()) {
-                int entityType = EntityType.valueOf(entry.getKey()).getNumber();
-                Assert.assertEquals(currentTime - TimeUnit.DAYS.toMillis(Integer.parseInt(expirationDaysPerEntity.get(entry.getKey()))),
-                    assignedIdentityJooqProvider.getSetExpiredRecordsQuery().getExpirationTimePerEntityType(entityType).getTime());
-                Assert.assertEquals(currentTime - TimeUnit.DAYS.toMillis(Integer.parseInt(expirationDaysPerEntity.get(entry.getKey()))),
-                    assignedIdentityJooqProvider.getGetExpiredRecordsQuery().getExpirationTimePerEntityType(entityType).getTime());
+                if (!entry.getKey().equals(invalidEntity)) {
+                    int entityType = EntityType.valueOf(entry.getKey()).getNumber();
+                    Assert.assertEquals(currentTime - TimeUnit.DAYS.toMillis(Integer.parseInt(expirationDaysPerEntity.get(entry.getKey()))),
+                            assignedIdentityJooqProvider.getSetExpiredRecordsQuery()
+                                    .getExpirationTimePerEntityType(entityType)
+                                    .getTime());
+                    Assert.assertEquals(currentTime - TimeUnit.DAYS.toMillis(Integer.parseInt(expirationDaysPerEntity.get(entry.getKey()))),
+                            assignedIdentityJooqProvider.getGetExpiredRecordsQuery()
+                                    .getExpirationTimePerEntityType(entityType)
+                                    .getTime());
+                }
             }
         }
+    }
+
+    /**
+     * Tests that recurrent operations are correctly deleted by the first task. Additionally, tests that
+     * no other following task is deleting them.
+     */
+    @Test
+    public void testDeleteRecurrentOperations() {
+        final DSLContext context = DSL.using(new MockConnection(assignedIdentityJooqProvider), SQLDialect.MARIADB);
+        ScheduledExecutorService executor = mock(ScheduledExecutorService.class);
+        ArgumentCaptor<? extends Runnable> oidExpirationTask = ArgumentCaptor.forClass(Runnable.class);
+        staleOidManager = new StaleOidManagerImpl(TimeUnit.DAYS.toMillis(EXPIRATION_DAYS),
+                TimeUnit.SECONDS.toMillis(1),
+                0, context, clock, true, executor, new HashMap<>());
+        initialize();
+        Mockito.verify(executor).scheduleWithFixedDelay(oidExpirationTask.capture(), anyLong(), anyLong(), any());
+        initialize();
+        assignedIdentityJooqProvider.deleteRecurrentOperations.setDeletedRecords(0);
+        oidExpirationTask.getValue().run();
+        assertEquals(DELETED_OPERATIONS_N,
+                assignedIdentityJooqProvider.getDeleteRecurrentOperations().getDeletedRecords());
+        assignedIdentityJooqProvider.deleteRecurrentOperations.setDeletedRecords(0);
+
+        oidExpirationTask.getValue().run();
+        assertEquals(0,
+                assignedIdentityJooqProvider.getDeleteRecurrentOperations().getDeletedRecords());
     }
 
     /**
@@ -408,15 +465,16 @@ public class StaleOidManagerTest {
      * {@link StaleOidManagerImpl#initialize(Supplier, Consumer)}
      */
     private class AssignedIdentityJooqProvider implements MockDataProvider {
-        private SetLastSeenQuery lastSeenQuery;
         private final GetExpiredRecordsQuery getExpiredRecordsQuery;
-        private SetExpiredRecordsQuery setExpiredRecordsQuery;
+        private final SetExpiredRecordsQuery setExpiredRecordsQuery;
+        private final DeleteRecurrentOperations deleteRecurrentOperations;
+        private final int queriesPerExpirationTask;
+        private SetLastSeenQuery lastSeenQuery;
         private SetRecurrentOperationQuery setRecurrentOperationQuery;
         private HashMap<String, String> expirationDaysPerEntity;
         private boolean doNotReturnSuccessfulUpdates;
 
         private int nQueries;
-        private final int queriesPerExpirationTask;
         private boolean throwException;
 
         AssignedIdentityJooqProvider(final int queriesPerExpirationTask,
@@ -426,6 +484,7 @@ public class StaleOidManagerTest {
             this.getExpiredRecordsQuery = new GetExpiredRecordsQuery();
             this.throwException = throwException;
             this.doNotReturnSuccessfulUpdates = doNotReturnSuccessfulUpdates;
+            this.deleteRecurrentOperations = new DeleteRecurrentOperations();
         }
 
         AssignedIdentityJooqProvider(final int queriesPerExpirationTask,
@@ -433,7 +492,8 @@ public class StaleOidManagerTest {
             this.setExpiredRecordsQuery = new SetExpiredRecordsQuery();
             this.getExpiredRecordsQuery = new GetExpiredRecordsQuery();
             this.expirationDaysPerEntity = expirationDaysPerEntity;
-            this.queriesPerExpirationTask = queriesPerExpirationTask + expirationDaysPerEntity.size() * 2;
+            this.queriesPerExpirationTask = queriesPerExpirationTask;
+            this.deleteRecurrentOperations = new DeleteRecurrentOperations();
         }
 
         @Override
@@ -447,7 +507,7 @@ public class StaleOidManagerTest {
                 Result<Record1<Long>> record =
                     create.newResult(AssignedIdentity.ASSIGNED_IDENTITY.ID);
                 entityStoreOids.forEach(oid -> record.add(create.newRecord(AssignedIdentity.ASSIGNED_IDENTITY.ID).values(oid)));
-                if (expirationDaysPerEntity != null && ctx.bindings().length == expirationDaysPerEntity.size()) {
+                if (expirationDaysPerEntity != null) {
                     getExpiredRecordsQuery.addExpirationPerEntityType((Timestamp)ctx.bindings()[0], (Integer)ctx.bindings()[1]);
                 }
                 mockResult = new MockResult(1, record);
@@ -459,7 +519,7 @@ public class StaleOidManagerTest {
             if (isSetExpiredRecordsQuery(ctx.sql())) {
                 setExpiredRecordsQuery.setExpired((Boolean)ctx.bindings()[0]);
                 setExpiredRecordsQuery.setExpirationDate((Timestamp)ctx.bindings()[1]);
-                if (expirationDaysPerEntity != null && ctx.bindings().length == expirationDaysPerEntity.size() + 1) {
+                if (expirationDaysPerEntity != null) {
                     setExpiredRecordsQuery.addExpirationPerEntityType((Timestamp)ctx.bindings()[1], (Integer)ctx.bindings()[2]);
                 }
             }
@@ -485,11 +545,17 @@ public class StaleOidManagerTest {
                 result.add(recurrentOperationsRecord);
                 mockResult = new MockResult(1, result);
             }
-            if (nQueries == queriesPerExpirationTask && staleOidManagerProcess != null) {
+
+            if (isDeleteRecurrentOperationsQuery(ctx.sql())) {
+                deleteRecurrentOperations.setDeletedRecords(DELETED_OPERATIONS_N);
+            }
+
+            if (nQueries >= queriesPerExpirationTask && staleOidManagerProcess != null) {
                 staleOidManagerProcess.cancel(true);
             }
             if (throwException && nQueries > 1) {
-                throw new NullPointerException(expirationExceptionMessage);
+                nQueries = 1;
+                throw new NullPointerException(EXPIRATION_EXCEPTION_MESSAGE);
             }
             return new MockResult[]{
                 mockResult
@@ -510,6 +576,10 @@ public class StaleOidManagerTest {
 
         public SetExpiredRecordsQuery getSetExpiredRecordsQuery() {
             return setExpiredRecordsQuery;
+        }
+
+        public DeleteRecurrentOperations getDeleteRecurrentOperations() {
+            return deleteRecurrentOperations;
         }
 
         private boolean isGetExpiredRecordsQuery(String sql) {
@@ -534,6 +604,10 @@ public class StaleOidManagerTest {
 
         private boolean isGetRecurrentOperationsQuery(String sql) {
             return sql.contains("select") && sql.contains("recurrent_operations") && !sql.contains("count");
+        }
+
+        private boolean isDeleteRecurrentOperationsQuery(String sql) {
+            return sql.contains("delete") && sql.contains("recurrent_operations");
         }
     }
 
@@ -631,7 +705,7 @@ public class StaleOidManagerTest {
         private final int updatedRecords;
         private final int expiredRecords;
         private String errors;
-        private String operationName;
+        private final String operationName;
 
         SetRecurrentOperationQuery(final Timestamp executionTime, String operationName, boolean successFulExpiration, boolean successFulUpdate,
                 int updatedRecords, int expiredRecords, String summary) {
@@ -666,6 +740,22 @@ public class StaleOidManagerTest {
 
         public boolean isSuccessFulExpiration() {
             return successFulExpiration;
+        }
+    }
+
+    /**
+     * Class that contains the bindings used by the query to delete entries from the
+     * recurrent operations table.
+     */
+    private static class DeleteRecurrentOperations {
+        private int deletedRecords = 0;
+
+        public void setDeletedRecords(int deletedRecords) {
+            this.deletedRecords = deletedRecords;
+        }
+
+        public int getDeletedRecords() {
+            return deletedRecords;
         }
     }
 }
