@@ -210,90 +210,8 @@ public class ReservationMapperTest {
         assertEquals(DATE_TO.getTime(), reservation.getExpirationDate(), 1000);
     }
 
-    /**
-     * Test converting a minimal {@link DemandReservationApiInputDTO} to a {@link Reservation}
-     * protobuf object that describes it inside XL.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test()
-    public void testConvertToReservationRequiredFields() throws Exception {
-
-        DemandReservationApiInputDTO demandApiInputDTO =
-                createReservationApiDTOWithAllRequiredFields();
-        final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
-
-        assertThatAllDTORequiredFieldWereMappedCorrectly(reservation);
-    }
-
-    /**
-     * Tests that the incoming scope is correctly converted to the internal representation.
-     *
-     * @throws Exception - if the conversion fails
-     */
-    @Test
-    public void testConvertToReservationScopesMatch() throws Exception {
-        // ARRANGE
-        DemandReservationApiInputDTO demandReservationApiInputDTO =
-                createReservationApiDTOWithAllRequiredFields();
-        demandReservationApiInputDTO.setScope(ImmutableList.of("1"));
-
-        when(groupServiceMole.countGroups(any())).thenReturn(
-                CountGroupsResponse.newBuilder().setCount(1).build());
-
-        // ACT
-        final Reservation reservation =
-                reservationMapper.convertToReservation(demandReservationApiInputDTO);
-
-        // ASSERT
-        assertThatAllDTORequiredFieldWereMappedCorrectly(reservation);
-        // TODO: add an assertion ensuring that the copied scopes match the supplied once.
-    }
-
-    /**
-     * If any of the given group ids is not a valid group, then the mapping should fail and a
-     * {@link InvalidOperationException} should be thrown.
-     *
-     * @throws Exception - if the mapping fails
-     */
-    @Test(expected = InvalidOperationException.class)
-    public void testConvertToReservationWithInvalidScopeThrowsInvalid() throws Exception {
-        // ARRANGE
-        DemandReservationApiInputDTO demandReservationApiInputDTO =
-                createReservationApiDTOWithAllRequiredFields();
-        demandReservationApiInputDTO.setScope(ImmutableList.of("1", "2"));
-
-        // Only one of the 2 groups actually fits our criteria
-        when(groupServiceMole.countGroups(any())).thenReturn(
-                CountGroupsResponse.newBuilder().setCount(1).build());
-
-        // ACT
-        reservationMapper.convertToReservation(demandReservationApiInputDTO);
-    }
-
-    /**
-     * Make sure that we catch invalid uuids, meaning uuids that are not longs.
-     *
-     * @throws Exception - if the mapping fails
-     */
-    @Test(expected = InvalidOperationException.class)
-    public void testConvertToReservationWithInvalidUuidInScope() throws Exception {
-        // ARRANGE
-        DemandReservationApiInputDTO demandReservationApiInputDTO =
-                createReservationApiDTOWithAllRequiredFields();
-        demandReservationApiInputDTO.setScope(ImmutableList.of("invalid uuid"));
-
-        // ACT
-        reservationMapper.convertToReservation(demandReservationApiInputDTO);
-    }
-
-    /**
-     * Test converting a {@link Reservation} protobuf message to a {@link DemandReservationApiDTO}.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testConvertReservationToApiDTO() throws Exception {
+    @NotNull
+    private static Reservation createReservation() {
         Reservation.Builder reservationBuider = Reservation.newBuilder();
         reservationBuider.setId(111);
         reservationBuider.setName("test-reservation");
@@ -302,7 +220,8 @@ public class ReservationMapperTest {
                 .addReservationConstraintInfo(ReservationConstraintInfo
                         .newBuilder()
                         .setConstraintId(123456L)
-                        .setType(Type.CLUSTER)));
+                        .setType(Type.CLUSTER))
+                .addScopeIds(1L));
         reservationBuider.setStartDate(DATE_FROM.getTime());
         reservationBuider.setExpirationDate(DATE_TO.getTime());
         reservationBuider.setStatus(ReservationStatus.RESERVED);
@@ -345,16 +264,14 @@ public class ReservationMapperTest {
                                 .setProviderId(3L)
                                 .addCommodityBought(storageProvisionedCommodityBoughtDTO)))
                 .build();
-        final Reservation reservation = reservationBuider.setReservationTemplateCollection(
+        return reservationBuider.setReservationTemplateCollection(
                 ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(reservationTemplate))
+                    .addReservationTemplate(reservationTemplate))
                 .build();
+    }
 
-        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
-        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
-
-        final DemandReservationApiDTO reservationApiDTO =
-                reservationMapper.convertReservationToApiDTO(reservation);
+    private void assertThatAllReservationFieldsWereMappedCorrectly(
+            @NotNull DemandReservationApiDTO reservationApiDTO) {
         assertEquals("test-reservation", reservationApiDTO.getDisplayName());
         assertEquals("RESERVED", reservationApiDTO.getStatus());
         assertEquals(1L, reservationApiDTO.getDemandEntities().size());
@@ -432,6 +349,102 @@ public class ReservationMapperTest {
                         .collect(Collectors.toList())
                         .get(0)
                         .getUnits()));
+        assertEquals(reservationApiDTO.getScope().get(0), String.valueOf(1L));
+    }
+
+    /**
+     * Test converting a minimal {@link DemandReservationApiInputDTO} to a {@link Reservation}
+     * protobuf object that describes it inside XL.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test()
+    public void testConvertToReservationRequiredFields() throws Exception {
+
+        DemandReservationApiInputDTO demandApiInputDTO =
+                createReservationApiDTOWithAllRequiredFields();
+        final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
+
+        assertThatAllDTORequiredFieldWereMappedCorrectly(reservation);
+    }
+
+    /**
+     * Tests that the incoming scope is correctly converted to the internal representation.
+     *
+     * @throws Exception - if the conversion fails
+     */
+    @Test
+    public void testConvertToReservationScopesMatch() throws Exception {
+        // ARRANGE
+        DemandReservationApiInputDTO demandReservationApiInputDTO =
+                createReservationApiDTOWithAllRequiredFields();
+        demandReservationApiInputDTO.setScope(ImmutableList.of("1"));
+
+        when(groupServiceMole.countGroups(any())).thenReturn(
+                CountGroupsResponse.newBuilder().setCount(1).build());
+
+        // ACT
+        final Reservation reservation =
+                reservationMapper.convertToReservation(demandReservationApiInputDTO);
+
+        // ASSERT
+        assertThatAllDTORequiredFieldWereMappedCorrectly(reservation);
+        assertEquals(demandReservationApiInputDTO.getScope().get(0),
+            String.valueOf(reservation.getConstraintInfoCollection().getScopeIds(0)));
+    }
+
+    /**
+     * If any of the given group ids is not a valid group, then the mapping should fail and a
+     * {@link InvalidOperationException} should be thrown.
+     *
+     * @throws Exception - if the mapping fails
+     */
+    @Test(expected = InvalidOperationException.class)
+    public void testConvertToReservationWithInvalidScopeThrowsInvalid() throws Exception {
+        // ARRANGE
+        DemandReservationApiInputDTO demandReservationApiInputDTO =
+                createReservationApiDTOWithAllRequiredFields();
+        demandReservationApiInputDTO.setScope(ImmutableList.of("1", "2"));
+
+        // Only one of the 2 groups actually fits our criteria
+        when(groupServiceMole.countGroups(any())).thenReturn(
+                CountGroupsResponse.newBuilder().setCount(1).build());
+
+        // ACT
+        reservationMapper.convertToReservation(demandReservationApiInputDTO);
+    }
+
+    /**
+     * Make sure that we catch invalid uuids, meaning uuids that are not longs.
+     *
+     * @throws Exception - if the mapping fails
+     */
+    @Test(expected = InvalidOperationException.class)
+    public void testConvertToReservationWithInvalidUuidInScope() throws Exception {
+        // ARRANGE
+        DemandReservationApiInputDTO demandReservationApiInputDTO =
+                createReservationApiDTOWithAllRequiredFields();
+        demandReservationApiInputDTO.setScope(ImmutableList.of("invalid uuid"));
+
+        // ACT
+        reservationMapper.convertToReservation(demandReservationApiInputDTO);
+    }
+
+    /**
+     * Test converting a {@link Reservation} protobuf message to a {@link DemandReservationApiDTO}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testConvertReservationToApiDTO() throws Exception {
+        Reservation reservation = createReservation();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        final DemandReservationApiDTO reservationApiDTO =
+                reservationMapper.convertReservationToApiDTO(reservation);
+        assertThatAllReservationFieldsWereMappedCorrectly(reservationApiDTO);
     }
 
     /**

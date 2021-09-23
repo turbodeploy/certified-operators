@@ -194,6 +194,35 @@ public class ReservationDaoImplTest {
     }
 
     @Test
+    public void testCreateReservationWithScope() throws DuplicateTemplateException {
+        Reservation reservation = testFirstReservation.toBuilder()
+                .setConstraintInfoCollection(testFirstReservation.getConstraintInfoCollection()
+                    .toBuilder().addScopeIds(1L).build())
+                .build();
+        Reservation reservationWithTemplate = createReservationWithTemplate(reservation);
+        Reservation createdReservationScope1 = reservationDao.createReservation(reservationWithTemplate);
+        Optional<Reservation> retrievedReservation =
+                reservationDao.getReservationById(createdReservationScope1.getId());
+        assertTrue("Size 1 scope should be present", retrievedReservation.isPresent());
+        assertEquals(retrievedReservation.get().getConstraintInfoCollection().getScopeIdsCount(), 1);
+        assertEquals(retrievedReservation.get().getConstraintInfoCollection().getScopeIds(0), 1L);
+
+        List<Long> scopes = Arrays.asList(2L, 3L);
+        Reservation reservation2 = testSecondReservation.toBuilder()
+                .setConstraintInfoCollection(testSecondReservation.getConstraintInfoCollection()
+                    .toBuilder().addAllScopeIds(scopes).build())
+                .build();
+        Reservation reservationWithTemplate2 = createReservationWithTemplate(reservation2);
+        Reservation createdReservationScope2 = reservationDao.createReservation(reservationWithTemplate2);
+        Optional<Reservation> retrievedReservation2 =
+                reservationDao.getReservationById(createdReservationScope2.getId());
+        assertTrue("Size 2 scope should be present", retrievedReservation2.isPresent());
+        assertEquals(retrievedReservation2.get().getConstraintInfoCollection().getScopeIdsCount(), 2);
+        assertTrue(retrievedReservation2.get().getConstraintInfoCollection().getScopeIdsList().containsAll(scopes));
+    }
+
+
+    @Test
     public void testGetReservationById() throws DuplicateTemplateException {
         Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
         Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);

@@ -204,20 +204,16 @@ public class ReservationMapper {
                         .setConstraintId(constraintId)
                         .build())
                 .collect(Collectors.toList());
-
-        reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection
-                .newBuilder()
-                .addAllReservationConstraintInfo(constraintInfos)
-                .build());
+        ConstraintInfoCollection.Builder constraintsCollectionBuilder
+            = ConstraintInfoCollection.newBuilder().addAllReservationConstraintInfo(constraintInfos);
+        convertScopeFromApi(demandApiInputDTO, constraintsCollectionBuilder);
+        reservationBuilder.setConstraintInfoCollection(constraintsCollectionBuilder.build());
         convertReservationModeGroupingFromApi(demandApiInputDTO, reservationBuilder);
-
-        convertScopeFromApi(demandApiInputDTO, reservationBuilder);
-
         return reservationBuilder.build();
     }
 
     private void convertScopeFromApi(@NotNull DemandReservationApiInputDTO demandApiInputDTO,
-            Reservation.Builder reservationBuilder) throws InvalidOperationException {
+            ConstraintInfoCollection.Builder constraintsCollectionBuilder) throws InvalidOperationException {
         // If scope is not set there is nothing to do
         if (Objects.isNull(demandApiInputDTO.getScope())) {
             return;
@@ -265,8 +261,7 @@ public class ReservationMapper {
         if (numberOfGroupsThatAreAllowed != scope.size()) {
             throw new InvalidOperationException("Provided scopes are not valid");
         }
-        // TODO: copy the scopes to the message when protobuf has been updated
-
+        constraintsCollectionBuilder.addAllScopeIds(scope);
     }
 
     /**
@@ -321,14 +316,13 @@ public class ReservationMapper {
                 reservationApiDTO.setGrouping(ReservationFieldsConverter.groupingToApi(
                         reservation.getReservationGrouping()));
             }
-            // Todo: Here we also need to set the scope in the DTO. This will happen after the protobuf
-            //  is updated.
-            //  sample:
-            //  if (reservation.hasScope()) {
-            //    reservationApiDTO.setScope(reservation.getScope().stream()
-            //            .map(Object::toString)
-            //            .collect(Collectors.toList()));
-            //}
+            if (reservation.hasConstraintInfoCollection()
+                    && !reservation.getConstraintInfoCollection().getScopeIdsList().isEmpty()) {
+                reservationApiDTO.setScope(reservation.getConstraintInfoCollection()
+                    .getScopeIdsList().stream()
+                        .map(Object::toString)
+                        .collect(Collectors.toList()));
+            }
         }
         return reservationApiDTO;
     }
