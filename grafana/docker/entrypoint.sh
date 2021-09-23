@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Makes sure the first command in the piped series fails the entire thing.
 set -eo pipefail
 
@@ -17,18 +16,9 @@ else
   export LOGGER_COMMAND="eval tee >(logger --tag ${instance_id} -u /tmp/log.sock)"
 fi
 
-versionName=${GRAFANA_VERSION_NAME-default}
-
-ln -s -f /var/lib/grafanax/plugins/* "$GF_PATHS_PLUGINS"
-ln -s -f /grafana-$versionName $GF_PATHS_HOME
-
-if [[ $versionName != datacloud ]]; then
-  rm $GF_PATHS_PLUGINS/turbonomic-datacloud-grafana-datasource
-fi
-
 start_grafana() {
     echo "Starting grafana manager" 2>&1 | ${LOGGER_COMMAND}
-   exec python3 /grafana_mgr.py > >($LOGGER_COMMAND) 2>&1
+    python3 /grafana_mgr.py > >($LOGGER_COMMAND) 2>&1
 }
 
 start_grafana
