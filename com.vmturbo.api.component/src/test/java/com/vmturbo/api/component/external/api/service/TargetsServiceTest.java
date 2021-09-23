@@ -369,22 +369,6 @@ public class TargetsServiceTest {
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
-    private TargetInfo createMockTargetInfo(long probeId, long targetId,
-                                            String communicationChannel,
-                                            AccountValue... accountValues)
-        throws Exception {
-        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
-        when(targetInfo.getId()).thenReturn(targetId);
-        when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getAccountData()).thenReturn(
-            new HashSet<>(Arrays.asList(accountValues)));
-        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.of(communicationChannel));
-        when(targetInfo.getStatus()).thenReturn("Validated");
-        when(targetInfo.isHidden()).thenReturn(false);
-        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
-        registeredTargets.put(targetId, targetInfo);
-        return targetInfo;
-    }
 
     private TargetInfo createMockTargetInfo(long probeId, long targetId,
             boolean isHidden, boolean isReadOnly, AccountValue... accountValues)
@@ -618,6 +602,56 @@ public class TargetsServiceTest {
         Assert.assertEquals(probeTypeFilter.get().getStringFilter().getPositiveMatch(), cloud);
         Assert.assertThat(new HashSet<>(probeTypeFilter.get().getStringFilter().getOptionsList()),
             is(GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES));
+    }
+
+    /**
+     * Tests getting target by category.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testFilterTargetsByCategoryType() throws Exception {
+        // ARRANGE
+        final long vcenterProbeId = 1L;
+        final long appDynamicsProbeId = 2L;
+        final long vcenterTargetId = 3L;
+        final long appDynamicsTargetId = 4L;
+        createMockProbeInfo(vcenterProbeId, SDKProbeType.VCENTER.getProbeType(), "Hypervisor", "Hypervisor");
+        createMockProbeInfo(appDynamicsProbeId, SDKProbeType.APPDYNAMICS.getProbeType(), "Guest OS Processes", "Applications and Databases");
+        createMockTargetInfo(vcenterProbeId, vcenterTargetId);
+        createMockTargetInfo(appDynamicsProbeId, appDynamicsTargetId);
+
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+                ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+                SearchTargetsResponse.newBuilder()
+                        .addTargets(4L)
+                        .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                                .setTotalRecordCount(1).build())
+                        .build());
+
+        // ACT
+        final String url = "/targets?target_category=Applications and Databases";
+        final MvcResult result = mockMvc.perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO[].class);
+
+        // ASSERT
+        Assert.assertEquals(1, resp.length);
+        Assert.assertEquals(Long.toString(appDynamicsTargetId), resp[0].getUuid());
+
+        // verify the search request
+        SearchTargetsRequest request = captor.getValue();
+        checkHasTargetVisibilityFilter(request);
+
+        Optional<Search.PropertyFilter> probeTypeFilter = getPropertyByName(request,
+                SearchableProperties.PROBE_TYPE);
+        Assert.assertTrue(probeTypeFilter.isPresent());
+        Assert.assertTrue(probeTypeFilter.get().hasStringFilter());
+        Assert.assertEquals(probeTypeFilter.get().getStringFilter().getPositiveMatch(), true);
+        Assert.assertThat(new HashSet<>(probeTypeFilter.get().getStringFilter().getOptionsList()),
+                containsInAnyOrder(SDKProbeType.APPDYNAMICS.getProbeType()));
     }
 
     private void checkHasTargetVisibilityFilter(SearchTargetsRequest request) {

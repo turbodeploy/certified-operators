@@ -267,7 +267,7 @@ public class TargetsService implements ITargetsService {
             // convert category to types
             if (targetCategory != null) {
                 probeTypes = probeMap.values().stream()
-                    .filter(p -> targetCategory.equals(p.getCategory()))
+                    .filter(p -> targetCategory.equals(p.getUICategory()))
                     .map(ProbeInfo::getType)
                     .collect(Collectors.toSet());
                 if (probeTypes.isEmpty()) {
