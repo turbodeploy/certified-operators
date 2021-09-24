@@ -28,6 +28,7 @@ public class GroupMappers {
             new ImmutableBiMap.Builder<com.vmturbo.api.enums.GroupType, GroupDTO.GroupType>()
                     .put(com.vmturbo.api.enums.GroupType.Group, GroupDTO.GroupType.REGULAR)
                     .put(com.vmturbo.api.enums.GroupType.Resource, GroupDTO.GroupType.RESOURCE)
+                    .put(com.vmturbo.api.enums.GroupType.NodePool, GroupType.NODE_POOL)
                     .put(com.vmturbo.api.enums.GroupType.Cluster, GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
                     .put(com.vmturbo.api.enums.GroupType.StorageCluster, GroupDTO.GroupType.STORAGE_CLUSTER)
                     .put(com.vmturbo.api.enums.GroupType.VMCluster, GroupDTO.GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
