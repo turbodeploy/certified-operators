@@ -63,6 +63,7 @@ import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetDetailLevel;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
+import com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.TargetStatsGroupBy;
@@ -476,11 +477,21 @@ public class TargetsService implements ITargetsService {
                 TargetDetails details = detailsByTarget.get(Long.parseLong(targetApiDTO.getUuid()));
                 if (details != null) {
                     if (details.hasHealthDetails()) {
-                        targetApiDTO.setHealth(HealthDataMapper.mapTargetHealthInfoToDTO(details.getTargetId(),
-                                details.getHealthDetails()));
+                        TargetHealthApiDTO targetHealth = HealthDataMapper.mapTargetHealthInfoToDTO(
+                                details.getTargetId(), details.getHealthDetails());
+                        TargetHealthSummaryApiDTO targetHealthSummary =
+                                new TargetHealthSummaryApiDTO();
+                        targetHealthSummary.setHealthState(targetHealth.getHealthState());
+                        targetHealthSummary.setTimeOfLastSuccessfulDiscovery(
+                                targetHealth.getTimeOfLastSuccessfulDiscovery());
+                        targetApiDTO.setHealthSummary(targetHealthSummary);
+                        if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
+                            targetApiDTO.setHealth(targetHealth);
+                        }
                     }
                     if (detailLevel == TargetDTO.TargetDetailLevel.FULL) {
-                        targetApiDTO.setLastTargetOperationStages(targetDetailsMapper.convertToTargetOperationStages(details));
+                        targetApiDTO.setLastTargetOperationStages(
+                                targetDetailsMapper.convertToTargetOperationStages(details));
                     }
                 }
             }

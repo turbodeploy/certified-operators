@@ -13,6 +13,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -82,6 +83,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.BinaryMessage;
 import org.springframework.web.socket.WebSocketSession;
 
+import common.HealthCheck.HealthState;
+
 import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
@@ -120,6 +123,7 @@ import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -2242,6 +2246,7 @@ public class TargetsServiceTest {
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.BASIC);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
+        assertNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
         assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
         assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
@@ -2268,13 +2273,15 @@ public class TargetsServiceTest {
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
             assertNotNull(targetApiDTO);
+            assertNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
             assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
             assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
     }
 
     /**
-     * When detail_devel=HEALTH response should fill in health but not health details.
+     * When detail_devel=HEALTH response should fill in health summary
+     * but not health details.
      *
      * @throws Exception should not be thrown.
      */
@@ -2285,7 +2292,8 @@ public class TargetsServiceTest {
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH);
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
-        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+        assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
         assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
 
@@ -2315,13 +2323,15 @@ public class TargetsServiceTest {
         verify(targetDetailsMapper, never()).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
-            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
+            assertNull(targetApiDTO.toString(), targetApiDTO.getHealth());
             assertNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
     }
 
     /**
-     * When detail_devel=HEALTH_DETAILS response should fill in health and health details.
+     * When detail_devel=HEALTH_DETAILS
+     * response should fill in health summary and health details.
      *
      * @throws Exception should not be thrown.
      */
@@ -2332,6 +2342,7 @@ public class TargetsServiceTest {
         final TargetApiDTO targetApiDTO = targetsService.getTarget("1", TargetDetailLevel.HEALTH_DETAILS);
         verify(targetDetailsMapper, times(1)).convertToTargetOperationStages(any());
         assertNotNull(targetApiDTO);
+        assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
         assertNotNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
     }
@@ -2362,9 +2373,57 @@ public class TargetsServiceTest {
         verify(targetDetailsMapper, times(2)).convertToTargetOperationStages(any());
         Assert.assertEquals(2, targetPaginationResponse.getRawResults().size());
         for(TargetApiDTO targetApiDTO : targetPaginationResponse.getRawResults()) {
+            assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealthSummary());
             assertNotNull(targetApiDTO.toString(), targetApiDTO.getHealth());
             assertNotNull(targetApiDTO.toString(), targetApiDTO.getLastTargetOperationStages());
         }
+    }
+
+    /**
+     * TargetApiDTO should fill in {@link com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO}
+     * using {@link TargetHealth} when the {@link TargetDetailLevel} is not 'BASIC'.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetWithHealthHasHealthSummary() throws Exception {
+        final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
+        doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
+        HealthState healthState = HealthState.NORMAL;
+        long timeOfLastSuccessfulDiscovery = System.currentTimeMillis();
+        TargetHealth targetHealth = TargetHealth.newBuilder()
+                .setHealthState(healthState)
+                .setLastSuccessfulDiscoveryCompletionTime(timeOfLastSuccessfulDiscovery)
+                .build();
+        Map<Long, TargetHealth> healthMap = ImmutableMap.of(1L, targetHealth);
+        mockTargetHealth(healthMap);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget("1",
+                TargetDetailLevel.HEALTH);
+        assertNotNull(targetApiDTO);
+        Assert.assertEquals(targetApiDTO.getHealthSummary().getHealthState().toString(),
+                targetHealth.getHealthState().toString());
+        Assert.assertEquals(targetApiDTO.getHealthSummary().getTimeOfLastSuccessfulDiscovery(),
+                DateTimeUtil.toString(targetHealth.getLastSuccessfulDiscoveryCompletionTime()));
+    }
+
+    /**
+     * TargetApiDTO should fill in {@link com.vmturbo.api.dto.target.TargetHealthSummaryApiDTO}
+     * using {@link TargetHealth} when the {@link TargetDetailLevel} is not 'BASIC'.
+     *
+     * tests that healthState is present even if it can't derive values from {@link TargetHealth}
+     * and that lastSuccessfulDiscovery is null (nullable field).
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetTargetWithHealthWhenTargetHealthNotPresent() throws Exception {
+        final TargetInfo targetInfo = createMockTargetInfo(1L, 1L);
+        doReturn(targetInfo).when(topologyProcessor).getTarget(1L);
+        final TargetApiDTO targetApiDTO = targetsService.getTarget("1",
+                TargetDetailLevel.HEALTH);
+        assertNotNull(targetApiDTO);
+        assertNotNull(targetApiDTO.getHealthSummary().getHealthState()); // required field
+        assertNull(targetApiDTO.getHealthSummary().getTimeOfLastSuccessfulDiscovery());
     }
 
     private void mockTargetHealth(Map<Long, TargetHealth> health) {
